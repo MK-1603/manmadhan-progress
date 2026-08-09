@@ -1,0 +1,808 @@
+Created At: 2026-08-05T23:44:52Z
+Completed At: 2026-08-05T23:44:53Z
+File Path: `file:///d:/New%20folder%20%284%29/manmadhan-progress/apps/web/components/auth/auth-form.tsx`
+Total Lines: 1409
+Total Bytes: 63694
+Showing lines 1 to 800
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+1: "use client";
+2: 
+3: import { useState, useEffect, useRef } from "react";
+4: import {
+5:   ArrowLeft,
+6:   ArrowRight,
+7:   CheckCircle2,
+8:   UserCheck,
+9:   Building2,
+10:   Crown,
+11:   Plus,
+12:   Loader2,
+13:   Check,
+14:   ShieldCheck,
+15:   Briefcase,
+16:   MailCheck,
+17:   Sparkles,
+18:   Zap,
+19:   Lock,
+20:   Layers,
+21:   CheckSquare,
+22:   Eye,
+23:   EyeOff,
+24:   AlertTriangle,
+25:   XCircle,
+26:   RefreshCw,
+27:   Mail,
+28:   KeyRound,
+29:   Ban,
+30:   Clock,
+31:   ServerCrash,
+32:   MonitorSmartphone,
+33:   HelpCircle,
+34:   Link2Off,
+35:   Fingerprint,
+36:   ScanFace,
+37:   User,
+38:   Building,
+39:   ChevronDown,
+40:   Rocket
+41: } from "lucide-react";
+42: import { motion, AnimatePresence } from "framer-motion";
+43: import { GoogleButton } from "./google-button";
+44: import { MockAuthService, AccountStatus } from "./mock-auth-service";
+45: 
+46: export type AuthState =
+47:   | "IDLE"
+48:   | "EMAIL_ENTRY"
+49:   | "EMAIL_VALIDATION"
+50:   | "ACCOUNT_CREATED"
+51:   | "ACCOUNT_PENDING"
+52:   | "ACCOUNT_SEEN"
+53:   | "OTP_SENT"
+54:   | "OTP_VERIFICATION"
+55:   | "OTP_SUCCESS"
+56:   | "PASSWORD_CREATION"
+57:   | "PASSWORD_CREATED"
+58:   | "LOGIN_PASSWORD"
+59:   | "LOGIN_SUCCESS"
+60:   | "PROFILE_SETUP"
+61:   | "ORGANIZATION_SETUP"
+62:   | "GOOGLE_LINK"
+63:   | "GOOGLE_LOGIN"
+64:   | "FORGOT_PASSWORD"
+65:   | "RESET_EMAIL_SENT"
+66:   | "PASSWORD_RESET"
+67:   | "PASSWORD_RESET_SUCCESS"
+68:   | "INVITATION_ACCEPTED"
+69:   | "INVITATION_EXPIRED"
+70:   | "SESSION_EXPIRED"
+71:   | "ACCOUNT_LOCKED"
+72:   | "ACCOUNT_SUSPENDED"
+73:   | "ACCOUNT_DELETED"
+74:   | "EMAIL_ALREADY_VERIFIED"
+75:   | "INVALID_RESET_LINK"
+76:   | "DEVICE_REPLACED"
+77:   | "MAINTENANCE"
+78:   | "AUTH_404"
+79:   | "SUCCESS"
+80:   | "ERROR";
+81: 
+82: export function AuthForm({ onComplete }: { onComplete: () => void }) {
+83:   const [state, setState] = useState<AuthState>("EMAIL_ENTRY");
+84:   
+85:   // Core State
+86:   const [email, setEmail] = useState("");
+87:   const [password, setPassword] = useState("");
+88:   const [confirmPassword, setConfirmPassword] = useState("");
+89:   const [showPassword, setShowPassword] = useState(false);
+90:   const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
+91:   
+92:   // Profile State
+93:   const [firstName, setFirstName] = useState("Sai");
+94:   const [lastName, setLastName] = useState("Krishnan S");
+95:   const [role, setRole] = useState<"CEO / Founder" | "Senior Systems Architect" | "Product Manager">("CEO / Founder");
+96:   const [orgName, setOrgName] = useState("Acme Global Corp");
+97:   const [workspaces, setWorkspaces] = useState<string[]>(["Executive Strategy", "Engineering OS", "Product Design"]);
+98:   const [inviteEmails, setInviteEmails] = useState("alex@acme.com, dev@acme.com");
+99:   
+100:   // Custom Timezone State
+101:   const [tzOpen, setTzOpen] = useState(false);
+102:   const [timezone, setTimezone] = useState("UTC+05:30 (India Standard Time)");
+103:   const timezones = [
+104:     "UTC-08:00 (Pacific Time)",
+105:     "UTC-05:00 (Eastern Time)",
+106:     "UTC+00:00 (London, GMT)",
+107:     "UTC+01:00 (Central Europe)",
+108:     "UTC+05:30 (India Standard Time)",
+109:     "UTC+09:00 (Tokyo, Japan)"
+110:   ];
+111:   
+112:   // UI State
+113:   const [loading, setLoading] = useState(false);
+114:   const [error, setError] = useState("");
+115:   
+116:   // OTP State
+117:   const [otpTimer, setOtpTimer] = useState(300); // 5 mins
+118:   const [resendCooldown, setResendCooldown] = useState(30);
+119:   const [resendCount, setResendCount] = useState(0);
+120: 
+121:   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+122: 
+123:   // OTP Timer Logic
+124:   useEffect(() => {
+125:     if (state === "OTP_VERIFICATION") {
+126:       const interval = setInterval(() => {
+127:         setOtpTimer((prev) => (prev > 0 ? prev - 1 : 0));
+128:         setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+129:       }, 1000);
+130:       return () => clearInterval(interval);
+131:     }
+132:   }, [state]);
+133: 
+134:   const handleEmailSubmit = async (e: React.FormEvent) => {
+135:     e.preventDefault();
+136:     setError("");
+137:     if (!/^\S+@\S+\.\S+$/.test(email)) {
+138:       return setError("Please enter a valid email address.");
+139:     }
+140:     
+141:     setState("EMAIL_VALIDATION");
+142:     
+143:     try {
+144:       const status = await MockAuthService.checkAccountStatus(email);
+145:       
+146:       switch (status) {
+147:         case "Activated":
+148:           setState("LOGIN_PASSWORD");
+149:           break;
+150:         case "Created":
+151:         case "Pending":
+152:         case "Seen":
+153:           setState("OTP_VERIFICATION");
+154:           setOtpTimer(300);
+155:           setResendCooldown(30);
+156:           break;
+157:         case "Locked":
+158:           setState("ACCOUNT_LOCKED");
+159:           break;
+160:         case "Suspended":
+161:           setState("ACCOUNT_SUSPENDED");
+162:           break;
+163:         case "Deleted":
+164:           setState("ACCOUNT_DELETED");
+165:           break;
+166:         case "Invitation_Expired":
+167:           setState("INVITATION_EXPIRED");
+168:           break;
+169:         case "Already_Verified":
+170:           setState("EMAIL_ALREADY_VERIFIED");
+171:           break;
+172:         case "Invalid_Link":
+173:           setState("INVALID_RESET_LINK");
+174:           break;
+175:         case "Maintenance":
+176:           setState("MAINTENANCE");
+177:           break;
+178:         case "Auth_404":
+179:           setState("AUTH_404");
+180:           break;
+181:         case "Device_Replaced":
+182:           setState("DEVICE_REPLACED");
+183:           break;
+184:         case "Not_Found":
+185:           // If not found, act like we are creating it, send to OTP
+186:           setState("OTP_VERIFICATION");
+187:           setOtpTimer(300);
+188:           setResendCooldown(30);
+189:           break;
+190:         default:
+191:           setState("EMAIL_ENTRY");
+192:       }
+193:     } catch (err) {
+194:       setError("An error occurred checking account status.");
+195:       setState("EMAIL_ENTRY");
+196:     }
+197:   };
+198: 
+199:   const handleLoginSubmit = async (e: React.FormEvent) => {
+200:     e.preventDefault();
+201:     setError("");
+202:     setLoading(true);
+203:     const res = await MockAuthService.login(password);
+204:     setLoading(false);
+205:     if (res.success) {
+206:       setState("SUCCESS");
+207:       // Mock successful login redirection based on requested role
+208:       setTimeout(() => {
+209:         window.location.href = "/ceo/dashboard";
+210:       }, 1500);
+211:     } else {
+212:       setError(res.error || "Login failed");
+213:     }
+214:   };
+215: 
+216:   const handleOtpDigitChange = (index: number, value: string) => {
+217:     if (value.length > 1) {
+218:       // Paste support
+219:       const pasted = value.slice(0, 6).split("");
+220:       const newOtp = [...otpDigits];
+221:       pasted.forEach((char, i) => {
+222:         if (index + i < 6) newOtp[index + i] = char;
+223:       });
+224:       setOtpDigits(newOtp);
+225:       const nextIndex = Math.min(index + pasted.length, 5);
+226:       otpInputRefs.current[nextIndex]?.focus();
+227:       
+228:       // Auto submit if full
+229:       if (newOtp.every(d => d !== "")) {
+230:         handleOtpVerify(null, newOtp.join(""));
+231:       }
+232:       return;
+233:     }
+234:     
+235:     const updated = [...otpDigits];
+236:     updated[index] = value;
+237:     setOtpDigits(updated);
+238: 
+239:     if (value && index < 5) {
+240:       otpInputRefs.current[index + 1]?.focus();
+241:     }
+242:     
+243:     if (updated.every(d => d !== "")) {
+244:       handleOtpVerify(null, updated.join(""));
+245:     }
+246:   };
+247: 
+248:   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+249:     if (e.key === "Backspace" && !otpDigits[index] && index > 0) {
+250:       otpInputRefs.current[index - 1]?.focus();
+251:     }
+252:   };
+253: 
+254:   const handleOtpVerify = async (e: React.FormEvent | null, codeStr?: string) => {
+255:     if (e) e.preventDefault();
+256:     setError("");
+257:     const code = codeStr || otpDigits.join("");
+258:     if (code.length < 6) {
+259:       return setError("Please enter all 6 digits of the OTP.");
+260:     }
+261:     setLoading(true);
+262:     const res = await MockAuthService.verifyOTP(code);
+263:     setLoading(false);
+264:     
+265:     if (res.success) {
+266:       setState("OTP_SUCCESS");
+267:       // Wait for the full 'Verifying...' (1.5s) + 'Tick Animation' (1.5s) to finish
+268:       setTimeout(() => {
+269:         setState("PASSWORD_CREATION");
+270:       }, 3200);
+271:     } else {
+272:       setError(res.error || "Invalid OTP");
+273:     }
+274:   };
+275: 
+276:   const handleResendOtp = async () => {
+277:     if (resendCooldown > 0) return;
+278:     if (resendCount >= 3) {
+279:       return setError("Maximum resend limit reached. Try again later.");
+280:     }
+281:     setLoading(true);
+282:     await new Promise(resolve => setTimeout(resolve, 800));
+283:     setLoading(false);
+284:     setResendCooldown(30);
+285:     setResendCount(prev => prev + 1);
+286:     setError("A new code has been sent.");
+287:   };
+288: 
+289:   const handlePasswordCreation = async (e: React.FormEvent) => {
+290:     e.preventDefault();
+291:     setError("");
+292:     if (!passwordStrength.isValid) return setError("Password does not meet requirements.");
+293:     if (password !== confirmPassword) return setError("Passwords do not match.");
+294:     
+295:     setLoading(true);
+296:     const res = await MockAuthService.createPassword(password);
+297:     setLoading(false);
+298:     
+299:     if (res.success) {
+300:       setState("PROFILE_SETUP");
+301:     } else {
+302:       setError("Failed to create password");
+303:     }
+304:   };
+305: 
+306:   const handleForgotPassword = async (e: React.FormEvent) => {
+307:     e.preventDefault();
+308:     setError("");
+309:     setLoading(true);
+310:     await MockAuthService.forgotPassword(email);
+311:     setLoading(false);
+312:     setState("RESET_EMAIL_SENT");
+313:   };
+314: 
+315:   const handleResetPassword = async (e: React.FormEvent) => {
+316:     e.preventDefault();
+317:     setError("");
+318:     if (!passwordStrength.isValid) return setError("Password does not meet requirements.");
+319:     setLoading(true);
+320:     await MockAuthService.resetPassword(password);
+321:     setLoading(false);
+322:     setState("PASSWORD_RESET_SUCCESS");
+323:   };
+324: 
+325:   // Password Strength Logic
+326:   const passwordStrength = {
+327:     length: password.length >= 8,
+328:     upper: /[A-Z]/.test(password),
+329:     lower: /[a-z]/.test(password),
+330:     number: /[0-9]/.test(password),
+331:     special: /[^A-Za-z0-9]/.test(password),
+332:     get isValid() {
+333:       return this.length && this.upper && this.lower && this.number && this.special;
+334:     }
+335:   };
+336: 
+337:   const formatTime = (seconds: number) => {
+338:     const m = Math.floor(seconds / 60);
+339:     const s = seconds % 60;
+340:     return `${m}:${s.toString().padStart(2, '0')}`;
+341:   };
+342: 
+343:   return (
+344:     <div className="w-full">
+345:       {/* Dynamic Header */}
+346:       {["EMAIL_ENTRY", "LOGIN_PASSWORD", "OTP_VERIFICATION", "PASSWORD_CREATION", "PROFILE_SETUP", "ORGANIZATION_SETUP", "FORGOT_PASSWORD", "PASSWORD_RESET"].includes(state) && (
+347:         <div className="mb-4 flex items-center justify-between border-b border-border dark:border-border pb-3">
+348:           <span className="text-[10px] font-mono font-bold tracking-[0.2em] text-gold uppercase">
+349:             {state === "EMAIL_ENTRY" && "IDENTIFICATION"}
+350:             {state === "LOGIN_PASSWORD" && "AUTHENTICATION"}
+351:             {state === "OTP_VERIFICATION" && "SECURITY VERIFICATION"}
+352:             {state === "PASSWORD_CREATION" && "SECURE ACCOUNT"}
+353:             {state === "PROFILE_SETUP" && "SYSTEM SEEDED ROLE"}
+354:             {state === "ORGANIZATION_SETUP" && "WORKSPACE ALLOCATION"}
+355:             {state === "FORGOT_PASSWORD" && "ACCOUNT RECOVERY"}
+356:             {state === "PASSWORD_RESET" && "RESET CREDENTIALS"}
+357:           </span>
+358:         </div>
+359:       )}
+360: 
+361:       <AnimatePresence mode="wait">
+362:         {/* EMAIL ENTRY */}
+363:         {state === "EMAIL_ENTRY" && (
+364:           <motion.form
+365:             key="email"
+366:             initial={{ opacity: 0, rotateY: -15, z: -20 }}
+367:             animate={{ opacity: 1, rotateY: 0, z: 0 }}
+368:             exit={{ opacity: 0, rotateY: 15, z: -20 }}
+369:             transition={{ duration: 0.3 }}
+370:             onSubmit={handleEmailSubmit}
+371:             className="space-y-4"
+372:             noValidate
+373:           >
+374:             <GoogleButton onClick={async () => {
+375:               setState("GOOGLE_LOGIN");
+376:               await MockAuthService.linkGoogle();
+377:               setState("SUCCESS");
+378:               setTimeout(() => { onComplete(); window.location.href = "/ceo/dashboard"; }, 2000);
+379:             }} />
+380: 
+381:             <div className="flex items-center gap-3 text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground my-1">
+382:               <span className="h-px flex-1 bg-white/10" />
+383:               OR ENTER EMAIL
+384:               <span className="h-px flex-1 bg-white/10" />
+385:             </div>
+386: 
+387:             <div>
+388:               <label htmlFor="auth-email" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+389:                 Work Email Address
+390:               </label>
+391:               <input
+392:                 id="auth-email"
+393:                 type="email"
+394:                 autoComplete="email"
+395:                 value={email}
+396:                 onChange={(e) => setEmail(e.target.value)}
+397:                 placeholder="you@company.com"
+398:                 className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-xs text-foreground outline-none transition-all placeholder:text-muted-foreground focus:border-gold focus:ring-2 focus:ring-gold/20"
+399:               />
+400:             </div>
+401: 
+402:             {error && <p role="alert" className="text-xs text-rose-400 font-semibold">{error}</p>}
+403: 
+404:             <motion.button
+405:               type="submit"
+406:               disabled={loading}
+407:               whileTap={{ scale: 0.98 }}
+408:               className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-foreground hover:bg-foreground/90 text-background text-xs font-extrabold shadow-md transition-all cursor-pointer mt-2"
+409:             >
+410:               <span>{loading ? "Checking Status..." : "Continue with Email"}</span>
+411:               <ArrowRight className="h-4 w-4 stroke-[2.2]" />
+412:             </motion.button>
+413:           </motion.form>
+414:         )}
+415: 
+416:         {/* EMAIL VALIDATION LOADER */}
+417:         {state === "EMAIL_VALIDATION" && (
+418:           <motion.div
+419:             key="email-validation"
+420:             initial={{ opacity: 0, scale: 0.9 }}
+421:             animate={{ opacity: 1, scale: 1 }}
+422:             className="flex flex-col items-center justify-center py-10 space-y-4"
+423:           >
+424:             <Loader2 className="w-8 h-8 text-gold animate-spin" />
+425:             <p className="text-xs text-muted-foreground font-mono">Validating Account Status...</p>
+426:           </motion.div>
+427:         )}
+428: 
+429:         {/* LOGIN PASSWORD */}
+430:         {state === "LOGIN_PASSWORD" && (
+431:           <motion.form
+432:             key="login-password"
+433:             initial={{ opacity: 0, x: 20 }}
+434:             animate={{ opacity: 1, x: 0 }}
+435:             exit={{ opacity: 0, x: -20 }}
+436:             onSubmit={handleLoginSubmit}
+437:             className="space-y-4"
+438:           >
+439:             <div className="rounded-xl border border-border bg-muted p-3 space-y-0.5">
+440:               <span className="text-[11px] font-medium text-muted-foreground block">Logging in as:</span>
+441:               <span className="text-xs font-mono font-bold text-foreground block">{email}</span>
+442:             </div>
+443: 
+444:             <div>
+445:               <div className="flex items-center justify-between mb-1.5">
+446:                 <label className="block text-xs font-semibold text-muted-foreground">Password</label>
+447:                 <button 
+448:                   type="button" 
+449:                   onClick={() => setState("FORGOT_PASSWORD")}
+450:                   className="text-[11px] font-medium text-gold hover:text-gold-hover"
+451:                 >
+452:                   Forgot Password?
+453:                 </button>
+454:               </div>
+455:               <div className="relative">
+456:                 <input
+457:                   type={showPassword ? "text" : "password"}
+458:                   value={password}
+459:                   onChange={(e) => setPassword(e.target.value)}
+460:                   className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-xs text-foreground outline-none transition-all focus:border-gold focus:ring-2 focus:ring-gold/20"
+461:                 />
+462:                 <button
+463:                   type="button"
+464:                   onClick={() => setShowPassword(!showPassword)}
+465:                   className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+466:                 >
+467:                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+468:                 </button>
+469:               </div>
+470:             </div>
+471: 
+472:             {error && <p role="alert" className="text-xs text-rose-400 font-semibold">{error}</p>}
+473: 
+474:             <div className="flex gap-2 pt-1">
+475:               <button
+476:                 type="button"
+477:                 onClick={() => setState("EMAIL_ENTRY")}
+478:                 className="px-3.5 py-2.5 rounded-xl border border-border bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+479:               >
+480:                 <ArrowLeft className="w-4 h-4" />
+481:               </button>
+482:               <motion.button
+483:                 type="submit"
+484:                 disabled={loading}
+485:                 whileTap={{ scale: 0.98 }}
+486:                 className="flex-1 flex h-11 items-center justify-center gap-2 rounded-xl bg-foreground hover:bg-foreground/90 text-background text-xs font-extrabold shadow-md transition-all cursor-pointer"
+487:               >
+488:                 <span>{loading ? "Authenticating..." : "Sign In"}</span>
+489:                 <ArrowRight className="h-4 w-4 stroke-[2.2]" />
+490:               </motion.button>
+491:             </div>
+492:             
+493:             <div className="pt-2">
+494:               <GoogleButton onClick={async () => {
+495:                 setState("GOOGLE_LOGIN");
+496:                 await MockAuthService.linkGoogle();
+497:                 setState("SUCCESS");
+498:                 setTimeout(() => { onComplete(); window.location.href = "/ceo/dashboard"; }, 2000);
+499:               }} />
+500:             </div>
+501:           </motion.form>
+502:         )}
+503: 
+504:         {/* OTP VERIFICATION */}
+505:         {state === "OTP_VERIFICATION" && (
+506:           <motion.form
+507:             key="otp"
+508:             initial={{ opacity: 0, rotateY: -15 }}
+509:             animate={{ opacity: 1, rotateY: 0 }}
+510:             exit={{ opacity: 0, rotateY: 15 }}
+511:             transition={{ duration: 0.3 }}
+512:             onSubmit={(e) => handleOtpVerify(e)}
+513:             className="space-y-4"
+514:           >
+515:             <div className="rounded-xl border border-border bg-muted p-3 flex justify-between items-center">
+516:               <div>
+517:                 <span className="text-[11px] font-medium text-muted-foreground block">Code sent to:</span>
+518:                 <span className="text-xs font-mono font-bold text-foreground block">{email}</span>
+519:               </div>
+520:               <div className="text-right">
+521:                 <span className="text-[11px] font-medium text-muted-foreground block">Valid for</span>
+522:                 <span className={`text-xs font-mono font-bold block ${otpTimer < 60 ? 'text-rose-400' : 'text-emerald-400'}`}>
+523:                   {formatTime(otpTimer)}
+524:                 </span>
+525:               </div>
+526:             </div>
+527: 
+528:             <div>
+529:               <label className="mb-2 block text-xs font-bold text-muted-foreground uppercase tracking-wider text-center">
+530:                 Enter 6-Digit 3D Security Code
+531:               </label>
+532: 
+533:               <div className="flex justify-center gap-2 [perspective:1000px] py-4">
+534:                 {otpDigits.map((digit, idx) => (
+535:                   <motion.div
+536:                     key={idx}
+537:                     animate={
+538:                       loading
+539:                         ? { rotateX: [0, -360], z: [0, 20, 0] }
+540:                         : { 
+541:                             rotateY: digit ? 0 : 25, 
+542:                             rotateX: digit ? 0 : 15,
+543:                             scale: digit ? 1.05 : 0.95,
+544:                             z: digit ? 10 : -10
+545:                           }
+546:                     }
+547:                     transition={
+548:                       loading
+549:                         ? { duration: 1.2, repeat: Infinity, delay: idx * 0.1, ease: "easeInOut" }
+550:                         : { type: "spring", stiffness: 400, damping: 25, mass: 0.8 }
+551:                     }
+552:                     className="relative w-[42px] h-[52px] sm:w-[52px] sm:h-[64px] transform-gpu [transform-style:preserve-3d]"
+553:                   >
+554:                     <input
+555:                       ref={(el) => { otpInputRefs.current[idx] = el; }}
+556:                       type="text"
+557:                       maxLength={6}
+558:                       value={digit}
+559:                       disabled={loading}
+560:                       onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
+561:                       onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+562:                       className={`w-full h-full text-center font-mono font-extrabold text-xl sm:text-2xl rounded-xl outline-none transition-all duration-300 dark:shadow-[0_8px_20px_rgba(0,0,0,0.6),inset_0_1px_1px_rgba(255,255,255,0.15)] ${
+563:                         digit
+564:                           ? "bg-gradient-to-br from-white to-slate-100 shadow-[0_8px_16px_rgba(200,155,60,0.2)] dark:from-[#1e2433] dark:to-[#0d1017] border-2 border-gold text-gold dark:shadow-[0_0_20px_rgba(200,155,60,0.4)] ring-4 ring-gold/10"
+565:                           : "bg-slate-50/50 shadow-[inset_0_4px_8px_rgba(0,0,0,0.05)] dark:bg-muted border border-border text-muted-foreground focus:border-gold/50 focus:bg-white dark:focus:bg-card"
+566:                       }`}
+567:                     />
+568:                   </motion.div>
+569:                 ))}
+570:               </div>
+571:             </div>
+572: 
+573:             {error && <p role="alert" className="text-xs text-rose-400 font-semibold text-center">{error}</p>}
+574: 
+575:             <div className="flex gap-2 pt-1">
+576:               <button
+577:                 type="button"
+578:                 onClick={() => setState("EMAIL_ENTRY")}
+579:                 className="w-11 h-11 shrink-0 flex items-center justify-center rounded-xl border border-border bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+580:               >
+581:                 <ArrowLeft className="w-4 h-4" />
+582:               </button>
+583:               <motion.button
+584:                 type="submit"
+585:                 disabled={loading || otpTimer === 0}
+586:                 whileTap={{ scale: 0.98 }}
+587:                 className="flex-1 flex h-11 items-center justify-center gap-2 rounded-xl bg-foreground hover:bg-foreground/90 text-background text-xs font-extrabold shadow-md transition-all cursor-pointer disabled:opacity-50"
+588:               >
+589:                 <span>{loading ? "Verifying..." : "Verify Code"}</span>
+590:                 <ArrowRight className="h-4 w-4 stroke-[2.2]" />
+591:               </motion.button>
+592:             </div>
+593: 
+594:             <div className="text-center pt-2">
+595:               <button
+596:                 type="button"
+597:                 onClick={handleResendOtp}
+598:                 disabled={resendCooldown > 0 || resendCount >= 3 || loading}
+599:                 className="text-[11px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+600:               >
+601:                 {resendCount >= 3 ? "Max resend attempts reached" : resendCooldown > 0 ? `Resend Code in ${resendCooldown}s` : "Didn't receive a code? Resend"}
+602:               </button>
+603:             </div>
+604:           </motion.form>
+605:         )}
+606: 
+607:         {/* OTP SUCCESS (Pre-loader + 3D Tick) */}
+608:         {state === "OTP_SUCCESS" && (
+609:           <motion.div
+610:             key="otp-success"
+611:             initial={{ opacity: 0 }}
+612:             animate={{ opacity: 1 }}
+613:             className="relative flex flex-col items-center justify-center py-10 min-h-[250px]"
+614:           >
+615:             {/* 1. Verifying Details Loader */}
+616:             <motion.div
+617:               initial={{ opacity: 1, scale: 1 }}
+618:               animate={{ opacity: 0, scale: 0.9 }}
+619:               transition={{ delay: 1.2, duration: 0.3, ease: "easeIn" }}
+620:               className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none"
+621:             >
+622:               <div className="relative w-16 h-16 mb-4 flex items-center justify-center">
+623:                 <motion.div 
+624:                   animate={{ rotate: 360 }} 
+625:                   transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+626:                   className="absolute inset-0 border-4 border-gold/20 border-t-gold rounded-full"
+627:                 />
+628:                 <ScanFace className="w-6 h-6 text-gold drop-shadow-md" />
+629:               </div>
+630:               <h3 className="text-lg font-bold text-foreground tracking-tight">Verifying Details...</h3>
+631:             </motion.div>
+632: 
+633:             {/* 2. Identity Verified 3D Scene */}
+634:             <motion.div 
+635:               initial={{ opacity: 0, scale: 0.9 }}
+636:               animate={{ opacity: 1, scale: 1 }}
+637:               transition={{ delay: 1.5, duration: 0.4, type: "spring" }}
+638:               className="flex flex-col items-center justify-center space-y-8 [perspective:1200px]"
+639:             >
+640:               {/* 3D Success Scene */}
+641:               <div className="relative w-28 h-28 flex items-center justify-center transform-gpu [transform-style:preserve-3d]">
+642:                 
+643:                 {/* Spinning 3D Orbit Rings */}
+644:                 {[1, 2, 3].map((ring) => (
+645:                   <motion.div
+646:                     key={ring}
+647:                     initial={{ rotateX: 70, rotateY: 20, scale: 0, opacity: 0 }}
+648:                     animate={{ 
+649:                       rotateZ: 360, 
+650:                       scale: 1 + (ring * 0.25), 
+651:                       opacity: [0, 0.5, 0] 
+652:                     }}
+653:                     transition={{ 
+654:                       duration: 3, 
+655:                       repeat: Infinity, 
+656:                       ease: "linear",
+657:                       delay: 1.5 + (ring * 0.15)
+658:                     }}
+659:                     className="absolute inset-0 rounded-full border-2 border-emerald-400/40"
+660:                   />
+661:                 ))}
+662: 
+663:                 {/* Main 3D Base Platform */}
+664:                 <motion.div
+665:                   initial={{ rotateX: 60, scale: 0, z: -20, opacity: 0 }}
+666:                   animate={{ rotateX: 0, scale: 1, z: 0, opacity: 1 }}
+667:                   transition={{ type: "spring", damping: 20, stiffness: 200, delay: 1.55 }}
+668:                   className="absolute inset-0 rounded-[2rem] bg-gradient-to-tr from-emerald-400 to-emerald-600 shadow-[0_20px_50px_rgba(16,185,129,0.5)] border border-emerald-300 dark:border-emerald-500"
+669:                 />
+670: 
+671:                 {/* The Drawing SVG Tick */}
+672:                 <motion.div
+673:                   initial={{ scale: 0, opacity: 0, z: 0 }}
+674:                   animate={{ scale: 1, opacity: 1, z: 30 }}
+675:                   transition={{ delay: 1.65, type: "spring", damping: 15, stiffness: 250 }}
+676:                   className="relative z-10 w-20 h-20 rounded-full bg-white dark:bg-[#0D111A] flex items-center justify-center shadow-2xl border-4 border-emerald-100 dark:border-emerald-900/50"
+677:                 >
+678:                   <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-sm">
+679:                     <motion.path
+680:                       initial={{ pathLength: 0 }}
+681:                       animate={{ pathLength: 1 }}
+682:                       transition={{ duration: 0.6, ease: "easeInOut", delay: 1.75 }}
+683:                       d="M20 6L9 17l-5-5"
+684:                     />
+685:                   </svg>
+686:                 </motion.div>
+687:               </div>
+688:               
+689:               <div className="text-center">
+690:                 <motion.h3 
+691:                   initial={{ y: 15, opacity: 0 }}
+692:                   animate={{ y: 0, opacity: 1 }}
+693:                   transition={{ delay: 1.7, type: "spring", damping: 20, stiffness: 300 }}
+694:                   className="text-2xl font-black text-emerald-500 tracking-tight"
+695:                 >
+696:                   Identity Verified
+697:                 </motion.h3>
+698:                 <motion.p
+699:                   initial={{ y: 10, opacity: 0 }}
+700:                   animate={{ y: 0, opacity: 1 }}
+701:                   transition={{ delay: 1.8, type: "spring", damping: 20, stiffness: 300 }}
+702:                   className="text-sm font-medium text-muted-foreground mt-2"
+703:                 >
+704:                   Secure session established
+705:                 </motion.p>
+706:               </div>
+707:             </motion.div>
+708:           </motion.div>
+709:         )}
+710: 
+711:         {/* PASSWORD CREATION */}
+712:         {state === "PASSWORD_CREATION" && (
+713:           <motion.form
+714:             key="password-creation"
+715:             initial={{ opacity: 0, x: 20 }}
+716:             animate={{ opacity: 1, x: 0 }}
+717:             exit={{ opacity: 0, x: -20 }}
+718:             onSubmit={handlePasswordCreation}
+719:             className="space-y-4"
+720:           >
+721:              <div>
+722:               <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Create Secure Password</label>
+723:               <div className="relative">
+724:                 <input
+725:                   type={showPassword ? "text" : "password"}
+726:                   value={password}
+727:                   onChange={(e) => setPassword(e.target.value)}
+728:                   className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-xs text-foreground outline-none transition-all focus:border-gold focus:ring-2 focus:ring-gold/20"
+729:                 />
+730:                 <button
+731:                   type="button"
+732:                   onClick={() => setShowPassword(!showPassword)}
+733:                   className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+734:                 >
+735:                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+736:                 </button>
+737:               </div>
+738:             </div>
+739: 
+740:             <div>
+741:               <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Confirm Password</label>
+742:               <input
+743:                 type={showPassword ? "text" : "password"}
+744:                 value={confirmPassword}
+745:                 onChange={(e) => setConfirmPassword(e.target.value)}
+746:                 className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-xs text-foreground outline-none transition-all focus:border-gold focus:ring-2 focus:ring-gold/20"
+747:               />
+748:             </div>
+749: 
+750:             <div className="p-3 rounded-xl border border-border bg-muted space-y-2">
+751:               <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Password Requirements</span>
+752:               <div className="grid grid-cols-2 gap-2 text-[11px] font-medium">
+753:                 <div className={`flex items-center gap-1.5 ${passwordStrength.length ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+754:                   {passwordStrength.length ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 rounded-full border border-current" />}
+755:                   8+ Characters
+756:                 </div>
+757:                 <div className={`flex items-center gap-1.5 ${passwordStrength.upper ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+758:                   {passwordStrength.upper ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 rounded-full border border-current" />}
+759:                   1 Uppercase
+760:                 </div>
+761:                 <div className={`flex items-center gap-1.5 ${passwordStrength.lower ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+762:                   {passwordStrength.lower ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 rounded-full border border-current" />}
+763:                   1 Lowercase
+764:                 </div>
+765:                 <div className={`flex items-center gap-1.5 ${passwordStrength.number ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+766:                   {passwordStrength.number ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 rounded-full border border-current" />}
+767:                   1 Number
+768:                 </div>
+769:                 <div className={`flex items-center gap-1.5 ${passwordStrength.special ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+770:                   {passwordStrength.special ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-3.5 h-3.5 rounded-full border border-current" />}
+771:                   1 Special Char
+772:                 </div>
+773:               </div>
+774:             </div>
+775: 
+776:             {error && <p role="alert" className="text-xs text-rose-400 font-semibold">{error}</p>}
+777: 
+778:             <motion.button
+779:               type="submit"
+780:               disabled={loading || !passwordStrength.isValid || password !== confirmPassword}
+781:               whileTap={{ scale: 0.98 }}
+782:               className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-foreground hover:bg-foreground/90 text-background text-xs font-extrabold shadow-md transition-all cursor-pointer disabled:opacity-50"
+783:             >
+784:               <span>{loading ? "Securing Account..." : "Set Password & Continue"}</span>
+785:               <ArrowRight className="h-4 w-4 stroke-[2.2]" />
+786:             </motion.button>
+787:           </motion.form>
+788:         )}
+789: 
+790:         {/* PROFILE SETUP */}
+791:         {state === "PROFILE_SETUP" && (
+792:           <motion.form
+793:             key="profile-setup"
+794:             initial={{ opacity: 0, x: 20 }}
+795:             animate={{ opacity: 1, x: 0 }}
+796:             exit={{ opacity: 0, x: -20 }}
+797:             onSubmit={(e) => {
+798:               e.preventDefault();
+799:               setState("ORGANIZATION_SETUP");
+800:             }}
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

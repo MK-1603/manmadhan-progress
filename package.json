@@ -1,0 +1,9 @@
+{
+  "name": "manmadhan-progress",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "backend/*",
+    "packages/*"
+  ]
+}
