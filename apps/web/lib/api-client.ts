@@ -14,8 +14,12 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("auth_token") || localStorage.getItem("token");
-      if (token && !config.headers.Authorization) {
+      const token =
+        localStorage.getItem("auth_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("jwt") ||
+        localStorage.getItem("accessToken");
+      if (token && token !== "null" && token !== "undefined" && !config.headers.Authorization) {
         config.headers.Authorization = `Bearer ${token}`;
       }
     }
@@ -24,37 +28,67 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+let isRefreshing = false;
+
 // Response interceptor for handling token refresh and fallback errors
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // If 401 Unauthorized and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Handle 401 Unauthorized
+    if (error.response?.status === 401) {
+      if (
+        !originalRequest ||
+        originalRequest._retry ||
+        isRefreshing ||
+        originalRequest.url?.includes("/auth/me") ||
+        originalRequest.url?.includes("/auth/refresh") ||
+        originalRequest.url?.includes("/auth/login")
+      ) {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("token");
+          localStorage.removeItem("auth_token");
+          localStorage.removeItem("user");
+        }
+        return Promise.reject(error);
+      }
+
       originalRequest._retry = true;
+      isRefreshing = true;
 
       try {
-        await axios.post(
+        const refreshRes = await axios.post(
           `${baseURL}/auth/refresh`,
           {},
           { withCredentials: true }
         );
-        return apiClient(originalRequest);
+        isRefreshing = false;
+        if (refreshRes.data?.data?.accessToken || refreshRes.data?.data?.token) {
+          const newToken = refreshRes.data.data.accessToken || refreshRes.data.data.token;
+          localStorage.setItem("token", newToken);
+          localStorage.setItem("auth_token", newToken);
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return apiClient(originalRequest);
+        }
       } catch (refreshError) {
-        if (typeof window !== "undefined" && !originalRequest.url?.includes("/auth/me")) {
-          if (!window.location.pathname.startsWith("/login")) {
+        isRefreshing = false;
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("token");
+          localStorage.removeItem("auth_token");
+          localStorage.removeItem("user");
+          if (!window.location.pathname.startsWith("/login") && !originalRequest?.url?.includes("/auth/me")) {
             window.location.href = "/login?error=SessionExpired";
           }
         }
-        return Promise.reject(refreshError);
+        return Promise.reject(new Error("Session expired. Please sign in again."));
       }
     }
 
     // Handle Network Connection Errors gracefully
     if (!error.response || error.code === "ECONNREFUSED" || error.code === "ERR_NETWORK") {
       console.warn("API Connection Notice: Backend request failed via baseURL", baseURL);
-      return Promise.reject(new Error("Unable to connect to the ManMadhan Progress server. Please ensure the backend on port 4100 is running."));
+      return Promise.reject(new Error("Unable to connect to the ManMadhan Progress server. Please ensure the backend server is running."));
     }
 
     return Promise.reject(error);

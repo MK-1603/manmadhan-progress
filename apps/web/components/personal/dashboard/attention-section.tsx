@@ -1,4 +1,5 @@
 import React from "react";
+import { formatEnumLabel } from "@/lib/utils/formatters";
 import { AlertCircle, AlertTriangle, Clock } from "lucide-react";
 
 export function AttentionSection({ tasks }: { tasks: any[] }) {
@@ -52,7 +53,7 @@ export function AttentionSection({ tasks }: { tasks: any[] }) {
               <span className={`text-sm font-medium ${getStyle(task.attentionType)}`}>{task.title}</span>
             </div>
             <div className="text-xs font-medium text-muted-foreground mt-1 sm:mt-0">
-              {task.attentionType.replace("_", " ")} • {task.deadlineDate.toLocaleDateString()}
+              {formatEnumLabel(task.attentionType)} • {task.deadlineDate ? new Date(task.deadlineDate).toLocaleDateString() : ""}
             </div>
           </div>
         ))}

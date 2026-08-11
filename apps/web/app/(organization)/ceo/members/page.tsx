@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Users, Loader2, AlertCircle, Mail, UserPlus, Search, Briefcase, ChevronRight } from "lucide-react";
+import { ArrowLeft, Users, Loader2, AlertCircle, UserPlus, Search, ChevronRight } from "lucide-react";
 import apiClient from "@/lib/api-client";
-import { PremiumCard } from "@/components/ui/premium-card";
 import { useSocket } from "@/components/providers/socket-provider";
 import Link from "next/link";
-import { PersonDetailDrawer } from "@/components/organization/person-detail-drawer";
 
 export default function CEOMembersPage() {
   const [members, setMembers] = useState<any[]>([]);
@@ -23,7 +21,6 @@ export default function CEOMembersPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
-  const [selectedPerson, setSelectedPerson] = useState<any>(null);
   const { socket } = useSocket();
 
   const fetchMembers = async () => {
@@ -66,158 +63,161 @@ export default function CEOMembersPage() {
 
   return (
     <div className="p-4 lg:p-6 max-w-[1240px] mx-auto w-full space-y-6">
+      {/* Back Button */}
+      <Link
+        href="/ceo/organization"
+        className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors w-fit"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" /> Back to Organization
+      </Link>
+
       {/* Page Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <div className="flex items-center gap-2.5">
-            <Users className="w-5 h-5 text-primary" />
-            <h1 className="text-xl font-bold text-foreground tracking-tight">Members</h1>
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Organization execution team workload, supervisor assignment & task progress
+          <p className="text-[10.5px] font-semibold text-muted-foreground uppercase tracking-widest mb-1">ManMadhan · CEO</p>
+          <h1 className="text-[24px] font-bold text-foreground tracking-tight leading-none">Members</h1>
+          <p className="text-[12px] text-muted-foreground mt-1.5">
+            Organization execution team workload, supervisor assignment and task progress.
           </p>
         </div>
         <Link
           href="/ceo/invitations"
-          className="flex items-center gap-2 px-3.5 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:bg-primary/90 transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 bg-gold hover:bg-gold-hover text-[#111827] text-[12px] font-bold rounded-xl transition-colors self-start"
         >
-          <UserPlus className="w-4 h-4" /> Invite Member
+          <UserPlus className="w-3.5 h-3.5" /> Invite Member
         </Link>
       </div>
 
       {/* Top Summary Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
         {[
-          { label: "Total Team", value: summary.totalCount || members.length, color: "text-foreground" },
-          { label: "Active", value: summary.activeCount || members.filter(m => m.status === "ACTIVE").length, color: "text-emerald-500" },
-          { label: "Tasks Assigned", value: summary.tasksAssignedCount || 0, color: "text-blue-500" },
-          { label: "Completed", value: summary.completedCount || 0, color: "text-emerald-500" },
-          { label: "Overdue", value: summary.overdueCount || 0, color: summary.overdueCount > 0 ? "text-rose-500" : "text-emerald-500" },
-          { label: "Blocked", value: summary.blockedCount || 0, color: summary.blockedCount > 0 ? "text-rose-400" : "text-muted-foreground" },
+          { label: "Total Team",     value: summary.totalCount || members.length },
+          { label: "Active",         value: summary.activeCount || members.filter(m => m.status === "ACTIVE").length },
+          { label: "Tasks Assigned", value: summary.tasksAssignedCount || 0 },
+          { label: "Completed",      value: summary.completedCount || 0 },
+          { label: "Overdue",        value: summary.overdueCount || 0 },
+          { label: "Blocked",        value: summary.blockedCount || 0 },
         ].map((s) => (
-          <PremiumCard key={s.label} className="p-2.5">
-            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">{s.label}</p>
-            <p className={`text-lg font-bold mt-0.5 ${s.color}`}>{s.value}</p>
-          </PremiumCard>
+          <div key={s.label} className="bg-card border border-border rounded-2xl p-3.5">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">{s.label}</p>
+            <p className="text-[22px] font-bold text-foreground mt-1 leading-none">{s.value}</p>
+          </div>
         ))}
       </div>
 
       {/* Search & Filter Bar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search members by name, email, or role..."
-            className="w-full pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:border-primary outline-none"
+            placeholder="Search members by name or email..."
+            className="w-full pl-9 pr-4 py-2.5 bg-card border border-border rounded-xl text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-gold"
           />
         </div>
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold text-foreground focus:border-primary outline-none"
+          className="px-3 py-2.5 bg-card border border-border rounded-xl text-[12px] font-semibold text-foreground focus:outline-none focus:border-gold"
         >
           {["All", "CEO", "CO-CEO", "MEMBER"].map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
+            <option key={r} value={r}>{r}</option>
           ))}
         </select>
       </div>
 
       {error && (
-        <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-500 text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+        <div className="flex items-center gap-2 px-4 py-3 bg-card border border-border rounded-xl text-[12px] text-muted-foreground">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
         </div>
       )}
 
-      {/* Members Cards Grid */}
+      {/* Members Grid */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-5 h-5 text-gold animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 p-6 border border-border rounded-2xl bg-card space-y-2">
-          <Users className="w-8 h-8 text-muted-foreground/40 mx-auto" />
-          <p className="text-xs font-bold text-foreground">No members found</p>
-          <p className="text-[11px] text-muted-foreground">
-            Members will appear here once invited and assigned to project execution.
+        <div className="flex flex-col items-center gap-2 py-16 text-center border border-border border-dashed rounded-2xl">
+          <Users className="w-8 h-8 text-muted-foreground/30" />
+          <p className="text-[13px] font-semibold text-foreground">No members found</p>
+          <p className="text-[12px] text-muted-foreground max-w-xs">
+            Members appear here once invited and assigned to project execution.
           </p>
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((m) => (
-            <PremiumCard key={m.id} className="p-4 space-y-4 hover:border-primary/40 transition-all flex flex-col justify-between">
-              <div className="space-y-3">
-                {/* Header */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 text-primary font-bold text-sm flex items-center justify-center shrink-0">
-                      {m.name ? m.name.charAt(0).toUpperCase() : "M"}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-foreground truncate">{m.name || m.email}</p>
-                      <p className="text-xs text-muted-foreground truncate">{m.email}</p>
-                    </div>
+            <div key={m.id} className="bg-card border border-border rounded-2xl p-5 flex flex-col gap-4 hover:border-border/80 transition-colors">
+              {/* header */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-muted border border-border font-bold text-foreground text-[14px] flex items-center justify-center shrink-0">
+                    {(m.name || m.email || "M").charAt(0).toUpperCase()}
                   </div>
-                  <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border ${
-                    m.status === "ACTIVE" || m.status === "Activated" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                  }`}>
-                    {m.status || "ACTIVE"}
-                  </span>
-                </div>
-
-                {/* Supervisor Relationship */}
-                <div className="p-2 bg-background border border-border rounded-lg text-[11px] font-medium text-muted-foreground">
-                  <span className="font-bold text-foreground">Reports to: </span>
-                  {m.assignedCoCeoName ? `${m.assignedCoCeoName} (CO-CEO)` : "Organization Leadership"}
-                </div>
-
-                {/* Metrics Row */}
-                <div className="grid grid-cols-3 gap-2 text-center p-2.5 bg-background border border-border rounded-xl">
-                  <div>
-                    <span className="text-[9px] font-bold uppercase text-muted-foreground block">Projects</span>
-                    <span className="text-xs font-bold text-amber-500">{m.projectsCount || 0}</span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-bold uppercase text-muted-foreground block">Tasks</span>
-                    <span className="text-xs font-bold text-blue-500">{m.tasksCount || 0}</span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-bold uppercase text-muted-foreground block">Completed</span>
-                    <span className="text-xs font-bold text-emerald-500">{m.completedTasks || 0}</span>
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-foreground truncate">{m.name || m.email}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{m.email}</p>
                   </div>
                 </div>
-
-                {/* Active Current Work */}
-                {m.currentWork ? (
-                  <div className="p-2.5 bg-background border border-border rounded-xl text-xs space-y-1">
-                    <span className="text-[9px] font-extrabold uppercase text-muted-foreground block">Current Work</span>
-                    <p className="font-bold text-foreground truncate">{m.currentWork.title}</p>
-                    <p className="text-[10px] text-amber-500 font-semibold">{m.currentWork.projectName}</p>
-                  </div>
-                ) : (
-                  <div className="p-2.5 bg-background border border-border rounded-xl text-[11px] text-muted-foreground">
-                    No active task currently assigned.
-                  </div>
-                )}
+                <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-lg border shrink-0 ${
+                  m.status === "ACTIVE" || m.status === "Activated"
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                    : "bg-muted text-muted-foreground border-border"
+                }`}>
+                  {m.status || "ACTIVE"}
+                </span>
               </div>
 
-              {/* Action Button */}
-              <button
-                onClick={() => setSelectedPerson(m)}
-                className="w-full mt-3 py-2 bg-card border border-border hover:border-primary text-xs font-bold text-foreground rounded-xl flex items-center justify-center gap-1 transition-colors"
+              {/* reports to */}
+              <div className="px-3 py-2 bg-background border border-border rounded-xl text-[11px] text-muted-foreground">
+                Reports to: <span className="font-semibold text-foreground">
+                  {m.assignedCoCeoName ? `${m.assignedCoCeoName} (CO-CEO)` : "Organization Leadership"}
+                </span>
+              </div>
+
+              {/* metrics */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {[
+                  { label: "Projects",  value: m.projectsCount  || 0 },
+                  { label: "Tasks",     value: m.tasksCount     || 0 },
+                  { label: "Done",      value: m.completedTasks || 0 },
+                ].map(stat => (
+                  <div key={stat.label} className="bg-background border border-border rounded-xl py-2">
+                    <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest">{stat.label}</p>
+                    <p className="text-[15px] font-bold text-foreground mt-0.5">{stat.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* current work */}
+              {m.currentWork ? (
+                <div className="px-3 py-2.5 bg-background border border-border rounded-xl text-[11px] space-y-0.5">
+                  <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest">Current Work</p>
+                  <p className="font-semibold text-foreground truncate">{m.currentWork.title}</p>
+                  {m.currentWork.projectName && (
+                    <p className="text-muted-foreground truncate">{m.currentWork.projectName}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="px-3 py-2.5 bg-background border border-border rounded-xl text-[11px] text-muted-foreground">
+                  No active task currently assigned.
+                </div>
+              )}
+
+              {/* View button — navigates to dedicated page */}
+              <Link
+                href={`/ceo/members/${m.id}`}
+                className="w-full py-2 rounded-xl border border-border bg-card hover:bg-muted text-[12px] font-semibold text-foreground flex items-center justify-center gap-1.5 transition-colors"
               >
-                View Member Profile <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </PremiumCard>
+                View Profile <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           ))}
         </div>
       )}
 
-      {/* Slide-over Profile Drawer */}
-      <PersonDetailDrawer person={selectedPerson} onClose={() => setSelectedPerson(null)} />
     </div>
   );
 }

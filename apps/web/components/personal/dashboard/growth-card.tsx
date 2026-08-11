@@ -1,21 +1,21 @@
 import React from "react";
-import { BookOpen, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 
 interface GrowthCardProps {
   className?: string;
-  activeBook?: any; // Will match personalBooks schema + lastSession
+  activeBook?: any;
 }
 
 export function GrowthCard({ className = "", activeBook }: GrowthCardProps) {
   return (
-    <div className={`bg-[#FFFFFF] dark:bg-[#141414] border border-[#E5E7EB] dark:border-[#242424] rounded-[14px] p-6 flex flex-col shadow-sm dark:shadow-none transition-colors ${className}`}>
+    <div className={`bg-card border border-border rounded-2xl p-5 sm:p-6 flex flex-col transition-colors ${className}`}>
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-[13px] font-semibold text-[#171717] dark:text-[#F5F5F5] uppercase tracking-wider">
-          GROWTH
-        </h2>
-        <Link href="/personal/books" className="text-[13px] font-medium text-[#52525B] dark:text-[#A1A1AA] hover:text-[#D99A00] dark:hover:text-[#F5B800] transition-colors">
+        <span className="text-[10.5px] font-semibold text-muted-foreground uppercase tracking-widest">
+          Growth
+        </span>
+        <Link href="/personal/books" className="text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors">
           View all
         </Link>
       </div>
@@ -23,76 +23,74 @@ export function GrowthCard({ className = "", activeBook }: GrowthCardProps) {
       {activeBook ? (
         <>
           <div className="flex gap-4 mb-5">
-            <div className="w-[72px] h-[104px] bg-[#FAFAF9] dark:bg-[#1D1D1D] rounded flex-shrink-0 border border-[#E5E7EB] dark:border-[#242424] overflow-hidden flex flex-col justify-center items-center p-2 text-center relative">
+            {/* Book cover */}
+            <div className="w-[68px] h-[100px] rounded-xl bg-muted border border-border flex-shrink-0 overflow-hidden relative flex items-center justify-center p-2 text-center">
               {activeBook.coverUrl ? (
                 <img src={activeBook.coverUrl} alt="Cover" className="absolute inset-0 w-full h-full object-cover" />
               ) : (
-                <>
-                  <span className="text-[12px] font-bold text-[#D99A00] dark:text-[#F5B800] leading-tight mb-1 line-clamp-3">
-                    {activeBook.title}
-                  </span>
-                  <span className="text-[8px] text-[#52525B] dark:text-[#A1A1AA] line-clamp-1">
-                    {activeBook.author || "Unknown"}
-                  </span>
-                </>
+                <span className="text-[11px] font-bold text-gold leading-tight line-clamp-3">
+                  {activeBook.title}
+                </span>
               )}
             </div>
 
-            <div className="flex-1 min-w-0 py-1 flex flex-col justify-between">
+            <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
               <div>
-                <h3 className="text-[14px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-tight mb-1 truncate">
+                <h3 className="text-[14px] font-semibold text-foreground leading-tight truncate mb-0.5">
                   {activeBook.title}
                 </h3>
-                <p className="text-[12px] text-[#52525B] dark:text-[#A1A1AA] truncate mb-2">
-                  {activeBook.author || "Unknown Author"}
-                </p>
-                
-                {activeBook.pageCount && activeBook.lastSession?.endPage && (
-                  <>
-                    <div className="flex items-center justify-between mt-3 mb-1">
-                      <span className="text-[12px] font-medium text-[#171717] dark:text-[#F5F5F5]">
-                        Page {activeBook.lastSession.endPage} of {activeBook.pageCount}
-                      </span>
-                      <span className="text-[12px] font-bold text-[#171717] dark:text-[#F5F5F5]">
-                        {Math.round((activeBook.lastSession.endPage / activeBook.pageCount) * 100)}%
-                      </span>
-                    </div>
-                    <div className="w-full h-1 bg-[#F3F4F6] dark:bg-[#1D1D1D] rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-[#171717] dark:bg-[#F5F5F5] rounded-full transition-all" 
-                        style={{ width: `${Math.round((activeBook.lastSession.endPage / activeBook.pageCount) * 100)}%` }} 
-                      />
-                    </div>
-                  </>
-                )}
+                <p className="text-[12px] text-muted-foreground truncate">{activeBook.author || "Unknown Author"}</p>
               </div>
+
+              {activeBook.pageCount && activeBook.lastSession?.endPage && (
+                <div className="mt-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] text-muted-foreground">
+                      Page {activeBook.lastSession.endPage} of {activeBook.pageCount}
+                    </span>
+                    <span className="text-[11px] font-semibold text-foreground">
+                      {Math.round((activeBook.lastSession.endPage / activeBook.pageCount) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-foreground rounded-full"
+                      style={{ width: `${Math.round((activeBook.lastSession.endPage / activeBook.pageCount) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          <p className="text-[12px] text-[#52525B] dark:text-[#A1A1AA] mb-4">
-            Last session:<br />
-            <span className="font-medium text-[#171717] dark:text-[#F5F5F5]">
-              {activeBook.lastSession 
-                ? `${formatDistanceToNow(new Date(activeBook.lastSession.createdAt), { addSuffix: true })} · ${activeBook.lastSession.durationMinutes || 0} min` 
+          <p className="text-[12px] text-muted-foreground mb-5">
+            Last session:{" "}
+            <span className="font-medium text-foreground">
+              {activeBook.lastSession
+                ? `${formatDistanceToNow(new Date(activeBook.lastSession.createdAt), { addSuffix: true })} · ${activeBook.lastSession.durationMinutes || 0} min`
                 : "No sessions yet"}
             </span>
           </p>
 
-          <Link href="/personal/books" className="flex items-center justify-center w-full gap-2 h-[40px] mt-auto rounded-lg border border-[#E5E7EB] dark:border-[#242424] text-[14px] font-medium text-[#52525B] dark:text-[#A1A1AA] hover:text-[#171717] dark:hover:text-[#F5F5F5] hover:bg-[#F3F4F6] dark:hover:bg-[#1D1D1D] transition-colors">
-            <Plus className="w-4 h-4" strokeWidth={2} />
-            Add book
+          <Link
+            href="/personal/books"
+            className="mt-auto flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-border text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add session
           </Link>
         </>
       ) : (
-        <div className="flex-1 flex flex-col justify-center">
-          <h3 className="text-[14px] font-semibold text-[#171717] dark:text-[#F5F5F5] mb-2">
-            No active book
-          </h3>
-          <p className="text-[13px] text-[#52525B] dark:text-[#A1A1AA] mb-4">
-            You are not currently tracking any reading material.
-          </p>
-          <Link href="/personal/books" className="flex items-center justify-center gap-2 bg-[#D99A00] hover:bg-[#B77900] dark:bg-[#F5B800] dark:hover:bg-[#FFD43B] text-white dark:text-[#111111] px-4 h-[40px] rounded-[8px] font-medium text-[14px] transition-colors self-start">
-            <Plus className="w-4 h-4" strokeWidth={2} />
+        <div className="flex-1 flex flex-col justify-between pt-1">
+          <div>
+            <p className="text-[13px] font-semibold text-foreground">No active book</p>
+            <p className="text-[12px] text-muted-foreground mt-1">Start tracking your reading to see progress here.</p>
+          </div>
+          <Link
+            href="/personal/books"
+            className="mt-6 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-border text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
             Add book
           </Link>
         </div>

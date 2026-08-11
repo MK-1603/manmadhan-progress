@@ -148,6 +148,79 @@ class EmailService {
 
 		return result.success;
 	}
+
+	public async sendTaskAssignmentEmail(options: {
+		to: string;
+		taskTitle: string;
+		projectName?: string | null;
+		milestoneName?: string | null;
+		assignerName: string;
+		role: string;
+		deadline?: string | null;
+		taskId: string;
+	}): Promise<boolean> {
+		const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
+		const actionUrl = `${clientUrl}/ceo/my-work?taskId=${options.taskId}`;
+		const projectText = options.projectName ? options.projectName : "Standalone Task";
+		const milestoneText = options.milestoneName ? options.milestoneName : "No Milestone";
+
+		const html = `
+			<p style="margin:0 0 16px 0; font-size:15px; color:#3F3F46;">You have been assigned a new task by <strong>${options.assignerName}</strong> (Role: <strong>${options.role}</strong>).</p>
+			<div style="background:#F4F4F5; padding:16px; border-radius:12px; margin-bottom:16px;">
+				<p style="margin:0 0 8px 0; font-size:14px; font-weight:bold; color:#18181B;">Task: ${options.taskTitle}</p>
+				<p style="margin:0 0 4px 0; font-size:13px; color:#52525B;"><strong>Project:</strong> ${projectText}</p>
+				<p style="margin:0 0 4px 0; font-size:13px; color:#52525B;"><strong>Milestone:</strong> ${milestoneText}</p>
+				<p style="margin:0 0 4px 0; font-size:13px; color:#52525B;"><strong>Deadline:</strong> ${options.deadline ? options.deadline : "Flexible"}</p>
+				<p style="margin:0; font-size:13px; color:#D9A514;"><strong>Status:</strong> Pending Acceptance</p>
+			</div>
+			<p style="margin:0 0 16px 0; font-size:13px; color:#52525B;">Click below to review and accept or decline this task assignment in your My Work workspace.</p>
+		`;
+
+		const result = await this.sendEmail({
+			to: options.to,
+			subject: `Task Assigned: ${options.taskTitle}`,
+			title: "New Task Assignment",
+			html,
+			actionUrl,
+			actionText: "Review Assignment",
+		});
+
+		return result.success;
+	}
+
+	public async sendProjectAssignmentEmail(options: {
+		to: string;
+		projectName: string;
+		assignerName: string;
+		role: string;
+		deadline?: string | null;
+		projectId: string;
+	}): Promise<boolean> {
+		const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
+		const actionUrl = `${clientUrl}/co-ceo/my-work?projectId=${options.projectId}`;
+
+		const html = `
+			<p style="margin:0 0 16px 0; font-size:15px; color:#3F3F46;">You have been assigned as <strong>${options.role}</strong> for project <strong>${options.projectName}</strong> by <strong>${options.assignerName}</strong>.</p>
+			<div style="background:#F4F4F5; padding:16px; border-radius:12px; margin-bottom:16px;">
+				<p style="margin:0 0 8px 0; font-size:14px; font-weight:bold; color:#18181B;">Project: ${options.projectName}</p>
+				<p style="margin:0 0 4px 0; font-size:13px; color:#52525B;"><strong>Role:</strong> ${options.role}</p>
+				<p style="margin:0 0 4px 0; font-size:13px; color:#52525B;"><strong>Deadline:</strong> ${options.deadline ? options.deadline : "Flexible"}</p>
+				<p style="margin:0; font-size:13px; color:#D9A514;"><strong>Status:</strong> Pending Acceptance</p>
+			</div>
+			<p style="margin:0 0 16px 0; font-size:13px; color:#52525B;">Click below to review and accept or decline this project assignment in your workspace.</p>
+		`;
+
+		const result = await this.sendEmail({
+			to: options.to,
+			subject: `Project Assigned: ${options.projectName}`,
+			title: "New Project Assignment",
+			html,
+			actionUrl,
+			actionText: "Review Project Assignment",
+		});
+
+		return result.success;
+	}
 }
 
 export const emailService = new EmailService();

@@ -72,8 +72,22 @@ export class OtpService {
 			},
 		});
 
+		// Direct SMTP email dispatch for real email delivery
+		try {
+			await emailService.sendEmail({
+				to: email,
+				subject: "ManMadhan Progress — Your Executive Security OTP Code",
+				title: "Executive Security Verification Code",
+				text: `Your security verification code is: ${otp}\n\nThis code will expire in 5 minutes. Enter this code to complete workspace setup.`,
+				actionText: "Complete Setup & Login",
+				actionUrl: `${env.CLIENT_URL}/login`,
+			});
+		} catch (emailErr: any) {
+			logger.warn(`Direct email dispatch notice: ${emailErr?.message || String(emailErr)}`);
+		}
+
 		if (process.env.NODE_ENV !== "production") {
-			logger.debug({ otp }, "OTP for debug environment");
+			logger.info({ otp, email }, "Generated OTP Security Code");
 		}
 
 		// Since NotificationService handles the queue async, we just assume success.

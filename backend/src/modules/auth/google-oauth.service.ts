@@ -52,23 +52,13 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 					let existingUser = userRecords.length > 0 ? userRecords[0] : null;
 
 					if (!existingUser) {
-						// Auto-create new user account for Google sign in
-						const newUserId = crypto.randomUUID();
-						const [newUser] = await db
-							.insert(users)
-							.values({
-								id: newUserId,
-								email: normalizedEmail,
-								name: profile.displayName || normalizedEmail.split("@")[0],
-								avatar: profile.photos?.[0]?.value || null,
-								role: "MEMBER",
-								status: "Created",
-								isInvited: true,
-								googleId: profile.id,
-								isGoogleEnabled: true,
-							})
-							.returning();
-						existingUser = newUser;
+						authLogger.warn(
+							{ email: normalizedEmail },
+							"Google OAuth sign in attempted for unregistered account",
+						);
+						return done(null, false, {
+							message: "Account not found in organization workspace",
+						});
 					}
 
 					if (

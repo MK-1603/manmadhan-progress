@@ -78,9 +78,9 @@ export default function PersonalDashboard() {
 
   if (loading) {
     return (
-      <div className="w-full h-[100dvh] flex flex-col items-center justify-center bg-[#F7F7F5] dark:bg-[#080808]">
-        <LoaderCircle className="w-5 h-5 md:w-6 md:h-6 text-[#D99A00] dark:text-[#F5B800] animate-spin mb-3" strokeWidth={2} />
-        <span className="text-[13px] font-medium text-[#52525B] dark:text-[#A1A1AA]">Loading...</span>
+      <div className="w-full h-full flex flex-col items-center justify-center bg-background">
+        <LoaderCircle className="w-5 h-5 text-gold animate-spin mb-3" strokeWidth={2} />
+        <span className="text-[12px] font-medium text-muted-foreground">Loading</span>
       </div>
     );
   }
@@ -198,14 +198,14 @@ export default function PersonalDashboard() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#F7F7F5] dark:bg-[#080808] relative w-full h-[100dvh] overflow-hidden transition-colors">
-      <div className="site-container pt-8 pb-24 md:pb-6 px-4 md:px-[36px] min-[1536px]:px-[40px] w-full flex-1 overflow-y-auto min-h-0 box-border">
-        
+    <div className="flex flex-col h-full bg-background w-full overflow-hidden">
+      <div className="pt-7 pb-24 md:pb-8 px-4 md:px-8 xl:px-10 w-full flex-1 overflow-y-auto min-h-0">
+
         {/* ONE CSS GRID SYSTEM */}
-        <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-4 lg:gap-[16px] w-full items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-4 lg:gap-5 w-full items-stretch">
           
           {/* ROW 1: Greeting & Motivation */}
-          <div className="md:col-span-6 lg:col-span-12 mb-2 lg:mb-4 flex flex-col gap-4">
+          <div className="md:col-span-6 lg:col-span-12 flex flex-col gap-3 mb-1">
             <DashboardGreeting 
               greetingName={user?.displayName || user?.name?.split(" ")[0] || ""} 
             />

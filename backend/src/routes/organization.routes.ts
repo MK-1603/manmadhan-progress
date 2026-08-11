@@ -281,6 +281,7 @@ organizationRouter.get(
 	async (req: Request, res: Response) => {
 		try {
 			const workspaceId = String(req.query.workspaceId);
+			const now = new Date();
 
 			// Total members
 			const membersResult = await db
@@ -310,15 +311,110 @@ organizationRouter.get(
 					),
 				);
 
+			// Active Projects (ACTIVE or AT_RISK status, type ORGANIZATION)
+			const activeProjectsResult = await db
+				.select({ count: sql<number>`count(*)` })
+				.from(projects)
+				.where(
+					and(
+						eq(projects.workspaceId, workspaceId),
+						eq(projects.type, "ORGANIZATION"),
+						or(
+							eq(projects.status, "ACTIVE"),
+							eq(projects.status, "AT_RISK"),
+							eq(projects.status, "ON_HOLD"),
+						),
+					),
+				);
+
+			// Active Tasks (In Progress, Review, Accepted)
+			const activeTasksResult = await db
+				.select({ count: sql<number>`count(*)` })
+				.from(tasks)
+				.where(
+					and(
+						eq(tasks.workspaceId, workspaceId),
+						or(
+							eq(tasks.status, "In Progress"),
+							eq(tasks.status, "Review"),
+							eq(tasks.status, "Accepted"),
+							eq(tasks.status, "Assigned"),
+						),
+					),
+				);
+
+			// Overdue Tasks (deadline passed and not completed/archived)
+			const overdueTasksResult = await db
+				.select({ count: sql<number>`count(*)` })
+				.from(tasks)
+				.where(
+					and(
+						eq(tasks.workspaceId, workspaceId),
+						lte(tasks.deadline, now),
+						ne(tasks.status, "Completed"),
+						ne(tasks.status, "Approved"),
+						ne(tasks.status, "Archived"),
+					),
+				);
+
+			// Blocked Tasks
+			const blockedTasksResult = await db
+				.select({ count: sql<number>`count(*)` })
+				.from(tasks)
+				.where(
+					and(
+						eq(tasks.workspaceId, workspaceId),
+						eq(tasks.status, "Blocked"),
+					),
+				);
+
+			// Pending Approvals (tasks in Review status)
+			const pendingApprovalsResult = await db
+				.select({ count: sql<number>`count(*)` })
+				.from(tasks)
+				.where(
+					and(
+						eq(tasks.workspaceId, workspaceId),
+						eq(tasks.status, "Review"),
+					),
+				);
+
+			// Total organization projects
+			const totalProjectsResult = await db
+				.select({ count: sql<number>`count(*)` })
+				.from(projects)
+				.where(
+					and(
+						eq(projects.workspaceId, workspaceId),
+						eq(projects.type, "ORGANIZATION"),
+					),
+				);
+
+			// Completed projects
+			const completedProjectsResult = await db
+				.select({ count: sql<number>`count(*)` })
+				.from(projects)
+				.where(
+					and(
+						eq(projects.workspaceId, workspaceId),
+						eq(projects.type, "ORGANIZATION"),
+						eq(projects.status, "COMPLETED"),
+					),
+				);
+
 			res.json({
 				success: true,
 				data: {
-					totalMembers: membersResult[0].count,
-					totalCoCeos: coCeosResult[0].count,
-					pendingInvitations: invitationsResult[0].count,
-					activeUsers: membersResult[0].count, // Mock for now
-					inactiveUsers: 0,
-					organizationHealth: 98, // Mock score
+					totalMembers: Number(membersResult[0].count),
+					totalCoCeos: Number(coCeosResult[0].count),
+					pendingInvitations: Number(invitationsResult[0].count),
+					activeProjects: Number(activeProjectsResult[0].count),
+					totalProjects: Number(totalProjectsResult[0].count),
+					completedProjects: Number(completedProjectsResult[0].count),
+					activeTasks: Number(activeTasksResult[0].count),
+					overdueTasks: Number(overdueTasksResult[0].count),
+					blockedTasks: Number(blockedTasksResult[0].count),
+					pendingApprovals: Number(pendingApprovalsResult[0].count),
 				},
 			});
 		} catch (error: any) {
@@ -366,7 +462,12 @@ organizationRouter.get(
 				})
 				.from(workspaceMembers)
 				.innerJoin(users, eq(workspaceMembers.userId, users.id))
-				.where(eq(workspaceMembers.workspaceId, workspaceId))
+				.where(
+					and(
+						eq(workspaceMembers.workspaceId, workspaceId),
+						ne(workspaceMembers.role, "CEO"), // CEO is never shown in member list
+					),
+				)
 				.orderBy(desc(workspaceMembers.createdAt));
 
 			// Enrich with operational execution metrics
@@ -1628,6 +1729,65 @@ organizationRouter.get(
 			});
 		} catch (error: any) {
 			logger.error("Org Dashboard Error: " + error.message);
+			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+// ── GET /organization/invitations/:id — Invitation Detail (CEO only) ──────────
+organizationRouter.get(
+	"/invitations/:id",
+	requireLeadership,
+	async (req: Request, res: Response) => {
+		try {
+			const invitationId = String(req.params.id);
+			const userId = (req as any).user?.id;
+			let workspaceId = String(
+				req.query.workspaceId || req.body?.workspaceId || "",
+			).trim();
+			if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
+				const m = await db.query.workspaceMembers.findFirst({
+					where: eq(workspaceMembers.userId, userId),
+				});
+				if (m) workspaceId = m.workspaceId;
+			}
+
+			const invitation = await db.query.invitations.findFirst({
+				where: and(
+					eq(invitations.id, invitationId),
+					eq(invitations.organizationId, workspaceId),
+				),
+			});
+
+			if (!invitation) {
+				return res.status(404).json({ success: false, error: "Invitation not found" });
+			}
+
+			// Get inviter name
+			const inviter = await db.query.users.findFirst({
+				where: eq(users.id, invitation.invitedById),
+			});
+
+			return res.json({
+				success: true,
+				data: {
+					id: invitation.id,
+					email: invitation.email,
+					role: invitation.role,
+					status: invitation.status,
+					expiresAt: invitation.expiresAt,
+					createdAt: invitation.createdAt,
+					activatedAt: invitation.activatedAt,
+					otpVerifiedAt: invitation.otpVerifiedAt,
+					passwordCreatedAt: invitation.passwordCreatedAt,
+					workspaceAssignedAt: invitation.workspaceAssignedAt,
+					invitedBy: inviter
+						? { name: inviter.displayName || inviter.name, email: inviter.email }
+						: null,
+				},
+			});
+		} catch (error: any) {
+			logger.error("Invitation Detail Error: " + error.message);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},

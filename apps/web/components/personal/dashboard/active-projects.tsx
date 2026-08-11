@@ -19,65 +19,54 @@ interface ActiveProjectsProps {
   className?: string;
 }
 
+const PROJECT_COLORS = ["#D4AF37", "#3B82F6", "#22C55E", "#A855F7", "#F97316"];
+
+function initials(name: string) {
+  return name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
+}
+
 export function ActiveProjects({ projects = [], className = "" }: ActiveProjectsProps) {
-  // If no projects provided or empty, show placeholders to keep layout intact for first render, 
-  // but if explicitly empty, show empty state.
-  const displayProjects = projects.length > 0 ? projects.slice(0, 3) : [];
-
-  const getColor = (i: number) => {
-    const colors = ["#D99A00", "#3B82F6", "#22C55E", "#A855F7", "#EF4444"];
-    return colors[i % colors.length];
-  };
-
-  const getInitials = (name: string) => {
-    return name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
-  };
+  const display = projects.slice(0, 3);
 
   return (
-    <div className={`bg-[#FFFFFF] dark:bg-[#141414] border border-[#E5E7EB] dark:border-[#242424] rounded-[14px] p-6 flex flex-col h-full shadow-sm dark:shadow-none transition-colors ${className}`}>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-[13px] font-semibold text-[#171717] dark:text-[#F5F5F5] uppercase tracking-wider">
-          ACTIVE PROJECTS
-        </h2>
-        <Link href="/personal/projects" className="text-[12px] font-medium text-[#52525B] dark:text-[#A1A1AA] hover:text-[#171717] dark:hover:text-[#F5F5F5] transition-colors">
+    <div className={`bg-card border border-border rounded-2xl p-5 sm:p-6 flex flex-col h-full transition-colors ${className}`}>
+      <div className="flex items-center justify-between mb-5">
+        <span className="text-[10.5px] font-semibold text-muted-foreground uppercase tracking-widest">
+          Active Projects
+        </span>
+        <Link href="/personal/projects" className="text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors">
           View all
         </Link>
       </div>
 
-      <div className="flex flex-col gap-5 flex-1 justify-start">
-        {displayProjects.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center">
-            <h3 className="text-[14px] font-bold text-[#171717] dark:text-[#F5F5F5] mb-2">No active projects</h3>
-            <p className="text-[12px] text-[#52525B] dark:text-[#A1A1AA]">You are not working on any projects right now.</p>
+      <div className="flex flex-col gap-5 flex-1">
+        {display.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center gap-2">
+            <p className="text-[13px] font-semibold text-foreground">No active projects</p>
+            <p className="text-[12px] text-muted-foreground">You have no ongoing projects.</p>
           </div>
         ) : (
-          displayProjects.map((p, i) => {
-            const color = getColor(i);
+          display.map((p, i) => {
+            const color = PROJECT_COLORS[i % PROJECT_COLORS.length];
             return (
               <div key={p.id || i} className="flex items-center gap-4">
-                <div 
-                  className="w-10 h-10 rounded-lg flex flex-shrink-0 items-center justify-center font-bold text-[14px] border border-[#E5E7EB] dark:border-[#242424]"
+                <div
+                  className="w-9 h-9 rounded-xl flex shrink-0 items-center justify-center text-[12px] font-bold border border-border"
                   style={{ color }}
                 >
-                  {getInitials(p.name)}
+                  {initials(p.name)}
                 </div>
-                
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-[14px] font-bold text-[#171717] dark:text-[#F5F5F5] truncate">
-                      {p.name}
-                    </p>
-                    <span className="text-[13px] font-semibold text-[#171717] dark:text-[#F5F5F5] ml-2">
-                      {p.progress}%
-                    </span>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <p className="text-[13.5px] font-semibold text-foreground truncate">{p.name}</p>
+                    <span className="text-[12px] font-semibold text-foreground ml-2">{p.progress}%</span>
                   </div>
-                  <p className="text-[12px] text-[#52525B] dark:text-[#A1A1AA] truncate mb-2">
-                    {p.description || `${p.completedTasks} of ${p.totalTasks} tasks completed`}
+                  <p className="text-[11px] text-muted-foreground truncate mb-2">
+                    {p.description || `${p.completedTasks} of ${p.totalTasks} tasks`}
                   </p>
-                  
-                  <div className="w-full h-1.5 bg-[#F3F4F6] dark:bg-[#1D1D1D] rounded-full overflow-hidden">
+                  <div className="w-full h-1 bg-muted rounded-full overflow-hidden">
                     <div
-                      className="h-full rounded-full transition-all duration-500 ease-out"
+                      className="h-full rounded-full transition-all duration-500"
                       style={{ width: `${p.progress}%`, backgroundColor: color }}
                     />
                   </div>
@@ -88,8 +77,11 @@ export function ActiveProjects({ projects = [], className = "" }: ActiveProjects
         )}
       </div>
 
-      <Link href="/personal/projects" className="mt-6 flex items-center justify-center w-full gap-2 py-2.5 rounded-lg border border-[#E5E7EB] dark:border-[#242424] text-[13px] font-semibold text-[#52525B] dark:text-[#A1A1AA] hover:text-[#171717] dark:hover:text-[#F5F5F5] hover:bg-[#F3F4F6] dark:hover:bg-[#1D1D1D] transition-colors mt-auto">
-        <Plus className="w-4 h-4" />
+      <Link
+        href="/personal/projects"
+        className="mt-6 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-border text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+      >
+        <Plus className="w-3.5 h-3.5" />
         New Project
       </Link>
     </div>

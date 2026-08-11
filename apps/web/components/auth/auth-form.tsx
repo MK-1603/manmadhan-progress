@@ -120,6 +120,7 @@ export function AuthForm({
   }, [email]);
   const [tempToken, setTempToken] = useState(startingToken);
   const [otp, setOtp] = useState("");
+  const otpAutoSubmitRef = React.useRef(false); // tracks whether this 6-digit OTP has already been auto-submitted
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [profile, setProfile] = useState({ displayName: "", timezone: "Asia/Kolkata", batchNumber: "", language: "English" });
@@ -137,7 +138,18 @@ export function AuthForm({
   const [tzSearch, setTzSearch] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [orgStep, setOrgStep] = useState(1);
-  const [communityName, setCommunityName] = useState("");
+  const [selectedHubs, setSelectedHubs] = useState<string[]>(["hub-1", "hub-2"]);
+
+  const toggleHub = (hubId: string) => {
+    setSelectedHubs(prev => {
+      if (prev.includes(hubId)) {
+        if (prev.length === 1) return prev; // keep at least 1 selected
+        return prev.filter(id => id !== hubId);
+      } else {
+        return [...prev, hubId];
+      }
+    });
+  };
   
   useEffect(() => {
     setAuthState(state);
@@ -197,6 +209,7 @@ export function AuthForm({
     if (value.length > 1) {
       const pasted = value.replace(/[^0-9]/g, "").slice(0, 6);
       setOtp(pasted);
+      otpAutoSubmitRef.current = false; // reset guard on paste
       if (pasted.length === 6) {
         inputRefs.current[5]?.focus();
       } else {
@@ -212,6 +225,10 @@ export function AuthForm({
     current[index] = value;
     const newOtp = current.join("");
     setOtp(newOtp);
+    // Reset the auto-submit guard whenever the user changes the OTP
+    if (newOtp.length < 6) {
+      otpAutoSubmitRef.current = false;
+    }
 
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
@@ -255,7 +272,8 @@ export function AuthForm({
   };
 
   useEffect(() => {
-    if (state === "OTP_VERIFICATION" && otp.length === 6 && !loading) {
+    if (state === "OTP_VERIFICATION" && otp.length === 6 && !loading && !otpAutoSubmitRef.current) {
+      otpAutoSubmitRef.current = true; // mark as attempted — prevents infinite retry on error
       verifyOtp(otp);
     }
   }, [otp, state, loading]);
@@ -265,6 +283,7 @@ export function AuthForm({
     setConfirmPassword("");
     setOtp("");
     setError("");
+    otpAutoSubmitRef.current = false; // reset auto-submit guard on state transition
   }, [state]);
 
 
@@ -419,28 +438,38 @@ export function AuthForm({
     setError("");
 
     try {
+      if (orgLogo && typeof window !== "undefined") {
+        localStorage.setItem("orgLogo", orgLogo);
+        window.dispatchEvent(new Event("orgLogoUpdated"));
+      }
+
       // Simulate sequential loading for premium UX
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 500));
       setOrgLoadingStep(2); // Creating Organization...
       const res = await apiClient.post("/auth/setup/organization", { 
         organizationName: orgName, 
         workspaceId, 
-        communityName,
+        communityName: selectedHubs.includes("hub-1") ? "ManMadhan Hub - 1" : "ManMadhan Hub - 2",
+        selectedHubs,
         orgLogo 
       }, {
         headers: { Authorization: `Bearer ${tempToken}` }
       });
       
       setOrgLoadingStep(3); // Configuring Workspace...
-      await new Promise(resolve => setTimeout(resolve, 700));
-      setOrgLoadingStep(4); // Applying Security...
-      await new Promise(resolve => setTimeout(resolve, 600));
-      setOrgLoadingStep(5); // Preparing Dashboard...
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setOrgLoadingStep(6); // Organization Ready!
       await new Promise(resolve => setTimeout(resolve, 400));
+      setOrgLoadingStep(4); // Applying Security...
+      await new Promise(resolve => setTimeout(resolve, 400));
+      setOrgLoadingStep(5); // Preparing Dashboard...
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setOrgLoadingStep(6); // Organization Ready!
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       if (res.data.success) {
+        if (orgLogo && typeof window !== "undefined") {
+          localStorage.setItem("orgLogo", orgLogo);
+          window.dispatchEvent(new Event("orgLogoUpdated"));
+        }
         setLoading(false);
         setState("SUCCESS");
         setTimeout(async () => {
@@ -450,14 +479,17 @@ export function AuthForm({
           await checkSession();
           if (typeof window !== "undefined") {
             setTimeout(() => {
-              router.push(res.data.role === "CEO" ? "/ceo/dashboard" : res.data.role === "CO-CEO" ? "/co-ceo/dashboard" : "/member/dashboard");
+              router.push("/ceo/dashboard");
               setTimeout(() => setIsTransitioning(false), 500);
             }, 800);
           }
-        }, 1500);
+        }, 1200);
+      } else {
+        handleError({ response: { data: res.data } });
       }
     } catch (err: any) {
       handleError(err);
+    } finally {
       setLoading(false);
       setOrgLoadingStep(0);
     }
@@ -1165,26 +1197,26 @@ export function AuthForm({
           )}
 
           {state === "ORGANIZATION_SETUP" && (
-            <motion.form key="org" {...fadeSlideProps} onSubmit={handleOrgSubmit} className="flex flex-col gap-6 w-full max-w-[500px] mx-auto pb-4">
-              <div className="text-center mb-2 flex flex-col items-center">
+            <motion.form key="org" {...fadeSlideProps} onSubmit={handleOrgSubmit} className="flex flex-col gap-4 w-full max-w-[460px] mx-auto p-1">
+              <div className="text-center mb-1 flex flex-col items-center">
                 <motion.div 
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-muted border border-border mb-3 shadow-sm"
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gold/10 border border-gold/20 mb-2 shadow-sm text-gold"
                 >
-                  <ShieldCheck className="w-6 h-6 text-foreground" strokeWidth={1.5} />
+                  <ShieldCheck className="w-5 h-5 text-gold dark:text-[#F0BC2B]" strokeWidth={1.8} />
                 </motion.div>
-                <p className="text-[11px] font-bold tracking-widest text-gold uppercase mb-1">Authentication</p>
-                <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">Create Your Organization</h2>
-                <p className="text-sm text-muted-foreground mt-2 font-medium">Complete your organization setup to access your workspace.</p>
+                <p className="text-[10px] font-bold tracking-widest text-gold uppercase mb-0.5">Authentication</p>
+                <h2 className="text-xl md:text-2xl font-black tracking-tight text-foreground">Create Your Organization</h2>
+                <p className="text-xs text-muted-foreground mt-1 font-medium">Complete your organization setup to access your workspace.</p>
               </div>
 
               {orgStep === 1 && (
-                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex flex-col gap-6">
+                <motion.div initial={{ opacity: 0, x: -15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 15 }} className="flex flex-col gap-4">
                   {/* Logo Upload */}
-                  <div className="w-full flex flex-col gap-2">
+                  <div className="w-full flex flex-col gap-1.5">
                     <div 
-                      className={`flex flex-col sm:flex-row items-center gap-5 p-5 rounded-[20px] border-2 border-dashed transition-all ${isDragging ? 'border-gold bg-gold/5 scale-[1.02]' : 'border-border/60 bg-muted/20 hover:bg-muted/30'} group`}
+                      className={`flex items-center gap-4 p-3.5 rounded-xl border-2 border-dashed transition-all ${isDragging ? 'border-gold bg-gold/5 scale-[1.01]' : 'border-border/80 bg-muted/20 hover:bg-muted/30'} group`}
                       onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                       onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
                       onDrop={(e) => {
@@ -1193,19 +1225,19 @@ export function AuthForm({
                         handleLogoFile(e.dataTransfer.files?.[0]);
                       }}
                     >
-                      <div className="relative w-[72px] h-[72px] rounded-full border border-border/80 bg-background flex items-center justify-center overflow-hidden shrink-0 shadow-sm group-hover:border-gold/50 transition-colors pointer-events-none">
+                      <div className="relative w-14 h-14 rounded-full border border-border/80 bg-background flex items-center justify-center overflow-hidden shrink-0 shadow-sm group-hover:border-gold/50 transition-colors pointer-events-none">
                         {orgLogo ? (
                           <img src={orgLogo} alt="Logo preview" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full bg-muted/30 flex items-center justify-center">
-                            <UploadCloud className="w-6 h-6 text-muted-foreground/60 group-hover:text-gold transition-colors" />
+                            <UploadCloud className="w-5 h-5 text-gold" />
                           </div>
                         )}
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-foreground mb-1">Organization Logo</p>
-                        <p className="text-[11px] text-muted-foreground font-medium mb-3">PNG, JPG or SVG • Max 2 MB</p>
-                        <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-foreground mb-0.5">Organization Logo</p>
+                        <p className="text-[11px] text-muted-foreground font-medium mb-2">PNG, JPG or SVG • Max 2 MB</p>
+                        <div className="flex items-center gap-2">
                           <input 
                             type="file" 
                             accept="image/png, image/jpeg, image/svg+xml" 
@@ -1215,7 +1247,7 @@ export function AuthForm({
                               handleLogoFile(e.target.files?.[0]);
                             }}
                           />
-                          <button type="button" onClick={() => logoInputRef.current?.click()} className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-foreground text-background hover:bg-foreground/90 transition-colors">
+                          <button type="button" onClick={() => logoInputRef.current?.click()} className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-foreground text-background hover:bg-foreground/90 transition-colors">
                             {orgLogo ? "Replace Logo" : "Upload Logo"}
                           </button>
                           {orgLogo && (
@@ -1230,33 +1262,33 @@ export function AuthForm({
 
                   {/* Organization Name & Live Preview */}
                   <div className="flex flex-col gap-3">
-                    <div className="space-y-1.5">
-                      <label className="text-[12px] font-semibold text-foreground ml-1">Organization Name</label>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-foreground ml-0.5">Organization Name</label>
                       <input
                         type="text"
                         required
                         placeholder="ManMadhan Global"
-                        className="w-full h-12 rounded-[16px] bg-background/50 border border-border px-4 text-[14px] font-medium focus:border-gold outline-none transition-all shadow-sm hover:border-border/80 focus:shadow-[0_0_0_2px_rgba(200,155,60,0.1)]"
+                        className="w-full h-11 rounded-xl bg-background border border-border px-3.5 text-xs font-medium focus:border-gold outline-none transition-all shadow-sm focus:ring-2 focus:ring-gold/20"
                         value={orgName}
                         onChange={(e) => setOrgName(e.target.value)}
                       />
-                      <p className="text-[11px] text-muted-foreground ml-1 font-medium">The name displayed throughout your workspace.</p>
+                      <p className="text-[11px] text-muted-foreground ml-0.5 font-medium">The name displayed throughout your workspace.</p>
                     </div>
 
                     {/* Live Preview Card */}
                     {(orgName || workspaceId) && (
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full rounded-[16px] border border-border/80 bg-muted/10 p-4 flex items-center gap-4 shadow-sm">
-                        <div className="w-12 h-12 rounded-full border border-border bg-background flex items-center justify-center overflow-hidden shrink-0">
+                      <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="w-full rounded-xl border border-border/80 bg-muted/20 p-3 flex items-center gap-3 shadow-sm">
+                        <div className="w-10 h-10 rounded-lg border border-border bg-background flex items-center justify-center overflow-hidden shrink-0">
                           {orgLogo ? (
                             <img src={orgLogo} alt="Preview" className="w-full h-full object-cover" />
                           ) : (
-                            <Building className="w-5 h-5 text-muted-foreground/40" />
+                            <Building className="w-4 h-4 text-gold" />
                           )}
                         </div>
                         <div className="flex-1 overflow-hidden">
-                          <p className="text-[14px] font-bold text-foreground truncate">{orgName || "Organization Name"}</p>
-                          <p className="text-[11px] text-muted-foreground font-medium truncate mt-0.5 flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500/80"></span>
+                          <p className="text-xs font-bold text-foreground truncate">{orgName || "Organization Name"}</p>
+                          <p className="text-[10px] text-muted-foreground font-medium truncate mt-0.5 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                             {workspaceId || "workspace-id"}
                           </p>
                         </div>
@@ -1267,68 +1299,121 @@ export function AuthForm({
                   <button
                     type="button"
                     onClick={() => setOrgStep(2)}
-                    disabled={!orgName || workspaceId.length < 3}
-                    className={`w-full ${hClass} bg-gradient-to-b from-zinc-800 to-black dark:from-white dark:to-zinc-200 text-white dark:text-black font-semibold text-[15px] flex items-center justify-center transition-all disabled:opacity-50 shadow-md rounded-xl mt-2`}
+                    disabled={!orgName || workspaceId.length < 2}
+                    className="w-full h-11 bg-gold hover:bg-[#F0BC2B] text-black font-bold text-xs flex items-center justify-center transition-all disabled:opacity-50 shadow-sm rounded-xl mt-1 cursor-pointer"
                   >
-                    Continue <ArrowRight className="ml-2 w-4 h-4" />
+                    Continue <ArrowRight className="ml-1.5 w-4 h-4" />
                   </button>
                 </motion.div>
               )}
 
               {orgStep === 2 && (
-                <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex flex-col gap-6">
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-semibold text-foreground ml-1">Community Name</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. ManMadhan Community"
-                      className="w-full h-12 rounded-[16px] bg-background/50 border border-border px-4 text-[14px] font-medium focus:border-gold outline-none transition-all shadow-sm hover:border-border/80 focus:shadow-[0_0_0_2px_rgba(200,155,60,0.1)]"
-                      value={communityName}
-                      onChange={(e) => setCommunityName(e.target.value)}
-                    />
-                    <p className="text-[11px] text-muted-foreground ml-1 font-medium">This will create a dedicated space for your community.</p>
+                <motion.div initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }} className="flex flex-col gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-foreground ml-0.5">Select Community Hubs</label>
+                      <span className="text-[10px] text-gold font-bold">Both Selected by Default</span>
+                    </div>
+                    
+                    {/* Two Distinct Interactive Toggleable Community Hubs */}
+                    <div className="grid grid-cols-1 gap-2.5">
+                      {/* Hub 1 */}
+                      <button
+                        type="button"
+                        onClick={() => toggleHub("hub-1")}
+                        className={`p-3.5 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
+                          selectedHubs.includes("hub-1")
+                            ? "border-gold/60 bg-gold/10 shadow-sm"
+                            : "border-border/60 bg-muted/10 opacity-60 hover:opacity-100 hover:bg-muted/20"
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-black text-xs ${
+                          selectedHubs.includes("hub-1") ? "bg-gold/20 text-gold" : "bg-muted border border-border text-muted-foreground"
+                        }`}>
+                          H1
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-bold text-foreground">ManMadhan Hub - 1</p>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-gold/20 text-gold border border-gold/30">
+                                Admin Only
+                              </span>
+                              <CheckCircle2 className={`w-4 h-4 transition-colors ${selectedHubs.includes("hub-1") ? "text-gold" : "text-muted-foreground/30"}`} />
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Executive Strategy, High-Level Approvals, 8-Stage Governance & Settings.
+                          </p>
+                        </div>
+                      </button>
+
+                      {/* Hub 2 */}
+                      <button
+                        type="button"
+                        onClick={() => toggleHub("hub-2")}
+                        className={`p-3.5 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
+                          selectedHubs.includes("hub-2")
+                            ? "border-gold/60 bg-gold/10 shadow-sm"
+                            : "border-border/60 bg-muted/10 opacity-60 hover:opacity-100 hover:bg-muted/20"
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-black text-xs ${
+                          selectedHubs.includes("hub-2") ? "bg-gold/20 text-gold" : "bg-muted border border-border text-muted-foreground"
+                        }`}>
+                          H2
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-bold text-foreground">ManMadhan Hub - 2</p>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
+                                Admin + Member
+                              </span>
+                              <CheckCircle2 className={`w-4 h-4 transition-colors ${selectedHubs.includes("hub-2") ? "text-gold" : "text-muted-foreground/30"}`} />
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Task Execution, Project Workspaces, Leaderboard & Collaborative Documents.
+                          </p>
+                        </div>
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground ml-0.5 font-medium">
+                      No typing required. CEO can select both Hub-1 (Executive Strategy) and Hub-2 (Operations).
+                    </p>
                   </div>
 
-                  <div className="flex gap-2 mt-4 w-full">
+                  <div className="flex gap-2 mt-2 w-full">
                     <button
                       type="button"
                       onClick={() => setOrgStep(1)}
-                      className={`w-1/3 ${hClass} bg-muted text-muted-foreground font-semibold text-[14px] flex items-center justify-center transition-all hover:bg-muted/80 rounded-xl shadow-sm`}
+                      className="w-1/3 h-11 bg-muted hover:bg-muted/80 text-foreground font-bold text-xs flex items-center justify-center transition-all rounded-xl shadow-sm"
                     >
                       Back
                     </button>
                     <button
                       type="submit"
-                      disabled={loading || orgLoadingStep > 0 || !communityName}
-                      className={`flex-1 ${hClass} bg-gradient-to-b from-zinc-800 to-black dark:from-white dark:to-zinc-200 text-white dark:text-black font-semibold text-[14px] flex items-center justify-center transition-all disabled:opacity-50 shadow-md group rounded-xl relative overflow-hidden`}
+                      disabled={loading || orgLoadingStep > 0}
+                      className="flex-1 h-11 bg-gold hover:bg-[#F0BC2B] text-black font-bold text-xs flex items-center justify-center transition-all disabled:opacity-50 shadow-sm rounded-xl cursor-pointer px-4"
                     >
                       {orgLoadingStep > 0 ? (
-                        <div className="flex items-center gap-2 relative z-10">
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span className="text-[13px] font-semibold">
+                        <div className="flex items-center justify-center gap-2 whitespace-nowrap overflow-hidden">
+                          <Loader2 className="w-4 h-4 animate-spin shrink-0 text-black" />
+                          <span className="text-xs font-bold text-black truncate">
                             {orgLoadingStep === 1 ? "Connecting..." :
                              orgLoadingStep === 2 ? "Creating Organization..." :
-                             orgLoadingStep === 3 ? "Configuring Workspace..." :
+                             orgLoadingStep === 3 ? "Configuring Hubs..." :
                              orgLoadingStep === 4 ? "Applying Security..." :
                              orgLoadingStep === 5 ? "Preparing Dashboard..." :
                              "Organization Ready!"}
                           </span>
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 relative z-10">
-                          <span>Complete Setup</span>
-                          <CheckCircle2 className="w-4 h-4" />
+                        <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                          <span>Complete Setup & Enter Workspace</span>
+                          <ArrowRight className="w-4 h-4 shrink-0" />
                         </div>
-                      )}
-                      
-                      {orgLoadingStep > 0 && (
-                        <motion.div 
-                          className="absolute inset-0 bg-gold/10 z-0"
-                          initial={{ width: "0%" }}
-                          animate={{ width: `${(orgLoadingStep / 6) * 100}%` }}
-                          transition={{ duration: 0.5 }}
-                        />
                       )}
                     </button>
                   </div>

@@ -86,12 +86,22 @@ export function NotificationDropdown() {
 
     setIsOpen(false);
 
+    const metaTaskId = item.metadata?.taskId || item.taskId;
+    if (metaTaskId || item.type === "TASK_ASSIGNMENT") {
+      const roleRaw = (localStorage.getItem("userRole") || "MEMBER").toUpperCase();
+      const prefix = roleRaw.includes("CO") ? "co-ceo" : roleRaw.includes("CEO") ? "ceo" : "member";
+      router.push(`/${prefix}/my-work?taskId=${metaTaskId || ""}`);
+      return;
+    }
+
     if (item.actionUrl) {
       router.push(item.actionUrl);
     } else if (item.entityType === "task" && item.entityId) {
-      router.push(isPersonal ? `/personal/tasks` : `/tasks`);
+      const roleRaw = (localStorage.getItem("userRole") || "MEMBER").toUpperCase();
+      const prefix = roleRaw.includes("CO") ? "co-ceo" : roleRaw.includes("CEO") ? "ceo" : "member";
+      router.push(`/${prefix}/my-work?taskId=${item.entityId}`);
     } else if (item.entityType === "project" && item.entityId) {
-      router.push(isPersonal ? `/personal/projects` : `/projects`);
+      router.push(isPersonal ? `/personal/projects` : `/ceo/projects/${item.entityId}`);
     }
   };
 

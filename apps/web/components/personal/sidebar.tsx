@@ -2,338 +2,419 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
-import { 
-  LayoutDashboard, CheckSquare, FolderKanban, Target, Map, Flag, Trophy, 
-  Image as ImageIcon, Brain, FileText, BookOpen, Headphones, Newspaper,
-  GraduationCap, Zap, LayoutTemplate, Focus, Calendar, Clock, LineChart, 
-  Repeat, Folder, Sparkles, Bell, Settings, ShieldCheck,
-  PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronRight, 
-  Building2, UserCircle, Check, Menu, X, LogOut, Moon,
-  PenTool, Lightbulb, TrendingUp, History, Activity, Search, Archive, Link as LinkIcon, Terminal
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard, CheckSquare, FolderKanban, Focus, Calendar, Bell, History,
+  PenTool, BookOpen, Headphones, GraduationCap,
+  FileText, Archive, Sparkles, Brain,
+  LinkIcon, LineChart, Settings,
+  PanelLeftClose, PanelLeftOpen, ChevronDown,
+  LogOut, Moon, Sun, User as UserIcon, Building, Check, X,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMediaQuery } from "../../hooks/use-media-query";
 import { useTheme } from "next-themes";
-
-import { ResponsivePopover } from "../ui/responsive-popover";
 import { useAuth } from "../auth/auth-context";
+import { ResponsivePopover } from "../ui/responsive-popover";
+import apiClient from "@/lib/api-client";
+import { useSocket } from "@/components/providers/socket-provider";
 
-// --- Types ---
-type NavItem = {
-  name: string;
-  href: string;
-  icon: any;
-  badge?: number;
-};
+/* ─────────────────────────────────────────────────────────── types */
+type NavItem  = { name: string; href: string; icon: React.ElementType };
+type NavGroup = { id: string; label: string; items: NavItem[] };
 
-type NavGroup = {
-  id: string;
-  label: string;
-  items: NavItem[];
-};
-
-// --- Data ---
-const NAVIGATION_DATA: NavGroup[] = [
+/* ──────────────────────────────────────────────────────── nav data */
+const NAVIGATION: NavGroup[] = [
   {
-    id: "home",
-    label: "Home",
+    id: "main",
+    label: "MAIN",
     items: [
       { name: "Dashboard", href: "/personal/dashboard", icon: LayoutDashboard },
-      { name: "Focus", href: "/personal/focus", icon: Focus }
-    ]
+      { name: "Focus",     href: "/personal/focus",     icon: Focus },
+    ],
   },
   {
     id: "work",
-    label: "Work",
+    label: "WORK",
     items: [
-      { name: "Projects", href: "/personal/projects", icon: FolderKanban },
-      { name: "Tasks", href: "/personal/tasks", icon: CheckSquare },
-      { name: "Calendar", href: "/personal/calendar", icon: Calendar },
-      { name: "Timeline", href: "/personal/timeline", icon: History }
-    ]
+      { name: "Projects",  href: "/personal/projects",  icon: FolderKanban },
+      { name: "Tasks",     href: "/personal/tasks",     icon: CheckSquare },
+      { name: "Calendar",  href: "/personal/calendar",  icon: Calendar },
+      { name: "Timeline",  href: "/personal/timeline",  icon: History },
+    ],
   },
   {
     id: "life",
-    label: "Life",
+    label: "LIFE",
     items: [
-      { name: "Journal", href: "/personal/journal", icon: PenTool },
-      { name: "Books", href: "/personal/books", icon: BookOpen },
-      { name: "Podcasts", href: "/personal/podcasts", icon: Headphones },
-      { name: "Learning", href: "/personal/learning", icon: GraduationCap }
-    ]
+      { name: "Journal",   href: "/personal/journal",   icon: PenTool },
+      { name: "Books",     href: "/personal/books",     icon: BookOpen },
+      { name: "Podcasts",  href: "/personal/podcasts",  icon: Headphones },
+      { name: "Learning",  href: "/personal/learning",  icon: GraduationCap },
+    ],
   },
   {
     id: "knowledge",
-    label: "Knowledge",
+    label: "KNOWLEDGE",
     items: [
-      { name: "Notes", href: "/personal/notes", icon: FileText },
+      { name: "Notes",     href: "/personal/notes",     icon: FileText },
       { name: "Documents", href: "/personal/documents", icon: Archive },
-      { name: "Prompt Library", href: "/personal/prompt-library", icon: Sparkles }
-    ]
+    ],
   },
   {
-    id: "intelligence",
-    label: "Intelligence",
+    id: "ai",
+    label: "AI",
     items: [
-      { name: "AI Builder", href: "/personal/ai-builder", icon: Brain },
-      { name: "Prompt Library", href: "/personal/prompt-library", icon: BookOpen }
-    ]
+      { name: "AI Builder",     href: "/personal/ai-builder",    icon: Brain },
+      { name: "Prompt Library", href: "/personal/prompt-library", icon: Sparkles },
+    ],
   },
   {
     id: "system",
-    label: "System",
+    label: "SYSTEM",
     items: [
-      { name: "Integrations", href: "/personal/integrations", icon: LinkIcon },
-      { name: "Reports", href: "/personal/reports", icon: LineChart },
-      { name: "Settings", href: "/personal/settings", icon: Settings }
-    ]
-  }
+      { name: "Reminders", href: "/personal/reminders", icon: Bell },
+      { name: "Reports",   href: "/personal/reports",   icon: LineChart },
+    ],
+  },
+  {
+    id: "account",
+    label: "ACCOUNT",
+    items: [
+      { name: "Profile",  href: "/personal/profile",  icon: UserIcon },
+      { name: "Settings", href: "/personal/settings", icon: Settings },
+    ],
+  },
 ];
 
+/* ─────────────────────────────── active-route helper (exact segment) */
+function isNavItemActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(href + "/");
+}
+
+/* ─────────────────────────── WorkspaceSwitcher (personal sidebar variant) */
+function SidebarWorkspaceSwitcher({
+  isCollapsed,
+  isMobile,
+}: {
+  isCollapsed: boolean;
+  isMobile: boolean;
+}) {
+  const { user, isLoading } = useAuth();
+  const pathname = usePathname();
+  const [isOpen, setIsOpen] = useState(false);
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const { socket } = useSocket();
+
+  useEffect(() => {
+    if (isLoading || !user) return;
+    apiClient.get("/workspaces").then(res => {
+      if (res.data.success) setWorkspaces(res.data.data || []);
+    }).catch(() => undefined);
+  }, [user, isLoading]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handler = (updated: any) =>
+      setWorkspaces(ws => ws.map(w => w.id === updated.id ? { ...w, ...updated } : w));
+    socket.on("organization.updated", handler);
+    return () => { socket.off("organization.updated", handler); };
+  }, [socket]);
+
+  const isPersonal = pathname.startsWith("/personal");
+  const activeWorkspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
+  const userRole = (user?.role || "CEO").toUpperCase();
+
+  const handleSwitch = (type: "personal" | "org", wsId?: string) => {
+    setIsOpen(false);
+    if (type === "personal") {
+      window.location.href = "/personal/dashboard";
+    } else if (wsId) {
+      localStorage.setItem("workspaceId", wsId);
+      let target = "/ceo/dashboard";
+      if (userRole === "CO-CEO") target = "/co-ceo/dashboard";
+      else if (userRole === "MEMBER") target = "/member/dashboard";
+      window.location.href = target;
+    }
+  };
+
+  const orgWorkspaces = workspaces.filter(w => !w.name.toLowerCase().includes("personal"));
+
+  const trigger = (
+    <button
+      onClick={() => setIsOpen(o => !o)}
+      aria-expanded={isOpen}
+      aria-haspopup="listbox"
+      title={isCollapsed && !isMobile ? "Personal Workspace" : undefined}
+      className={`
+        w-full flex items-center gap-2.5 rounded-xl transition-colors duration-150
+        hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+        ${isCollapsed && !isMobile ? "justify-center p-2" : "px-3 py-2.5"}
+        ${isOpen ? "bg-accent" : ""}
+      `}
+    >
+      <div className="relative shrink-0 w-8 h-8 rounded-lg overflow-hidden bg-muted border border-border flex items-center justify-center">
+        <Image
+          src="/ios/iTunesArtwork@1x.png"
+          alt="ManMadhan Progress"
+          fill
+          sizes="32px"
+          className="object-cover"
+          priority
+        />
+      </div>
+      {(!isCollapsed || isMobile) && (
+        <div className="flex-1 min-w-0 text-left">
+          <p className="text-[14px] font-semibold text-foreground leading-tight truncate">
+            ManMadhan Progress
+          </p>
+          <p className="text-[11px] text-muted-foreground leading-tight truncate mt-0.5">
+            Personal Workspace
+          </p>
+        </div>
+      )}
+      {(!isCollapsed || isMobile) && (
+        <ChevronDown
+          className={`w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+        />
+      )}
+    </button>
+  );
+
+  return (
+    <ResponsivePopover
+      isOpen={isOpen}
+      setIsOpen={setIsOpen}
+      align="left"
+      desktopClassName="w-[268px] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col p-2 gap-1 z-50"
+      trigger={trigger}
+    >
+      <div className="flex flex-col gap-1 p-1">
+        <div className="px-2 pt-1 pb-2">
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+            Switch Workspace
+          </p>
+        </div>
+
+        {/* Personal — currently active */}
+        <button
+          role="option"
+          aria-selected={isPersonal}
+          onClick={() => handleSwitch("personal")}
+          className={`
+            w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors duration-150
+            ${isPersonal ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"}
+          `}
+        >
+          <div className="w-7 h-7 rounded-lg bg-muted border border-border flex items-center justify-center shrink-0">
+            <UserIcon className="w-3.5 h-3.5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-foreground truncate leading-tight">Personal</p>
+            <p className="text-[11px] text-muted-foreground truncate leading-tight">Private workspace</p>
+          </div>
+          {isPersonal && <Check className="w-4 h-4 text-gold shrink-0" />}
+        </button>
+
+        {/* Org workspaces */}
+        {orgWorkspaces.map(ws => {
+          const isActive = !isPersonal && activeWorkspaceId === ws.id;
+          return (
+            <button
+              key={ws.id}
+              role="option"
+              aria-selected={isActive}
+              onClick={() => handleSwitch("org", ws.id)}
+              className={`
+                w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors duration-150
+                ${isActive ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"}
+              `}
+            >
+              <div className="w-7 h-7 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center shrink-0">
+                <Building className="w-3.5 h-3.5 text-gold" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-semibold text-foreground truncate leading-tight">{ws.name}</p>
+                <p className="text-[11px] text-muted-foreground truncate leading-tight">Organization</p>
+              </div>
+              {isActive && <Check className="w-4 h-4 text-gold shrink-0" />}
+            </button>
+          );
+        })}
+
+        {/* Fallback when no org workspaces loaded */}
+        {orgWorkspaces.length === 0 && (
+          <button
+            role="option"
+            aria-selected={false}
+            onClick={() => handleSwitch("org", activeWorkspaceId || "")}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-muted-foreground hover:bg-accent hover:text-foreground transition-colors duration-150"
+          >
+            <div className="w-7 h-7 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center shrink-0">
+              <Building className="w-3.5 h-3.5 text-gold" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-semibold text-foreground truncate leading-tight">Organization</p>
+              <p className="text-[11px] text-muted-foreground truncate leading-tight">Switch workspace</p>
+            </div>
+          </button>
+        )}
+
+        <button
+          onClick={() => setIsOpen(false)}
+          className="md:hidden w-full mt-1 h-10 rounded-xl bg-muted/60 hover:bg-muted text-[12px] font-semibold text-muted-foreground transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </ResponsivePopover>
+  );
+}
+
+/* ──────────────────────────────────────────────── main sidebar component */
 export function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const isTablet = useMediaQuery("(max-width: 1024px) and (min-width: 769px)");
-  const isMobile = useMediaQuery("(max-width: 768px)");
-  
+  const isTablet  = useMediaQuery("(max-width: 1024px) and (min-width: 769px)");
+  const isMobile  = useMediaQuery("(max-width: 768px)");
+
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+
   const { logout, user } = useAuth();
-  
-  // Listen for the custom event from mobile-header.tsx to open the sidebar
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted ? resolvedTheme === "dark" : true;
+
+  /* expanded state — all groups open by default */
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
+    NAVIGATION.reduce((acc, g) => ({ ...acc, [g.id]: true }), {} as Record<string, boolean>)
+  );
+
+  const toggleSection = useCallback((id: string) => {
+    setExpanded(p => ({ ...p, [id]: !p[id] }));
+  }, []);
+
+  /* window events for external triggers (mobile-header open button) */
   useEffect(() => {
-    const handleOpenSidebar = () => setIsMobileDrawerOpen(true);
-    const handleToggleSidebar = () => setIsCollapsed(prev => !prev);
-    window.addEventListener('open-sidebar', handleOpenSidebar);
-    window.addEventListener('toggle-sidebar', handleToggleSidebar);
+    const onOpen   = () => setIsMobileDrawerOpen(true);
+    const onToggle = () => setIsCollapsed(p => !p);
+    window.addEventListener("open-sidebar",   onOpen);
+    window.addEventListener("toggle-sidebar", onToggle);
     return () => {
-      window.removeEventListener('open-sidebar', handleOpenSidebar);
-      window.removeEventListener('toggle-sidebar', handleToggleSidebar);
+      window.removeEventListener("open-sidebar",   onOpen);
+      window.removeEventListener("toggle-sidebar", onToggle);
     };
   }, []);
 
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    "home": true,
-    "work": true,
-    "life": true,
-    "knowledge": true,
-    "system": true
-  });
-
-  const isPersonal = pathname.startsWith("/personal");
-
+  /* auto-collapse on tablet */
   useEffect(() => {
     if (isTablet) setIsCollapsed(true);
     else if (!isMobile) setIsCollapsed(false);
   }, [isTablet, isMobile]);
 
-  const toggleGroup = (id: string) => {
-    if (isCollapsed && !isMobile) {
-      setIsCollapsed(false); // Auto expand sidebar if clicking a collapsed group
-    }
-    setExpandedGroups(prev => ({ ...prev, [id]: !prev[id] }));
-  };
+  /* user display */
+  const initials = user?.name
+    ? user.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()
+    : "P";
+  const displayName = user?.displayName || user?.name || "Personal User";
 
-  // --- Components ---
+  /* tooltip helper */
+  const tt = (label: string) => (isCollapsed && !isMobile ? label : undefined);
 
-  const MobileSidebarContent = () => {
-    const mobileItems = [
-      { name: "Dashboard", href: "/personal/dashboard", icon: LayoutDashboard },
-      { name: "Focus", href: "/personal/focus", icon: Focus },
-      { name: "Projects", href: "/personal/projects", icon: FolderKanban },
-      { name: "Tasks", href: "/personal/tasks", icon: CheckSquare },
-      { name: "Calendar", href: "/personal/calendar", icon: Calendar },
-      { name: "Timeline", href: "/personal/timeline", icon: History },
-      { name: "Journal", href: "/personal/journal", icon: PenTool },
-      { name: "Books", href: "/personal/books", icon: BookOpen },
-      { name: "Podcasts", href: "/personal/podcasts", icon: Headphones },
-      { name: "Learning", href: "/personal/learning", icon: GraduationCap },
-      { name: "Notes", href: "/personal/notes", icon: FileText },
-      { name: "Files", href: "/personal/documents", icon: Archive },
-      { name: "AI Builder", href: "/personal/ai-builder", icon: Brain },
-      { name: "Prompt Library", href: "/personal/prompt-library", icon: BookOpen },
-      { name: "Integrations", href: "/personal/integrations", icon: LinkIcon },
-      { name: "Settings", href: "/personal/settings", icon: Settings }
-    ];
-
-    return (
-      <div className="flex flex-col h-[100dvh] overflow-hidden bg-card text-foreground">
-        {/* Top Brand & Close */}
-        <div className="flex items-center justify-between px-4 h-14 shrink-0">
-          <div className="font-bold text-[14px] sm:text-[15px] tracking-wide text-foreground">ManMadhan Progress</div>
-          <button 
-            onClick={() => setIsMobileDrawerOpen(false)}
-            className="w-11 h-11 flex items-center justify-center -mr-2 text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Close menu"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Workspace Identity */}
-        <div className="flex items-center gap-3 px-4 py-2 sm:py-3 shrink-0">
-          <div className="w-10 h-10 rounded-xl bg-foreground text-background flex items-center justify-center font-bold shadow-sm border border-border">
-            M
-          </div>
-          <div className="flex flex-col flex-1 min-w-0 justify-center">
-            <span className="text-[14px] font-bold truncate text-foreground leading-tight mb-0.5">MM1107</span>
-            <span className="text-[12px] text-muted-foreground truncate leading-tight">Personal Workspace</span>
-          </div>
-          <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm shrink-0" />
-        </div>
-
-        <div className="h-px bg-border/50 shrink-0 mx-4 my-2 sm:my-3" />
-
-        {/* Navigation Section */}
-        <div className="px-4 py-1 sm:py-2 shrink-0">
-          <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest px-1">
-            Navigation
-          </span>
-        </div>
-
-        {/* Navigation Grid (Auto-flowing 2 columns) */}
-        <div className="px-4 flex-1 min-h-0">
-          <div className="grid grid-cols-2 gap-x-2 gap-y-1 sm:gap-y-1.5 h-full content-start">
-            {mobileItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-              return (
-                <Link key={item.name} href={item.href} onClick={() => setIsMobileDrawerOpen(false)}>
-                  <div className={`flex items-center gap-2.5 px-3 py-2 sm:py-2.5 rounded-[12px] transition-colors duration-200 ${
-                    isActive 
-                      ? "bg-[#D99A00]/10 dark:bg-[#F5B800]/10 text-foreground font-semibold" 
-                      : "text-muted-foreground font-medium hover:bg-accent/50"
-                  }`}>
-                    <item.icon className={`w-[18px] h-[18px] sm:w-[20px] sm:h-[20px] shrink-0 ${isActive ? "text-[#D99A00] dark:text-[#F5B800] stroke-[2.5]" : "stroke-2"}`} />
-                    <span className="text-[13px] sm:text-[14px] truncate pt-px">{item.name}</span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="h-px bg-border/50 shrink-0 mx-4 my-2 sm:my-3" />
-
-        {/* Account Section */}
-        <div className="px-4 py-1 shrink-0">
-          <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest px-1">
-            Account
-          </span>
-        </div>
-        
-        <div className="px-4 pb-2 sm:pb-3 shrink-0 flex flex-col gap-0.5 sm:gap-1">
-          <Link href="/personal/notifications" onClick={() => setIsMobileDrawerOpen(false)}>
-            <div className="flex items-center justify-between px-3 py-2 sm:py-2.5 rounded-[12px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors font-medium cursor-pointer">
-              <div className="flex items-center gap-2.5">
-                <Bell className="w-[18px] h-[18px] sm:w-[20px] sm:h-[20px] shrink-0 stroke-2" />
-                <span className="text-[13px] sm:text-[14px] pt-px">Notifications</span>
-              </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] shrink-0" />
-            </div>
-          </Link>
-          <div className="flex items-center justify-between px-3 py-2 sm:py-2.5 rounded-[12px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors font-medium cursor-pointer" onClick={() => setIsMobileDrawerOpen(false)}>
-            <div className="flex items-center gap-2.5">
-              <UserCircle className="w-[18px] h-[18px] sm:w-[20px] sm:h-[20px] shrink-0 stroke-2" />
-              <span className="text-[13px] sm:text-[14px] pt-px">Profile</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Branding */}
-        <div className="pb-4 sm:pb-6 pt-2 shrink-0 text-center flex justify-center">
-          <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-40">
-            ManMadhan
-          </span>
-        </div>
-      </div>
-    );
-  };
-
+  /* ──────────────────────────────────── desktop sidebar content */
   const SidebarContent = () => (
-    <div className="flex flex-col h-full overflow-hidden bg-card">
-      {/* Header */}
-      <div className={`px-4 pt-5 pb-4 flex flex-col border-b border-border transition-all shrink-0`}>
-        <div className={`flex items-center gap-3 min-w-0 ${isCollapsed && !isMobile ? "justify-center" : ""}`}>
-          <div className="relative w-8 h-8 rounded-lg overflow-hidden shrink-0 shadow-sm border border-border">
-            <Image
-              src="/ios/iTunesArtwork@1x.png"
-              alt="Logo"
-              fill
-              className="object-cover"
-              sizes="32px"
-            />
-          </div>
-          {(!isCollapsed || isMobile) && (
-            <div className="flex flex-col justify-center overflow-hidden whitespace-nowrap pt-0.5">
-              <span className="text-[15px] font-bold text-foreground leading-none">Personal Space</span>
-              <span className="text-[10px] font-medium text-muted-foreground mt-1">Focus & Growth</span>
-            </div>
-          )}
-        </div>
+    <div className="flex flex-col h-full bg-card overflow-hidden">
 
+      {/* ── Header ── */}
+      <div className="shrink-0 px-4 pt-5 pb-4 border-b border-border">
+        <SidebarWorkspaceSwitcher isCollapsed={isCollapsed} isMobile={isMobile} />
       </div>
-      
-      {/* Navigation */}
-      <div data-lenis-prevent="true" className="flex-1 overflow-y-auto overflow-x-hidden p-3 scrollbar-thin scrollbar-thumb-muted-foreground/20">
-        {NAVIGATION_DATA.map((group) => {
-          const isExpanded = expandedGroups[group.id];
-          
+
+      {/* ── Scrollable Nav ── */}
+      <nav
+        aria-label="Personal workspace navigation"
+        className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-3"
+        style={{ scrollbarWidth: "none" }}
+      >
+        <style>{`nav::-webkit-scrollbar { display: none; }`}</style>
+
+        {NAVIGATION.map((group) => {
+          const isExpanded = expanded[group.id] ?? true;
+
           return (
-            <div key={group.id} className="mb-4 last:mb-0">
-              {/* Group Header */}
-              <button 
-                onClick={() => toggleGroup(group.id)}
-                className={`w-full flex items-center justify-between px-2 mb-1 group-btn ${isCollapsed && !isMobile ? "justify-center" : ""}`}
+            <div key={group.id} className="mb-5 last:mb-0">
+              {/* section label */}
+              <button
+                type="button"
+                aria-expanded={isExpanded}
+                onClick={() => {
+                  if (isCollapsed && !isMobile) setIsCollapsed(false);
+                  else toggleSection(group.id);
+                }}
+                title={tt(group.label)}
+                className={`
+                  w-full flex items-center mb-1.5 px-2 py-0.5 rounded-md
+                  transition-colors duration-150 hover:bg-accent/50
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+                  ${isCollapsed && !isMobile ? "justify-center" : "justify-between"}
+                `}
               >
                 {(!isCollapsed || isMobile) ? (
-                  <span className="text-[11px] font-semibold text-muted-foreground/70 uppercase tracking-widest group-hover:text-foreground/80 transition-colors">
+                  <span className="text-[10.5px] font-semibold text-muted-foreground/60 uppercase tracking-widest select-none">
                     {group.label}
                   </span>
                 ) : (
-                  <div className="w-4 h-[1px] bg-border/50 my-2" />
+                  <div className="w-5 h-px bg-border mx-auto" />
                 )}
                 {(!isCollapsed || isMobile) && (
-                  isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/50" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50" />
+                  <ChevronDown
+                    className={`w-3 h-3 text-muted-foreground/40 transition-transform duration-200 ${isExpanded ? "rotate-0" : "-rotate-90"}`}
+                  />
                 )}
               </button>
 
-              {/* Group Items */}
+              {/* items */}
               <AnimatePresence initial={false}>
                 {(isExpanded || (isCollapsed && !isMobile)) && (
                   <motion.div
+                    key="items"
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="flex flex-col gap-0.5 overflow-hidden"
+                    transition={{ duration: 0.18, ease: "easeInOut" }}
+                    className="overflow-hidden flex flex-col gap-0.5"
                   >
                     {group.items.map((item) => {
-                      const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                      const active = isNavItemActive(pathname, item.href);
                       return (
-                        <Link key={item.name} href={item.href}>
-                            <div
-                              title={(isCollapsed && !isMobile) ? item.name : undefined}
-                              className={`flex items-center gap-3 px-2.5 py-2 rounded-lg transition-colors duration-200 cursor-pointer ${
-                                isActive 
-                                  ? "bg-accent text-foreground font-semibold" 
-                                  : "text-muted-foreground hover:bg-accent hover:text-foreground font-medium"
-                              } ${isCollapsed && !isMobile ? "justify-center px-0" : ""}`}
-                            >
-                            
-                            <item.icon className={`shrink-0 ${isCollapsed && !isMobile ? "w-5 h-5" : "w-[18px] h-[18px]"} ${isActive ? "stroke-2 text-gold" : "stroke-2"}`} />
-                            
-                            {(!isCollapsed || isMobile) && (
-                              <div className="flex items-center justify-between flex-1 min-w-0">
-                                <span className="text-[13px] truncate">{item.name}</span>
-                                {item.badge && (
-                                  <span className="px-1.5 py-0.5 rounded-md bg-muted/60 text-muted-foreground text-[8px] font-bold ml-2">
-                                    {item.badge}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => isMobile && setIsMobileDrawerOpen(false)}
+                          aria-current={active ? "page" : undefined}
+                          title={tt(item.name)}
+                          className={`
+                            flex items-center gap-3 rounded-xl transition-colors duration-150
+                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+                            ${isCollapsed && !isMobile
+                              ? "justify-center px-0 py-2.5 mx-auto w-10 h-10"
+                              : "px-3 py-2.5"}
+                            ${active
+                              ? "bg-[#FFF8E7] dark:bg-[#E3AA18]/10 text-[#111827] dark:text-[#F5F5F5] font-semibold border-l-2 border-[#D9A514] dark:border-[#E3AA18]"
+                              : "text-[#4B5563] dark:text-[#858585] hover:bg-[#F3F4F6] dark:hover:bg-[#151515] hover:text-[#111827] dark:hover:text-[#D6D6D6] font-medium"}
+                          `}
+                        >
+                          <item.icon
+                            className={`
+                              shrink-0 w-[18px] h-[18px] stroke-2
+                              ${active ? "text-[#D9A514] dark:text-[#E3AA18]" : "text-[#6B7280] dark:text-[#858585]"}
+                            `}
+                          />
+                          {(!isCollapsed || isMobile) && (
+                            <span className="text-[13.5px] leading-none truncate">{item.name}</span>
+                          )}
                         </Link>
                       );
                     })}
@@ -343,85 +424,217 @@ export function Sidebar() {
             </div>
           );
         })}
-      </div>
+      </nav>
 
-      {/* Footer Area */}
-      <div className="flex flex-col shrink-0 border-t border-border bg-card">
-        {/* Settings & Switcher */}
-        {/* Settings removed from here, now in SYSTEM group */}
+      {/* ── Footer ── */}
+      <div className="shrink-0 border-t border-border bg-card">
 
-        {/* Profile / Actions */}
-        <div className={`p-4 flex flex-col gap-4 bg-muted/10 hidden md:flex border-t border-border/50`}>
-          
-          <div className={`flex items-center ${isCollapsed && !isMobile ? "flex-col gap-4" : "justify-between"}`}>
-            <div className={`flex items-center gap-2.5 min-w-0 ${isCollapsed && !isMobile ? "justify-center" : ""}`}>
-              <div className="w-8 h-8 rounded-full bg-cyan-700 flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-sm border border-border cursor-pointer hover:border-cyan-500/50 transition-all">
-                {user?.name ? user.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() : user?.email ? user.email.slice(0, 2).toUpperCase() : "PU"}
-              </div>
-              {(!isCollapsed || isMobile) && (
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-extrabold text-foreground truncate leading-tight cursor-pointer hover:text-cyan-400 transition-colors">
-                    {user?.displayName || user?.name || (user?.email ? user.email.split("@")[0] : "Personal User")}
-                  </span>
-                  <span className="text-[10px] font-medium text-muted-foreground truncate mt-0.5">
-                    <span className="text-cyan-400 font-bold">Personal Account</span> • <span className="text-blue-500 font-medium">Execution OS</span>
-                  </span>
-                </div>
-              )}
+        {/* personal status strip — only when expanded */}
+        {(!isCollapsed || isMobile) && (
+          <div className="px-4 py-3 border-b border-border/50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10.5px] font-semibold text-muted-foreground uppercase tracking-widest">
+                Personal
+              </span>
+              <LineChart className="w-3.5 h-3.5 text-gold" />
             </div>
-            
-            <div className={`flex items-center gap-1 shrink-0 ${isCollapsed && !isMobile ? "flex-col" : ""}`}>
-              <button 
+            <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+              <div className="h-full rounded-full bg-gold" style={{ width: "72%" }} />
+            </div>
+          </div>
+        )}
+
+        {/* profile + controls */}
+        <div className="hidden md:block p-4">
+          <div className={`flex items-center ${isCollapsed && !isMobile ? "flex-col gap-3" : "gap-3"}`}>
+
+            {/* avatar */}
+            <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/30 flex items-center justify-center text-gold text-xs font-bold shrink-0 select-none">
+              {user?.avatar ? (
+                <img src={user.avatar} alt={displayName} className="w-full h-full object-cover rounded-full" />
+              ) : initials}
+            </div>
+
+            {/* name + role */}
+            {(!isCollapsed || isMobile) && (
+              <div className="flex-1 min-w-0">
+                <p className="text-[13.5px] font-semibold text-foreground leading-none truncate">{displayName}</p>
+                <p className="text-[11px] font-medium leading-none mt-1 text-gold">Personal</p>
+              </div>
+            )}
+
+            {/* actions */}
+            <div className={`flex items-center gap-1 ${isCollapsed && !isMobile ? "flex-col" : "ml-auto"}`}>
+              {(!isCollapsed || isMobile) && (
+                <button
+                  type="button"
+                  onClick={() => setTheme(isDark ? "light" : "dark")}
+                  title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+                  aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {isDark ? <Sun className="w-[15px] h-[15px]" /> : <Moon className="w-[15px] h-[15px]" />}
+                </button>
+              )}
+              <button
+                type="button"
                 onClick={logout}
-                className="p-1.5 rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500 transition-colors shrink-0 cursor-pointer" 
-                title="Log out"
+                title="Sign out"
+                aria-label="Sign out"
+                className="p-1.5 rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-[15px] h-[15px]" />
               </button>
             </div>
           </div>
 
-          {/* Dedicated Collapse Button at absolute bottom */}
-          {(!isCollapsed || isMobile) && (
-            <div className="flex justify-end hidden md:flex">
-              <button 
+          {/* collapse toggle */}
+          <div className={`mt-3 flex ${isCollapsed && !isMobile ? "justify-center" : "justify-end"}`}>
+            {!isCollapsed ? (
+              <button
+                type="button"
                 onClick={() => setIsCollapsed(true)}
-                className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-accent"
+                aria-label="Collapse sidebar"
+                className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors duration-150 px-2 py-1 rounded-lg hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <PanelLeftClose className="w-4 h-4" />
+                <PanelLeftClose className="w-3.5 h-3.5" />
                 Collapse
               </button>
-            </div>
-          )}
-          {isCollapsed && !isMobile && (
-            <div className="flex justify-center hidden md:flex">
-              <button 
+            ) : (
+              <button
+                type="button"
                 onClick={() => setIsCollapsed(false)}
-                className="p-1.5 rounded text-muted-foreground hover:text-foreground transition-colors hover:bg-accent"
-                title="Expand"
+                aria-label="Expand sidebar"
+                title="Expand sidebar"
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <PanelLeftOpen className="w-4 h-4" />
+                <PanelLeftOpen className="w-3.5 h-3.5" />
               </button>
-            </div>
-          )}
-
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 
+  /* ─────────────────────────── mobile drawer content (full-screen friendly) */
+  const MobileDrawerContent = () => {
+    const mobileItems: NavItem[] = [
+      { name: "Dashboard",      href: "/personal/dashboard",      icon: LayoutDashboard },
+      { name: "Focus",          href: "/personal/focus",          icon: Focus },
+      { name: "Projects",       href: "/personal/projects",       icon: FolderKanban },
+      { name: "Tasks",          href: "/personal/tasks",          icon: CheckSquare },
+      { name: "Calendar",       href: "/personal/calendar",       icon: Calendar },
+      { name: "Reminders",      href: "/personal/reminders",      icon: Bell },
+      { name: "Timeline",       href: "/personal/timeline",       icon: History },
+      { name: "Journal",        href: "/personal/journal",        icon: PenTool },
+      { name: "Books",          href: "/personal/books",          icon: BookOpen },
+      { name: "Podcasts",       href: "/personal/podcasts",       icon: Headphones },
+      { name: "Learning",       href: "/personal/learning",       icon: GraduationCap },
+      { name: "Notes",          href: "/personal/notes",          icon: FileText },
+      { name: "Documents",      href: "/personal/documents",      icon: Archive },
+      { name: "Prompt Library", href: "/personal/prompt-library", icon: Sparkles },
+      { name: "AI Builder",     href: "/personal/ai-builder",     icon: Brain },
+      { name: "Integrations",   href: "/personal/integrations",   icon: LinkIcon },
+      { name: "Reports",        href: "/personal/reports",        icon: LineChart },
+      { name: "Settings",       href: "/personal/settings",       icon: Settings },
+    ];
+
+    return (
+      <div className="flex flex-col h-[100dvh] overflow-hidden bg-card text-foreground">
+
+        {/* top bar */}
+        <div className="flex items-center justify-between px-4 h-14 shrink-0 border-b border-border">
+          <div className="flex items-center gap-2.5">
+            <div className="relative w-7 h-7 rounded-lg overflow-hidden bg-muted border border-border shrink-0">
+              <Image src="/ios/iTunesArtwork@1x.png" alt="ManMadhan Progress" fill sizes="28px" className="object-cover" />
+            </div>
+            <span className="text-[14px] font-semibold text-foreground leading-none">ManMadhan Progress</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsMobileDrawerOpen(false)}
+            aria-label="Close navigation"
+            className="w-9 h-9 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* workspace identity */}
+        <div className="px-4 py-3 shrink-0">
+          <p className="text-[10.5px] font-semibold text-muted-foreground/60 uppercase tracking-widest mb-2">
+            Personal Workspace
+          </p>
+        </div>
+
+        {/* nav grid */}
+        <div className="flex-1 overflow-y-auto px-4 pb-4" style={{ scrollbarWidth: "none" }}>
+          <div className="grid grid-cols-2 gap-1.5">
+            {mobileItems.map((item) => {
+              const active = isNavItemActive(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setIsMobileDrawerOpen(false)}
+                  aria-current={active ? "page" : undefined}
+                  className={`
+                    flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-colors duration-150
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+                    ${active
+                      ? "bg-accent text-foreground font-semibold"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground font-medium"}
+                  `}
+                >
+                  <item.icon
+                    className={`w-[17px] h-[17px] shrink-0 stroke-2 ${active ? "text-gold" : ""}`}
+                  />
+                  <span className="text-[13px] truncate leading-none">{item.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* bottom account strip */}
+        <div className="shrink-0 border-t border-border px-4 py-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-cyan-700 flex items-center justify-center text-white text-xs font-bold shrink-0">
+            {user?.avatar ? (
+              <img src={user.avatar} alt={displayName} className="w-full h-full object-cover rounded-full" />
+            ) : initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-semibold text-foreground truncate leading-none">{displayName}</p>
+            <p className="text-[11px] text-cyan-400 font-medium leading-none mt-1">Personal</p>
+          </div>
+          <button
+            type="button"
+            onClick={logout}
+            aria-label="Sign out"
+            className="p-1.5 rounded-lg text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+          >
+            <LogOut className="w-[15px] h-[15px]" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  /* ─────────────────────────────────────────── render desktop + mobile */
   return (
     <>
-      {/* Desktop / Tablet Sidebar */}
-      <motion.aside 
-        animate={{ width: isCollapsed ? 80 : 260 }}
-        transition={{ type: "spring", stiffness: 350, damping: 30 }}
+      {/* Desktop sidebar */}
+      <motion.aside
+        animate={{ width: isCollapsed ? 76 : 268 }}
+        transition={{ type: "spring", stiffness: 380, damping: 32 }}
         className="hidden md:flex flex-col h-[100dvh] border-r border-border bg-card sticky top-0 left-0 shrink-0 z-30"
+        aria-label="Personal workspace sidebar"
       >
         <SidebarContent />
       </motion.aside>
 
-      {/* Mobile Drawer */}
+      {/* Mobile drawer */}
       <AnimatePresence>
         {isMobileDrawerOpen && isMobile && (
           <div className="md:hidden fixed inset-0 z-[100]">
@@ -429,25 +642,28 @@ export function Sidebar() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
               onClick={() => setIsMobileDrawerOpen(false)}
               className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+              aria-hidden="true"
             />
             <motion.div
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
-              transition={{ type: "spring", stiffness: 350, damping: 30 }}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
               drag="x"
               dragConstraints={{ right: 0 }}
               dragElastic={0.2}
-              onDragEnd={(e, { offset, velocity }) => {
-                if (offset.x < -100 || velocity.x < -500) {
-                  setIsMobileDrawerOpen(false);
-                }
+              onDragEnd={(_, { offset, velocity }) => {
+                if (offset.x < -80 || velocity.x < -400) setIsMobileDrawerOpen(false);
               }}
-              className="absolute top-0 left-0 bottom-0 w-[calc(100vw-32px)] max-w-[390px] bg-card shadow-2xl overflow-hidden"
+              className="absolute top-0 left-0 bottom-0 w-[82vw] max-w-[300px] bg-card border-r border-border shadow-2xl overflow-hidden"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation menu"
             >
-              <MobileSidebarContent />
+              <MobileDrawerContent />
             </motion.div>
           </div>
         )}

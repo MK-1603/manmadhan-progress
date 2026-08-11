@@ -1,0 +1,7 @@
+"use client";
+
+import { ProfileEditView } from "@/components/personal/profile-edit-view";
+
+export default function MemberProfileEditPage() {
+	return <ProfileEditView />;
+}

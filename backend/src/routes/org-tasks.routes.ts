@@ -7,16 +7,19 @@ import {
 	auditLogs,
 	deadlineExtensions,
 	milestones,
+	projectMilestonesV2,
 	notifications,
 	projects,
 	scoreLedger,
 	tasks,
+	taskAssignmentTracker,
 	timeTracking,
 	users,
 	workspaceMembers,
 } from "../../database/schema";
 import { authenticate } from "../middleware/auth.middleware";
 import { AssignmentDeliveryService } from "../services/assignment-delivery.service";
+import { emailService } from "../services/email.service";
 import { logger } from "../services/logger.service";
 import { socketService } from "../services/socket.service";
 
@@ -97,16 +100,34 @@ const requireMembership = async (req: Request, res: Response, next: any) => {
 			.limit(1);
 
 		if (!m) {
+			// Fallback 1: check any workspace membership (covers multi-workspace & invitation flows)
+			const [anyMembership] = await db
+				.select()
+				.from(workspaceMembers)
+				.where(eq(workspaceMembers.userId, userId))
+				.limit(1);
+
+			if (anyMembership) {
+				logger.info(`[AUTH DEBUG] org-tasks: userId=${userId} using fallback workspaceId=${anyMembership.workspaceId} role=${anyMembership.role}`);
+				(req as any).workspaceId = anyMembership.workspaceId;
+				(req as any).membership = anyMembership;
+				return next();
+			}
+
+			// Fallback 2: user table role
 			const [u] = await db
 				.select()
 				.from(users)
 				.where(eq(users.id, userId))
 				.limit(1);
-			if (u && (u.role === "CEO" || u.role === "admin" || u.systemOwner)) {
-				(req as any).membership = { role: "CEO", workspaceId, userId };
-				return next();
-			}
-			(req as any).membership = { role: "MEMBER", workspaceId, userId };
+
+			const dbRole = (u?.role || (req as any).user?.role || "MEMBER").toUpperCase();
+			const normalizedRole = dbRole === "CEO" || (u?.systemOwner) ? "CEO"
+				: dbRole === "CO-CEO" || dbRole === "CO_CEO" ? "CO-CEO"
+				: "MEMBER";
+
+			logger.info(`[AUTH DEBUG] org-tasks: userId=${userId} no workspace record — using DB role=${normalizedRole}`);
+			(req as any).membership = { role: normalizedRole, workspaceId, userId };
 			return next();
 		}
 
@@ -676,33 +697,122 @@ orgTasksRouter.post(
 				assigneeId,
 				priority,
 				deadline,
+				startTime,
+				endTime,
+				approvalRequired,
+				verificationRequired,
+				deliverable,
 				estimatedMinutes,
 				type,
 			} = req.body;
-			if (!title)
+			if (!title || !title.trim())
 				return res
 					.status(400)
 					.json({ success: false, error: "Task title is required" });
+
+			const cleanProjectId = projectId && projectId !== "NONE" ? projectId : null;
+			const cleanMilestoneId = cleanProjectId && milestoneId ? milestoneId : null;
+
+			// Validate milestone cross-project linking rule
+			if (cleanMilestoneId && cleanProjectId) {
+				const [ms] = await db
+					.select()
+					.from(milestones)
+					.where(eq(milestones.id, cleanMilestoneId))
+					.limit(1);
+				const [msV2] = ms ? [] : await db
+					.select()
+					.from(projectMilestonesV2)
+					.where(eq(projectMilestonesV2.id, cleanMilestoneId))
+					.limit(1);
+
+				const foundMs = ms || msV2;
+				if (foundMs && foundMs.projectId !== cleanProjectId) {
+					return res.status(400).json({
+						success: false,
+						error: "Milestone does not belong to the selected project",
+					});
+				}
+			}
+
+			const parseDateSafely = (val: any) => {
+				if (!val) return null;
+				const d = new Date(val);
+				if (!isNaN(d.getTime())) return d;
+				if (typeof val === "string" && /^\d{1,2}:\d{2}/.test(val)) {
+					const todayStr = new Date().toISOString().split("T")[0];
+					const d2 = new Date(`${todayStr}T${val.length === 5 ? val : `0${val}`}:00`);
+					if (!isNaN(d2.getTime())) return d2;
+				}
+				return null;
+			};
+
+			// Resolve target assignee actual role if assigned
+			let targetRole = "MEMBER";
+			if (assigneeId) {
+				const [assigneeUser] = await db
+					.select()
+					.from(users)
+					.where(eq(users.id, assigneeId))
+					.limit(1);
+				const [assigneeMember] = await db
+					.select()
+					.from(workspaceMembers)
+					.where(
+						and(
+							eq(workspaceMembers.workspaceId, workspaceId),
+							eq(workspaceMembers.userId, assigneeId),
+						),
+					)
+					.limit(1);
+
+				targetRole = (assigneeUser?.role || assigneeMember?.role || "MEMBER").toUpperCase();
+				if (targetRole.includes("CO")) targetRole = "CO-CEO";
+				else if (targetRole !== "CEO") targetRole = "MEMBER";
+			}
 
 			const [task] = await db
 				.insert(tasks)
 				.values({
 					id: uuidv4(),
 					workspaceId,
-					projectId: projectId || null,
-					milestoneId: milestoneId || null,
+					projectId: cleanProjectId,
+					milestoneId: cleanMilestoneId,
 					title: title.trim(),
 					description: description || null,
 					priority: priority || "Medium",
-					status: assigneeId ? "Assigned" : "Draft",
+					status: assigneeId ? "PENDING_ACCEPTANCE" : "Draft",
 					assigneeId: assigneeId || null,
-					deadline: deadline ? new Date(deadline) : null,
+					createdBy: userId || null,
+					deadline: parseDateSafely(deadline),
+					startTime: parseDateSafely(startTime),
+					endTime: parseDateSafely(endTime),
+					approvalRequired: Boolean(approvalRequired),
+					verificationRequired: Boolean(verificationRequired),
+					deliverable: deliverable || null,
 					estimatedMinutes: estimatedMinutes || 60,
 					type: type || "Task",
 					tags: [],
 					order: 0,
 				})
 				.returning();
+
+			// Record Task Assignment Tracker entry if assigned
+			let assignmentId: string | null = null;
+			if (assigneeId) {
+				assignmentId = uuidv4();
+				await db.insert(taskAssignmentTracker).values({
+					id: assignmentId,
+					taskId: task.id,
+					assigneeId,
+					assignedById: userId,
+					assigneeRole: targetRole,
+					status: "PENDING_ACCEPTANCE",
+					workspaceId,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				});
+			}
 
 			await db
 				.insert(auditLogs)
@@ -711,9 +821,10 @@ orgTasksRouter.post(
 					userId,
 					workspaceId,
 					eventType: "TASK_CREATED",
-					details: `Task "${title}" created`,
+					details: `Task "${title}" created (Status: ${assigneeId ? "PENDING_ACCEPTANCE" : "Draft"})`,
 				});
-			if (projectId)
+
+			if (projectId) {
 				await db
 					.insert(activities)
 					.values({
@@ -723,8 +834,9 @@ orgTasksRouter.post(
 						taskId: task.id,
 						userId,
 						action: "Task created",
-						details: `Created task "${title}"`,
+						details: `Created task "${title}" (Assigned: ${assigneeId ? targetRole : "None"})`,
 					});
+			}
 
 			// Notify assignee via AssignmentDeliveryService
 			if (assigneeId) {
@@ -740,18 +852,63 @@ orgTasksRouter.post(
 						? new Date(deadline).toISOString().split("T")[0]
 						: undefined,
 				});
-				socketService.emitToUser(assigneeId, "notification.created", {
-					type: "task_assigned",
-					title: "New Task Assigned",
-					message: `You have been assigned: "${title}"`,
+
+				// Create direct in-app notification with taskId & assignmentId payload
+				await db.insert(notifications).values({
+					id: uuidv4(),
+					userId: assigneeId,
+					workspaceId,
+					title: "TASK ASSIGNED",
+					message: `You have been assigned: "${title.trim()}" (Role: ${targetRole})`,
+					type: "TASK_ASSIGNMENT",
+					priority: "High",
+					isRead: false,
 				});
+
+				socketService.emitToUser(assigneeId, "notification.created", {
+					type: "TASK_ASSIGNMENT",
+					title: "TASK ASSIGNED",
+					message: `You have been assigned: "${title.trim()}"`,
+					taskId: task.id,
+					assignmentId,
+				});
+
+				// Dispatch real email notification asynchronously
+				try {
+					const [assigneeUser] = await db.select().from(users).where(eq(users.id, assigneeId)).limit(1);
+					const [creatorUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+					let pName: string | null = null;
+					let msName: string | null = null;
+					if (cleanProjectId) {
+						const [p] = await db.select().from(projects).where(eq(projects.id, cleanProjectId)).limit(1);
+						if (p) pName = p.name;
+					}
+					if (cleanMilestoneId) {
+						const [ms] = await db.select().from(projectMilestonesV2).where(eq(projectMilestonesV2.id, cleanMilestoneId)).limit(1);
+						if (ms) msName = ms.name;
+					}
+					if (assigneeUser?.email) {
+						emailService.sendTaskAssignmentEmail({
+							to: assigneeUser.email,
+							taskTitle: title.trim(),
+							projectName: pName,
+							milestoneName: msName,
+							assignerName: creatorUser?.displayName || creatorUser?.name || "CEO",
+							role: targetRole,
+							deadline: deadline ? new Date(deadline).toISOString().split("T")[0] : null,
+							taskId: task.id,
+						}).catch((e) => logger.error("Async assignment email error: " + e.message));
+					}
+				} catch (emailErr: any) {
+					logger.error("Failed to trigger assignment email: " + emailErr.message);
+				}
 			}
 
 			socketService.emitToWorkspace(workspaceId, "task.created", task);
 			res.json({ success: true, data: task });
 		} catch (err: any) {
-			logger.error("Create task error: " + err.message);
-			res.status(500).json({ success: false, error: "Internal server error" });
+			logger.error("Create task error: " + (err.stack || err.message));
+			res.status(500).json({ success: false, error: err.stack || err.message });
 		}
 	},
 );
@@ -1373,6 +1530,485 @@ orgTasksRouter.delete(
 		} catch (err: any) {
 			logger.error("Delete task error: " + (err?.message || String(err)));
 			res.status(500).json({ success: false, error: "Failed to delete task" });
+		}
+	},
+);
+
+// ─── GET /:id/assignment Details ──────────────────────────────────────────────
+orgTasksRouter.get(
+	"/:id/assignment",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const id = req.params.id as string;
+
+			const [task] = await db
+				.select()
+				.from(tasks)
+				.where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
+				.limit(1);
+
+			if (!task) return res.status(404).json({ success: false, error: "Task not found" });
+
+			// Fetch latest assignment tracker record
+			const [tracker] = await db
+				.select()
+				.from(taskAssignmentTracker)
+				.where(and(eq(taskAssignmentTracker.taskId, id), eq(taskAssignmentTracker.workspaceId, workspaceId)))
+				.orderBy(desc(taskAssignmentTracker.createdAt))
+				.limit(1);
+
+			// Fetch Assignee User Details
+			let assigneeUser: any = null;
+			if (task.assigneeId) {
+				const [u] = await db.select().from(users).where(eq(users.id, task.assigneeId)).limit(1);
+				if (u) {
+					assigneeUser = {
+						id: u.id,
+						name: u.displayName || u.name,
+						email: u.email,
+						avatarUrl: u.avatar,
+						role: tracker?.assigneeRole || u.role || "MEMBER",
+					};
+				}
+			}
+
+			// Fetch Assigner User Details
+			let assignerUser: any = null;
+			const assignerId = tracker?.assignedById || task.createdBy;
+			if (assignerId) {
+				const [u] = await db.select().from(users).where(eq(users.id, assignerId)).limit(1);
+				if (u) {
+					assignerUser = {
+						id: u.id,
+						name: u.displayName || u.name,
+						email: u.email,
+						avatarUrl: u.avatar,
+						role: u.role || "CEO",
+					};
+				}
+			}
+
+			// Fetch Project Name if project-linked
+			let projectName: string | null = null;
+			if (task.projectId) {
+				const [p] = await db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1);
+				if (p) projectName = p.name;
+			}
+
+			// Fetch Milestone Name if milestone-linked
+			let milestoneName: string | null = null;
+			if (task.milestoneId) {
+				const [ms] = await db.select().from(projectMilestonesV2).where(eq(projectMilestonesV2.id, task.milestoneId)).limit(1);
+				if (ms) milestoneName = ms.name;
+			}
+
+			res.json({
+				success: true,
+				data: {
+					task,
+					tracker,
+					assignee: assigneeUser,
+					assigner: assignerUser,
+					projectName,
+					milestoneName,
+					assignmentStatus: tracker?.status || (task.status === "PENDING_ACCEPTANCE" ? "PENDING_ACCEPTANCE" : task.status),
+				},
+			});
+		} catch (err: any) {
+			logger.error("Get task assignment error: " + (err?.message || String(err)));
+			res.status(500).json({ success: false, error: "Failed to get task assignment details" });
+		}
+	},
+);
+
+// ─── Accept Task Assignment (POST /:id/assignment/accept) ────────────────────
+orgTasksRouter.post(
+	"/:id/assignment/accept",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+
+			const [task] = await db
+				.select()
+				.from(tasks)
+				.where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
+				.limit(1);
+
+			if (!task) return res.status(404).json({ success: false, error: "Task not found" });
+
+			// Security Authorization Verification: Must be the target assignee
+			if (task.assigneeId && task.assigneeId !== userId) {
+				return res.status(403).json({
+					success: false,
+					error: "Unauthorized. Only the assigned user can accept this task assignment.",
+				});
+			}
+
+			// Idempotent Check
+			if (task.status === "ACCEPTED" || task.status === "In Progress") {
+				return res.json({ success: true, data: task, message: "Task assignment already accepted" });
+			}
+
+			if (task.status !== "PENDING_ACCEPTANCE" && task.status !== "Assigned") {
+				return res.status(400).json({
+					success: false,
+					error: `Task assignment cannot be accepted from current status: ${task.status}`,
+				});
+			}
+
+			const now = new Date();
+
+			// Update Task Status
+			const [updatedTask] = await db
+				.update(tasks)
+				.set({ status: "ACCEPTED" })
+				.where(eq(tasks.id, id))
+				.returning();
+
+			// Update Task Assignment Tracker
+			const [activeTracker] = await db
+				.select()
+				.from(taskAssignmentTracker)
+				.where(and(eq(taskAssignmentTracker.taskId, id), eq(taskAssignmentTracker.workspaceId, workspaceId)))
+				.orderBy(desc(taskAssignmentTracker.createdAt))
+				.limit(1);
+
+			if (activeTracker) {
+				await db
+					.update(taskAssignmentTracker)
+					.set({ status: "ACCEPTED", acceptedAt: now, updatedAt: now })
+					.where(eq(taskAssignmentTracker.id, activeTracker.id));
+			}
+
+			// Insert Activity Log
+			const [assigneeUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+			const assigneeName = assigneeUser?.displayName || assigneeUser?.name || "Assignee";
+
+			if (task.projectId) {
+				await db.insert(activities).values({
+					id: uuidv4(),
+					workspaceId,
+					projectId: task.projectId,
+					taskId: id,
+					userId,
+					action: "Task Accepted",
+					details: `${assigneeName} accepted task "${task.title}"`,
+				});
+			}
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "TASK_ACCEPTED",
+				details: `${assigneeName} accepted task "${task.title}"`,
+			});
+
+			// Notify Creator
+			const creatorId = activeTracker?.assignedById || task.createdBy;
+			if (creatorId && creatorId !== userId) {
+				await db.insert(notifications).values({
+					id: uuidv4(),
+					userId: creatorId,
+					workspaceId,
+					title: "TASK ACCEPTED",
+					message: `${assigneeName} accepted task "${task.title}"`,
+					type: "TASK_ASSIGNMENT_ACCEPTED",
+					priority: "Normal",
+					isRead: false,
+				});
+
+				socketService.emitToUser(creatorId, "notification.created", {
+					type: "TASK_ASSIGNMENT_ACCEPTED",
+					title: "TASK ACCEPTED",
+					message: `${assigneeName} accepted task "${task.title}"`,
+					taskId: id,
+				});
+			}
+
+			socketService.emitToWorkspace(workspaceId, "task.updated", updatedTask);
+			res.json({ success: true, data: updatedTask, message: "Task assignment accepted successfully" });
+		} catch (err: any) {
+			logger.error("Accept task assignment error: " + (err?.message || String(err)));
+			res.status(500).json({ success: false, error: "Failed to accept task assignment" });
+		}
+	},
+);
+
+// ─── Decline Task Assignment (POST /:id/assignment/decline) ───────────────────
+orgTasksRouter.post(
+	"/:id/assignment/decline",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+			const { reason } = req.body;
+
+			if (!reason || typeof reason !== "string" || !reason.trim()) {
+				return res.status(400).json({
+					success: false,
+					error: "A valid decline reason is mandatory to decline task assignment",
+				});
+			}
+
+			const [task] = await db
+				.select()
+				.from(tasks)
+				.where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
+				.limit(1);
+
+			if (!task) return res.status(404).json({ success: false, error: "Task not found" });
+
+			// Security Authorization Verification: Must be target assignee
+			if (task.assigneeId && task.assigneeId !== userId) {
+				return res.status(403).json({
+					success: false,
+					error: "Unauthorized. Only the assigned user can decline this task assignment.",
+				});
+			}
+
+			const now = new Date();
+
+			// Update Task Status
+			const [updatedTask] = await db
+				.update(tasks)
+				.set({ status: "DECLINED", rejectionFeedback: reason.trim() })
+				.where(eq(tasks.id, id))
+				.returning();
+
+			// Update Task Assignment Tracker
+			const [activeTracker] = await db
+				.select()
+				.from(taskAssignmentTracker)
+				.where(and(eq(taskAssignmentTracker.taskId, id), eq(taskAssignmentTracker.workspaceId, workspaceId)))
+				.orderBy(desc(taskAssignmentTracker.createdAt))
+				.limit(1);
+
+			if (activeTracker) {
+				await db
+					.update(taskAssignmentTracker)
+					.set({
+						status: "DECLINED",
+						declineReason: reason.trim(),
+						declinedAt: now,
+						updatedAt: now,
+					})
+					.where(eq(taskAssignmentTracker.id, activeTracker.id));
+			}
+
+			// Insert Activity Log
+			const [assigneeUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+			const assigneeName = assigneeUser?.displayName || assigneeUser?.name || "Assignee";
+
+			if (task.projectId) {
+				await db.insert(activities).values({
+					id: uuidv4(),
+					workspaceId,
+					projectId: task.projectId,
+					taskId: id,
+					userId,
+					action: "Task Declined",
+					details: `${assigneeName} declined task "${task.title}". Reason: ${reason.trim()}`,
+				});
+			}
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "TASK_DECLINED",
+				details: `${assigneeName} declined task "${task.title}". Reason: ${reason.trim()}`,
+			});
+
+			// Notify Creator
+			const creatorId = activeTracker?.assignedById || task.createdBy;
+			if (creatorId && creatorId !== userId) {
+				await db.insert(notifications).values({
+					id: uuidv4(),
+					userId: creatorId,
+					workspaceId,
+					title: "TASK DECLINED",
+					message: `${assigneeName} declined: "${task.title}". Reason: ${reason.trim()}`,
+					type: "TASK_ASSIGNMENT_DECLINED",
+					priority: "High",
+					isRead: false,
+				});
+
+				socketService.emitToUser(creatorId, "notification.created", {
+					type: "TASK_ASSIGNMENT_DECLINED",
+					title: "TASK DECLINED",
+					message: `${assigneeName} declined task "${task.title}"`,
+					taskId: id,
+					reason: reason.trim(),
+				});
+			}
+
+			socketService.emitToWorkspace(workspaceId, "task.updated", updatedTask);
+			res.json({ success: true, data: updatedTask, message: "Task assignment declined successfully" });
+		} catch (err: any) {
+			logger.error("Decline task assignment error: " + (err?.message || String(err)));
+			res.status(500).json({ success: false, error: "Failed to decline task assignment" });
+		}
+	},
+);
+
+// ─── Reassign Task (POST /:id/assignment/reassign) ───────────────────────────
+orgTasksRouter.post(
+	"/:id/assignment/reassign",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+			const { newAssigneeId } = req.body;
+
+			if (!newAssigneeId) {
+				return res.status(400).json({ success: false, error: "Target new assignee ID is required" });
+			}
+
+			const [task] = await db
+				.select()
+				.from(tasks)
+				.where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
+				.limit(1);
+
+			if (!task) return res.status(404).json({ success: false, error: "Task not found" });
+
+			// Resolve new assignee role
+			const [newAssigneeUser] = await db.select().from(users).where(eq(users.id, newAssigneeId)).limit(1);
+			const [newAssigneeMember] = await db
+				.select()
+				.from(workspaceMembers)
+				.where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, newAssigneeId)))
+				.limit(1);
+
+			if (!newAssigneeUser && !newAssigneeMember) {
+				return res.status(404).json({ success: false, error: "Target assignee user not found in organization" });
+			}
+
+			let targetRole = (newAssigneeUser?.role || newAssigneeMember?.role || "MEMBER").toUpperCase();
+			if (targetRole.includes("CO")) targetRole = "CO-CEO";
+			else if (targetRole !== "CEO") targetRole = "MEMBER";
+
+			const now = new Date();
+
+			// Update previous active tracker entries to REASSIGNED
+			await db
+				.update(taskAssignmentTracker)
+				.set({ status: "REASSIGNED", reassignedAt: now, updatedAt: now })
+				.where(and(eq(taskAssignmentTracker.taskId, id), eq(taskAssignmentTracker.status, "PENDING_ACCEPTANCE")));
+
+			// Insert NEW Task Assignment Tracker entry
+			const newAssignmentId = uuidv4();
+			await db.insert(taskAssignmentTracker).values({
+				id: newAssignmentId,
+				taskId: id,
+				assigneeId: newAssigneeId,
+				assignedById: userId,
+				assigneeRole: targetRole,
+				status: "PENDING_ACCEPTANCE",
+				workspaceId,
+				createdAt: now,
+				updatedAt: now,
+			});
+
+			// Update Task Record
+			const [updatedTask] = await db
+				.update(tasks)
+				.set({ assigneeId: newAssigneeId, status: "PENDING_ACCEPTANCE" })
+				.where(eq(tasks.id, id))
+				.returning();
+
+			// Notify New Assignee
+			await AssignmentDeliveryService.dispatchWorkAssignment({
+				workspaceId,
+				entityType: "TASK_ASSIGNMENT",
+				entityId: id,
+				title: task.title,
+				description: task.description || undefined,
+				actorUserId: userId,
+				assigneeId: newAssigneeId,
+			});
+
+			await db.insert(notifications).values({
+				id: uuidv4(),
+				userId: newAssigneeId,
+				workspaceId,
+				title: "TASK ASSIGNED",
+				message: `Task "${task.title}" has been reassigned to you (Role: ${targetRole})`,
+				type: "TASK_ASSIGNMENT",
+				priority: "High",
+				isRead: false,
+			});
+
+			socketService.emitToUser(newAssigneeId, "notification.created", {
+				type: "TASK_ASSIGNMENT",
+				title: "TASK ASSIGNED",
+				message: `Task "${task.title}" has been reassigned to you`,
+				taskId: id,
+				assignmentId: newAssignmentId,
+			});
+
+			socketService.emitToWorkspace(workspaceId, "task.updated", updatedTask);
+			res.json({ success: true, data: updatedTask, message: "Task reassigned successfully" });
+		} catch (err: any) {
+			logger.error("Reassign task error: " + (err?.message || String(err)));
+			res.status(500).json({ success: false, error: "Failed to reassign task" });
+		}
+	},
+);
+
+// ─── Start Work Session (POST /:id/start-work) ────────────────────────────────
+orgTasksRouter.post(
+	"/:id/start-work",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+
+			const [task] = await db
+				.select()
+				.from(tasks)
+				.where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
+				.limit(1);
+
+			if (!task) return res.status(404).json({ success: false, error: "Task not found" });
+
+			const [updatedTask] = await db
+				.update(tasks)
+				.set({ status: "In Progress" })
+				.where(eq(tasks.id, id))
+				.returning();
+
+			// Record active work session
+			await db.insert(timeTracking).values({
+				id: uuidv4(),
+				taskId: id,
+				userId,
+				workspaceId,
+				startTime: new Date(),
+			});
+
+			socketService.emitToWorkspace(workspaceId, "task.updated", updatedTask);
+			res.json({ success: true, data: updatedTask, message: "Work session started" });
+		} catch (err: any) {
+			logger.error("Start work error: " + (err?.message || String(err)));
+			res.status(500).json({ success: false, error: "Failed to start work session" });
 		}
 	},
 );

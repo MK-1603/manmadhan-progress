@@ -1,25 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UserPlus, Loader2, AlertCircle, Plus, Search, ChevronRight, Shield, CheckCircle2, RotateCcw, Ban } from "lucide-react";
+import { UserPlus, Loader2, AlertCircle, Plus, Search, ChevronRight, Shield } from "lucide-react";
 import apiClient from "@/lib/api-client";
-import { PremiumCard } from "@/components/ui/premium-card";
 import { useSocket } from "@/components/providers/socket-provider";
 import { InvitePersonModal } from "@/components/organization/invite-person-modal";
 import { InvitationDetailDrawer } from "@/components/organization/invitation-detail-drawer";
 
 const lifecycleBadgeClass = (state: string) => {
-  switch (state) {
-    case "ACTIVE": return "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
-    case "PROFILE_COMPLETED": return "bg-blue-500/10 text-blue-500 border-blue-500/20";
-    case "PROFILE_INCOMPLETE": return "bg-amber-500/10 text-amber-500 border-amber-500/20";
-    case "WORKSPACE_JOINED": return "bg-indigo-500/10 text-indigo-500 border-indigo-500/20";
-    case "ACCEPTED": return "bg-teal-500/10 text-teal-500 border-teal-500/20";
-    case "WAITING_ACCEPTANCE": return "bg-purple-500/10 text-purple-500 border-purple-500/20";
-    case "PENDING": return "bg-sky-500/10 text-sky-500 border-sky-500/20";
-    case "DRAFT": return "bg-muted text-muted-foreground border-border";
-    default: return "bg-rose-500/10 text-rose-500 border-rose-500/20";
-  }
+  const s = state?.toUpperCase() ?? "";
+  if (s === "ACTIVE")           return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+  if (s === "PROFILE_COMPLETED" || s === "WORKSPACE_JOINED")
+                                 return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
+  if (s === "ACCEPTED")          return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+  if (s === "WAITING_ACCEPTANCE" || s === "PENDING")
+                                 return "bg-muted text-muted-foreground border-border";
+  if (s === "PROFILE_INCOMPLETE") return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
+  return "bg-muted text-muted-foreground border-border";
 };
 
 export default function CEOInvitationsPage() {
@@ -115,46 +112,45 @@ export default function CEOInvitationsPage() {
   });
 
   return (
-    <div className="p-4 lg:p-6 max-w-[1280px] mx-auto w-full space-y-6">
+    <div className="px-5 md:px-8 xl:px-10 pt-7 pb-16 max-w-[1280px] mx-auto w-full space-y-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <div className="flex items-center gap-2.5">
-            <UserPlus className="w-5 h-5 text-primary" />
-            <h1 className="text-xl font-bold text-foreground tracking-tight">Invitations</h1>
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Manage organization invitations and onboarding lifecycle
+          <p className="text-[10.5px] font-semibold text-muted-foreground uppercase tracking-widest mb-1">ManMadhan · CEO</p>
+          <h1 className="text-[24px] font-bold text-foreground tracking-tight leading-none">Invitations</h1>
+          <p className="text-[12px] text-muted-foreground mt-1.5">
+            Manage organization invitations and onboarding lifecycle.
           </p>
         </div>
         <button
           onClick={() => setIsInviteModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:bg-primary/90 transition-colors shadow-md"
+          className="flex items-center gap-1.5 px-4 py-2 bg-gold hover:bg-gold-hover text-[#111827] text-[12px] font-bold rounded-xl transition-colors self-start"
         >
-          <Plus className="w-4 h-4" /> Invite Person
+          <Plus className="w-3.5 h-3.5" /> Invite Person
         </button>
       </div>
 
-      {/* Clickable Executive Summary Metric Strip */}
+      {/* Clickable Summary Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
         {[
-          { label: "Total", key: "All", value: summary.totalCount || invitations.length, color: "text-foreground" },
-          { label: "Waiting", key: "WAITING_ACCEPTANCE", value: summary.waitingCount || 0, color: "text-purple-400" },
-          { label: "Accepted", key: "ACCEPTED", value: summary.acceptedCount || 0, color: "text-teal-400" },
-          { label: "Joined Workspace", key: "WORKSPACE_JOINED", value: summary.joinedCount || 0, color: "text-indigo-400" },
-          { label: "Profile Incomplete", key: "PROFILE_INCOMPLETE", value: summary.profileIncompleteCount || 0, color: "text-amber-500" },
-          { label: "Active Member", key: "ACTIVE", value: summary.activeCount || 0, color: "text-emerald-500" },
+          { label: "Total",            key: "All",               value: summary.totalCount || invitations.length },
+          { label: "Waiting",          key: "WAITING_ACCEPTANCE", value: summary.waitingCount || 0 },
+          { label: "Accepted",         key: "ACCEPTED",           value: summary.acceptedCount || 0 },
+          { label: "Joined",           key: "WORKSPACE_JOINED",   value: summary.joinedCount || 0 },
+          { label: "Profile Incomplete",key: "PROFILE_INCOMPLETE", value: summary.profileIncompleteCount || 0 },
+          { label: "Active",           key: "ACTIVE",             value: summary.activeCount || 0 },
         ].map((s) => (
-          <PremiumCard
+          <button
             key={s.label}
+            type="button"
             onClick={() => setStatusFilter(s.key)}
-            className={`p-2.5 cursor-pointer transition-all ${
-              statusFilter === s.key ? "border-primary bg-primary/5" : "hover:border-border"
+            className={`bg-card border rounded-2xl p-3.5 text-left transition-colors ${
+              statusFilter === s.key ? "border-gold" : "border-border hover:border-border/80"
             }`}
           >
-            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">{s.label}</p>
-            <p className={`text-lg font-bold mt-0.5 ${s.color}`}>{s.value}</p>
-          </PremiumCard>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">{s.label}</p>
+            <p className="text-[22px] font-bold text-foreground mt-1 leading-none">{s.value}</p>
+          </button>
         ))}
       </div>
 
@@ -164,17 +160,17 @@ export default function CEOInvitationsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search invitations by email, name, or CO-CEO..."
+            placeholder="Search by email, name, or CO-CEO..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:border-primary outline-none"
+            className="w-full pl-9 pr-4 py-2.5 bg-card border border-border rounded-xl text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-gold"
           />
         </div>
         <div className="flex items-center gap-2">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold text-foreground focus:border-primary outline-none"
+            className="px-3 py-2.5 bg-card border border-border rounded-xl text-[12px] font-semibold text-foreground focus:outline-none focus:border-gold"
           >
             <option value="All">All Statuses</option>
             <option value="WAITING_ACCEPTANCE">Waiting</option>
@@ -183,11 +179,10 @@ export default function CEOInvitationsPage() {
             <option value="PROFILE_INCOMPLETE">Incomplete Profile</option>
             <option value="ACTIVE">Active</option>
           </select>
-
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold text-foreground focus:border-primary outline-none"
+            className="px-3 py-2.5 bg-card border border-border rounded-xl text-[12px] font-semibold text-foreground focus:outline-none focus:border-gold"
           >
             <option value="All">All Roles</option>
             <option value="MEMBER">Member</option>
@@ -197,82 +192,77 @@ export default function CEOInvitationsPage() {
       </div>
 
       {error && (
-        <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-500 text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+        <div className="flex items-center gap-2 px-4 py-3 bg-card border border-border rounded-xl text-[12px] text-muted-foreground">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
         </div>
       )}
 
-      {/* Full-Width Invitation Card Rows */}
+      {/* Invitation Rows */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-5 h-5 text-gold animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 p-6 border border-border rounded-2xl bg-card space-y-3">
-          <UserPlus className="w-8 h-8 text-muted-foreground/40 mx-auto" />
-          <p className="text-xs font-bold text-foreground">No invitations found</p>
-          <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
+        <div className="flex flex-col items-center gap-2 py-16 text-center border border-border border-dashed rounded-2xl">
+          <UserPlus className="w-8 h-8 text-muted-foreground/30" />
+          <p className="text-[13px] font-semibold text-foreground">No invitations found</p>
+          <p className="text-[12px] text-muted-foreground max-w-sm">
             Invite a CO-CEO or Member to begin building your organization execution team.
           </p>
           <button
             onClick={() => setIsInviteModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-xl"
+            className="mt-2 flex items-center gap-1.5 px-4 py-2 bg-gold hover:bg-gold-hover text-[#111827] text-[12px] font-bold rounded-xl transition-colors"
           >
-            <Plus className="w-4 h-4" /> Invite Person
+            <Plus className="w-3.5 h-3.5" /> Invite Person
           </button>
         </div>
       ) : (
-        <div className="space-y-2.5">
+        <div className="border border-border rounded-2xl overflow-hidden bg-card divide-y divide-border">
           {filtered.map((inv) => {
             const stateStr = inv.lifecycleState || inv.status;
-
             return (
-              <PremiumCard
+              <button
                 key={inv.id}
+                type="button"
                 onClick={() => setSelectedInvitation(inv)}
-                className="p-3.5 hover:border-primary/40 transition-colors cursor-pointer group"
+                className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-muted/20 transition-colors group"
               >
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  {/* Left Identity Context */}
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 text-primary font-bold text-xs flex items-center justify-center shrink-0">
-                      {inv.email.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-bold text-foreground group-hover:text-primary transition-colors truncate">
-                          {inv.name || inv.email}
-                        </p>
-                        <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                          {inv.role}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
-                        <span>{inv.email}</span>
-                        {inv.role === "MEMBER" && (
-                          <span className="text-purple-400 font-semibold flex items-center gap-1">
-                            <Shield className="w-3 h-3" /> CO-CEO: {inv.assignedCoCeoName || "CEO Direct"}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                {/* identity */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-9 h-9 rounded-full bg-muted border border-border text-foreground font-bold text-[12px] flex items-center justify-center shrink-0">
+                    {(inv.email || "?").charAt(0).toUpperCase()}
                   </div>
-
-                  {/* Right Status & Date Context */}
-                  <div className="flex items-center gap-4 shrink-0">
-                    <span className={`text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded border ${lifecycleBadgeClass(stateStr)}`}>
-                      {stateStr.replace(/_/g, " ")}
-                    </span>
-
-                    <span className="text-[11px] text-muted-foreground font-mono hidden sm:inline-block">
-                      {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : "Recent"}
-                    </span>
-
-                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[13px] font-semibold text-foreground truncate">
+                        {inv.name || inv.email}
+                      </p>
+                      <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border shrink-0">
+                        {inv.role}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 flex-wrap">
+                      <span>{inv.email}</span>
+                      {inv.role === "MEMBER" && inv.assignedCoCeoName && (
+                        <span className="flex items-center gap-1">
+                          <Shield className="w-3 h-3" /> {inv.assignedCoCeoName}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </PremiumCard>
+
+                {/* status + date */}
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-lg border ${lifecycleBadgeClass(stateStr)}`}>
+                    {stateStr.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground hidden sm:block">
+                    {inv.createdAt ? new Date(inv.createdAt).toLocaleDateString() : "—"}
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </div>
+              </button>
             );
           })}
         </div>

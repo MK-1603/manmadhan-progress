@@ -13,6 +13,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.includes("/projects")) return "Projects";
   if (pathname.includes("/tasks")) return "Tasks";
   if (pathname.includes("/calendar")) return "Calendar";
+  if (pathname.includes("/reminders")) return "Reminders";
   if (pathname.includes("/focus")) return "Focus";
   if (pathname.includes("/notes")) return "Notes";
   if (pathname.includes("/books")) return "Books";

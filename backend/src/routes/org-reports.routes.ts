@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, lte, ne, or, sql } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
@@ -130,7 +130,7 @@ orgReportsRouter.get(
 				allSessions.reduce((acc, s) => acc + (s.durationSeconds || 0), 0) /
 				3600;
 
-			// Planned vs actual (using estimatedMinutes vs actual tracked time)
+			// Planned vs actual
 			const plannedMinutes = allTasks.reduce(
 				(acc, t) => acc + (t.estimatedMinutes || 0),
 				0,
@@ -302,6 +302,8 @@ orgReportsRouter.get(
 );
 
 // ─── Leaderboard ──────────────────────────────────────────────────────────────
+// CEO is ALWAYS excluded. Only CO-CEO and MEMBER roles appear.
+// Score formula (centralized): completedTasks*10 + ledgerPoints + onTimeBonus - overduePenalty
 orgReportsRouter.get(
 	"/leaderboard",
 	resolveWorkspace,
@@ -311,18 +313,40 @@ orgReportsRouter.get(
 			const workspaceId = (req as any).workspaceId;
 			const membership = (req as any).membership;
 			const userId = (req as any).user?.id;
-			const { period = "weekly" } = req.query;
+			const { period = "weekly", role: roleFilter } = req.query;
 
 			const now = new Date();
 			let startDate: Date;
-			if (period === "weekly") {
+			if (period === "today") {
+				startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+			} else if (period === "weekly") {
 				startDate = new Date(now);
 				startDate.setDate(now.getDate() - 7);
-			} else if (period === "monthly")
+			} else if (period === "monthly") {
 				startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-			else startDate = new Date(0); // alltime
+			} else {
+				startDate = new Date(0); // alltime
+			}
 
-			// Get all members for this workspace
+			// Build role condition
+			const cleanRoleFilter = String(roleFilter || "ALL").toUpperCase();
+			let roleCondition = ne(workspaceMembers.role, "CEO"); // CEO NEVER in leaderboard
+			if (cleanRoleFilter === "CO-CEO" || cleanRoleFilter === "CO_CEO") {
+				roleCondition = and(
+					ne(workspaceMembers.role, "CEO"),
+					or(
+						ilike(workspaceMembers.role, "co-ceo"),
+						ilike(workspaceMembers.role, "co_ceo"),
+					),
+				) as any;
+			} else if (cleanRoleFilter === "MEMBER") {
+				roleCondition = and(
+					ne(workspaceMembers.role, "CEO"),
+					ilike(workspaceMembers.role, "member"),
+				) as any;
+			}
+
+			// Get matching non-CEO members for this workspace
 			const members = await db
 				.select({
 					id: users.id,
@@ -333,12 +357,17 @@ orgReportsRouter.get(
 				})
 				.from(workspaceMembers)
 				.innerJoin(users, eq(workspaceMembers.userId, users.id))
-				.where(eq(workspaceMembers.workspaceId, workspaceId));
+				.where(
+					and(
+						eq(workspaceMembers.workspaceId, workspaceId),
+						roleCondition,
+					),
+				);
 
-			// Calculate scores
+			// Calculate scores for each member
 			const scores = await Promise.all(
 				members.map(async (m) => {
-					// Points from score ledger
+					// Points from score ledger (period-filtered)
 					const ledgerEntries = await db
 						.select({ points: scoreLedger.points })
 						.from(scoreLedger)
@@ -354,8 +383,8 @@ orgReportsRouter.get(
 						0,
 					);
 
-					// Tasks completed
-					const completedTasks = await db
+					// Tasks completed in period
+					const completedTasksResult = await db
 						.select({ count: sql<number>`count(*)` })
 						.from(tasks)
 						.where(
@@ -367,22 +396,22 @@ orgReportsRouter.get(
 							),
 						);
 
-					// Hours logged
-					const sessions = await db
-						.select()
-						.from(timeTracking)
+					// Overdue tasks (deadline passed, not completed/approved/archived)
+					const overdueTasksResult = await db
+						.select({ count: sql<number>`count(*)` })
+						.from(tasks)
 						.where(
 							and(
-								eq(timeTracking.workspaceId, workspaceId),
-								eq(timeTracking.userId, m.id),
-								gte(timeTracking.startTime, startDate),
+								eq(tasks.workspaceId, workspaceId),
+								eq(tasks.assigneeId, m.id),
+								lte(tasks.deadline as any, now),
+								ne(tasks.status, "Completed"),
+								ne(tasks.status, "Approved"),
+								ne(tasks.status, "Archived"),
 							),
 						);
-					const hoursLogged =
-						sessions.reduce((acc, s) => acc + (s.durationSeconds || 0), 0) /
-						3600;
 
-					// On-time delivery
+					// All completed tasks (for on-time rate calculation)
 					const tasksDone = await db
 						.select()
 						.from(tasks)
@@ -393,7 +422,7 @@ orgReportsRouter.get(
 								or(eq(tasks.status, "Completed"), eq(tasks.status, "Approved")),
 							),
 						);
-					const onTime = tasksDone.filter(
+					const onTimeCount = tasksDone.filter(
 						(t) =>
 							!t.deadline ||
 							(t.completedAt &&
@@ -401,15 +430,46 @@ orgReportsRouter.get(
 					).length;
 					const onTimeRate =
 						tasksDone.length > 0
-							? Math.round((onTime / tasksDone.length) * 100)
+							? Math.round((onTimeCount / tasksDone.length) * 100)
 							: 0;
 
-					const tasksCount = Number(completedTasks[0].count);
-					const score =
+					// Quality score: approved tasks / total reviewed tasks
+					const reviewedTasksResult = await db
+						.select({ count: sql<number>`count(*)` })
+						.from(tasks)
+						.where(
+							and(
+								eq(tasks.workspaceId, workspaceId),
+								eq(tasks.assigneeId, m.id),
+								or(
+									eq(tasks.status, "Approved"),
+									eq(tasks.status, "Changes Requested"),
+									eq(tasks.status, "Rejected"),
+								),
+							),
+						);
+					const approvedCount = tasksDone.filter(
+						(t) => t.status === "Approved",
+					).length;
+					const totalReviewed = Number(reviewedTasksResult[0]?.count) || 0;
+					const qualityScore =
+						totalReviewed > 0
+							? Math.round((approvedCount / totalReviewed) * 100)
+							: 0;
+
+					const tasksCount = Number(completedTasksResult[0].count);
+					const overdueCount = Number(overdueTasksResult[0]?.count) || 0;
+
+					// Centralized score formula:
+					// completedTasks*10 + ledgerPoints + onTimeBonus/10 + qualityBonus/10 - overduePenalty*5
+					const score = Math.max(
+						0,
 						totalPoints +
-						tasksCount * 10 +
-						Math.round(hoursLogged * 2) +
-						Math.round(onTimeRate / 10);
+							tasksCount * 10 +
+							Math.round(onTimeRate / 10) +
+							Math.round(qualityScore / 10) -
+							overdueCount * 5,
+					);
 
 					return {
 						id: m.id,
@@ -418,14 +478,15 @@ orgReportsRouter.get(
 						avatar: m.avatar,
 						score,
 						tasksCompleted: tasksCount,
-						hoursLogged: Math.round(hoursLogged * 10) / 10,
 						onTimeRate,
+						qualityScore,
+						overdueTasks: overdueCount,
 						points: totalPoints,
 					};
 				}),
 			);
 
-			// Sort and rank
+			// Sort descending by score, assign rank
 			const sorted = scores
 				.sort((a, b) => b.score - a.score)
 				.map((s, i) => ({ ...s, rank: i + 1 }));

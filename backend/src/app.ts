@@ -33,10 +33,12 @@ import { orgApprovalsRouter } from "./routes/org-approvals.routes";
 import { orgFocusRouter } from "./routes/org-focus.routes";
 import { orgMyWorkRouter } from "./routes/org-my-work.routes";
 import { orgProjectsRouter } from "./routes/org-projects.routes";
+import { orgPromptsRouter } from "./routes/org-prompts.routes";
 import { orgReportsRouter } from "./routes/org-reports.routes";
 import { orgTasksRouter } from "./routes/org-tasks.routes";
 import { orgTimelineRouter } from "./routes/org-timeline.routes";
 import { organizationRouter } from "./routes/organization.routes";
+import { requestsRouter } from "./routes/requests.routes";
 import { personalAiChatRouter } from "./routes/personal/ai-chat.routes";
 import { personalBooksRouter } from "./routes/personal/books.routes";
 import { personalCalendarRouter } from "./routes/personal/calendar.routes";
@@ -169,15 +171,21 @@ export const createApp = (): Express => {
 	);
 	// Organization execution routes
 	app.use("/api/v1/org/projects", orgProjectsRouter);
+	app.use("/api/org/projects", orgProjectsRouter);
 	app.use("/api/v1/org/tasks", orgTasksRouter);
+	app.use("/api/org/tasks", orgTasksRouter);
 	app.use("/api/v1/org/my-work", orgMyWorkRouter);
+	app.use("/api/org/my-work", orgMyWorkRouter);
 	app.use("/api/v1/org/reports", orgReportsRouter);
 	app.use("/api/v1/org/approvals", orgApprovalsRouter);
+	app.use("/api/v1/org/requests", requestsRouter);
 	app.use("/api/v1/org/focus", orgFocusRouter);
 	app.use("/api/v1/org/timeline", orgTimelineRouter);
 	app.use("/api/v1/org/graph", organizationRouter);
 	app.use("/api/v1/org/co-ceos", organizationRouter);
 	app.use("/api/v1/org/members", organizationRouter);
+	app.use("/api/v1/org/prompts", orgPromptsRouter);
+	app.use("/api/org/prompts", orgPromptsRouter);
 
 	// ── Database Records REST API ──
 	app.get(
@@ -513,7 +521,7 @@ export const createApp = (): Express => {
 	app.get(
 		"/api/v1/auth/google/callback",
 		passport.authenticate("google", {
-			failureRedirect: `${env.CLIENT_URL}/login?error=UnauthorizedAccount`,
+			failureRedirect: `${env.CLIENT_URL}/account-not-found`,
 			session: false,
 		}),
 		async (req: Request, res: Response) => {
@@ -537,7 +545,7 @@ export const createApp = (): Express => {
 
 				if (!dbUser) {
 					return res.redirect(
-						`${env.CLIENT_URL}/login?error=UnauthorizedAccount`,
+						`${env.CLIENT_URL}/account-not-found`,
 					);
 				}
 

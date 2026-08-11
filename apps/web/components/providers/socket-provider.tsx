@@ -34,9 +34,32 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
   const { user } = useAuth();
 
-  // ── Step 1: Create socket ONCE on mount ──────────────────────────────────
+  // ── Step 1: Manage socket lifecycle based on authentication ───────────────
   useEffect(() => {
-    if (socketRef.current) return; // Guard: already created
+    // If not authenticated, do not connect socket
+    if (!user?.id) {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        setSocket(null);
+        setIsConnected(false);
+      }
+      return;
+    }
+
+    userIdRef.current = user.id;
+
+    if (socketRef.current) {
+      // Re-join user room if already connected
+      if (socketRef.current.connected) {
+        socketRef.current.emit("join_room", `user_${user.id}`);
+        const workspaceId = localStorage.getItem("workspaceId");
+        if (workspaceId) {
+          socketRef.current.emit("join_room", `workspace_${workspaceId}`);
+        }
+      }
+      return;
+    }
 
     // Dynamically resolve the backend URL based on the current hostname to support network access
     const hostname = typeof window !== "undefined" ? window.location.hostname : "localhost";
@@ -46,25 +69,50 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     const socketInstance = io(SOCKET_URL, {
       path: "/socket.io/",
       withCredentials: true,
-      // WebSocket first — avoids the slow polling → websocket upgrade (saves 3–6s)
       transports: ["polling", "websocket"],
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
       autoConnect: true,
     });
 
     socketInstance.on("connect", () => {
       setIsConnected(true);
 
-      // Re-join rooms on every (re)connect so reconnections automatically
-      // resubscribe without requiring user interaction.
       const workspaceId = localStorage.getItem("workspaceId");
       if (workspaceId) {
         socketInstance.emit("join_room", `workspace_${workspaceId}`);
       }
       if (userIdRef.current) {
         socketInstance.emit("join_room", `user_${userIdRef.current}`);
+      }
+    });
+
+    socketInstance.on("connect_error", (err) => {
+      setIsConnected(false);
+      // If auth error, stop reconnection retries until new login
+      if (err.message.includes("Authentication") || err.message.includes("token")) {
+        socketInstance.disconnect();
+      }
+    });
+
+    socketInstance.on("FORCE_LOGOUT", () => {
+      setIsConnected(false);
+      socketInstance.disconnect();
+      if (typeof window !== "undefined") {
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = "/account-not-found";
+      }
+    });
+
+    socketInstance.on("ACCOUNT_DELETED", () => {
+      setIsConnected(false);
+      socketInstance.disconnect();
+      if (typeof window !== "undefined") {
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = "/account-not-found";
       }
     });
 
@@ -75,26 +123,10 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     socketRef.current = socketInstance;
     setSocket(socketInstance);
 
-    // Only disconnect when the entire app unmounts (layout teardown)
     return () => {
       socketInstance.disconnect();
       socketRef.current = null;
     };
-  }, []); // ← Empty deps: socket is created exactly once
-
-  // ── Step 2: When user becomes available, join user room ──────────────────
-  // This is kept SEPARATE from socket creation. We never tear down the socket
-  // here — we only emit a join_room.
-  useEffect(() => {
-    if (!user?.id) return;
-
-    userIdRef.current = user.id;
-
-    const sock = socketRef.current;
-    if (sock?.connected) {
-      sock.emit("join_room", `user_${user.id}`);
-    }
-    // If not yet connected, the `connect` handler above will read userIdRef.current
   }, [user?.id]);
 
   return (

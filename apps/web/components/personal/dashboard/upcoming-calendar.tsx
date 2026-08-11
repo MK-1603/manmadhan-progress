@@ -1,5 +1,6 @@
 import React from "react";
 import { format } from "date-fns";
+import { formatEnumLabel } from "@/lib/utils/formatters";
 import { Calendar as CalendarIcon, Video, MapPin, Clock } from "lucide-react";
 
 export function UpcomingCalendar({ events }: { events: any[] }) {
@@ -26,7 +27,7 @@ export function UpcomingCalendar({ events }: { events: any[] }) {
               <h4 className="text-sm font-medium text-foreground">{event.title}</h4>
               <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
                 {event.sourceType && (
-                  <span className="opacity-70">{event.sourceType.replace("_", " ")}</span>
+                  <span className="opacity-70">{formatEnumLabel(event.sourceType)}</span>
                 )}
                 {event.description && (
                   <span className="truncate max-w-[150px] opacity-70"> • {event.description}</span>

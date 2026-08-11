@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
-  User as UserIcon, Settings, Building2,
+  User as UserIcon, Settings, Building2, Shield,
   LogOut, Check, Sun, Moon, Monitor, Bell, Layout, ChevronLeft
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -54,7 +54,7 @@ export function ProfileDropdown() {
   const getActiveWorkspaceName = () => {
     if (isPersonal) return "Personal Workspace";
     const current = workspaces.find(w => w.id === activeWorkspaceId);
-    return current ? current.name : "ManMadhan Workspace";
+    return current ? current.name : "ManMadhan Progress Workspace";
   };
 
   const handleWorkspaceSwitch = (type: "personal" | "org", wsId?: string) => {
@@ -70,7 +70,7 @@ export function ProfileDropdown() {
     }
   };
 
-  const handleMenuClick = (action: "profile" | "workspace" | "notifications" | "settings") => {
+  const handleMenuClick = (action: "profile" | "security" | "workspace" | "notifications" | "settings") => {
     if (action === "workspace") {
       setShowWorkspaces(true);
       return;
@@ -79,15 +79,17 @@ export function ProfileDropdown() {
     setIsOpen(false);
     setShowWorkspaces(false);
     
-    let base = "/personal/settings";
+    let base = "/personal";
     if (!isPersonal) {
-      if (userRole === "CO-CEO") base = "/co-ceo/settings";
-      else if (userRole === "MEMBER") base = "/member/settings";
-      else base = "/ceo/settings";
+      if (userRole === "CO-CEO") base = "/co-ceo";
+      else if (userRole === "MEMBER") base = "/member";
+      else base = "/ceo";
     }
     
-    if (action === "notifications") router.push(`${base}#notifications`);
-    else router.push(base);
+    if (action === "profile") router.push(`${base}/profile`);
+    else if (action === "security") router.push(`${base}/security`);
+    else if (action === "notifications") router.push(`${base}/notifications`);
+    else router.push(`${base}/settings`);
   };
 
   const trigger = (
@@ -169,9 +171,10 @@ export function ProfileDropdown() {
           <div className="flex flex-col gap-px mb-2.5 pb-2.5 border-b dark:border-[rgba(255,255,255,0.06)]">
             {[
               { label: "Profile", icon: UserIcon, action: "profile" as const },
+              { label: "Security", icon: Shield, action: "security" as const },
               { label: "Workspace", icon: Layout, action: "workspace" as const },
               { label: "Notifications", icon: Bell, action: "notifications" as const },
-              { label: "Account Settings", icon: Settings, action: "settings" as const },
+              { label: "Organization Settings", icon: Settings, action: "settings" as const },
             ].map(({ label, icon: Icon, action }) => (
               <button
                 key={action}

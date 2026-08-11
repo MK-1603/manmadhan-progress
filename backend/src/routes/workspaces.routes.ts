@@ -257,3 +257,37 @@ workspacesRouter.delete(
 		}
 	},
 );
+
+// Update Workspace Settings (Organization Branding & Logo)
+workspacesRouter.put(
+	"/:workspaceId",
+	requireLeadership,
+	async (req: Request, res: Response) => {
+		try {
+			const { workspaceId } = req.params;
+			const { name, logoUrl, description, website, contactEmail } = req.body;
+
+			const updatePayload: any = {};
+			if (name !== undefined) updatePayload.name = String(name).trim();
+			if (logoUrl !== undefined) updatePayload.logoUrl = logoUrl ? String(logoUrl).trim() : null;
+			if (description !== undefined) updatePayload.description = description ? String(description).trim() : null;
+			if (website !== undefined) updatePayload.website = website ? String(website).trim() : null;
+			if (contactEmail !== undefined) updatePayload.contactEmail = contactEmail ? String(contactEmail).trim() : null;
+
+			const [updated] = await db
+				.update(workspaces)
+				.set(updatePayload)
+				.where(eq(workspaces.id, String(workspaceId)))
+				.returning();
+
+			if (!updated) {
+				return res.status(404).json({ success: false, error: "Workspace not found" });
+			}
+
+			res.json({ success: true, message: "Organization settings updated successfully", data: updated });
+		} catch (error: any) {
+			logger.error("Update Workspace Settings Error: " + (error as Error).message);
+			res.status(500).json({ success: false, error: "Failed to update workspace settings" });
+		}
+	},
+);

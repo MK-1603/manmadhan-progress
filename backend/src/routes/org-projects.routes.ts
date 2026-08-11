@@ -1,14 +1,19 @@
-import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
 import {
 	activities,
 	auditLogs,
+	centralRequests,
 	milestones,
+	notifications,
+	projectAssignments,
 	projectDocuments,
+	projectDocumentsV2,
 	projectFeatures,
 	projectGithub,
+	projectMilestonesV2,
 	projectRequirements,
 	projectRoadmaps,
 	projects,
@@ -20,8 +25,11 @@ import {
 import { authenticate } from "../middleware/auth.middleware";
 import { enforceNoSelfAssignment } from "../middleware/self-assignment.guard";
 import { AssignmentDeliveryService } from "../services/assignment-delivery.service";
+import { emailService } from "../services/email.service";
 import { logger } from "../services/logger.service";
+import { ProjectAnalyzerService } from "../services/project-analyzer.service";
 import { ProjectPromptService } from "../services/project-prompt.service";
+import { RequestEngineService } from "../services/request-engine.service";
 import { socketService } from "../services/socket.service";
 import { TaskAutomationService } from "../services/task-automation.service";
 
@@ -101,16 +109,40 @@ const requireMembership = async (req: Request, res: Response, next: any) => {
 			.limit(1);
 
 		if (!m) {
+			// Fallback 1: any workspace membership for this user (invitation flow)
+			const [anyMembership] = await db
+				.select()
+				.from(workspaceMembers)
+				.where(eq(workspaceMembers.userId, userId))
+				.limit(1);
+
+			if (anyMembership) {
+				logger.info(`[AUTH DEBUG] org-projects: userId=${userId} using fallback ws=${anyMembership.workspaceId} role=${anyMembership.role}`);
+				(req as any).workspaceId = anyMembership.workspaceId;
+				(req as any).membership = anyMembership;
+				return next();
+			}
+
+			// Fallback 2: derive from token / users table
+			const tokenRole = String((req as any).user?.role || "").toUpperCase();
+			if (tokenRole === "CEO" || tokenRole === "CO-CEO" || tokenRole === "CO_CEO" || tokenRole === "ADMIN") {
+				const normalizedRole = tokenRole === "CO-CEO" || tokenRole === "CO_CEO" ? "CO-CEO" : "CEO";
+				(req as any).membership = { role: normalizedRole, workspaceId, userId };
+				return next();
+			}
+
 			const [u] = await db
 				.select()
 				.from(users)
 				.where(eq(users.id, userId))
 				.limit(1);
-			if (u && (u.role === "CEO" || u.role === "admin" || u.systemOwner)) {
-				(req as any).membership = { role: "CEO", workspaceId, userId };
-				return next();
-			}
-			(req as any).membership = { role: "MEMBER", workspaceId, userId };
+			const dbRole = (u?.role || "MEMBER").toUpperCase();
+			const normalizedRole = dbRole === "CEO" || u?.systemOwner ? "CEO"
+				: dbRole === "CO-CEO" || dbRole === "CO_CEO" ? "CO-CEO"
+				: "MEMBER";
+
+			logger.info(`[AUTH DEBUG] org-projects: userId=${userId} no ws record — DB role=${normalizedRole}`);
+			(req as any).membership = { role: normalizedRole, workspaceId, userId };
 			return next();
 		}
 
@@ -195,6 +227,228 @@ orgProjectsRouter.post(
 					success: false,
 					error: "Failed to generate project plan from prompt",
 				});
+		}
+	},
+);
+
+// ─── Analyze Project Prompt (V2 Execution OS) ──────────────────────────────────
+orgProjectsRouter.post(
+	"/analyze",
+	resolveWorkspace,
+	requireMembership,
+	requireLeadership,
+	async (req: Request, res: Response) => {
+		try {
+			const { prompt } = req.body;
+			if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+				return res.status(400).json({ success: false, error: "Project prompt is required" });
+			}
+
+			const analysis = await ProjectAnalyzerService.analyzePrompt(prompt.trim());
+			res.json({ success: true, data: analysis });
+		} catch (err: any) {
+			logger.error("Analyze project error: " + (err?.message || String(err)));
+			res.status(500).json({ success: false, error: err.message || "Failed to analyze project prompt" });
+		}
+	},
+);
+
+// ─── Create Organization Project V2 (7-Stage Execution & Assignment Flow) ─────
+orgProjectsRouter.post(
+	"/create-v2",
+	resolveWorkspace,
+	requireMembership,
+	requireLeadership,
+	enforceNoSelfAssignment,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const userRole = (req as any).workspaceRole || "MEMBER";
+
+			const {
+				title,
+				description,
+				deadline,
+				assignedToUserId,
+				assignmentType = "CEO_TO_CO_CEO",
+				responsibleCoCeoId,
+				prompt,
+				analysisData,
+			} = req.body;
+
+			if (!title || !title.trim()) {
+				return res.status(400).json({ success: false, error: "Project title is required" });
+			}
+
+			if (!assignedToUserId) {
+				return res.status(400).json({ success: false, error: "Assigned user is required" });
+			}
+
+			// Validate CEO -> Member assignment rules
+			if (userRole === "CEO" && assignmentType === "CEO_TO_MEMBER") {
+				if (!responsibleCoCeoId) {
+					return res.status(400).json({
+						success: false,
+						error: "Responsible CO-CEO is mandatory when assigning a project directly to a Member.",
+					});
+				}
+			}
+
+			const projectId = uuidv4();
+			const projectDeadline = deadline ? new Date(deadline) : null;
+
+			// 1. Create Core Project Record
+			const [newProject] = await db
+				.insert(projects)
+				.values({
+					id: projectId,
+					workspaceId,
+					name: title.trim(),
+					description: description || prompt || null,
+					objective: prompt || null,
+					status: "PLANNING",
+					priority: "Medium",
+					progress: 0,
+					health: "HEALTHY",
+					ownerId: assignedToUserId,
+					createdBy: userId,
+					deadline: projectDeadline,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				})
+				.returning();
+
+			// 2. Create Project Assignment Record
+			const assignmentId = uuidv4();
+			const coCeoVal = (typeof responsibleCoCeoId === "string" && responsibleCoCeoId.trim().length > 0) ? responsibleCoCeoId.trim() : assignedToUserId;
+			await db.insert(projectAssignments).values({
+				id: assignmentId,
+				projectId,
+				workspaceId,
+				createdByUserId: userId,
+				assignedToUserId,
+				responsibleCoCeoId: coCeoVal,
+				assignmentType: assignmentType || "CEO_TO_CO_CEO",
+				status: "PENDING_ACCEPTANCE",
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			});
+
+			// Dispatch Notification & Email to Assignee
+			try {
+				const [assigneeUser] = await db.select().from(users).where(eq(users.id, assignedToUserId)).limit(1);
+				const [creatorUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+				const assigneeRole = (assigneeUser?.role || "CO-CEO").toUpperCase();
+
+				await db.insert(notifications).values({
+					id: uuidv4(),
+					userId: assignedToUserId,
+					workspaceId,
+					title: "PROJECT ASSIGNED",
+					message: `You have been assigned to project "${title.trim()}" (Role: ${assigneeRole})`,
+					type: "PROJECT_ASSIGNMENT",
+					priority: "High",
+					isRead: false,
+				});
+
+				if (assigneeUser?.email) {
+					emailService.sendProjectAssignmentEmail({
+						to: assigneeUser.email,
+						projectName: title.trim(),
+						assignerName: creatorUser?.displayName || creatorUser?.name || "CEO",
+						role: assigneeRole,
+						deadline: projectDeadline ? projectDeadline.toISOString().split("T")[0] : null,
+						projectId,
+					}).catch((e) => logger.error("Async project assignment email error: " + e.message));
+				}
+			} catch (notifErr: any) {
+				logger.error("Project notification dispatch error: " + notifErr.message);
+			}
+
+			// 3. Generate 8 Mandatory Organization Milestones
+			const STAGES = [
+				{ stage: 1, code: "STAGE_01_ACTIVATION", name: "01 — Project Invite & Connect", desc: "Prepare project assignment, invitation & repository binding", folder: "01-Project-Invite-Connect" },
+				{ stage: 2, code: "STAGE_02_PRD", name: "02 — PRD", desc: "Product Requirements Document", folder: "02-PRD" },
+				{ stage: 3, code: "STAGE_03_TRD", name: "03 — TRD", desc: "Technical Requirements Document", folder: "03-TRD" },
+				{ stage: 4, code: "STAGE_04_WORKFLOW", name: "04 — Application Workflow", desc: "Application Workflow & Visual Journeys", folder: "04-App-Workflow" },
+				{ stage: 5, code: "STAGE_05_UIUX", name: "05 — UI/UX Brief", desc: "UI/UX Design Brief & Screen Inventory", folder: "05-UI-UX" },
+				{ stage: 6, code: "STAGE_06_DATABASE", name: "06 — Database Plan", desc: "Backend Schema & Database Plan", folder: "06-Database" },
+				{ stage: 7, code: "STAGE_07_IMPLEMENTATION", name: "07 — Implementation Plan", desc: "Implementation Plan & Task Breakdown", folder: "07-Implementation" },
+				{ stage: 8, code: "STAGE_08_FINAL_VERIFICATION", name: "08 — Implementation & Final Verification", desc: "Implementation Execution, Code Verification & Final Review", folder: "08-Implementation-Final" },
+			];
+
+			const milestoneRecords = [];
+			for (const s of STAGES) {
+				const milestoneId = uuidv4();
+				const docId = uuidv4();
+
+				// Create Milestone (Stage 1 is AVAILABLE immediately, Stages 2-8 are LOCKED)
+				await db.insert(projectMilestonesV2).values({
+					id: milestoneId,
+					projectId,
+					stageNumber: s.stage,
+					milestoneCode: s.code,
+					name: s.name,
+					description: s.desc,
+					state: s.stage === 1 ? "AVAILABLE" : "LOCKED",
+					ownerUserId: assignedToUserId,
+					reviewerUserId: userId,
+					dependencies: s.stage > 1 ? [s.stage - 1] : [],
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				});
+
+				// Create Automatic Project Document Registry Record
+				const folderPath = `Documents/Organization/Projects/${title.trim().replace(/\s+/g, "-")}/${s.folder}`;
+				await db.insert(projectDocumentsV2).values({
+					id: docId,
+					projectId,
+					milestoneId,
+					stageNumber: s.stage,
+					documentType: s.code.replace("STAGE_0", "").replace("STAGE_", ""),
+					title: `${s.name} Specification`,
+					currentVersion: 1,
+					status: "DRAFT",
+					wordCount: 0,
+					folderPath,
+					createdById: userId,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				});
+
+				milestoneRecords.push({ id: milestoneId, name: s.name, stage: s.stage });
+			}
+
+			// 4. Create Central Approval Request for Project Assignment
+			await RequestEngineService.createRequest({
+				workspaceId,
+				requestType: "PROJECT_ASSIGNMENT",
+				title: `Project Assignment: ${title.trim()}`,
+				description: `Assigned role for ${title.trim()}. Deadline: ${projectDeadline ? projectDeadline.toDateString() : "Flexible"}.`,
+				requesterId: userId,
+				approverId: assignedToUserId,
+				entityType: "PROJECT",
+				entityId: projectId,
+				metadata: {
+					assignmentType,
+					responsibleCoCeoId,
+					prompt,
+					analysisData,
+				},
+			});
+
+			res.json({
+				success: true,
+				data: {
+					project: newProject,
+					assignmentId,
+					milestones: milestoneRecords,
+				},
+			});
+		} catch (err: any) {
+			logger.error("Create project V2 error: " + (err?.message || String(err)));
+			res.status(500).json({ success: false, error: err.message || "Failed to create project V2" });
 		}
 	},
 );
@@ -711,6 +965,77 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 			logger.error("Fetch project github error: " + e.message);
 		}
 
+		// V2 Milestones for project
+		try {
+			const v2Ms = await db
+				.select()
+				.from(projectMilestonesV2)
+				.where(eq(projectMilestonesV2.projectId, id))
+				.orderBy(asc(projectMilestonesV2.stageNumber));
+			if (v2Ms && v2Ms.length > 0) {
+				projMilestones = v2Ms;
+			}
+		} catch (e: any) {}
+
+		// V2 Documents for project
+		try {
+			const v2Docs = await db
+				.select()
+				.from(projectDocumentsV2)
+				.where(eq(projectDocumentsV2.projectId, id));
+			if (v2Docs && v2Docs.length > 0) {
+				projDocuments = v2Docs;
+			}
+		} catch (e: any) {}
+
+		// Normalize milestones to satisfy unified data contract
+		const normalizedMilestones = (projMilestones || []).map((m: any) => ({
+			...m,
+			state: m.state || m.status || "LOCKED",
+			status: m.status || m.state || "LOCKED",
+			stageNumber: m.stageNumber || m.order || 1,
+			name: m.name || m.title || "Milestone",
+			description: m.description || "",
+		}));
+
+		// Fetch canonical project assignment record
+		let projectAssignmentData: any = null;
+		try {
+			const [pa] = await db
+				.select()
+				.from(projectAssignments)
+				.where(eq(projectAssignments.projectId, id))
+				.orderBy(desc(projectAssignments.createdAt))
+				.limit(1);
+
+			if (pa) {
+				let assigneeUser: any = null;
+				let creatorUser: any = null;
+				if (pa.assignedToUserId) {
+					const [u] = await db.select().from(users).where(eq(users.id, pa.assignedToUserId)).limit(1);
+					if (u) assigneeUser = { id: u.id, name: u.displayName || u.name, email: u.email, role: u.role };
+				}
+				if (pa.createdByUserId) {
+					const [u] = await db.select().from(users).where(eq(users.id, pa.createdByUserId)).limit(1);
+					if (u) creatorUser = { id: u.id, name: u.displayName || u.name, email: u.email, role: u.role };
+				}
+
+				projectAssignmentData = {
+					id: pa.id,
+					status: pa.status,
+					assignmentType: pa.assignmentType,
+					assignedTo: assigneeUser,
+					assignedBy: creatorUser,
+					rejectionReason: pa.rejectionReason,
+					acceptedAt: pa.acceptedAt,
+					declinedAt: pa.declinedAt,
+					createdAt: pa.createdAt,
+				};
+			}
+		} catch (e: any) {
+			logger.error("Fetch project assignment error: " + e.message);
+		}
+
 		res.json({
 			success: true,
 			data: {
@@ -718,7 +1043,8 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 				progress,
 				ownerName,
 				ownerEmail,
-				milestones: projMilestones,
+				assignment: projectAssignmentData,
+				milestones: normalizedMilestones,
 				requirements: projRequirements,
 				documents: projDocuments,
 				roadmaps: projRoadmaps,
@@ -746,139 +1072,241 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 			"Get single project error: " +
 				(err?.stack || err?.message || String(err)),
 		);
-		res
-			.status(500)
-			.json({ success: false, error: "Failed to fetch project details" });
+		res.status(500).json({ success: false, error: "Internal server error" });
 	}
 });
 
-// ─── Project Assignment Acceptance ──────────────────────────────────────────
-orgProjectsRouter.post(
-	"/:id/accept",
+// ─── GET /:id/assignment Details ──────────────────────────────────────────────
+orgProjectsRouter.get(
+	"/:id/assignment",
 	resolveWorkspace,
 	requireMembership,
 	async (req: Request, res: Response) => {
 		try {
 			const workspaceId = (req as any).workspaceId;
-			const userId = (req as any).user?.id;
 			const id = req.params.id as string;
 
-			const [existing] = await db
+			const [project] = await db
 				.select()
 				.from(projects)
 				.where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
 				.limit(1);
-			if (!existing)
-				return res
-					.status(404)
-					.json({ success: false, error: "Project not found" });
 
-			const [updated] = await db
-				.update(projects)
-				.set({ status: "REQUIREMENTS_IN_PROGRESS" })
-				.where(eq(projects.id, id))
-				.returning();
+			if (!project) return res.status(404).json({ success: false, error: "Project not found" });
 
-			// Trigger Task Automation for Foundation Requirements upon Acceptance
-			await TaskAutomationService.generateFoundationTasks(
-				id,
-				userId,
-				workspaceId,
-				existing.name,
-			);
+			const [pa] = await db
+				.select()
+				.from(projectAssignments)
+				.where(and(eq(projectAssignments.projectId, id), eq(projectAssignments.workspaceId, workspaceId)))
+				.orderBy(desc(projectAssignments.createdAt))
+				.limit(1);
 
-			await db.insert(auditLogs).values({
-				id: uuidv4(),
-				userId,
-				workspaceId,
-				eventType: "PROJECT_ACCEPTED",
-				details: `Project "${existing.name}" mandate accepted by owner`,
-			});
-
-			await db.insert(activities).values({
-				id: uuidv4(),
-				workspaceId,
-				projectId: id,
-				userId,
-				action: "Project Mandate Accepted",
-				details: `Assignee officially accepted project mandate for "${existing.name}"`,
-			});
-
-			socketService.emitToWorkspace(workspaceId, "project.accepted", updated);
-			res.json({ success: true, data: updated });
-		} catch (err: any) {
-			logger.error("Accept project error: " + (err?.message || String(err)));
-			res
-				.status(500)
-				.json({ success: false, error: "Failed to accept project" });
-		}
-	},
-);
-
-// ─── Project Assignment Decline ────────────────────────────────────────────
-orgProjectsRouter.post(
-	"/:id/decline",
-	resolveWorkspace,
-	requireMembership,
-	async (req: Request, res: Response) => {
-		try {
-			const workspaceId = (req as any).workspaceId;
-			const userId = (req as any).user?.id;
-			const id = req.params.id as string;
-			const { reason } = req.body;
-
-			if (!reason || typeof reason !== "string" || !reason.trim()) {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: "A valid decline reason is required",
-					});
+			let assigneeUser: any = null;
+			if (pa?.assignedToUserId || project.ownerId) {
+				const targetId = pa?.assignedToUserId || project.ownerId;
+				const [u] = await db.select().from(users).where(eq(users.id, targetId!)).limit(1);
+				if (u) {
+					assigneeUser = {
+						id: u.id,
+						name: u.displayName || u.name,
+						email: u.email,
+						avatarUrl: u.avatar,
+						role: u.role || "CO-CEO",
+					};
+				}
 			}
 
-			const [existing] = await db
+			let assignerUser: any = null;
+			const creatorId = pa?.createdByUserId || project.createdBy;
+			if (creatorId) {
+				const [u] = await db.select().from(users).where(eq(users.id, creatorId)).limit(1);
+				if (u) {
+					assignerUser = {
+						id: u.id,
+						name: u.displayName || u.name,
+						email: u.email,
+						avatarUrl: u.avatar,
+						role: u.role || "CEO",
+					};
+				}
+			}
+
+			// Current stage info
+			const [currentMs] = await db
 				.select()
-				.from(projects)
-				.where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
+				.from(projectMilestonesV2)
+				.where(and(eq(projectMilestonesV2.projectId, id), ne(projectMilestonesV2.state, "APPROVED")))
+				.orderBy(asc(projectMilestonesV2.stageNumber))
 				.limit(1);
-			if (!existing)
-				return res
-					.status(404)
-					.json({ success: false, error: "Project not found" });
 
-			const [updated] = await db
-				.update(projects)
-				.set({ status: "DECLINED" })
-				.where(eq(projects.id, id))
-				.returning();
+			const currentStageText = currentMs ? `Stage ${String(currentMs.stageNumber).padStart(2, "0")} / 08 (${currentMs.name})` : "Stage 01 / 08 (Invite & Connect)";
 
-			await db.insert(auditLogs).values({
-				id: uuidv4(),
-				userId,
-				workspaceId,
-				eventType: "PROJECT_DECLINED",
-				details: `Project "${existing.name}" declined by assignee. Reason: ${reason.trim()}`,
+			res.json({
+				success: true,
+				data: {
+					project,
+					assignment: pa,
+					assignee: assigneeUser,
+					assigner: assignerUser,
+					currentStageText,
+					assignmentStatus: pa?.status || "PENDING_ACCEPTANCE",
+				},
 			});
-
-			await db.insert(activities).values({
-				id: uuidv4(),
-				workspaceId,
-				projectId: id,
-				userId,
-				action: "Project Mandate Declined",
-				details: `Assignee declined mandate "${existing.name}". Reason: ${reason.trim()}`,
-			});
-
-			socketService.emitToWorkspace(workspaceId, "project.declined", updated);
-			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Decline project error: " + (err?.message || String(err)));
-			res
-				.status(500)
-				.json({ success: false, error: "Failed to decline project" });
+			logger.error("Get project assignment error: " + (err?.message || String(err)));
+			res.status(500).json({ success: false, error: "Failed to get project assignment details" });
 		}
 	},
 );
+
+// ─── Project Assignment Acceptance (POST /:id/accept & POST /:id/assignment/accept) ──
+const handleAcceptProject = async (req: Request, res: Response) => {
+	try {
+		const workspaceId = (req as any).workspaceId;
+		const userId = (req as any).user?.id;
+		const id = req.params.id as string;
+
+		const [existing] = await db
+			.select()
+			.from(projects)
+			.where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
+			.limit(1);
+		if (!existing) return res.status(404).json({ success: false, error: "Project not found" });
+
+		const [pa] = await db
+			.select()
+			.from(projectAssignments)
+			.where(and(eq(projectAssignments.projectId, id), eq(projectAssignments.workspaceId, workspaceId)))
+			.orderBy(desc(projectAssignments.createdAt))
+			.limit(1);
+
+		const now = new Date();
+
+		if (pa) {
+			await db
+				.update(projectAssignments)
+				.set({ status: "ACCEPTED", acceptedAt: now, updatedAt: now })
+				.where(eq(projectAssignments.id, pa.id));
+		}
+
+		// Transition Stage 1 to AVAILABLE / IN_PROGRESS
+		await db
+			.update(projectMilestonesV2)
+			.set({ state: "AVAILABLE", updatedAt: now })
+			.where(and(eq(projectMilestonesV2.projectId, id), eq(projectMilestonesV2.stageNumber, 1)));
+
+		const [updated] = await db
+			.update(projects)
+			.set({ status: "REQUIREMENTS_IN_PROGRESS", updatedAt: now })
+			.where(eq(projects.id, id))
+			.returning();
+
+		await db.insert(auditLogs).values({
+			id: uuidv4(),
+			userId,
+			workspaceId,
+			eventType: "PROJECT_ACCEPTED",
+			details: `Project "${existing.name}" mandate accepted by owner`,
+		});
+
+		await db.insert(activities).values({
+			id: uuidv4(),
+			workspaceId,
+			projectId: id,
+			userId,
+			action: "Project Mandate Accepted",
+			details: `Assignee officially accepted project mandate for "${existing.name}"`,
+		});
+
+		socketService.emitToWorkspace(workspaceId, "project.updated", updated);
+		socketService.emitToWorkspace(workspaceId, "project.accepted", updated);
+		res.json({ success: true, data: updated, message: "Project assignment accepted successfully" });
+	} catch (err: any) {
+		logger.error("Accept project error: " + (err?.message || String(err)));
+		res.status(500).json({ success: false, error: "Failed to accept project" });
+	}
+};
+
+orgProjectsRouter.post("/:id/accept", resolveWorkspace, requireMembership, handleAcceptProject);
+orgProjectsRouter.post("/:id/assignment/accept", resolveWorkspace, requireMembership, handleAcceptProject);
+
+// ─── Project Assignment Decline (POST /:id/decline & POST /:id/assignment/decline) ──
+const handleDeclineProject = async (req: Request, res: Response) => {
+	try {
+		const workspaceId = (req as any).workspaceId;
+		const userId = (req as any).user?.id;
+		const id = req.params.id as string;
+		const { reason } = req.body;
+
+		if (!reason || typeof reason !== "string" || !reason.trim()) {
+			return res.status(400).json({
+				success: false,
+				error: "A valid decline reason is mandatory to decline project assignment",
+			});
+		}
+
+		const [existing] = await db
+			.select()
+			.from(projects)
+			.where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
+			.limit(1);
+		if (!existing) return res.status(404).json({ success: false, error: "Project not found" });
+
+		const [pa] = await db
+			.select()
+			.from(projectAssignments)
+			.where(and(eq(projectAssignments.projectId, id), eq(projectAssignments.workspaceId, workspaceId)))
+			.orderBy(desc(projectAssignments.createdAt))
+			.limit(1);
+
+		const now = new Date();
+
+		if (pa) {
+			await db
+				.update(projectAssignments)
+				.set({
+					status: "DECLINED",
+					rejectionReason: reason.trim(),
+					declinedAt: now,
+					updatedAt: now,
+				})
+				.where(eq(projectAssignments.id, pa.id));
+		}
+
+		const [updated] = await db
+			.update(projects)
+			.set({ status: "DECLINED", updatedAt: now })
+			.where(eq(projects.id, id))
+			.returning();
+
+		await db.insert(auditLogs).values({
+			id: uuidv4(),
+			userId,
+			workspaceId,
+			eventType: "PROJECT_DECLINED",
+			details: `Project "${existing.name}" declined by assignee. Reason: ${reason.trim()}`,
+		});
+
+		await db.insert(activities).values({
+			id: uuidv4(),
+			workspaceId,
+			projectId: id,
+			userId,
+			action: "Project Mandate Declined",
+			details: `Assignee declined mandate "${existing.name}". Reason: ${reason.trim()}`,
+		});
+
+		socketService.emitToWorkspace(workspaceId, "project.updated", updated);
+		socketService.emitToWorkspace(workspaceId, "project.declined", updated);
+		res.json({ success: true, data: updated, message: "Project assignment declined successfully" });
+	} catch (err: any) {
+		logger.error("Decline project error: " + (err?.message || String(err)));
+		res.status(500).json({ success: false, error: "Failed to decline project" });
+	}
+};
+
+orgProjectsRouter.post("/:id/decline", resolveWorkspace, requireMembership, handleDeclineProject);
+orgProjectsRouter.post("/:id/assignment/decline", resolveWorkspace, requireMembership, handleDeclineProject);
 
 // ─── Project Assignment Request Clarification ──────────────────────────────
 orgProjectsRouter.post(
@@ -1519,6 +1947,48 @@ orgProjectsRouter.delete(
 		} catch (err: any) {
 			logger.error("Delete project error: " + err.message);
 			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+// ─── Archive Project (POST /:id/archive) ──────────────────────────────────────
+orgProjectsRouter.post(
+	"/:id/archive",
+	resolveWorkspace,
+	requireMembership,
+	requireLeadership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+
+			const [updated] = await db
+				.update(projects)
+				.set({
+					status: "Archived",
+					updatedAt: new Date(),
+				})
+				.where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
+				.returning();
+
+			if (!updated) {
+				return res.status(404).json({ success: false, error: "Project not found" });
+			}
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "PROJECT_UPDATED",
+				details: `Project "${updated.name}" archived`,
+			});
+
+			socketService.emitToWorkspace(workspaceId, "project.updated", updated);
+			res.json({ success: true, data: updated, message: "Project archived" });
+		} catch (err: any) {
+			logger.error("Archive project error: " + err.message);
+			res.status(500).json({ success: false, error: "Failed to archive project" });
 		}
 	},
 );

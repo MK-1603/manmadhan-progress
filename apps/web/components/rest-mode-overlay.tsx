@@ -2,14 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "./auth/auth-context";
-import { Moon, ShieldAlert, ArrowRight, Clock } from "lucide-react";
+import { Moon, ShieldAlert, ArrowRight, Clock, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePathname, useRouter } from "next/navigation";
 
 export function RestModeOverlay() {
   const { user, isLoading } = useAuth();
+  const pathname = usePathname();
+  const router = useRouter();
   const isAuthenticated = !!user;
   const [isRestMode, setIsRestMode] = useState(false);
   const [isBypassed, setIsBypassed] = useState(false);
+
+  // Personal Workspace is NEVER affected by Rest Mode
+  const isPersonalWorkspace = pathname?.startsWith("/personal");
 
   useEffect(() => {
     // Check if previously bypassed in this session
@@ -32,7 +38,8 @@ export function RestModeOverlay() {
     return () => clearInterval(interval);
   }, []);
 
-  if (isLoading || !isAuthenticated || !isRestMode || isBypassed) return null;
+  // Personal Workspace is NEVER locked by Rest Mode — only org workspace is
+  if (isLoading || !isAuthenticated || !isRestMode || isBypassed || isPersonalWorkspace) return null;
 
   const isCEO = user?.role === "CEO";
 
@@ -91,17 +98,33 @@ export function RestModeOverlay() {
                   Override Policy (CEO)
                   <ArrowRight className="h-4 w-4" />
                 </button>
+                <button
+                  onClick={() => router.push("/personal/dashboard")}
+                  className="w-full border border-border bg-card text-foreground hover:bg-muted h-12 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <User className="h-4 w-4" />
+                  Go to Personal Workspace
+                </button>
                 <p className="text-xs text-muted-foreground">
                   Your actions outside of execution hours may be audited.
                 </p>
               </div>
             ) : (
-              <div className="bg-destructive/10 text-destructive rounded-xl p-4 w-full flex items-start gap-3 text-left">
-                <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold">Access Restricted</p>
-                  <p className="text-xs mt-1 opacity-90">Only the CEO can bypass the Work Execution Policy. Please return during standard hours.</p>
+              <div className="w-full flex flex-col gap-3">
+                <div className="bg-destructive/10 text-destructive rounded-xl p-4 w-full flex items-start gap-3 text-left">
+                  <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold">Organization Work Restricted</p>
+                    <p className="text-xs mt-1 opacity-90">Organization execution is paused between 11:00 PM and 4:00 AM. Please return during standard hours.</p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => router.push("/personal/dashboard")}
+                  className="w-full border border-border bg-card text-foreground hover:bg-muted h-12 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <User className="h-4 w-4" />
+                  Go to Personal Workspace
+                </button>
               </div>
             )}
           </div>

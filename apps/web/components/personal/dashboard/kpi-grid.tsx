@@ -4,171 +4,141 @@ import Link from "next/link";
 
 interface KpiCardProps {
   title: string;
-  icon: "clock" | "check" | "folder" | "score";
+  icon: React.ElementType;
   href?: string;
   children: React.ReactNode;
 }
 
-function KpiCard({ title, icon, href, children }: KpiCardProps) {
-  const IconComponent = {
-    clock: Clock,
-    check: CheckCircle2,
-    folder: Folder,
-    score: Target,
-  }[icon];
-
-  const content = (
-    <div className={`bg-[#FFFFFF] dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#242424] rounded-[12px] p-5 flex flex-col justify-between shadow-sm dark:shadow-none transition-colors h-full ${href ? "hover:bg-[#F9FAFB] dark:hover:bg-[#1A1A1A] cursor-pointer" : ""}`}>
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <IconComponent className="w-[18px] h-[18px] text-[#52525B] dark:text-[#A1A1AA]" strokeWidth={2} />
-          <span className="text-[11px] font-bold text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider">
-            {title}
-          </span>
-        </div>
-        <div className="flex flex-col gap-1">
-          {children}
-        </div>
+function KpiCard({ title, icon: Icon, href, children }: KpiCardProps) {
+  const inner = (
+    <div className={`
+      bg-card border border-border rounded-2xl p-5 flex flex-col h-full
+      transition-colors
+      ${href ? "hover:bg-surface-hover cursor-pointer" : ""}
+    `}>
+      <div className="flex items-center gap-2 mb-4">
+        <Icon className="w-[16px] h-[16px] text-muted-foreground" strokeWidth={2} />
+        <span className="text-[10.5px] font-semibold text-muted-foreground uppercase tracking-widest">
+          {title}
+        </span>
       </div>
+      <div className="flex flex-col gap-1 flex-1">{children}</div>
     </div>
   );
-
-  if (href) {
-    return <Link href={href} className="block h-full">{content}</Link>;
-  }
-  return content;
+  return href ? <Link href={href} className="block h-full">{inner}</Link> : inner;
 }
 
 export function KpiGrid({ data, className = "" }: { data: any; className?: string }) {
-  // Focus logic
   const focusGoalText = data.focusGoal && data.focusGoal !== "00h 00m" ? `/ ${data.focusGoal}` : "";
-  const focusTrend = data.focusTrendPercent;
-
-  // Tasks logic
-  const hasTasks = data.tasksTotal > 0;
-  
-  // Projects logic
-  const hasProjects = data.projectsActive > 0;
-
-  // Score logic
-  const hasScore = data.scoreAvailable;
+  const focusTrend    = data.focusTrendPercent;
+  const hasTasks      = data.tasksTotal > 0;
+  const hasProjects   = data.projectsActive > 0;
+  const hasScore      = data.scoreAvailable;
 
   return (
     <div className={`grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 ${className}`}>
-      {/* 1. FOCUS TIME */}
-      <KpiCard title="FOCUS TIME" icon="clock" href="/personal/focus">
+
+      {/* FOCUS TIME */}
+      <KpiCard title="Focus Time" icon={Clock} href="/personal/focus">
         {data.focusTime === "00h 00m" && !focusGoalText ? (
           <>
-            <div className="text-[28px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-none mb-1">
-              00h 00m
-            </div>
-            <p className="text-[13px] text-[#52525B] dark:text-[#A1A1AA]">No focus time yet</p>
+            <span className="text-[26px] font-bold text-foreground leading-none">00h 00m</span>
+            <p className="text-[12px] text-muted-foreground mt-1">No focus time yet</p>
           </>
         ) : (
           <>
-            <div className="flex items-baseline gap-1.5 mb-1">
-              <span className="text-[28px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-none">
-                {data.focusTime}
-              </span>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[26px] font-bold text-foreground leading-none">{data.focusTime}</span>
               {focusGoalText && (
-                <span className="text-[16px] text-[#52525B] dark:text-[#A1A1AA] font-semibold">{focusGoalText}</span>
+                <span className="text-[14px] text-muted-foreground font-medium">{focusGoalText}</span>
               )}
             </div>
-            <p className="text-[13px] text-[#171717] dark:text-[#F5F5F5] font-medium mb-1">Focus today</p>
-            {data.focusPercent !== undefined && data.focusPercent !== null && focusGoalText ? (
-              <p className="text-[13px] text-[#52525B] dark:text-[#A1A1AA] mb-2">{data.focusPercent}% of daily goal</p>
-            ) : null}
-            {focusTrend !== null && focusTrend !== undefined ? (
-              <p className={`text-[13px] flex items-center gap-1 font-medium ${focusTrend >= 0 ? 'text-[#16A34A] dark:text-[#22C55E]' : 'text-[#EF4444] dark:text-[#F87171]'}`}>
-                {focusTrend >= 0 ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />}
+            <p className="text-[12px] text-muted-foreground mt-1">Focus today</p>
+            {data.focusPercent != null && focusGoalText && (
+              <p className="text-[12px] text-foreground font-medium mt-0.5">{data.focusPercent}% of goal</p>
+            )}
+            {focusTrend != null && (
+              <p className={`text-[12px] flex items-center gap-1 font-medium mt-1 ${focusTrend >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                {focusTrend >= 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
                 {Math.abs(focusTrend)}% vs yesterday
               </p>
-            ) : null}
+            )}
           </>
         )}
       </KpiCard>
 
-      {/* 2. TASKS */}
-      <KpiCard title="TASKS" icon="check" href="/personal/tasks">
+      {/* TASKS */}
+      <KpiCard title="Tasks" icon={CheckCircle2} href="/personal/tasks">
         {!hasTasks ? (
           <>
-            <div className="text-[28px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-none mb-1">
-              0 / 0
-            </div>
-            <p className="text-[13px] text-[#52525B] dark:text-[#A1A1AA]">No tasks today</p>
+            <span className="text-[26px] font-bold text-foreground leading-none">0 / 0</span>
+            <p className="text-[12px] text-muted-foreground mt-1">No tasks today</p>
           </>
         ) : (
           <>
-            <div className="flex items-baseline gap-1.5 mb-1">
-              <span className="text-[28px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-none">
-                {data.tasksCompleted}
-              </span>
-              <span className="text-[16px] text-[#52525B] dark:text-[#A1A1AA] font-semibold">/ {data.tasksTotal}</span>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[26px] font-bold text-foreground leading-none">{data.tasksCompleted}</span>
+              <span className="text-[14px] text-muted-foreground font-medium">/ {data.tasksTotal}</span>
             </div>
-            <p className="text-[13px] text-[#171717] dark:text-[#F5F5F5] font-medium mb-2">completed today</p>
-            <p className="text-[13px] text-[#52525B] dark:text-[#A1A1AA] mb-3">{data.tasksPercent}% completed</p>
-            <div className="w-full h-1.5 bg-[#F3F4F6] dark:bg-[#1D1D1D] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-[#171717] dark:bg-[#F5F5F5] rounded-full transition-all duration-500 ease-out"
-                style={{ width: `${data.tasksPercent || 0}%` }}
-              />
-            </div>
+            <p className="text-[12px] text-muted-foreground mt-1">Completed today</p>
+            {data.tasksPercent != null && (
+              <>
+                <p className="text-[12px] text-foreground font-medium mt-0.5">{data.tasksPercent}% done</p>
+                <div className="mt-2 w-full h-1 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-foreground rounded-full transition-all duration-500"
+                    style={{ width: `${data.tasksPercent}%` }}
+                  />
+                </div>
+              </>
+            )}
           </>
         )}
       </KpiCard>
 
-      {/* 3. PROJECTS */}
-      <KpiCard title="PROJECTS" icon="folder" href="/personal/projects">
+      {/* PROJECTS */}
+      <KpiCard title="Projects" icon={Folder} href="/personal/projects">
         {!hasProjects ? (
           <>
-            <div className="text-[28px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-none mb-1">
-              0 active
-            </div>
-            <p className="text-[13px] text-[#52525B] dark:text-[#A1A1AA]">No active projects</p>
+            <span className="text-[26px] font-bold text-foreground leading-none">0</span>
+            <p className="text-[12px] text-muted-foreground mt-1">No active projects</p>
           </>
         ) : (
           <>
-            <div className="text-[28px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-none mb-1">
-              {data.projectsActive} active
-            </div>
-            <p className={`text-[13px] font-medium ${data.projectsAttention > 0 ? 'text-[#EF4444] dark:text-[#F87171]' : 'text-[#16A34A] dark:text-[#22C55E]'}`}>
+            <span className="text-[26px] font-bold text-foreground leading-none">{data.projectsActive}</span>
+            <p className="text-[12px] text-muted-foreground mt-1">Active projects</p>
+            <p className={`text-[12px] font-medium mt-0.5 ${data.projectsAttention > 0 ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}`}>
               {data.projectsAttention > 0 ? `${data.projectsAttention} need attention` : "All on track"}
             </p>
-            <div className="mt-4">
-              <span className="text-[13px] font-medium text-[#D99A00] dark:text-[#F5B800] group-hover:underline">
-                View projects →
-              </span>
-            </div>
           </>
         )}
       </KpiCard>
 
-      {/* 4. TODAY'S SCORE */}
-      <KpiCard title="TODAY'S SCORE" icon="score">
+      {/* TODAY'S SCORE */}
+      <KpiCard title="Today's Score" icon={Target}>
         {!hasScore ? (
           <>
-            <p className="text-[14px] text-[#171717] dark:text-[#F5F5F5] font-semibold mb-1">Not available yet</p>
-            <p className="text-[13px] text-[#52525B] dark:text-[#A1A1AA]">Complete activity to calculate score</p>
+            <p className="text-[13px] text-foreground font-semibold mt-1">Not yet available</p>
+            <p className="text-[12px] text-muted-foreground mt-1">Complete activity to generate score</p>
           </>
         ) : (
           <>
-            <div className="flex items-baseline gap-1.5 mb-1">
-              <span className="text-[28px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-none">
-                {data.score}
-              </span>
-              <span className="text-[16px] text-[#52525B] dark:text-[#A1A1AA] font-semibold">/ 100</span>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[26px] font-bold text-foreground leading-none">{data.score}</span>
+              <span className="text-[14px] text-muted-foreground font-medium">/ 100</span>
             </div>
-            <p className="text-[13px] text-[#171717] dark:text-[#F5F5F5] font-medium mb-1">
+            <p className="text-[12px] text-muted-foreground mt-1">
               {data.score >= 80 ? "Strong execution" : data.score >= 50 ? "Steady execution" : "Needs momentum"}
             </p>
-            {data.scoreTrend !== null && data.scoreTrend !== undefined ? (
-              <p className={`text-[13px] flex items-center gap-1 font-medium ${data.scoreTrend >= 0 ? 'text-[#16A34A] dark:text-[#22C55E]' : 'text-[#EF4444] dark:text-[#F87171]'}`}>
+            {data.scoreTrend != null && (
+              <p className={`text-[12px] flex items-center gap-1 font-medium mt-0.5 ${data.scoreTrend >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
                 {data.scoreTrend >= 0 ? "+" : ""}{data.scoreTrend} vs yesterday
               </p>
-            ) : null}
+            )}
           </>
         )}
       </KpiCard>
+
     </div>
   );
 }

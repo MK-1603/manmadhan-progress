@@ -7,11 +7,17 @@ import { notifications, pushSubscriptions, users } from "../../database/schema";
 import { AppEvents } from "../constants/email-templates";
 import { queueService } from "./queue.service";
 
-webPush.setVapidDetails(
-	env.VAPID_SUBJECT,
-	env.VAPID_PUBLIC_KEY,
-	env.VAPID_PRIVATE_KEY,
-);
+if (env.VAPID_SUBJECT && env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY) {
+	try {
+		webPush.setVapidDetails(
+			env.VAPID_SUBJECT,
+			env.VAPID_PUBLIC_KEY,
+			env.VAPID_PRIVATE_KEY,
+		);
+	} catch (e) {
+		console.warn("[WebPush] Failed to initialize VAPID details:", e);
+	}
+}
 
 export interface DispatchOptions {
 	type: keyof typeof AppEvents;

@@ -66,62 +66,62 @@
   }
 
   .dark {
-    /* Background Elevation Layers (Dark) - Deep Black to Soft Grays */
-    --layer-0: #0B0B0C; /* Absolute global background */
-    --layer-1: #111112; /* Sub-content area */
-    --layer-2: #0E0E0F; /* Section background */
-    --layer-3: #151516; /* Card background */
-    --layer-4: #19191A; /* Hover state */
-    --layer-5: #1C1C1E; /* Modal */
-    --layer-6: #1C1C1E; /* Popover */
+    /* Restrained Dark Theme System */
+    --layer-0: #080808; /* Application background */
+    --layer-1: #101010; /* Primary surface */
+    --layer-2: #151515; /* Secondary surface */
+    --layer-3: #151515; /* Card background */
+    --layer-4: #1D1D1D; /* Hover state */
+    --layer-5: #171717; /* Elevated Modal surface */
+    --layer-6: #171717; /* Popover */
 
-    --background: var(--layer-0);
-    --foreground: #F5F5F4;
+    --background: #080808;
+    --foreground: #F5F5F5;
     
-    --card: var(--layer-3);
-    --card-foreground: #F5F5F4;
+    --card: #151515;
+    --card-foreground: #F5F5F5;
     
-    --popover: var(--layer-6);
-    --popover-foreground: #F5F5F4;
+    --popover: #171717;
+    --popover-foreground: #F5F5F5;
     
-    --primary: #D9A321; /* Gold as primary in dark mode for premium feel */
-    --primary-foreground: #0B0B0C;
+    --primary: #E3AA18;
+    --primary-foreground: #0A0A0A;
     
-    --secondary: #19191A;
-    --secondary-foreground: #F5F5F4;
+    --secondary: #151515;
+    --secondary-foreground: #BDBDBD;
     
-    --muted: #19191A;
-    --muted-foreground: #A1A1AA;
+    --muted: #151515;
+    --muted-foreground: #858585;
     
-    --accent: #19191A;
-    --accent-foreground: #F5F5F4;
+    --accent: #1D1D1D;
+    --accent-foreground: #F5F5F5;
     
-    --destructive: #E5484D;
+    --destructive: #E05252;
     --destructive-foreground: #FFFFFF;
     
-    --border: rgba(255, 255, 255, 0.08); /* Very subtle borders in dark mode */
-    --input: rgba(255, 255, 255, 0.08);
+    --border: #292929;
+    --input: #111111;
     
-    --gold: #D9A321;
-    --gold-hover: #E5B438;
-    --ring: #D9A321;
+    --gold: #E3AA18;
+    --gold-hover: #F0BC2B;
+    --ring: #E3AA18;
 
     /* Semantic Extensions (Dark Mode) */
-    --surface: var(--layer-1);
-    --surface-card: var(--layer-3);
-    --surface-elevated: var(--layer-6);
-    --surface-hover: var(--layer-4);
-    --surface-active: #222224;
+    --surface: #101010;
+    --surface-card: #151515;
+    --surface-elevated: #171717;
+    --surface-hover: #1D1D1D;
+    --surface-active: #222222;
 
-    --border-subtle: rgba(255, 255, 255, 0.06);
-    --border-hover: rgba(255, 255, 255, 0.12);
-    --border-focus: rgba(216, 165, 43, 0.45);
-    --divider: rgba(255, 255, 255, 0.06);
+    --border-subtle: #242424;
+    --border-hover: #333333;
+    --border-focus: #E3AA18;
+    --divider: #292929;
 
-    --text-primary: #F5F5F4;
-    --text-secondary: #A1A1AA;
-    --text-muted: #71717A;
-    --text-disabled: #52525B;
+    --text-primary: #F5F5F5;
+    --text-secondary: #B8B8B8;
+    --text-muted: #858585;
+    --text-disabled: #606060;
   }
 }
 

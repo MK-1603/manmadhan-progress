@@ -1,54 +1,61 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { CheckSquare, Search, Loader2, AlertCircle, Clock, User, Zap, Tag, Trash2 } from "lucide-react";
-import { motion } from "framer-motion";
+import {
+  CheckSquare, Search, Loader2, AlertCircle, Clock,
+  User, Trash2, Plus, FolderKanban, RefreshCw, ChevronDown,
+  Play, CheckCircle2, XCircle, Circle,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
-import { PremiumCard } from "@/components/ui/premium-card";
+import { CreateTaskModal } from "@/components/tasks/create-task-modal";
+import { TaskDetailModal } from "@/components/tasks/task-detail-modal";
 
-const statusColor = (s: string) => {
-  const m: Record<string, string> = {
-    "Draft": "text-muted-foreground bg-muted border-border",
-    "Assigned": "text-blue-500 bg-blue-500/10 border-blue-500/20",
-    "In Progress": "text-amber-500 bg-amber-500/10 border-amber-500/20",
-    "Review": "text-purple-500 bg-purple-500/10 border-purple-500/20",
-    "Approved": "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
-    "Completed": "text-emerald-600 bg-emerald-600/10 border-emerald-600/20",
-    "Blocked": "text-rose-500 bg-rose-500/10 border-rose-500/20",
-  };
-  return m[s] || "text-muted-foreground bg-muted border-border";
+const STATUS_STYLE: Record<string, string> = {
+  "Pending":          "bg-muted text-muted-foreground border-border",
+  "PENDING_ACCEPTANCE":"bg-gold/10 text-gold border-gold/20",
+  "Assigned":         "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  "Accepted":         "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  "In Progress":      "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  "Submitted":        "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  "Review":           "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  "Approved":         "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  "Completed":        "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  "Rejected":         "bg-destructive/10 text-destructive border-destructive/20",
+  "Blocked":          "bg-destructive/10 text-destructive border-destructive/20",
 };
 
-const priorityColor = (p: string) => {
-  if (p === "Urgent") return "text-rose-500";
-  if (p === "High") return "text-orange-500";
-  if (p === "Medium") return "text-amber-500";
-  return "text-muted-foreground";
+const PRIORITY_STYLE: Record<string, string> = {
+  Urgent: "text-rose-500 font-bold",
+  High:   "text-orange-500 font-semibold",
+  Medium: "text-amber-500 font-semibold",
+  Low:    "text-muted-foreground",
 };
 
-import { GenerateTasksModal } from "@/components/organization/generate-tasks-modal";
-import { ListPlus } from "lucide-react";
+const STATUS_TABS = ["All", "Pending", "In Progress", "Review", "Completed", "Blocked"];
 
-export default function CEOTasksPage() {
+export default function TasksPage() {
+  const { socket } = useSocket();
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [activeTab, setActiveTab] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
-  const { socket } = useSocket();
+  const [showCreate, setShowCreate] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<any | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchTasks = useCallback(async () => {
     try {
-      const workspaceId = localStorage.getItem("workspaceId");
-      if (!workspaceId) return;
-      const res = await apiClient.get(`/org/tasks?workspaceId=${workspaceId}`);
-      if (res.data.success) setTasks(res.data.data);
+      const wsId = localStorage.getItem("workspaceId");
+      if (!wsId) return;
+      const res = await apiClient.get(`/org/tasks?workspaceId=${wsId}`);
+      if (res.data.success) setTasks(res.data.data || []);
       else setError(res.data.error || "Failed to load tasks");
-    } catch {
-      setError("Unable to load tasks. Please try again.");
+    } catch (e: any) {
+      setError(e.response?.data?.error || "Unable to load tasks.");
     } finally {
       setLoading(false);
     }

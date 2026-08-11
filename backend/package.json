@@ -12,6 +12,7 @@
 		"db:migrate": "drizzle-kit migrate",
 		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio",
+		"db:reset-dev": "tsx scripts/reset_dev_db.ts",
 		"test": "jest"
 	},
 	"dependencies": {

@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UserCheck, Loader2, AlertCircle, Mail, UserPlus, Shield, Folder, CheckSquare, Users, Clock, ChevronRight } from "lucide-react";
+import { ArrowLeft, UserCheck, Loader2, AlertCircle, Mail, UserPlus, Shield, Folder, CheckSquare, Users, Clock, ChevronRight } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { PremiumCard } from "@/components/ui/premium-card";
 import { useSocket } from "@/components/providers/socket-provider";
 import Link from "next/link";
-import { PersonDetailDrawer } from "@/components/organization/person-detail-drawer";
 
 export default function CEOCoCeosPage() {
   const [coCeos, setCoCeos] = useState<any[]>([]);
@@ -21,7 +20,6 @@ export default function CEOCoCeosPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedPerson, setSelectedPerson] = useState<any>(null);
   const { socket } = useSocket();
 
   const fetchCoCeos = async () => {
@@ -56,6 +54,14 @@ export default function CEOCoCeosPage() {
 
   return (
     <div className="p-4 lg:p-6 max-w-[1240px] mx-auto w-full space-y-6">
+      {/* Back Button */}
+      <Link
+        href="/ceo/organization"
+        className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors w-fit"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" /> Back to Organization
+      </Link>
+
       {/* Page Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -170,20 +176,17 @@ export default function CEOCoCeosPage() {
                 )}
               </div>
 
-              {/* Action Button */}
-              <button
-                onClick={() => setSelectedPerson(c)}
+              {/* Action Button — navigates to dedicated page */}
+              <Link
+                href={`/ceo/co-ceos/${c.id}`}
                 className="w-full mt-3 py-2 bg-card border border-border hover:border-primary text-xs font-bold text-foreground rounded-xl flex items-center justify-center gap-1 transition-colors"
               >
                 View Leadership Profile <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+              </Link>
             </PremiumCard>
           ))}
         </div>
       )}
-
-      {/* Slide-over Profile Drawer */}
-      <PersonDetailDrawer person={selectedPerson} onClose={() => setSelectedPerson(null)} />
     </div>
   );
 }

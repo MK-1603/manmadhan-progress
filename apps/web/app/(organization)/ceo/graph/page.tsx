@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react";
 import {
-  Network, Search, Loader2, AlertCircle, User, Users, Shield, Briefcase, ChevronRight, ZoomIn, ZoomOut, RotateCcw
+  Network, Search, Loader2, AlertCircle, User, Users, Shield, Briefcase, ChevronRight, ZoomIn, ZoomOut, RotateCcw, ArrowLeft
 } from "lucide-react";
 import { motion } from "framer-motion";
 import apiClient from "@/lib/api-client";
 import { PremiumCard } from "@/components/ui/premium-card";
-import { PersonDetailDrawer } from "@/components/organization/person-detail-drawer";
+import Link from "next/link";
 
 export default function CEOOrganizationGraphPage() {
   const [graphData, setGraphData] = useState<any>(null);
@@ -15,7 +15,6 @@ export default function CEOOrganizationGraphPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
-  const [selectedPerson, setSelectedPerson] = useState<any>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
 
   const fetchGraph = async () => {
@@ -66,6 +65,14 @@ export default function CEOOrganizationGraphPage() {
 
   return (
     <div className="p-4 lg:p-6 max-w-[1280px] mx-auto w-full space-y-6">
+      {/* Back Button */}
+      <Link
+        href="/ceo/organization"
+        className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors w-fit"
+      >
+        <ArrowLeft className="w-3.5 h-3.5" /> Back to Organization
+      </Link>
+
       {/* Page Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -161,24 +168,25 @@ export default function CEOOrganizationGraphPage() {
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         className="p-6 border border-border rounded-2xl bg-card/50 space-y-10 min-h-[500px] overflow-x-auto"
       >
-        {/* LEVEL 1: CEO ROOT NODE */}
+        {/* LEVEL 1: CEO ROOT NODE — links to /ceo/profile */}
         {(roleFilter === "All" || roleFilter === "CEO") && ceoNode && (
           <div className="flex flex-col items-center">
-            <PremiumCard
-              onClick={() => setSelectedPerson(ceoNode)}
-              className="p-4 w-72 border-amber-500/40 hover:border-amber-500 transition-all cursor-pointer text-center space-y-2 bg-amber-500/5 shadow-lg"
-            >
-              <div className="w-12 h-12 rounded-full bg-amber-500/20 border-2 border-amber-500 text-amber-500 font-bold text-base flex items-center justify-center mx-auto">
-                {ceoNode.name ? ceoNode.name.charAt(0).toUpperCase() : "C"}
-              </div>
-              <div>
-                <p className="text-sm font-bold text-foreground">{ceoNode.name}</p>
-                <p className="text-xs text-amber-500 font-semibold">{ceoNode.email}</p>
-              </div>
-              <span className="inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                Chief Executive Officer
-              </span>
-            </PremiumCard>
+            <Link href="/ceo/profile">
+              <PremiumCard
+                className="p-4 w-72 border-amber-500/40 hover:border-amber-500 transition-all cursor-pointer text-center space-y-2 bg-amber-500/5 shadow-lg"
+              >
+                <div className="w-12 h-12 rounded-full bg-amber-500/20 border-2 border-amber-500 text-amber-500 font-bold text-base flex items-center justify-center mx-auto">
+                  {ceoNode.name ? ceoNode.name.charAt(0).toUpperCase() : "C"}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-foreground">{ceoNode.name}</p>
+                  <p className="text-xs text-amber-500 font-semibold">{ceoNode.email}</p>
+                </div>
+                <span className="inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  Chief Executive Officer
+                </span>
+              </PremiumCard>
+            </Link>
             <div className="w-0.5 h-8 bg-amber-500/40 my-1" />
           </div>
         )}
@@ -203,32 +211,33 @@ export default function CEOOrganizationGraphPage() {
 
                   return (
                     <div key={coCeo.id} className="flex flex-col items-center space-y-4">
-                      {/* CO-CEO Node Card */}
-                      <PremiumCard
-                        onClick={() => setSelectedPerson(coCeo)}
-                        className="p-3.5 w-full border-purple-500/30 hover:border-purple-500 transition-all cursor-pointer space-y-2 bg-purple-500/5"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 font-bold text-xs flex items-center justify-center shrink-0">
-                            {coCeo.name ? coCeo.name.charAt(0).toUpperCase() : "C"}
+                      {/* CO-CEO Node Card — links to /ceo/co-ceos/[id] */}
+                      <Link href={`/ceo/co-ceos/${coCeo.id}`} className="w-full">
+                        <PremiumCard
+                          className="p-3.5 w-full border-purple-500/30 hover:border-purple-500 transition-all cursor-pointer space-y-2 bg-purple-500/5"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30 font-bold text-xs flex items-center justify-center shrink-0">
+                              {coCeo.name ? coCeo.name.charAt(0).toUpperCase() : "C"}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-foreground truncate">{coCeo.name}</p>
+                              <p className="text-[10px] text-purple-400 font-medium truncate">{coCeo.email}</p>
+                            </div>
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold text-foreground truncate">{coCeo.name}</p>
-                            <p className="text-[10px] text-purple-400 font-medium truncate">{coCeo.email}</p>
-                          </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 gap-2 text-center p-2 bg-background/80 border border-border rounded-lg text-[10px]">
-                          <div>
-                            <span className="text-muted-foreground block">Members</span>
-                            <span className="font-bold text-purple-400">{coCeo.membersCount || myMembers.length}</span>
+                          <div className="grid grid-cols-2 gap-2 text-center p-2 bg-background/80 border border-border rounded-lg text-[10px]">
+                            <div>
+                              <span className="text-muted-foreground block">Members</span>
+                              <span className="font-bold text-purple-400">{coCeo.membersCount || myMembers.length}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground block">Tasks</span>
+                              <span className="font-bold text-blue-400">{coCeo.tasksCount || 0}</span>
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-muted-foreground block">Tasks</span>
-                            <span className="font-bold text-blue-400">{coCeo.tasksCount || 0}</span>
-                          </div>
-                        </div>
-                      </PremiumCard>
+                        </PremiumCard>
+                      </Link>
 
                       {/* LEVEL 3: MEMBERS UNDER THIS CO-CEO */}
                       {myMembers.length > 0 && (
@@ -238,9 +247,9 @@ export default function CEOOrganizationGraphPage() {
                           </span>
                           <div className="space-y-2">
                             {myMembers.map((m: any) => (
-                              <div
+                              <Link
                                 key={m.id}
-                                onClick={() => setSelectedPerson(m)}
+                                href={`/ceo/members/${m.id}`}
                                 className="p-2 bg-card border border-border hover:border-blue-500/50 rounded-xl transition-all cursor-pointer flex items-center justify-between text-xs"
                               >
                                 <div className="flex items-center gap-2 min-w-0">
@@ -250,7 +259,7 @@ export default function CEOOrganizationGraphPage() {
                                   <span className="font-bold text-foreground truncate">{m.name}</span>
                                 </div>
                                 <ChevronRight className="w-3 h-3 text-muted-foreground" />
-                              </div>
+                              </Link>
                             ))}
                           </div>
                         </div>
@@ -264,8 +273,6 @@ export default function CEOOrganizationGraphPage() {
         )}
       </motion.div>
 
-      {/* Slide-over Profile Drawer */}
-      <PersonDetailDrawer person={selectedPerson} onClose={() => setSelectedPerson(null)} />
     </div>
   );
 }

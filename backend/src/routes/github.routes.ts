@@ -5,8 +5,66 @@ import { db } from "../../database/client";
 import { projectGithub, projects } from "../../database/schema";
 import { authenticate } from "../middleware/auth.middleware";
 
+import { GitHubIntegrationService } from "../services/github-integration.service";
+
 export const githubRouter = Router();
 githubRouter.use(authenticate);
+
+// ── GET User Dual GitHub Accounts ──────────────────────────────────────────────
+githubRouter.get("/accounts", async (req: Request, res: Response) => {
+	try {
+		const userId = (req as any).user?.id;
+		const accounts = await GitHubIntegrationService.getUserAccounts(userId);
+		res.json({ success: true, data: accounts });
+	} catch (err: any) {
+		res.status(500).json({ success: false, error: err.message || "Failed to fetch GitHub accounts" });
+	}
+});
+
+// ── POST Connect Account Slot (ACCOUNT_A / ACCOUNT_B) ────────────────────────
+githubRouter.post("/connect-account", async (req: Request, res: Response) => {
+	try {
+		const userId = (req as any).user?.id;
+		const { accountSlot, username, token, email } = req.body;
+
+		if (!accountSlot || !["ACCOUNT_A", "ACCOUNT_B"].includes(accountSlot)) {
+			return res.status(400).json({ success: false, error: "Valid accountSlot required (ACCOUNT_A or ACCOUNT_B)" });
+		}
+		if (!username || !token) {
+			return res.status(400).json({ success: false, error: "GitHub Username and Access Token are required" });
+		}
+
+		const connected = await GitHubIntegrationService.connectAccount(
+			userId,
+			accountSlot,
+			username,
+			username,
+			token,
+			email
+		);
+
+		res.json({ success: true, data: connected });
+	} catch (err: any) {
+		res.status(500).json({ success: false, error: err.message || "Failed to connect GitHub account" });
+	}
+});
+
+// ── POST Disconnect Account Slot ─────────────────────────────────────────────
+githubRouter.post("/disconnect-account", async (req: Request, res: Response) => {
+	try {
+		const userId = (req as any).user?.id;
+		const { accountSlot } = req.body;
+
+		if (!accountSlot || !["ACCOUNT_A", "ACCOUNT_B"].includes(accountSlot)) {
+			return res.status(400).json({ success: false, error: "Valid accountSlot required" });
+		}
+
+		await GitHubIntegrationService.disconnectAccount(userId, accountSlot);
+		res.json({ success: true });
+	} catch (err: any) {
+		res.status(500).json({ success: false, error: err.message || "Failed to disconnect GitHub account" });
+	}
+});
 
 // ── GET GitHub Status for a Project ──────────────────────────────────────────
 githubRouter.get("/status", async (req: Request, res: Response) => {

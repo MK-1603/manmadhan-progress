@@ -63,21 +63,22 @@ export default function TasksPage() {
   };
 
   return (
-    <div className="w-full h-full flex flex-col p-6 sm:p-8 max-w-[1000px] mx-auto animate-in fade-in duration-500">
+    <div className="w-full h-full flex flex-col p-6 sm:p-8 max-w-[1000px] mx-auto">
       
-      {/* Header Area */}
-      <div className="mb-10 w-full">
-        <h1 className="text-[32px] sm:text-[40px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-tight tracking-tight mb-3">
+      {/* Header */}
+      <div className="mb-8 w-full">
+        <p className="text-[10.5px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">
+          Personal Workspace
+        </p>
+        <h1 className="text-[26px] font-bold text-foreground tracking-tight leading-none mb-1">
           Tasks & Inbox
         </h1>
-        <p className="text-[16px] text-[#52525B] dark:text-[#A1A1AA] max-w-[600px] leading-relaxed mb-8">
-          Capture tasks, schedule your focus time, and execute. Tasks are automatically synchronized with your Calendar.
+        <p className="text-[13px] text-muted-foreground max-w-[560px] leading-relaxed mb-7">
+          Capture tasks, schedule focus time, and execute. Tasks sync automatically with your Calendar.
         </p>
-        
-        {/* Natural Language Task Creation */}
-        <PromptComposer 
-          type="task" 
-          placeholder="e.g. Tomorrow from 9 to 11, build authentication API..." 
+        <PromptComposer
+          type="task"
+          placeholder="e.g. Tomorrow from 9 to 11, build authentication API..."
           onSuccess={fetchTasks}
         />
       </div>

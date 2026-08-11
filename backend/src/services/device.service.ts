@@ -48,15 +48,15 @@ export class DeviceService {
 				s.os?.toLowerCase().includes("ios"),
 		);
 
-		// If limits exceeded, revoke oldest session of that type (Max 5 concurrent sessions per type)
-		if (isMobile && mobileSessions.length >= 5) {
-			await DeviceService.revokeSession(
-				mobileSessions[mobileSessions.length - 1].id,
-			);
-		} else if (!isMobile && desktopSessions.length >= 5) {
-			await DeviceService.revokeSession(
-				desktopSessions[desktopSessions.length - 1].id,
-			);
+		// Strict 2-Device Limit Enforced: Max 1 Mobile + Max 1 Desktop
+		if (isMobile && mobileSessions.length >= 1) {
+			for (const sess of mobileSessions) {
+				await DeviceService.revokeSession(sess.id);
+			}
+		} else if (!isMobile && desktopSessions.length >= 1) {
+			for (const sess of desktopSessions) {
+				await DeviceService.revokeSession(sess.id);
+			}
 		}
 
 		// Register new device

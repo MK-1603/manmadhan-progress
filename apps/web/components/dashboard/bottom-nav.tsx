@@ -38,21 +38,32 @@ export function BottomNav() {
   };
 
   const navItemsLeft = isPersonal ? [
-    { name: "Home", href: "/personal/dashboard", icon: LayoutDashboard },
-    { name: "Focus", href: "/personal/focus", icon: Focus },
+    { name: "Home",  href: "/personal/dashboard", icon: LayoutDashboard },
+    { name: "Focus", href: "/personal/focus",     icon: Focus },
   ] : userRole === "MEMBER" ? [
-    { name: "Dashboard", href: getHref("dashboard"), icon: LayoutDashboard },
-    { name: "My Work", href: getHref("my-work"), icon: CheckSquare },
+    { name: "Dashboard", href: "/member/dashboard", icon: LayoutDashboard },
+    { name: "Focus",     href: "/member/focus",     icon: Focus },
+  ] : userRole === "CO-CEO" ? [
+    { name: "Dashboard", href: "/co-ceo/dashboard", icon: LayoutDashboard },
+    { name: "Focus",     href: "/co-ceo/focus",     icon: Focus },
   ] : [
-    { name: "Dashboard", href: getHref("dashboard"), icon: LayoutDashboard },
-    { name: "Tasks", href: getHref("tasks"), icon: CheckSquare },
+    { name: "Dashboard", href: "/ceo/dashboard", icon: LayoutDashboard },
+    { name: "Focus",     href: "/ceo/focus",     icon: Focus },
   ];
 
   const navItemsRight = isPersonal ? [
     { name: "Calendar", href: "/personal/calendar", icon: Cal },
+  ] : userRole === "MEMBER" ? [
+    { name: "My Work", href: "/member/my-work", icon: CheckSquare },
+    { name: "Calendar", href: "/member/calendar", icon: Cal },
+  ] : userRole === "CO-CEO" ? [
+    { name: "My Work", href: "/co-ceo/my-work", icon: CheckSquare },
+    { name: "Tasks",   href: "/co-ceo/tasks",   icon: ClipboardList },
   ] : [
-    { name: "Calendar", href: getHref("calendar"), icon: Cal },
+    { name: "Projects", href: "/ceo/projects", icon: FolderKanban },
+    { name: "Calendar", href: "/ceo/calendar",  icon: Cal },
   ];
+
 
   // More Sheet Navigation Links — role-aware
   const orgLinksByCeo = [
@@ -104,6 +115,8 @@ export function BottomNav() {
   const personalLinks = [
     { label: "Projects", href: "/personal/projects", icon: FolderKanban },
     { label: "Tasks", href: "/personal/tasks", icon: CheckSquare },
+    { label: "Calendar", href: "/personal/calendar", icon: Cal },
+    { label: "Reminders", href: "/personal/reminders", icon: Bell },
     { label: "Timeline", href: "/personal/timeline", icon: History },
     { label: "Journal", href: "/personal/journal", icon: PenSquare },
     { label: "Books", href: "/personal/books", icon: BookOpen },

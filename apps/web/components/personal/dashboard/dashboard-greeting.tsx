@@ -13,9 +13,7 @@ export function DashboardGreeting({ greetingName, className = "" }: DashboardGre
 
   useEffect(() => {
     setNow(new Date());
-    const interval = setInterval(() => {
-      setNow(new Date());
-    }, 1000);
+    const interval = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -28,17 +26,20 @@ export function DashboardGreeting({ greetingName, className = "" }: DashboardGre
   };
 
   return (
-    <div className={`flex flex-col md:flex-row md:items-end justify-between gap-4 ${className}`}>
+    <div className={`flex flex-col sm:flex-row sm:items-end justify-between gap-3 ${className}`}>
       <div>
-        <h1 className="text-[28px] sm:text-[34px] font-bold text-[#171717] dark:text-[#F5F5F5] tracking-tight leading-tight">
-          {getGreeting()}{greetingName ? `, ${greetingName}` : ""}! <span className="text-2xl">👋</span>
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">
+          ManMadhan Progress
+        </p>
+        <h1 className="text-[26px] sm:text-[30px] font-bold text-foreground tracking-tight leading-none">
+          {getGreeting()}{greetingName ? `, ${greetingName}` : ""}
         </h1>
       </div>
-      <div className="text-left md:text-right pb-1">
-        <p className="text-[18px] sm:text-[20px] font-bold text-[#171717] dark:text-[#F5F5F5] font-mono tabular-nums leading-none mb-1 md:mb-1.5 h-[20px]">
-          {now ? format(now, "HH:mm:ss") : "--:--:--"}
+      <div className="sm:text-right pb-px">
+        <p className="text-[17px] font-semibold text-foreground font-mono tabular-nums leading-none">
+          {now ? format(now, "HH:mm:ss") : "——:——:——"}
         </p>
-        <p className="text-[12px] text-[#52525B] dark:text-[#A1A1AA] font-medium leading-none h-[12px]">
+        <p className="text-[11px] text-muted-foreground font-medium leading-none mt-1.5">
           {now ? format(now, "EEEE, d MMM yyyy") : ""}
         </p>
       </div>
