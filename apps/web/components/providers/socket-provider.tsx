@@ -61,10 +61,14 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    // Dynamically resolve the backend URL based on the current hostname to support network access
-    const hostname = typeof window !== "undefined" ? window.location.hostname : "localhost";
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL ? process.env.NEXT_PUBLIC_API_URL.replace('/api/v1', '') : "http://localhost:4100";
-    const SOCKET_URL = hostname === "localhost" ? backendUrl : `http://${hostname}:${backendUrl.split(':').pop()}`;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL 
+      ? process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, '') 
+      : "http://localhost:4100";
+
+    let SOCKET_URL = backendUrl;
+    if (typeof window !== "undefined" && backendUrl.includes("localhost") && window.location.hostname !== "localhost") {
+      SOCKET_URL = `http://${window.location.hostname}:${backendUrl.split(':').pop()}`;
+    }
 
     const socketInstance = io(SOCKET_URL, {
       path: "/socket.io/",
