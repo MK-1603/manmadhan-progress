@@ -26,6 +26,8 @@ import apiClient from "../../lib/api-client";
 import { useAuth } from "./auth-context";
 import React from "react";
 
+type SetUserFn = (user: any) => void;
+
 const timezones = [
   "Pacific/Midway", "Pacific/Honolulu", "America/Anchorage", "America/Los_Angeles", 
   "America/Denver", "America/Chicago", "America/New_York", "America/Caracas", 
@@ -273,11 +275,10 @@ export function AuthForm({
           const redirectParam = urlParams.get('redirect');
           setTimeout(() => {
             if (redirectParam) {
-              router.push(redirectParam);
+              window.location.href = redirectParam;
             } else {
-              router.push(res.data.role === "CEO" ? "/ceo/dashboard" : res.data.role === "CO-CEO" ? "/co-ceo/dashboard" : "/member/dashboard");
+              window.location.href = res.data.role === "CEO" ? "/ceo/dashboard" : res.data.role === "CO-CEO" ? "/co-ceo/dashboard" : "/member/dashboard";
             }
-            setTimeout(() => setIsTransitioning(false), 500);
           }, 800);
         }
       } else {
@@ -349,13 +350,14 @@ export function AuthForm({
               const urlParams = new URLSearchParams(window.location.search);
               const redirectParam = urlParams.get('redirect');
             
+              // Use window.location.href for a hard navigation so the new page
+              // picks up localStorage token cleanly (avoids SPA hydration race)
               setTimeout(() => {
                 if (redirectParam) {
-                  router.push(redirectParam);
+                  window.location.href = redirectParam;
                 } else {
-                  router.push(res.data.role === "CEO" ? "/ceo/dashboard" : res.data.role === "CO-CEO" ? "/co-ceo/dashboard" : "/member/dashboard");
+                  window.location.href = res.data.role === "CEO" ? "/ceo/dashboard" : res.data.role === "CO-CEO" ? "/co-ceo/dashboard" : "/member/dashboard";
                 }
-                setTimeout(() => setIsTransitioning(false), 500);
               }, 800);
             }
           }

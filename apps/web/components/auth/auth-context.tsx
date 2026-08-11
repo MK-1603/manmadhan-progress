@@ -49,6 +49,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionMessage, setTransitionMessage] = useState("Processing...");
   const [authState, setAuthState] = useState("EMAIL_ENTRY");
+  const hasInitialised = React.useRef(false);
+  const isNavigatingRef = React.useRef(false);
   
   const [authData, setAuthData] = useState<{ step?: string, token?: string, role?: string, error?: string, expiresAt?: number } | null>(() => {
     if (typeof window !== 'undefined') {
@@ -149,8 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
     } finally {
       setIsLoading(false);
-      // Reset the promise cache so future calls fetch fresh data,
-      // but only after this current batch of concurrent calls has finished.
+      hasInitialised.current = true;
       sessionPromise = null;
     }
   }, []);
@@ -167,7 +168,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     pathname?.startsWith("/dashboard");
 
   useEffect(() => {
-    if (!isLoading && !user && isProtected) {
+    // Only redirect if:
+    // 1. We've completed at least one session check (not during initial hydration)
+    // 2. We're not currently navigating away (which would temporarily set user=null on next mount)
+    // 3. The user is genuinely not authenticated
+    if (hasInitialised.current && !isLoading && !user && isProtected && !isNavigatingRef.current) {
       router.push("/login?error=Unauthorized");
     }
   }, [isLoading, user, isProtected, router]);
