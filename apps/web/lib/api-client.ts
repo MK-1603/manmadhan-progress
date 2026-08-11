@@ -1,17 +1,16 @@
 import axios from "axios";
 
 const isServer = typeof window === "undefined";
-let baseURL = isServer
-  ? (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100/api/v1")
-  : (process.env.NEXT_PUBLIC_API_URL || "/api/v1");
 
-if (baseURL.startsWith("http") && !baseURL.endsWith("/api/v1")) {
-  baseURL = baseURL.replace(/\/$/, "") + "/api/v1";
-}
+// CLIENT: Always use relative /api/v1 so Vercel proxies to backend — cookies stay same-domain.
+// SERVER (SSR): Must use the full backend URL since relative paths don't work server-side.
+const baseURL = isServer
+  ? (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100/api/v1")
+  : "/api/v1";
 
 const apiClient = axios.create({
   baseURL,
-  withCredentials: true, // Important for cookies & cross-origin authentication
+  withCredentials: true,
 });
 
 // Request interceptor to attach Bearer Token from localStorage

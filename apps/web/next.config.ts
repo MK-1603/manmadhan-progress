@@ -8,7 +8,10 @@ const nextConfig: NextConfig = {
   },
   typedRoutes: false,
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL ? process.env.NEXT_PUBLIC_API_URL.replace('/api/v1', '') : "http://localhost:4100";
+    // INTERNAL_API_URL is a server-side-only secret (not prefixed NEXT_PUBLIC_)
+    // Fall back to NEXT_PUBLIC_API_URL for backwards compat, stripping /api/v1 suffix
+    const rawUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100";
+    const backendUrl = rawUrl.replace(/\/api\/v1\/?$/, "");
 
     return [
       {
