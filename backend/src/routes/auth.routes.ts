@@ -147,7 +147,7 @@ authRouter.post("/login/password", async (req, res) => {
 	}
 
 	// Issue sessions
-	SessionService.issueTokens(res, user, deviceId);
+	const token = SessionService.issueTokens(res, user, deviceId);
 	await AuditService.logEvent(
 		user.id,
 		"LOGIN_SUCCESS",
@@ -164,7 +164,7 @@ authRouter.post("/login/password", async (req, res) => {
 		});
 	}
 
-	return res.json({ success: true, nextStep: "DASHBOARD", role: user.role });
+	return res.json({ success: true, nextStep: "DASHBOARD", role: user.role, accessToken: token });
 });
 
 authRouter.post("/verify-otp", async (req, res) => {
@@ -203,8 +203,8 @@ authRouter.post("/verify-otp", async (req, res) => {
 	if (user.passwordHash && user.status === "Activated") {
 		// Normal 48-hour OTP login completion
 		const deviceId = req.ip || "unknown-device";
-		SessionService.issueTokens(res, user, deviceId);
-		return res.json({ success: true, nextStep: "DASHBOARD", role: user.role });
+		const token = SessionService.issueTokens(res, user, deviceId);
+		return res.json({ success: true, nextStep: "DASHBOARD", role: user.role, accessToken: token });
 	} else {
 		// Issue temp token for setup
 		const tempToken = jwt.sign(
