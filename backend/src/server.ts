@@ -30,13 +30,22 @@ const startServer = async () => {
 	// 3. Mount Socket.IO Engine with Room Broadcasting
 	const io = new SocketIOServer(httpServer, {
 		cors: {
-			origin: [
-				env.CLIENT_URL,
-				"http://localhost:3000",
-				"http://127.0.0.1:3000",
-				"http://localhost:4000",
-				"*",
-			],
+			origin: function (origin, callback) {
+				const allowedOrigins = env.CLIENT_URL 
+					? env.CLIENT_URL.split(",").map(url => url.trim().replace(/\/$/, ""))
+					: [];
+				if (!origin) return callback(null, true);
+				
+				if (
+					allowedOrigins.includes(origin) ||
+					origin.startsWith("http://localhost:") ||
+					origin.endsWith(".vercel.app")
+				) {
+					callback(null, true);
+				} else {
+					callback(new Error(`Origin ${origin} not allowed by CORS`));
+				}
+			},
 			methods: ["GET", "POST"],
 			credentials: true,
 		},
