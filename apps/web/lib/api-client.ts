@@ -1,9 +1,13 @@
 import axios from "axios";
 
 const isServer = typeof window === "undefined";
-const baseURL = isServer
+let baseURL = isServer
   ? (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100/api/v1")
   : (process.env.NEXT_PUBLIC_API_URL || "/api/v1");
+
+if (baseURL.startsWith("http") && !baseURL.endsWith("/api/v1")) {
+  baseURL = baseURL.replace(/\/$/, "") + "/api/v1";
+}
 
 const apiClient = axios.create({
   baseURL,
