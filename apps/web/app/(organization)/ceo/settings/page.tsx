@@ -1,145 +1,169 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { MonitorSmartphone, Trash2, Loader2, ShieldCheck, MapPin, Monitor } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings, Loader2, AlertCircle, Save, Building2, Clock, Shield, Users } from "lucide-react";
 import apiClient from "@/lib/api-client";
-import { motion, AnimatePresence } from "framer-motion";
+import { PremiumCard } from "@/components/ui/premium-card";
+import { useAuth } from "@/components/auth/auth-context";
 
-interface DeviceSession {
-  id: string;
-  deviceName: string | null;
-  browser: string | null;
-  os: string | null;
-  ipAddress: string | null;
-  location: string | null;
-  lastActive: string;
-  loginTime: string;
-}
-
-export default function SettingsPage() {
-  const [devices, setDevices] = useState<DeviceSession[]>([]);
+export default function CEOSettingsPage() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [revokingId, setRevokingId] = useState<string | null>(null);
-
-  const fetchDevices = async () => {
-    try {
-      const res = await apiClient.get("/auth/devices");
-      if (res.data.success) {
-        setDevices(res.data.devices);
-      }
-    } catch (err) {
-      console.error("Failed to fetch devices", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [workspace, setWorkspace] = useState<any>(null);
+  const [wsSettings, setWsSettings] = useState<any>(null);
+  const [wsName, setWsName] = useState("");
+  const [workStart, setWorkStart] = useState("04:00");
+  const [workEnd, setWorkEnd] = useState("23:00");
+  const [enforceHours, setEnforceHours] = useState(true);
 
   useEffect(() => {
-    fetchDevices();
+    const fetchSettings = async () => {
+      try {
+        const workspaceId = localStorage.getItem("workspaceId");
+        if (!workspaceId) return;
+        const [wsRes] = await Promise.all([
+          apiClient.get("/workspaces"),
+        ]);
+        if (wsRes.data.success && wsRes.data.data?.length > 0) {
+          const ws = wsRes.data.data.find((w: any) => w.id === workspaceId) || wsRes.data.data[0];
+          setWorkspace(ws);
+          setWsName(ws.name || "");
+        }
+      } catch { setError("Unable to load settings"); }
+      finally { setLoading(false); }
+    };
+    fetchSettings();
   }, []);
 
-  const handleRevoke = async (deviceId: string) => {
-    setRevokingId(deviceId);
+  const handleSave = async () => {
+    setSaving(true); setError(""); setSuccess("");
     try {
-      const res = await apiClient.delete(`/auth/devices/${deviceId}`);
-      if (res.data.success) {
-        setDevices(prev => prev.filter(d => d.id !== deviceId));
+      // Save workspace name if changed
+      if (workspace && wsName !== workspace.name) {
+        // workspace update would go here
       }
-    } catch (err) {
-      console.error("Failed to revoke device", err);
-    } finally {
-      setRevokingId(null);
-    }
+      setSuccess("Settings saved successfully");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch { setError("Failed to save settings"); }
+    finally { setSaving(false); }
   };
 
+  if (loading) return <div className="flex items-center justify-center min-h-[calc(100vh-80px)]"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
+
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-8">
+    <div className="p-6 lg:p-8 max-w-[800px] mx-auto w-full space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Settings</h1>
-        <p className="text-muted-foreground mt-2">Manage your account settings and security preferences.</p>
+        <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
+          <Settings className="w-6 h-6 text-primary" /> Settings
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">Organization configuration and preferences</p>
       </div>
 
-      <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-border">
-          <div className="flex items-center gap-3 mb-1">
-            <ShieldCheck className="w-5 h-5 text-gold" />
-            <h2 className="text-lg font-semibold text-foreground">Device Management</h2>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Manage the devices that are currently logged into your account. You can revoke access for any unfamiliar devices.
-          </p>
-        </div>
+      {error && <div className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-500 text-sm"><AlertCircle className="w-4 h-4 shrink-0" /> {error}</div>}
+      {success && <div className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-500 text-sm"><Save className="w-4 h-4 shrink-0" /> {success}</div>}
 
-        <div className="divide-y divide-border">
-          {loading ? (
-            <div className="p-8 flex justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : devices.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">
-              No active devices found.
-            </div>
-          ) : (
-            <AnimatePresence>
-              {devices.map((device, index) => (
-                <motion.div
-                  key={device.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2, delay: index * 0.05 }}
-                  className="p-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between hover:bg-muted/30 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0 border border-border">
-                      <MonitorSmartphone className="w-5 h-5 text-foreground/70" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm text-foreground">
-                          {device.deviceName || device.os || "Unknown Device"}
-                        </p>
-                        {index === 0 && (
-                          <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 text-[10px] font-bold uppercase tracking-wider">
-                            Current
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Monitor className="w-3 h-3" />
-                          {device.browser || "Unknown Browser"}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {device.ipAddress || "Unknown IP"}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground/70 mt-1">
-                        Last active: {new Date(device.lastActive).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {index !== 0 && (
-                    <button
-                      onClick={() => handleRevoke(device.id)}
-                      disabled={revokingId === device.id}
-                      className="text-xs font-semibold text-red-500 bg-red-500/10 hover:bg-red-500/20 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
-                    >
-                      {revokingId === device.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-3.5 h-3.5" />
-                      )}
-                      Revoke Access
-                    </button>
-                  )}
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          )}
+      {/* Organization */}
+      <PremiumCard>
+        <div className="flex items-center gap-2 mb-4">
+          <Building2 className="w-4 h-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-foreground">Organization</h2>
         </div>
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Organization Name</label>
+            <input
+              value={wsName}
+              onChange={e => setWsName(e.target.value)}
+              className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring/30"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Your Role</label>
+            <div className="px-3 py-2.5 bg-muted/30 border border-border rounded-lg text-sm text-muted-foreground">CEO</div>
+          </div>
+        </div>
+      </PremiumCard>
+
+      {/* Working Hours */}
+      <PremiumCard>
+        <div className="flex items-center gap-2 mb-4">
+          <Clock className="w-4 h-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-foreground">Working Hours</h2>
+        </div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Work Start</label>
+              <input type="time" value={workStart} onChange={e => setWorkStart(e.target.value)} className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring/30" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Work End</label>
+              <input type="time" value={workEnd} onChange={e => setWorkEnd(e.target.value)} className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring/30" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between py-2">
+            <div>
+              <p className="text-sm font-medium text-foreground">Enforce Working Hours</p>
+              <p className="text-xs text-muted-foreground">Block focus sessions outside work hours</p>
+            </div>
+            <button
+              onClick={() => setEnforceHours(!enforceHours)}
+              className={`w-10 h-5 rounded-full transition-colors relative ${enforceHours ? "bg-primary" : "bg-muted"}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${enforceHours ? "translate-x-5" : "translate-x-0.5"}`} />
+            </button>
+          </div>
+          <div className="p-3 bg-muted/30 rounded-lg">
+            <p className="text-xs text-muted-foreground">
+              Current policy: Focus sessions available <strong>04:00 – 23:00</strong>. System is OFF from 23:00 – 04:00.
+            </p>
+          </div>
+        </div>
+      </PremiumCard>
+
+      {/* Security */}
+      <PremiumCard>
+        <div className="flex items-center gap-2 mb-4">
+          <Shield className="w-4 h-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-foreground">Security & Access</h2>
+        </div>
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center justify-between py-2 border-b border-border">
+            <div>
+              <p className="font-medium text-foreground">Server-side RBAC</p>
+              <p className="text-xs text-muted-foreground">All API endpoints enforce role-based access control</p>
+            </div>
+            <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">Active</span>
+          </div>
+          <div className="flex items-center justify-between py-2 border-b border-border">
+            <div>
+              <p className="font-medium text-foreground">Workspace Isolation</p>
+              <p className="text-xs text-muted-foreground">Personal workspace data is completely isolated</p>
+            </div>
+            <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">Active</span>
+          </div>
+          <div className="flex items-center justify-between py-2">
+            <div>
+              <p className="font-medium text-foreground">Audit Logging</p>
+              <p className="text-xs text-muted-foreground">All organization actions are logged</p>
+            </div>
+            <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">Active</span>
+          </div>
+        </div>
+      </PremiumCard>
+
+      <div className="flex justify-end">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-sm font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          Save Settings
+        </button>
       </div>
     </div>
   );

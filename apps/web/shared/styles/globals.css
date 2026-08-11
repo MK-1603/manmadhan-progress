@@ -263,15 +263,15 @@ html {
 
   /* Global Premium Button Interactions */
   button:not(:disabled), [role="button"]:not(:disabled), .btn:not(:disabled) {
-    @apply transition-all duration-200 ease-out;
+    /* Removed transition-all and transforms to prevent global hover shift/blur bugs */
   }
 
   button:not(:disabled):hover, [role="button"]:not(:disabled):hover, .btn:not(:disabled):hover {
-    @apply transform -translate-y-[1px] brightness-[1.03];
+    @apply brightness-[1.03];
   }
 
   button:not(:disabled):active, [role="button"]:not(:disabled):active, .btn:not(:disabled):active {
-    @apply transform scale-[0.98] translate-y-0;
+    /* Removed global scale transform */
   }
 
   button:disabled, [role="button"]:disabled, .btn:disabled {

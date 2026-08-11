@@ -1,152 +1,180 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Settings, User, Bell, Shield, Lock, Activity, Save } from "lucide-react";
+import React, { useEffect, useState, useCallback } from "react";
 import apiClient from "@/lib/api-client";
+import { LoaderCircle, Save, Check, User, Bell, Clock, Palette, Shield } from "lucide-react";
+import { useAuth } from "@/components/auth/auth-context";
+import { useTheme } from "next-themes";
 
 export default function SettingsPage() {
+  const { user } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [preferences, setPreferences] = useState<any>({
-    theme: "system",
-    density: "comfortable",
+  const [saved, setSaved] = useState(false);
+  const [prefs, setPrefs] = useState({
+    dailyFocusGoalMinutes: 360,
+    timezone: "UTC",
     workingHoursStart: "09:00",
-    workingHoursEnd: "17:00",
-    defaultFocusDuration: 50,
-    dailyReadingTarget: 20,
-    notificationsEnabled: true,
-    vaultTimeoutMinutes: 15,
-    assistantEnabled: true,
+    workingHoursEnd: "18:00",
+    emailNotifications: true,
+    pushNotifications: true,
+    focusReminders: true,
+    deadlineAlerts: true,
+    language: "en",
   });
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
-      const res = await apiClient.get(`/personal/settings`);
-      if (res.data.data?.preferences) {
-        setPreferences(res.data.data.preferences);
+      const res = await apiClient.get("/personal/settings");
+      if (res.data.success && res.data.data?.preferences) {
+        setPrefs(prev => ({ ...prev, ...res.data.data.preferences }));
       }
-    } catch (e) {
-      console.error(e);
+    } catch {
+      // No settings yet — use defaults
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => { fetchSettings(); }, [fetchSettings]);
+
+  const saveSettings = async () => {
     setSaving(true);
     try {
-      await apiClient.put(`/personal/settings`, { preferences });
-      // Show success toast in real app
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSaving(false);
-    }
+      await apiClient.patch("/personal/settings", { preferences: prefs });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) { console.error(err); }
+    finally { setSaving(false); }
   };
 
-  const updatePref = (key: string, value: any) => {
-    setPreferences((prev: any) => ({ ...prev, [key]: value }));
-  };
+  const update = (key: string, val: any) => setPrefs(prev => ({ ...prev, [key]: val }));
+
+  if (loading) return (
+    <div className="w-full h-[100dvh] flex items-center justify-center">
+      <LoaderCircle className="w-6 h-6 animate-spin text-[#D99A00]" />
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-background pb-24 text-foreground font-sans flex flex-col">
-      <header className="px-6 md:px-10 pt-8 pb-6 border-b border-border bg-card shrink-0">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+    <div className="w-full h-full overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-[800px] mx-auto pb-20">
+      <div className="mb-8">
+        <h1 className="text-[28px] font-bold text-[#171717] dark:text-[#F5F5F5] mb-1">Settings</h1>
+        <p className="text-sm text-[#52525B] dark:text-[#A1A1AA]">Configure your personal workspace preferences.</p>
+      </div>
+
+      <div className="space-y-6">
+        {/* Profile */}
+        <Section icon={<User className="w-4 h-4" />} title="Profile">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Name" value={user?.displayName || user?.name || ""} disabled />
+            <Field label="Email" value={user?.email || ""} disabled />
+          </div>
+          <p className="text-xs text-[#A1A1AA] mt-2">Profile details are managed from your account.</p>
+        </Section>
+
+        {/* Appearance */}
+        <Section icon={<Palette className="w-4 h-4" />} title="Appearance">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-primary uppercase tracking-wider mb-2">
-              <Settings className="w-4 h-4" /> Control Center
+            <label className="block text-xs font-semibold text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider mb-2">Theme</label>
+            <div className="flex gap-2">
+              {["light", "dark", "system"].map(t => (
+                <button key={t} onClick={() => setTheme(t)}
+                  className={`px-4 py-2 rounded-xl border text-sm font-medium capitalize transition-colors ${theme === t ? "bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808] border-[#171717] dark:border-[#F5F5F5]" : "border-[#E5E7EB] dark:border-[#242424] text-[#52525B] dark:text-[#A1A1AA] hover:bg-[#F4F4F5] dark:hover:bg-[#1D1D1D]"}`}>
+                  {t}
+                </button>
+              ))}
             </div>
-            <h1 className="text-3xl font-bold">Settings</h1>
           </div>
-          <button 
-            onClick={handleSave} 
-            disabled={loading || saving}
-            className="px-5 py-2.5 bg-foreground text-background font-bold text-sm rounded-xl hover:bg-foreground/90 transition-colors flex items-center gap-2 disabled:opacity-50"
-          >
-            <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
-      </header>
+        </Section>
 
-      <main className="max-w-4xl mx-auto p-6 md:p-10 w-full flex-1">
-        
-        {loading ? (
-          <div className="flex justify-center py-20"><Settings className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-        ) : (
-          <div className="space-y-12">
-            
-            {/* Preferences */}
-            <section>
-              <h2 className="text-xl font-bold flex items-center gap-2 mb-6"><User className="w-5 h-5 text-primary" /> Profile & Appearance</h2>
-              <div className="bg-card border border-border p-6 rounded-2xl shadow-sm space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">Theme</label>
-                    <select value={preferences.theme} onChange={e => updatePref("theme", e.target.value)} className="w-full bg-background border border-border rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary">
-                      <option value="light">Light</option>
-                      <option value="dark">Dark</option>
-                      <option value="system">System</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">Interface Density</label>
-                    <select value={preferences.density} onChange={e => updatePref("density", e.target.value)} className="w-full bg-background border border-border rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary">
-                      <option value="compact">Compact</option>
-                      <option value="comfortable">Comfortable</option>
-                      <option value="spacious">Spacious</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Productivity */}
-            <section>
-              <h2 className="text-xl font-bold flex items-center gap-2 mb-6"><Activity className="w-5 h-5 text-primary" /> Productivity & Habits</h2>
-              <div className="bg-card border border-border p-6 rounded-2xl shadow-sm space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">Working Hours Start</label>
-                    <input type="time" value={preferences.workingHoursStart} onChange={e => updatePref("workingHoursStart", e.target.value)} className="w-full bg-background border border-border rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">Working Hours End</label>
-                    <input type="time" value={preferences.workingHoursEnd} onChange={e => updatePref("workingHoursEnd", e.target.value)} className="w-full bg-background border border-border rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">Default Focus Duration (mins)</label>
-                    <input type="number" value={preferences.defaultFocusDuration} onChange={e => updatePref("defaultFocusDuration", parseInt(e.target.value))} className="w-full bg-background border border-border rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold mb-2">Daily Reading Target (pages)</label>
-                    <input type="number" value={preferences.dailyReadingTarget} onChange={e => updatePref("dailyReadingTarget", parseInt(e.target.value))} className="w-full bg-background border border-border rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary" />
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Security & Vault */}
-            <section>
-              <h2 className="text-xl font-bold flex items-center gap-2 mb-6"><Shield className="w-5 h-5 text-primary" /> Privacy & Vault</h2>
-              <div className="bg-card border border-border p-6 rounded-2xl shadow-sm space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-semibold mb-2 flex items-center gap-2"><Lock className="w-4 h-4 text-muted-foreground" /> Vault Session Timeout (mins)</label>
-                    <input type="number" value={preferences.vaultTimeoutMinutes} onChange={e => updatePref("vaultTimeoutMinutes", parseInt(e.target.value))} className="w-full bg-background border border-border rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-primary" />
-                    <p className="text-xs text-muted-foreground mt-2">Vault locks automatically after this duration.</p>
-                  </div>
-                </div>
-              </div>
-            </section>
-
+        {/* Focus */}
+        <Section icon={<Clock className="w-4 h-4" />} title="Focus & Work">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider mb-2">Daily Focus Goal (minutes)</label>
+              <input type="number" min={30} max={720} step={30} value={prefs.dailyFocusGoalMinutes}
+                onChange={e => update("dailyFocusGoalMinutes", parseInt(e.target.value) || 360)}
+                className="w-full h-10 px-3 rounded-xl border border-[#E5E7EB] dark:border-[#242424] bg-[#F4F4F5]/50 dark:bg-[#1D1D1D]/50 text-sm text-[#171717] dark:text-[#F5F5F5] focus:outline-none focus:border-[#D99A00]/50" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider mb-2">Timezone</label>
+              <select value={prefs.timezone} onChange={e => update("timezone", e.target.value)}
+                className="w-full h-10 px-3 rounded-xl border border-[#E5E7EB] dark:border-[#242424] bg-[#F4F4F5]/50 dark:bg-[#1D1D1D]/50 text-sm text-[#171717] dark:text-[#F5F5F5] focus:outline-none">
+                {["UTC", "Asia/Kolkata", "America/New_York", "America/Los_Angeles", "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore", "Australia/Sydney"].map(tz => (
+                  <option key={tz} value={tz}>{tz}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider mb-2">Work Start</label>
+              <input type="time" value={prefs.workingHoursStart} onChange={e => update("workingHoursStart", e.target.value)}
+                className="w-full h-10 px-3 rounded-xl border border-[#E5E7EB] dark:border-[#242424] bg-[#F4F4F5]/50 dark:bg-[#1D1D1D]/50 text-sm text-[#171717] dark:text-[#F5F5F5] focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider mb-2">Work End</label>
+              <input type="time" value={prefs.workingHoursEnd} onChange={e => update("workingHoursEnd", e.target.value)}
+                className="w-full h-10 px-3 rounded-xl border border-[#E5E7EB] dark:border-[#242424] bg-[#F4F4F5]/50 dark:bg-[#1D1D1D]/50 text-sm text-[#171717] dark:text-[#F5F5F5] focus:outline-none" />
+            </div>
           </div>
-        )}
-      </main>
+        </Section>
+
+        {/* Notifications */}
+        <Section icon={<Bell className="w-4 h-4" />} title="Notifications">
+          <div className="space-y-3">
+            {[
+              { key: "emailNotifications", label: "Email notifications" },
+              { key: "pushNotifications", label: "Push notifications" },
+              { key: "focusReminders", label: "Focus session reminders" },
+              { key: "deadlineAlerts", label: "Deadline approaching alerts" },
+            ].map(({ key, label }) => (
+              <Toggle key={key} label={label} value={(prefs as any)[key]} onChange={v => update(key, v)} />
+            ))}
+          </div>
+        </Section>
+      </div>
+
+      <div className="mt-8 flex justify-end">
+        <button onClick={saveSettings} disabled={saving}
+          className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808] text-sm font-bold hover:opacity-90 transition-opacity disabled:opacity-50">
+          {saving ? <LoaderCircle className="w-4 h-4 animate-spin" /> : saved ? <Check className="w-4 h-4 text-green-400" /> : <Save className="w-4 h-4" />}
+          {saved ? "Saved!" : "Save Settings"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#242424] rounded-2xl p-5">
+      <h2 className="text-sm font-bold text-[#171717] dark:text-[#F5F5F5] flex items-center gap-2 mb-4 uppercase tracking-wider">
+        <span className="text-[#D99A00]">{icon}</span>{title}
+      </h2>
+      {children}
+    </div>
+  );
+}
+
+function Field({ label, value, disabled }: { label: string; value: string; disabled?: boolean }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider mb-1.5">{label}</label>
+      <input type="text" value={value} disabled={disabled} readOnly={disabled}
+        className="w-full h-10 px-3 rounded-xl border border-[#E5E7EB] dark:border-[#242424] bg-[#F4F4F5]/50 dark:bg-[#1D1D1D]/50 text-sm text-[#171717] dark:text-[#F5F5F5] focus:outline-none disabled:opacity-60" />
+    </div>
+  );
+}
+
+function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-[#171717] dark:text-[#F5F5F5]">{label}</span>
+      <button onClick={() => onChange(!value)}
+        className={`relative w-11 h-6 rounded-full transition-colors ${value ? "bg-[#16A34A]" : "bg-[#E5E7EB] dark:bg-[#242424]"}`}>
+        <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${value ? "translate-x-5" : ""}`} />
+      </button>
     </div>
   );
 }

@@ -93,8 +93,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsTransitioning(true);
       setUser(res.data.user);
       
+      // Route to correct dashboard based on role
+      const role = (res.data.user?.role || "CEO").toUpperCase();
+      let dashPath = "/ceo/dashboard";
+      if (role === "CO-CEO") dashPath = "/co-ceo/dashboard";
+      else if (role === "MEMBER") dashPath = "/member/dashboard";
+
+      // Store workspaceId if returned
+      if (res.data.workspaceId) {
+        localStorage.setItem("workspaceId", res.data.workspaceId);
+      }
+      
       setTimeout(() => {
-        router.push("/ceo/dashboard");
+        router.push(dashPath);
         setTimeout(() => setIsTransitioning(false), 500);
       }, 800);
     }
@@ -148,7 +159,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkSession();
   }, [checkSession]);
 
-  const isProtected = pathname?.startsWith("/ceo") || pathname?.startsWith("/dashboard");
+  const isProtected = 
+    pathname?.startsWith("/ceo") || 
+    pathname?.startsWith("/co-ceo") || 
+    pathname?.startsWith("/member") || 
+    pathname?.startsWith("/personal") ||
+    pathname?.startsWith("/dashboard");
 
   useEffect(() => {
     if (!isLoading && !user && isProtected) {

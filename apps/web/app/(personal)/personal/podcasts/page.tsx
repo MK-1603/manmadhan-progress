@@ -1,184 +1,232 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Headphones, Play, Pause, ChevronRight } from "lucide-react";
+import React, { useEffect, useState, useCallback } from "react";
 import apiClient from "@/lib/api-client";
-import { PersonalPodcastAddModal } from "@/components/personal/personal-podcast-add-modal";
-import Image from "next/image";
-
-type Podcast = {
-  id: string;
-  title: string;
-  publisher?: string;
-  description?: string;
-  coverUrl?: string;
-};
-
-type Episode = {
-  id: string;
-  title: string;
-  publishedDate?: string;
-  audioUrl?: string;
-  progressSeconds: number;
-  durationSeconds?: number;
-};
+import { LoaderCircle, Plus, Headphones, Search, Trash2, X, Image as ImageIcon } from "lucide-react";
+import { useSocket } from "@/components/providers/socket-provider";
+import { useConfirm } from "@/hooks/use-confirm";
 
 export default function PodcastsPage() {
-  const [podcasts, setPodcasts] = useState<Podcast[]>([]);
-  const [selectedPodcastId, setSelectedPodcastId] = useState<string | null>(null);
-  const [episodes, setEpisodes] = useState<Episode[]>([]);
-  const [open, setOpen] = useState(false);
+  const { socket, isConnected } = useSocket();
+  const [podcasts, setPodcasts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const { confirm } = useConfirm();
 
-  // Simple mocked player state for prototype
-  const [playingId, setPlayingId] = useState<string | null>(null);
+  // Modal State
+  const [showPodcastModal, setShowPodcastModal] = useState(false);
+  const [newPodcast, setNewPodcast] = useState({ title: "", host: "", description: "", coverUrl: "", topic: "General" });
+  const [saving, setSaving] = useState(false);
 
-  const fetchPodcasts = async () => {
+  const fetchPodcasts = useCallback(async () => {
     try {
-      const result = await apiClient.get(`/personal/podcasts`);
-      const data = result.data?.data ?? [];
-      setPodcasts(data);
-      if (data.length > 0 && !selectedPodcastId) {
-        setSelectedPodcastId(data[0].id);
-      }
-    } catch (e) {
-      console.error(e);
+      const response = await apiClient.get("/personal/podcasts");
+      setPodcasts(response.data.data);
+    } catch (err) {
+      console.error("Failed to load podcasts", err);
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchEpisodes = async (id: string) => {
-    try {
-      const result = await apiClient.get(`/personal/podcasts/${id}/episodes`);
-      setEpisodes(result.data?.data ?? []);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useEffect(() => {
-    fetchPodcasts();
   }, []);
 
   useEffect(() => {
-    if (selectedPodcastId) {
-      fetchEpisodes(selectedPodcastId);
+    fetchPodcasts();
+  }, [fetchPodcasts]);
+
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    socket.on("podcast_created", (podcast: any) => {
+      setPodcasts(prev => [podcast, ...prev]);
+    });
+
+    socket.on("podcast_updated", (podcast: any) => {
+      setPodcasts(prev => prev.map(p => p.id === podcast.id ? podcast : p));
+    });
+
+    socket.on("podcast_deleted", ({ id }: { id: string }) => {
+      setPodcasts(prev => prev.filter(p => p.id !== id));
+    });
+
+    return () => {
+      socket.off("podcast_created");
+      socket.off("podcast_updated");
+      socket.off("podcast_deleted");
+    };
+  }, [socket, isConnected]);
+
+  const handleCreatePodcast = async () => {
+    if (!newPodcast.title.trim()) return;
+    setSaving(true);
+    try {
+      await apiClient.post("/personal/podcasts", newPodcast);
+      setShowPodcastModal(false);
+      setNewPodcast({ title: "", host: "", description: "", coverUrl: "", topic: "General" });
+    } catch (err) {
+      console.error("Failed to create podcast", err);
+    } finally {
+      setSaving(false);
     }
-  }, [selectedPodcastId]);
+  };
+
+  const deletePodcast = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const ok = await confirm({ title: "Confirm Action", description: "Delete this podcast?", variant: "destructive", confirmLabel: "Confirm" });
+    if (ok) {
+      try {
+        await apiClient.delete(`/personal/podcasts/${id}`);
+      } catch (err) {
+        console.error("Failed to delete", err);
+      }
+    }
+  };
+
+  const filteredPodcasts = podcasts.filter(p => {
+    if (search.trim()) {
+      const s = search.toLowerCase();
+      if (!p.title?.toLowerCase().includes(s) && !p.host?.toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
 
   return (
-    <div className="min-h-screen bg-background pb-24 text-foreground font-sans flex flex-col">
-      <header className="px-6 md:px-10 pt-8 pb-6 border-b border-border bg-card shrink-0">
-        <div className="max-w-6xl mx-auto flex justify-between items-end">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              <span>Personal</span> / <span className="text-foreground">Learning</span>
-            </div>
-            <h1 className="text-3xl font-bold">Podcasts</h1>
+    <div className="w-full h-full flex flex-col p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto animate-in fade-in duration-500 overflow-y-auto hide-scrollbar">
+      
+      {/* Header */}
+      <div className="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-[32px] sm:text-[40px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-tight tracking-tight mb-2">
+            Podcasts
+          </h1>
+          <p className="text-[16px] text-[#52525B] dark:text-[#A1A1AA] max-w-[600px]">
+            Organize your favorite shows and log key insights from episodes.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 w-full lg:w-auto">
+          <div className="relative min-w-[200px] flex-1 lg:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A1A1AA]" />
+            <input 
+              type="text" 
+              placeholder="Search podcasts..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full h-10 pl-9 pr-4 rounded-full border border-[#E5E7EB] dark:border-[#242424] bg-white dark:bg-[#111111] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B] transition-colors"
+            />
           </div>
-          <button onClick={() => setOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-foreground text-background rounded-xl font-bold text-sm shadow-sm hover:bg-foreground/90 transition-all active:scale-95">
-            <Plus className="w-4 h-4" /> Add Feed
+          <button 
+            onClick={() => setShowPodcastModal(true)}
+            className="h-10 px-4 rounded-full bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808] text-sm font-medium hover:bg-[#333333] dark:hover:bg-[#E5E7EB] transition-colors flex items-center gap-2 whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" />
+            Add Podcast
           </button>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-6xl mx-auto p-6 md:p-10 w-full flex-1 grid lg:grid-cols-12 gap-8">
-        {loading ? (
-          <div className="lg:col-span-12 flex items-center justify-center py-20 animate-pulse">
-            <Headphones className="w-12 h-12 text-muted-foreground/30" />
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <LoaderCircle className="w-8 h-8 text-[#A1A1AA] animate-spin" />
+        </div>
+      ) : filteredPodcasts.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 px-4 border border-dashed border-[#E5E7EB] dark:border-[#242424] rounded-2xl bg-[#F4F4F5]/50 dark:bg-[#1D1D1D]/50 text-center">
+          <Headphones className="w-12 h-12 text-[#A1A1AA] dark:text-[#52525B] mb-4" />
+          <h3 className="text-xl font-bold text-[#171717] dark:text-[#F5F5F5] mb-2">No podcasts found</h3>
+          <p className="text-[#52525B] dark:text-[#A1A1AA] max-w-md">
+            Start tracking the podcasts you listen to and capture their insights.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+          {filteredPodcasts.map(podcast => (
+            <div key={podcast.id} className="group relative flex flex-col">
+              <button 
+                onClick={(e) => deletePodcast(podcast.id, e)}
+                className="absolute top-2 right-2 z-10 p-1.5 rounded-md bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+              
+              <div className="aspect-square rounded-xl overflow-hidden bg-[#F4F4F5] dark:bg-[#1D1D1D] mb-3 shadow-sm border border-[#E5E7EB] dark:border-[#242424] flex items-center justify-center relative">
+                {podcast.coverUrl ? (
+                  <img src={podcast.coverUrl} alt={podcast.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                ) : (
+                  <Headphones className="w-8 h-8 text-[#A1A1AA]" />
+                )}
+              </div>
+              
+              <div className="flex-1 text-center">
+                <h3 className="text-sm font-bold text-[#171717] dark:text-[#F5F5F5] leading-tight line-clamp-1 mb-0.5 group-hover:text-blue-500 transition-colors">
+                  {podcast.title}
+                </h3>
+                <p className="text-xs text-[#52525B] dark:text-[#A1A1AA] line-clamp-1">{podcast.host || "Unknown Host"}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add Podcast Modal */}
+      {showPodcastModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#242424] rounded-2xl w-full max-w-md p-6 shadow-xl animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-[#171717] dark:text-[#F5F5F5]">Add New Podcast</h2>
+              <button onClick={() => setShowPodcastModal(false)} className="text-[#A1A1AA] hover:text-[#171717] dark:hover:text-[#F5F5F5]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-[#52525B] dark:text-[#A1A1AA] mb-1.5">Podcast Title</label>
+                <input 
+                  type="text" 
+                  value={newPodcast.title} 
+                  onChange={(e) => setNewPodcast({...newPodcast, title: e.target.value})}
+                  className="w-full h-10 px-3 rounded-lg border border-[#E5E7EB] dark:border-[#242424] bg-transparent text-[#171717] dark:text-[#F5F5F5] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B]" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#52525B] dark:text-[#A1A1AA] mb-1.5">Host(s)</label>
+                <input 
+                  type="text" 
+                  value={newPodcast.host} 
+                  onChange={(e) => setNewPodcast({...newPodcast, host: e.target.value})}
+                  className="w-full h-10 px-3 rounded-lg border border-[#E5E7EB] dark:border-[#242424] bg-transparent text-[#171717] dark:text-[#F5F5F5] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B]" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#52525B] dark:text-[#A1A1AA] mb-1.5">Cover Image URL (Optional)</label>
+                <input 
+                  type="text" 
+                  value={newPodcast.coverUrl} 
+                  onChange={(e) => setNewPodcast({...newPodcast, coverUrl: e.target.value})}
+                  className="w-full h-10 px-3 rounded-lg border border-[#E5E7EB] dark:border-[#242424] bg-transparent text-[#171717] dark:text-[#F5F5F5] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B]" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#52525B] dark:text-[#A1A1AA] mb-1.5">Topic</label>
+                <input 
+                  type="text" 
+                  value={newPodcast.topic} 
+                  onChange={(e) => setNewPodcast({...newPodcast, topic: e.target.value})}
+                  className="w-full h-10 px-3 rounded-lg border border-[#E5E7EB] dark:border-[#242424] bg-transparent text-[#171717] dark:text-[#F5F5F5] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B]" 
+                  placeholder="e.g. Technology, Business, Comedy"
+                />
+              </div>
+            </div>
+
+            <button 
+              onClick={handleCreatePodcast}
+              disabled={saving || !newPodcast.title.trim()}
+              className="w-full h-10 rounded-lg bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808] text-sm font-medium hover:bg-[#333333] dark:hover:bg-[#E5E7EB] transition-colors disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Add Podcast"}
+            </button>
           </div>
-        ) : podcasts.length === 0 ? (
-          <div className="lg:col-span-12 text-center py-20 border border-dashed border-border/60 rounded-3xl bg-card/25 max-w-3xl mx-auto w-full">
-            <Headphones className="w-12 h-12 text-muted-foreground/60 mx-auto mb-4" />
-            <h3 className="text-lg font-bold mb-1">No podcasts</h3>
-            <p className="text-sm text-muted-foreground mb-6">Listen to educational audio by importing any standard RSS feed.</p>
-            <button onClick={() => setOpen(true)} className="px-5 py-2.5 bg-foreground text-background font-bold rounded-xl text-sm">Add Podcast</button>
-          </div>
-        ) : (
-          <>
-            {/* Sidebar List */}
-            <aside className="lg:col-span-4 space-y-3">
-              <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-2">Subscriptions</h2>
-              {podcasts.map(pod => (
-                <button 
-                  key={pod.id}
-                  onClick={() => setSelectedPodcastId(pod.id)}
-                  className={`w-full flex items-center gap-4 p-3 rounded-2xl border transition-all text-left ${selectedPodcastId === pod.id ? "bg-accent border-border shadow-sm" : "bg-transparent border-transparent hover:bg-accent/50"}`}
-                >
-                  <div className="w-14 h-14 shrink-0 rounded-xl bg-background border border-border overflow-hidden relative">
-                    {pod.coverUrl ? (
-                      <Image src={pod.coverUrl} alt="Cover" fill className="object-cover" unoptimized />
-                    ) : (
-                      <Headphones className="w-full h-full p-3 text-muted-foreground/30" />
-                    )}
-                  </div>
-                  <div className="flex-1 overflow-hidden">
-                    <h3 className="font-bold text-sm truncate">{pod.title}</h3>
-                    {pod.publisher && <p className="text-xs text-muted-foreground truncate">{pod.publisher}</p>}
-                  </div>
-                </button>
-              ))}
-            </aside>
-
-            {/* Main Episodes List */}
-            <section className="lg:col-span-8">
-              {selectedPodcastId && (
-                <div className="bg-card border border-border rounded-3xl p-2">
-                  <div className="p-6 border-b border-border/50">
-                    {podcasts.find(p => p.id === selectedPodcastId) && (
-                      <div className="flex items-center gap-6">
-                        <div className="w-24 h-24 shrink-0 rounded-2xl bg-accent border border-border overflow-hidden relative shadow-sm">
-                          {podcasts.find(p => p.id === selectedPodcastId)?.coverUrl ? (
-                            <Image src={podcasts.find(p => p.id === selectedPodcastId)!.coverUrl!} alt="Cover" fill className="object-cover" unoptimized />
-                          ) : (
-                            <Headphones className="w-full h-full p-6 text-muted-foreground/30" />
-                          )}
-                        </div>
-                        <div>
-                          <h2 className="text-2xl font-bold">{podcasts.find(p => p.id === selectedPodcastId)?.title}</h2>
-                          <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-                            {podcasts.find(p => p.id === selectedPodcastId)?.description}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-2">
-                    {episodes.map(ep => (
-                      <div key={ep.id} className="group flex gap-4 p-4 rounded-2xl hover:bg-accent transition-colors">
-                        <button 
-                          onClick={() => setPlayingId(playingId === ep.id ? null : ep.id)}
-                          className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center transition-all ${playingId === ep.id ? "bg-primary text-primary-foreground" : "bg-background border border-border text-foreground group-hover:bg-foreground group-hover:text-background"}`}
-                        >
-                          {playingId === ep.id ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-1" />}
-                        </button>
-                        <div className="flex-1 min-w-0 flex flex-col justify-center">
-                          <h4 className="font-semibold text-sm line-clamp-1">{ep.title}</h4>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                            {ep.publishedDate && <span>{new Date(ep.publishedDate).toLocaleDateString()}</span>}
-                            {ep.audioUrl && (
-                              <a href={ep.audioUrl} target="_blank" rel="noreferrer" className="flex items-center hover:text-foreground">
-                                Download Audio <ChevronRight className="w-3 h-3" />
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </section>
-          </>
-        )}
-      </main>
-
-      <PersonalPodcastAddModal
-        isOpen={open}
-        onClose={() => setOpen(false)}
-        onSave={() => fetchPodcasts()}
-      />
+        </div>
+      )}
     </div>
   );
 }

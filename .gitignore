@@ -39,3 +39,9 @@ next-env.d.ts
 # temp files
 scratch*/
 *.log
+fix-*.js
+patch*.js
+scratch*.txt
+test-dashboard*.ts
+test-dashboard*.js
+test-queries.ts

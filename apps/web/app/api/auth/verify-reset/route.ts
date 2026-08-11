@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100/api/v1";
     
     // Validate with backend
     const response = await fetch(`${backendUrl}/auth/reset/verify?token=${token}`, {

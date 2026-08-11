@@ -1,269 +1,168 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Check, Plus, RefreshCw, Search, Filter, ArrowUpDown, GripVertical, Calendar as CalIcon, Flag, Play } from "lucide-react";
+import React, { useEffect, useState, useCallback } from "react";
 import apiClient from "@/lib/api-client";
+import { LoaderCircle, CheckCircle2, Circle, Clock, LayoutList } from "lucide-react";
+import { PromptComposer } from "@/components/personal/shared/prompt-composer";
 import { useSocket } from "@/components/providers/socket-provider";
-import { TaskDetailPanel } from "@/components/tasks/task-detail-panel";
-import { PersonalTaskCreateModal } from "@/components/personal/personal-task-create-modal";
-import { Task, Project } from "@/components/tasks/task-modal";
-
-const COLUMNS = ["TODO", "IN_PROGRESS", "PAUSED", "COMPLETED"];
 
 export default function TasksPage() {
-  const [mounted, setMounted] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const { socket, isConnected } = useSocket();
+  const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Modal & Detail State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  const { socket } = useSocket();
-
-  const loadData = async () => {
-    setLoading(true);
-    setError(null);
+  const fetchTasks = useCallback(async () => {
     try {
-      const [tasksRes, projectsRes] = await Promise.all([
-        apiClient.get(`/personal/tasks`),
-        apiClient.get(`/personal/projects`)
-      ]);
-      
-      setTasks(tasksRes.data?.data ?? []);
-      setProjects(projectsRes.data?.data ?? []);
+      const response = await apiClient.get("/personal/tasks");
+      setTasks(response.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load tasks");
+      console.error("Failed to load tasks", err);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    setMounted(true);
-    void loadData();
   }, []);
 
   useEffect(() => {
-    if (!socket) return;
-    const handleUpdate = (payload: any) => {
-      // Re-fetch everything for simplicity, or we could surgically update state
-      // Opting for surgical update if we get the full task object
-      if (payload.task) {
-        setTasks(current => {
-          const exists = current.find(t => t.id === payload.task.id);
-          if (exists) {
-            return current.map(t => t.id === payload.task.id ? payload.task : t);
-          }
-          return [...current, payload.task];
-        });
-      } else {
-        loadData();
-      }
-    };
+    fetchTasks();
+  }, [fetchTasks]);
 
-    socket.on("TASK_CREATED", handleUpdate);
-    socket.on("TASK_UPDATED", handleUpdate);
-    
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    socket.on("task_created", (newTask: any) => {
+      setTasks(prev => [newTask, ...prev]);
+    });
+
+    socket.on("task_updated", (updatedTask: any) => {
+      setTasks(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+    });
+
+    socket.on("task_deleted", ({ id }: { id: string }) => {
+      setTasks(prev => prev.filter(t => t.id !== id));
+    });
+
     return () => {
-      socket.off("TASK_CREATED", handleUpdate);
-      socket.off("TASK_UPDATED", handleUpdate);
+      socket.off("task_created");
+      socket.off("task_updated");
+      socket.off("task_deleted");
     };
-  }, [socket]);
+  }, [socket, isConnected]);
 
-  const moveTask = async (task: Task, newStatus: string) => {
-    if (task.status === newStatus) return;
-    
-    const previousState = [...tasks];
-    // Optimistic UI Update
-    setTasks(current => current.map(item => item.id === task.id ? { ...item, status: newStatus } : item));
+  const handleToggleTask = async (task: any) => {
+    const newStatus = task.status === "COMPLETED" ? "TODO" : "COMPLETED";
+    // Optimistic update
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
     
     try {
       await apiClient.patch(`/personal/tasks/${task.id}`, { status: newStatus });
     } catch (err) {
-      // Rollback
-      setTasks(previousState);
-      setError(err instanceof Error ? err.message : "Unable to move task");
-      setTimeout(() => setError(null), 3000);
+      console.error("Failed to update task", err);
+      // Revert on failure
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: task.status } : t));
     }
   };
 
-  const handleDragStart = (event: React.DragEvent, taskId: string) => {
-    event.dataTransfer.setData("taskId", taskId);
-    event.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDrop = (event: React.DragEvent, column: string) => {
-    event.preventDefault();
-    const taskId = event.dataTransfer.getData("taskId");
-    const task = tasks.find(t => t.id === taskId);
-    if (task) void moveTask(task, column);
-  };
-
-  const handleDragOver = (event: React.DragEvent) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-  };
-
-  const groupedTasks = useMemo(() => {
-    return Object.fromEntries(
-      COLUMNS.map(col => [col, tasks.filter(t => t.status === col)])
-    );
-  }, [tasks]);
-
-  const openNewTask = () => {
-    setSelectedTask(null);
-    setIsModalOpen(true);
-  };
-
-  const openTaskDetail = (task: Task) => {
-    setSelectedTask(task);
-    setIsDetailOpen(true);
-  };
-
-  const handleSaveTask = (savedTask: Task) => {
-    setTasks(current => {
-      const exists = current.find(t => t.id === savedTask.id);
-      if (exists) return current.map(t => t.id === savedTask.id ? savedTask : t);
-      return [...current, savedTask];
-    });
-  };
-
-  if (!mounted) return null;
-
   return (
-    <div className="h-[100dvh] flex flex-col bg-background overflow-hidden">
-      {/* HEADER */}
-      <header className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-muted bg-card/50 backdrop-blur-md z-10">
-        <div>
-          <h1 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-            Personal / <span className="text-foreground">Tasks</span>
-          </h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative hidden md:block">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input 
-              type="text" 
-              placeholder="Search tasks..." 
-              className="pl-9 pr-4 py-1.5 text-sm bg-muted rounded-full border border-transparent focus:bg-background focus:border-border transition-colors w-64 outline-none" 
-            />
+    <div className="w-full h-full flex flex-col p-6 sm:p-8 max-w-[1000px] mx-auto animate-in fade-in duration-500">
+      
+      {/* Header Area */}
+      <div className="mb-10 w-full">
+        <h1 className="text-[32px] sm:text-[40px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-tight tracking-tight mb-3">
+          Tasks & Inbox
+        </h1>
+        <p className="text-[16px] text-[#52525B] dark:text-[#A1A1AA] max-w-[600px] leading-relaxed mb-8">
+          Capture tasks, schedule your focus time, and execute. Tasks are automatically synchronized with your Calendar.
+        </p>
+        
+        {/* Natural Language Task Creation */}
+        <PromptComposer 
+          type="task" 
+          placeholder="e.g. Tomorrow from 9 to 11, build authentication API..." 
+          onSuccess={fetchTasks}
+        />
+      </div>
+
+      {/* Task List */}
+      <div className="flex-1 pb-20">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-[14px] font-bold text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider">
+            All Tasks
+          </h2>
+          <div className="text-sm text-[#A1A1AA]">
+            {tasks.filter(t => t.status === "COMPLETED").length} / {tasks.length} Completed
           </div>
-          <button className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors"><Filter className="w-4 h-4" /></button>
-          <button className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors"><ArrowUpDown className="w-4 h-4" /></button>
-          <button onClick={() => void loadData()} className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors"><RefreshCw className="w-4 h-4" /></button>
-          <button 
-            onClick={openNewTask}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-1.5 rounded-full text-sm font-semibold hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="w-4 h-4" /> New Task
-          </button>
         </div>
-      </header>
 
-      {/* ERROR TOAST */}
-      {error && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-rose-500 text-white px-6 py-3 rounded-full shadow-2xl text-sm font-semibold animate-in slide-in-from-top-4">
-          {error}
-        </div>
-      )}
-
-      {/* KANBAN BOARD */}
-      <main className="flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-6 relative">
         {loading ? (
-          <div className="flex gap-6 h-full absolute inset-6">
-             {COLUMNS.map(col => (
-               <div key={col} className="w-[320px] shrink-0 bg-muted/20 rounded-2xl animate-pulse" />
-             ))}
+          <div className="flex items-center justify-center py-20">
+            <LoaderCircle className="w-8 h-8 text-[#A1A1AA] animate-spin" />
+          </div>
+        ) : tasks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 px-4 border border-dashed border-[#E5E7EB] dark:border-[#242424] rounded-2xl bg-[#F4F4F5]/50 dark:bg-[#1D1D1D]/50 text-center">
+            <LayoutList className="w-12 h-12 text-[#A1A1AA] dark:text-[#52525B] mb-4" />
+            <h3 className="text-xl font-bold text-[#171717] dark:text-[#F5F5F5] mb-2">Inbox zero</h3>
+            <p className="text-[#52525B] dark:text-[#A1A1AA] max-w-md">
+              You have no active tasks. Create a new task by typing what you need to do in the prompt bar above.
+            </p>
           </div>
         ) : (
-          <div className="flex gap-6 h-full absolute inset-6 pb-6">
-            {COLUMNS.map(column => (
-              <section 
-                key={column} 
-                className="w-[320px] shrink-0 flex flex-col bg-muted/10 rounded-2xl border border-muted/50 overflow-hidden"
-                onDragOver={handleDragOver}
-                onDrop={e => handleDrop(e, column)}
+          <div className="flex flex-col gap-3">
+            {tasks.map((task) => (
+              <div 
+                key={task.id}
+                className={`group flex items-start gap-4 p-4 sm:p-5 bg-white dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#242424] rounded-[12px] hover:border-[#A1A1AA] dark:hover:border-[#52525B] transition-all shadow-sm ${task.status === "COMPLETED" ? 'opacity-60 bg-[#FAFAFA] dark:bg-[#0A0A0A]' : ''}`}
               >
-                <div className="px-4 py-3 border-b border-muted/50 flex items-center justify-between bg-card/30 shrink-0">
-                  <h2 className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-primary" /> {column}
-                  </h2>
-                  <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                    {groupedTasks[column]?.length ?? 0}
-                  </span>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-                  {groupedTasks[column]?.map(task => (
-                    <article 
-                      key={task.id} 
-                      draggable 
-                      onDragStart={e => handleDragStart(e, task.id)}
-                      onClick={() => openTaskDetail(task)}
-                      className="group cursor-grab active:cursor-grabbing bg-card rounded-xl p-4 border border-border hover:border-primary/50 shadow-sm transition-all hover:shadow-md"
-                    >
-                      <div className="flex justify-between items-start mb-2 gap-2">
-                        <h3 className="font-semibold text-sm leading-tight group-hover:text-primary transition-colors">
-                          {task.title}
-                        </h3>
-                        <GripVertical className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                      </div>
-                      
-                      {task.projectId && (
-                        <p className="text-xs text-muted-foreground mb-3 line-clamp-1">
-                          {projects.find(p => p.id === task.projectId)?.title ?? "Project"}
-                        </p>
+                <button 
+                  onClick={() => handleToggleTask(task)}
+                  className="mt-0.5 text-[#A1A1AA] hover:text-[#16A34A] transition-colors shrink-0"
+                >
+                  {task.status === "COMPLETED" ? (
+                    <CheckCircle2 className="w-6 h-6 text-[#16A34A] dark:text-[#22C55E]" />
+                  ) : task.status === "IN_PROGRESS" ? (
+                    <Clock className="w-6 h-6 text-[#D99A00] dark:text-[#F5B800]" />
+                  ) : (
+                    <Circle className="w-6 h-6" />
+                  )}
+                </button>
+                
+                <div className="flex-1 min-w-0">
+                  <h3 className={`text-base font-semibold text-[#171717] dark:text-[#F5F5F5] mb-1 truncate ${task.status === "COMPLETED" ? 'line-through text-[#A1A1AA] dark:text-[#52525B]' : ''}`}>
+                    {task.title}
+                  </h3>
+                  
+                  {(task.project?.name || task.scheduledStart || task.estimatedMinutes) && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-[#52525B] dark:text-[#A1A1AA] mt-2">
+                      {task.project?.name && (
+                        <div className="flex items-center gap-1.5 font-medium px-2 py-0.5 rounded bg-[#F4F4F5] dark:bg-[#1D1D1D]">
+                          {task.project.name}
+                        </div>
                       )}
-
-                      <div className="flex flex-wrap items-center gap-2 mt-4">
-                        {task.priority && (
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider flex items-center gap-1
-                            ${task.priority === 'High' ? 'bg-rose-500/10 text-rose-500' : 
-                              task.priority === 'Medium' ? 'bg-amber-500/10 text-amber-500' : 
-                              'bg-emerald-500/10 text-emerald-500'}
-                          `}>
-                            <Flag className="w-2.5 h-2.5" /> {task.priority}
-                          </span>
-                        )}
-                        
-                        {task.deadline && (
-                          <span className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1 bg-muted/50 px-2 py-0.5 rounded-md">
-                            <CalIcon className="w-2.5 h-2.5" /> {new Date(task.deadline).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                    </article>
-                  ))}
+                      
+                      {task.scheduledStart && (
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          {new Date(task.scheduledStart).toLocaleDateString()}
+                        </div>
+                      )}
+                      
+                      {task.estimatedMinutes && (
+                        <div>{task.estimatedMinutes} min</div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </section>
+                
+                {task.priority === "High" && task.status !== "COMPLETED" && (
+                  <div className="shrink-0 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider rounded-md bg-[#EF4444]/10 text-[#EF4444]">
+                    High
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
-      </main>
+      </div>
 
-      <PersonalTaskCreateModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        projects={projects as any}
-        onSave={(newTask: Task) => setTasks((prev) => [newTask, ...prev])}
-      />
-
-      <TaskDetailPanel
-        isOpen={isDetailOpen}
-        onClose={() => setIsDetailOpen(false)}
-        task={selectedTask}
-        projects={projects}
-        workspaceId={typeof window !== 'undefined' ? localStorage.getItem("workspaceId") || "" : ""}
-        onUpdate={handleSaveTask}
-        onDelete={(id) => {
-          setTasks(current => current.filter(t => t.id !== id));
-          setIsDetailOpen(false);
-        }}
-      />
     </div>
   );
 }

@@ -1,218 +1,253 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Book, Star, Sparkles, Image as ImageIcon } from "lucide-react";
+import React, { useEffect, useState, useCallback } from "react";
 import apiClient from "@/lib/api-client";
-
-type JournalEntry = {
-  id: string;
-  title: string;
-  body: string;
-  mood?: string;
-  energy?: number;
-  isMemory: boolean;
-  date: string;
-};
+import { LoaderCircle, Plus, Book, Calendar, Search, Smile, Zap, MapPin, Tag as TagIcon, X } from "lucide-react";
+import { useSocket } from "@/components/providers/socket-provider";
 
 export default function JournalPage() {
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
+  const { socket, isConnected } = useSocket();
+  const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  
+  // Editor State
+  const [isComposing, setIsComposing] = useState(false);
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [mood, setMood] = useState("");
+  const [energy, setEnergy] = useState(5);
+  const [location, setLocation] = useState("");
+  const [tags, setTags] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  const [isDrafting, setIsDrafting] = useState(false);
-  const [draftTitle, setDraftTitle] = useState("");
-  const [draftBody, setDraftBody] = useState("");
-  const [draftMood, setDraftMood] = useState("");
-  const [draftIsMemory, setDraftIsMemory] = useState(false);
-
-  const fetchEntries = async () => {
+  const fetchEntries = useCallback(async () => {
     try {
-      const result = await apiClient.get(`/personal/journal`);
-      const data = result.data?.data ?? [];
-      setEntries(data);
-    } catch (e) {
-      console.error(e);
+      const response = await apiClient.get("/personal/journal");
+      setEntries(response.data.data);
+    } catch (err) {
+      console.error("Failed to load journal entries", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchEntries();
-  }, []);
+  }, [fetchEntries]);
 
-  const saveEntry = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!draftTitle) return;
+  useEffect(() => {
+    if (!socket || !isConnected) return;
 
+    socket.on("journal_created", (newEntry: any) => {
+      setEntries(prev => [newEntry, ...prev]);
+    });
+
+    socket.on("journal_updated", (updatedEntry: any) => {
+      setEntries(prev => prev.map(e => e.id === updatedEntry.id ? updatedEntry : e));
+    });
+
+    socket.on("journal_deleted", ({ id }: { id: string }) => {
+      setEntries(prev => prev.filter(e => e.id !== id));
+    });
+
+    return () => {
+      socket.off("journal_created");
+      socket.off("journal_updated");
+      socket.off("journal_deleted");
+    };
+  }, [socket, isConnected]);
+
+  const handleSave = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
     try {
-      await apiClient.post(`/personal/journal`, {
-        title: draftTitle,
-        body: draftBody,
-        mood: draftMood,
-        isMemory: draftIsMemory
+      await apiClient.post("/personal/journal", {
+        title,
+        body,
+        mood,
+        energy,
+        location,
+        tags: tags.split(",").map(t => t.trim()).filter(Boolean),
       });
-      setIsDrafting(false);
-      setDraftTitle("");
-      setDraftBody("");
-      setDraftMood("");
-      setDraftIsMemory(false);
-      fetchEntries();
-    } catch (error) {
-      console.error(error);
+      // Reset
+      setTitle("");
+      setBody("");
+      setMood("");
+      setEnergy(5);
+      setLocation("");
+      setTags("");
+      setIsComposing(false);
+    } catch (err) {
+      console.error("Failed to save entry", err);
+    } finally {
+      setSaving(false);
     }
   };
 
-  const selectedEntry = entries.find(e => e.id === selectedEntryId);
+  const filteredEntries = entries.filter(e => {
+    if (search.trim()) {
+      const s = search.toLowerCase();
+      if (!e.title?.toLowerCase().includes(s) && !e.body?.toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
 
   return (
-    <div className="h-screen bg-background flex text-foreground font-sans overflow-hidden">
-      {/* Sidebar: Life Timeline */}
-      <aside className="w-80 md:w-96 border-r border-border bg-card/30 flex flex-col shrink-0">
-        <div className="p-6 border-b border-border">
-          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-            <span>Personal</span> / <span className="text-foreground">Life</span>
+    <div className="w-full h-full flex flex-col p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto animate-in fade-in duration-500 overflow-y-auto hide-scrollbar">
+      
+      {/* Header */}
+      <div className="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-[32px] sm:text-[40px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-tight tracking-tight mb-2">
+            Journal
+          </h1>
+          <p className="text-[16px] text-[#52525B] dark:text-[#A1A1AA] max-w-[600px]">
+            Document your thoughts, track your mood, and reflect on your daily progress.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 w-full lg:w-auto">
+          <div className="relative min-w-[200px] flex-1 lg:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A1A1AA]" />
+            <input 
+              type="text" 
+              placeholder="Search entries..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full h-10 pl-9 pr-4 rounded-full border border-[#E5E7EB] dark:border-[#242424] bg-white dark:bg-[#111111] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B] transition-colors"
+            />
           </div>
-          <h1 className="text-2xl font-bold mb-4">Journal</h1>
           <button 
-            onClick={() => { setIsDrafting(true); setSelectedEntryId(null); }}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-foreground text-background font-bold rounded-xl hover:bg-foreground/90 transition-all shadow-sm"
+            onClick={() => setIsComposing(true)}
+            className="h-10 px-4 rounded-full bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808] text-sm font-medium hover:bg-[#333333] dark:hover:bg-[#E5E7EB] transition-colors flex items-center gap-2 whitespace-nowrap"
           >
-            <Plus className="w-4 h-4" /> Write Entry
+            <Plus className="w-4 h-4" />
+            New Entry
           </button>
         </div>
+      </div>
 
-        <div className="flex-1 overflow-y-auto p-4 relative">
-          <div className="absolute left-[39px] top-0 bottom-0 w-px bg-border z-0"></div>
-          <div className="space-y-6 relative z-10">
-            {entries.map(entry => {
-              const dateObj = new Date(entry.date);
-              const day = dateObj.getDate();
-              const month = dateObj.toLocaleString('default', { month: 'short' });
+      {isComposing && (
+        <div className="mb-10 w-full bg-white dark:bg-[#111111] p-6 rounded-2xl border border-[#E5E7EB] dark:border-[#242424] shadow-sm animate-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-[#171717] dark:text-[#F5F5F5]">New Journal Entry</h2>
+            <button onClick={() => setIsComposing(false)} className="text-[#A1A1AA] hover:text-[#171717] dark:hover:text-[#F5F5F5]">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
-              return (
-                <button 
-                  key={entry.id} 
-                  onClick={() => { setSelectedEntryId(entry.id); setIsDrafting(false); }}
-                  className="w-full flex text-left group"
-                >
-                  <div className="w-16 shrink-0 flex flex-col items-center pt-1">
-                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-colors ${selectedEntryId === entry.id ? "bg-primary border-primary text-primary-foreground" : "bg-card border-border text-foreground group-hover:border-primary"}`}>
-                      {day}
-                    </div>
-                    <span className="text-[10px] font-bold uppercase mt-1 text-muted-foreground">{month}</span>
-                  </div>
-                  
-                  <div className={`flex-1 ml-2 p-4 rounded-2xl border transition-all ${selectedEntryId === entry.id ? "bg-card border-foreground/30 shadow-sm" : "bg-card/50 border-border group-hover:bg-card"}`}>
-                    <div className="flex items-start justify-between mb-1">
-                      <h3 className="font-bold text-sm leading-tight line-clamp-1">{entry.title}</h3>
-                      {entry.isMemory && <Star className="w-3.5 h-3.5 text-yellow-500 fill-current shrink-0 ml-2" />}
-                    </div>
-                    {entry.body && <p className="text-xs text-muted-foreground line-clamp-2 mt-1.5">{entry.body}</p>}
-                    {entry.mood && (
-                      <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-semibold bg-accent text-foreground px-2 py-1 rounded-md">
-                        {entry.mood}
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
+          <input 
+            type="text" 
+            placeholder="Entry Title..." 
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full text-2xl font-bold bg-transparent border-none focus:outline-none focus:ring-0 text-[#171717] dark:text-[#F5F5F5] placeholder:text-[#A1A1AA] mb-4"
+          />
+          
+          <div className="flex flex-wrap items-center gap-4 mb-6">
+            <div className="flex items-center gap-2 text-sm text-[#52525B] dark:text-[#A1A1AA]">
+              <Smile className="w-4 h-4" />
+              <input type="text" placeholder="Mood (e.g. Happy)" value={mood} onChange={(e) => setMood(e.target.value)} className="bg-transparent focus:outline-none w-32 border-b border-[#E5E7EB] dark:border-[#242424]" />
+            </div>
+            <div className="flex items-center gap-2 text-sm text-[#52525B] dark:text-[#A1A1AA]">
+              <Zap className="w-4 h-4" />
+              <span>Energy: {energy}/10</span>
+              <input type="range" min="1" max="10" value={energy} onChange={(e) => setEnergy(Number(e.target.value))} className="w-24 accent-[#171717] dark:accent-[#F5F5F5]" />
+            </div>
+            <div className="flex items-center gap-2 text-sm text-[#52525B] dark:text-[#A1A1AA]">
+              <MapPin className="w-4 h-4" />
+              <input type="text" placeholder="Location..." value={location} onChange={(e) => setLocation(e.target.value)} className="bg-transparent focus:outline-none w-32 border-b border-[#E5E7EB] dark:border-[#242424]" />
+            </div>
+            <div className="flex items-center gap-2 text-sm text-[#52525B] dark:text-[#A1A1AA]">
+              <TagIcon className="w-4 h-4" />
+              <input type="text" placeholder="Tags (comma separated)..." value={tags} onChange={(e) => setTags(e.target.value)} className="bg-transparent focus:outline-none w-48 border-b border-[#E5E7EB] dark:border-[#242424]" />
+            </div>
+          </div>
 
-            {loading && (
-              <div className="flex items-center justify-center py-10 opacity-50">
-                <Book className="w-8 h-8 animate-pulse text-muted-foreground" />
-              </div>
-            )}
+          <textarea 
+            placeholder="Write your thoughts here..." 
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            className="w-full min-h-[250px] bg-[#F4F4F5]/50 dark:bg-[#080808]/50 border border-[#E5E7EB] dark:border-[#242424] rounded-xl p-4 text-[#171717] dark:text-[#F5F5F5] text-[15px] leading-relaxed resize-y focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B] transition-colors mb-4"
+          />
+
+          <div className="flex justify-end gap-3">
+            <button 
+              onClick={() => setIsComposing(false)}
+              className="px-6 py-2.5 rounded-full text-sm font-medium text-[#52525B] dark:text-[#A1A1AA] hover:bg-[#F4F4F5] dark:hover:bg-[#1D1D1D] transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleSave}
+              disabled={!title.trim() || saving}
+              className="px-6 py-2.5 rounded-full bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808] text-sm font-medium hover:bg-[#333333] dark:hover:bg-[#E5E7EB] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? "Saving..." : "Save Entry"}
+            </button>
           </div>
         </div>
-      </aside>
+      )}
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col bg-background overflow-y-auto relative">
-        {isDrafting ? (
-          <div className="max-w-3xl mx-auto w-full p-8 md:p-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-6 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-500" /> Today's Reflection
-            </div>
-            
-            <form onSubmit={saveEntry} className="space-y-6">
-              <input 
-                type="text" 
-                value={draftTitle}
-                onChange={e => setDraftTitle(e.target.value)}
-                placeholder="What is on your mind?"
-                className="w-full text-4xl font-black bg-transparent border-none outline-none placeholder:text-muted-foreground/30 leading-tight"
-                autoFocus
-              />
-              
-              <textarea 
-                value={draftBody}
-                onChange={e => setDraftBody(e.target.value)}
-                placeholder="Write your entry here..."
-                className="w-full min-h-[300px] text-lg leading-relaxed bg-transparent border-none outline-none resize-none placeholder:text-muted-foreground/30 font-serif"
-              />
-
-              <div className="grid grid-cols-2 gap-6 p-6 bg-card border border-border rounded-3xl">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Mood (Optional)</label>
-                  <input type="text" value={draftMood} onChange={e => setDraftMood(e.target.value)} placeholder="e.g. Focused, Anxious, Joyful" className="w-full h-10 px-3 text-sm rounded-xl border border-input bg-background" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Mark as Memory</label>
-                  <label className="flex items-center gap-3 h-10 px-3 border border-border rounded-xl cursor-pointer hover:bg-accent transition-colors">
-                    <input type="checkbox" checked={draftIsMemory} onChange={e => setDraftIsMemory(e.target.checked)} className="rounded" />
-                    <span className="text-sm font-medium">Highlight in Life Timeline</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex gap-4 pt-4 border-t border-border">
-                <button type="submit" disabled={!draftTitle} className="px-8 py-3 bg-foreground text-background font-bold rounded-xl disabled:opacity-50 hover:bg-foreground/90 transition-all">
-                  Save Entry
-                </button>
-                <button type="button" className="px-4 py-3 border border-border text-foreground font-bold rounded-xl hover:bg-accent transition-all flex items-center gap-2">
-                  <ImageIcon className="w-4 h-4" /> Add Photo
-                </button>
-                <button type="button" onClick={() => setIsDrafting(false)} className="px-6 py-3 font-semibold text-muted-foreground hover:text-foreground ml-auto">
-                  Cancel
-                </button>
-              </div>
-            </form>
+      {/* Entries List */}
+      <div>
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <LoaderCircle className="w-8 h-8 text-[#A1A1AA] animate-spin" />
           </div>
-        ) : selectedEntry ? (
-          <div className="max-w-3xl mx-auto w-full p-8 md:p-12 animate-in fade-in duration-300">
-            <div className="flex items-center justify-between mb-8">
-              <div className="text-sm font-bold text-muted-foreground">
-                {new Date(selectedEntry.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              </div>
-              {selectedEntry.isMemory && (
-                <div className="flex items-center gap-1.5 bg-yellow-500/10 text-yellow-600 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border border-yellow-500/20">
-                  <Star className="w-3.5 h-3.5 fill-current" /> Core Memory
-                </div>
-              )}
-            </div>
-            
-            <h1 className="text-4xl font-black leading-tight mb-8">{selectedEntry.title}</h1>
-            
-            {selectedEntry.mood && (
-              <div className="inline-block px-4 py-2 bg-card border border-border rounded-xl text-sm font-semibold mb-8 shadow-sm">
-                Mood: {selectedEntry.mood}
-              </div>
-            )}
-            
-            <div className="prose prose-lg dark:prose-invert font-serif leading-relaxed whitespace-pre-wrap max-w-none text-foreground/90">
-              {selectedEntry.body || <span className="italic text-muted-foreground/50">No content.</span>}
-            </div>
+        ) : filteredEntries.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 px-4 border border-dashed border-[#E5E7EB] dark:border-[#242424] rounded-2xl bg-[#F4F4F5]/50 dark:bg-[#1D1D1D]/50 text-center">
+            <Book className="w-12 h-12 text-[#A1A1AA] dark:text-[#52525B] mb-4" />
+            <h3 className="text-xl font-bold text-[#171717] dark:text-[#F5F5F5] mb-2">No journal entries</h3>
+            <p className="text-[#52525B] dark:text-[#A1A1AA] max-w-md">
+              Start writing to track your personal growth and reflections.
+            </p>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-12 text-center">
-            <Book className="w-16 h-16 opacity-20 mb-6" />
-            <h2 className="text-xl font-bold text-foreground mb-2">Your Life Journey</h2>
-            <p className="max-w-md">Select an entry from the timeline to read, or start writing to capture a new memory.</p>
+          <div className="space-y-6">
+            {filteredEntries.map(entry => (
+              <div key={entry.id} className="bg-white dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#242424] rounded-2xl p-6 shadow-sm group hover:border-[#A1A1AA] dark:hover:border-[#52525B] transition-colors">
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-4">
+                  <div>
+                    <h3 className="text-xl font-bold text-[#171717] dark:text-[#F5F5F5] mb-1">{entry.title}</h3>
+                    <div className="flex items-center gap-3 text-xs font-medium text-[#52525B] dark:text-[#A1A1AA]">
+                      <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {new Date(entry.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                      {entry.location && <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {entry.location}</span>}
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-2">
+                    {entry.mood && (
+                      <span className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider rounded-md bg-[#8B5CF6]/10 text-[#8B5CF6] flex items-center gap-1">
+                        <Smile className="w-3 h-3" /> {entry.mood}
+                      </span>
+                    )}
+                    {entry.energy !== null && (
+                      <span className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider rounded-md bg-[#F5B800]/10 text-[#D99A00] dark:text-[#F5B800] flex items-center gap-1">
+                        <Zap className="w-3 h-3" /> Energy: {entry.energy}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <p className="text-[15px] text-[#52525B] dark:text-[#A1A1AA] leading-relaxed whitespace-pre-wrap">
+                  {entry.body}
+                </p>
+
+                {entry.tags && entry.tags.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-[#E5E7EB] dark:border-[#242424] flex items-center gap-2 flex-wrap">
+                    <TagIcon className="w-4 h-4 text-[#A1A1AA]" />
+                    {entry.tags.map((tag: string, i: number) => (
+                      <span key={i} className="text-xs text-[#52525B] dark:text-[#A1A1AA] hover:text-[#171717] dark:hover:text-[#F5F5F5] cursor-pointer">#{tag}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

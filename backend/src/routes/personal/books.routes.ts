@@ -1,211 +1,161 @@
-import { Router, Request, Response } from "express";
-import { personalDb } from "../../../database/client";
-import { personalBooks, personalReadingSessions, personalActivityLogs, personalBookActivityLogs } from "../../../database/schema/personal.schema";
-import { eq, and, desc } from "drizzle-orm";
-import { authenticate } from "../../middleware/auth.middleware";
+import { and, desc, eq } from "drizzle-orm";
+import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
-import { BookMetadataService } from "../../services/BookMetadataService";
-import { ReadingPlanService } from "../../services/ReadingPlanService";
+import { personalDb } from "../../../database/db";
+import {
+	personalBooks,
+	personalReadingSessions,
+} from "../../../database/schema/personal.schema";
+import { getUserId } from "../../middleware/auth";
+import { authenticate } from "../../middleware/auth.middleware";
+import { socketService } from "../../services/socket.service";
+import logger from "../../utils/logger";
 
 export const personalBooksRouter = Router();
+
 personalBooksRouter.use(authenticate);
 
-// GET /api/v1/personal/books
+// --- BOOKS ---
+
+// 1. Get all books for the current user
 personalBooksRouter.get("/", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const { status } = req.query;
-    let conditions = [eq(personalBooks.ownerUserId, user.id as string)];
-    
-    if (status && status !== "All") {
-      conditions.push(eq(personalBooks.status, status as string));
-    }
+	try {
+		const userId = getUserId(req);
+		if (!userId)
+			return res.status(401).json({ success: false, error: "Unauthorized" });
 
-    const books = await personalDb
-      .select()
-      .from(personalBooks)
-      .where(and(...conditions))
-      .orderBy(desc(personalBooks.createdAt));
+		const books = await personalDb.query.personalBooks.findMany({
+			where: eq(personalBooks.ownerUserId, userId),
+			orderBy: [desc(personalBooks.updatedAt)],
+		});
 
-    // Calculate reading plan data on the fly for each book
-    const enhancedBooks = books.map(book => {
-      const plan = ReadingPlanService.getFullPlan(book as any);
-      return { ...book, plan };
-    });
-
-    return res.status(200).json({ success: true, data: enhancedBooks });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
+		res.json({ success: true, data: books });
+	} catch (error: any) {
+		logger.error("Get Books Error: " + error.message);
+		res.status(500).json({ success: false, error: "Failed to fetch books" });
+	}
 });
 
-// GET /api/v1/personal/books/:id
-personalBooksRouter.get("/:id", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const bookId = req.params.id as string;
-    const [book] = await personalDb.select().from(personalBooks).where(and(eq(personalBooks.id, bookId as string), eq(personalBooks.ownerUserId, user.id as string)));
-    
-    if (!book) return res.status(404).json({ success: false, error: "Book not found" });
-
-    const plan = ReadingPlanService.getFullPlan(book as any);
-    return res.status(200).json({ success: true, data: { ...book, plan } });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// POST /api/v1/personal/books/discover
-personalBooksRouter.post("/discover", async (req: Request, res: Response) => {
-  try {
-    const { query } = req.body;
-    if (!query) return res.status(400).json({ success: false, error: "Query (URL, ISBN, or Title) is required" });
-
-    const metadata = await BookMetadataService.discoverBook(query);
-    if (!metadata) {
-      return res.status(404).json({ success: false, error: "Book metadata not found." });
-    }
-
-    return res.status(200).json({ success: true, data: metadata });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: "Failed to discover book: " + error.message });
-  }
-});
-
-// POST /api/v1/personal/books
+// 2. Create a book
 personalBooksRouter.post("/", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const bookData = req.body;
-    
-    if (!bookData.title) return res.status(400).json({ success: false, error: "Title is required" });
+	try {
+		const userId = getUserId(req);
+		if (!userId)
+			return res.status(401).json({ success: false, error: "Unauthorized" });
 
-    const newBookId = uuidv4();
-    
-    await personalDb.transaction(async (tx) => {
-      await tx.insert(personalBooks).values({
-        id: newBookId,
-        ownerUserId: user.id as string,
-        title: bookData.title,
-        subtitle: bookData.subtitle,
-        author: bookData.author,
-        description: bookData.description,
-        isbn10: bookData.isbn10,
-        isbn13: bookData.isbn13,
-        publisher: bookData.publisher,
-        publicationDate: bookData.publicationDate,
-        pageCount: bookData.pageCount ? parseInt(bookData.pageCount) : null,
-        coverUrl: bookData.coverUrl,
-        sourceUrl: bookData.sourceUrl,
-        metadataProvider: bookData.metadataProvider,
-        status: bookData.status || "Want to Read",
-        dailyPageTarget: bookData.dailyPageTarget ? parseInt(bookData.dailyPageTarget) : 20,
-      });
+		const {
+			title,
+			author,
+			description,
+			coverUrl,
+			status,
+			pageCount,
+			currentPage,
+		} = req.body;
 
-      await tx.insert(personalBookActivityLogs).values({
-        id: uuidv4(),
-        bookId: newBookId,
-        ownerUserId: user.id as string,
-        action: "Book added",
-        details: `Added book "${bookData.title}" to library.`,
-      });
-    });
+		if (!title)
+			return res
+				.status(400)
+				.json({ success: false, error: "Title is required" });
 
-    const [created] = await personalDb.select().from(personalBooks).where(eq(personalBooks.id, newBookId));
-    return res.status(201).json({ success: true, data: created });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
+		const newId = uuidv4();
+		const [newBook] = await personalDb
+			.insert(personalBooks)
+			.values({
+				id: newId,
+				ownerUserId: userId,
+				title,
+				author,
+				description,
+				coverUrl,
+				status: status || "Want to Read",
+				pageCount: pageCount || 0,
+				currentPage: currentPage || 0,
+			})
+			.returning();
+
+		socketService.emitToUser(userId, "book_created", newBook);
+		res.status(201).json({ success: true, data: newBook });
+	} catch (error: any) {
+		logger.error("Create Book Error: " + error.message);
+		res.status(500).json({ success: false, error: "Failed to create book" });
+	}
 });
 
-// POST /api/v1/personal/books/:id/session (Reading Engine)
-personalBooksRouter.post("/:id/session", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const bookId = req.params.id as string;
-    const { pagesRead, durationMinutes, endPage, notes } = req.body;
+// 3. Update a book
+personalBooksRouter.patch("/:id", async (req: Request, res: Response) => {
+	try {
+		const userId = getUserId(req);
+		const bookId = req.params.id as string;
+		if (!userId)
+			return res.status(401).json({ success: false, error: "Unauthorized" });
 
-    const [book] = await personalDb.select().from(personalBooks).where(and(eq(personalBooks.id, bookId as string), eq(personalBooks.ownerUserId, user.id as string)));
-    if (!book) return res.status(404).json({ success: false, error: "Book not found" });
+		const {
+			title,
+			author,
+			description,
+			coverUrl,
+			status,
+			pageCount,
+			currentPage,
+		} = req.body;
 
-    const newCurrentPage = endPage || (book.currentPage || 0) + parseInt(pagesRead);
-    const actualPagesRead = pagesRead ? parseInt(pagesRead) : (newCurrentPage - (book.currentPage || 0));
+		const [updatedBook] = await personalDb
+			.update(personalBooks)
+			.set({
+				title,
+				author,
+				description,
+				coverUrl,
+				status,
+				pageCount,
+				currentPage,
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(personalBooks.id, bookId),
+					eq(personalBooks.ownerUserId, userId),
+				),
+			)
+			.returning();
 
-    await personalDb.transaction(async (tx) => {
-      await tx.insert(personalReadingSessions).values({
-        id: uuidv4(),
-        bookId,
-        ownerUserId: user.id as string,
-        pagesRead: actualPagesRead,
-        durationMinutes: parseInt(durationMinutes || 0),
-        startPage: book.currentPage,
-        endPage: newCurrentPage,
-        notes: notes
-      });
+		if (!updatedBook)
+			return res.status(404).json({ success: false, error: "Book not found" });
 
-      let newStatus = book.status;
-      if (newStatus === "Want to Read" || newStatus === "Planned") newStatus = "Reading";
-      if (book.pageCount && newCurrentPage >= book.pageCount) newStatus = "Completed";
-
-      await tx.update(personalBooks)
-        .set({ 
-          currentPage: newCurrentPage, 
-          status: newStatus,
-          updatedAt: new Date()
-        })
-        .where(eq(personalBooks.id, bookId as string));
-
-      await tx.insert(personalBookActivityLogs).values({
-        id: uuidv4(),
-        bookId,
-        ownerUserId: user.id as string,
-        action: "Session Logged",
-        details: `Read ${actualPagesRead} pages.`,
-      });
-    });
-
-    const [updated] = await personalDb.select().from(personalBooks).where(eq(personalBooks.id, bookId as string));
-    const plan = ReadingPlanService.getFullPlan(updated as any);
-    
-    return res.status(201).json({ success: true, data: { ...updated, plan } });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
+		socketService.emitToUser(userId, "book_updated", updatedBook);
+		res.json({ success: true, data: updatedBook });
+	} catch (error: any) {
+		logger.error("Update Book Error: " + error.message);
+		res.status(500).json({ success: false, error: "Failed to update book" });
+	}
 });
 
-// GET /api/v1/personal/books/:id/sessions
-personalBooksRouter.get("/:id/sessions", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const bookId = req.params.id as string;
-    const sessions = await personalDb
-      .select()
-      .from(personalReadingSessions)
-      .where(and(eq(personalReadingSessions.bookId, bookId as string), eq(personalReadingSessions.ownerUserId, user.id as string)))
-      .orderBy(desc(personalReadingSessions.date));
+// 4. Delete a book
+personalBooksRouter.delete("/:id", async (req: Request, res: Response) => {
+	try {
+		const userId = getUserId(req);
+		const bookId = req.params.id as string;
+		if (!userId)
+			return res.status(401).json({ success: false, error: "Unauthorized" });
 
-    return res.status(200).json({ success: true, data: sessions });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
+		const [deletedBook] = await personalDb
+			.delete(personalBooks)
+			.where(
+				and(
+					eq(personalBooks.id, bookId),
+					eq(personalBooks.ownerUserId, userId),
+				),
+			)
+			.returning();
+
+		if (!deletedBook)
+			return res.status(404).json({ success: false, error: "Book not found" });
+
+		socketService.emitToUser(userId, "book_deleted", { id: bookId });
+		res.json({ success: true, data: deletedBook });
+	} catch (error: any) {
+		logger.error("Delete Book Error: " + error.message);
+		res.status(500).json({ success: false, error: "Failed to delete book" });
+	}
 });
-
-// GET /api/v1/personal/books/:id/activity
-personalBooksRouter.get("/:id/activity", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const bookId = req.params.id as string;
-    const logs = await personalDb
-      .select()
-      .from(personalBookActivityLogs)
-      .where(and(eq(personalBookActivityLogs.bookId, bookId as string), eq(personalBookActivityLogs.ownerUserId, user.id as string)))
-      .orderBy(desc(personalBookActivityLogs.createdAt));
-
-    return res.status(200).json({ success: true, data: logs });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-export default personalBooksRouter;
-

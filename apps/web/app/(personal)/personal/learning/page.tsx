@@ -1,224 +1,327 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Brain, Target, CheckCircle2, ChevronRight, Play } from "lucide-react";
+import React, { useEffect, useState, useCallback } from "react";
 import apiClient from "@/lib/api-client";
-import { PersonalSkillAddModal } from "@/components/personal/personal-skill-add-modal";
-
-type Skill = {
-  id: string;
-  name: string;
-  description?: string;
-  category: string;
-  currentLevel: string;
-  targetLevel: string;
-  progressPercent: number;
-  status: string;
-};
-
-type Session = {
-  id: string;
-  topic?: string;
-  durationMinutes: number;
-  date: string;
-};
+import { LoaderCircle, Plus, BookOpen, Target, Activity, CheckCircle2, TrendingUp, X, Save } from "lucide-react";
+import { useSocket } from "@/components/providers/socket-provider";
+import { useConfirm } from "@/hooks/use-confirm";
 
 export default function LearningPage() {
-  const [skills, setSkills] = useState<Skill[]>([]);
-  const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [open, setOpen] = useState(false);
+  const { socket, isConnected } = useSocket();
+  const [skills, setSkills] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"skills" | "sessions">("skills");
+  const { confirm } = useConfirm();
 
-  // New session state
-  const [sessionTopic, setSessionTopic] = useState("");
-  const [sessionDuration, setSessionDuration] = useState("");
-  const [sessionNotes, setSessionNotes] = useState("");
-  const [isLogging, setIsLogging] = useState(false);
+  // Modal States
+  const [showSkillModal, setShowSkillModal] = useState(false);
+  const [showSessionModal, setShowSessionModal] = useState<string | null>(null);
 
-  const fetchSkills = async () => {
+  // New Skill State
+  const [newSkill, setNewSkill] = useState({ name: "", category: "", targetLevel: "Expert", currentLevel: "Beginner", progressPercent: 0 });
+  // New Session State
+  const [newSession, setNewSession] = useState({ topic: "", durationMinutes: 30, notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  const fetchSkills = useCallback(async () => {
     try {
-      const result = await apiClient.get(`/personal/learning`);
-      const data = result.data?.data ?? [];
-      setSkills(data);
-      if (data.length > 0 && !selectedSkillId) {
-        setSelectedSkillId(data[0].id);
-      }
-    } catch (e) {
-      console.error(e);
+      const response = await apiClient.get("/personal/learning/skills");
+      setSkills(response.data.data);
+    } catch (err) {
+      console.error("Failed to load skills", err);
     } finally {
       setLoading(false);
     }
-  };
-
-  const fetchSessions = async (id: string) => {
-    try {
-      const result = await apiClient.get(`/personal/learning/${id}/sessions`);
-      setSessions(result.data?.data ?? []);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useEffect(() => {
-    fetchSkills();
   }, []);
 
   useEffect(() => {
-    if (selectedSkillId) {
-      fetchSessions(selectedSkillId);
-    }
-  }, [selectedSkillId]);
+    fetchSkills();
+  }, [fetchSkills]);
 
-  const logSession = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedSkillId || !sessionDuration) return;
+  useEffect(() => {
+    if (!socket || !isConnected) return;
 
+    socket.on("skill_created", (skill: any) => {
+      setSkills(prev => [skill, ...prev]);
+    });
+
+    socket.on("skill_updated", (skill: any) => {
+      setSkills(prev => prev.map(s => s.id === skill.id ? skill : s));
+    });
+
+    socket.on("skill_deleted", ({ id }: { id: string }) => {
+      setSkills(prev => prev.filter(s => s.id !== id));
+    });
+
+    // We don't fetch all sessions by default, but when a session is logged we might update skill progress if backend did it.
+    // For now, rely on manual refresh or assume no automatic progress calculation in backend yet.
+
+    return () => {
+      socket.off("skill_created");
+      socket.off("skill_updated");
+      socket.off("skill_deleted");
+    };
+  }, [socket, isConnected]);
+
+  const handleCreateSkill = async () => {
+    if (!newSkill.name.trim()) return;
+    setSaving(true);
     try {
-      await apiClient.post(`/personal/learning/${selectedSkillId}/sessions`, {
-        topic: sessionTopic,
-        durationMinutes: sessionDuration,
-        notes: sessionNotes
-      });
-      setSessionTopic("");
-      setSessionDuration("");
-      setSessionNotes("");
-      setIsLogging(false);
-      fetchSessions(selectedSkillId);
-      fetchSkills(); // refresh progress
-    } catch (e) {
-      console.error("Failed to log session");
+      await apiClient.post("/personal/learning/skills", newSkill);
+      setShowSkillModal(false);
+      setNewSkill({ name: "", category: "", targetLevel: "Expert", currentLevel: "Beginner", progressPercent: 0 });
+    } catch (err) {
+      console.error("Failed to create skill", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogSession = async () => {
+    if (!showSessionModal || !newSession.durationMinutes) return;
+    setSaving(true);
+    try {
+      await apiClient.post(`/personal/learning/skills/${showSessionModal}/sessions`, newSession);
+      setShowSessionModal(null);
+      setNewSession({ topic: "", durationMinutes: 30, notes: "" });
+      
+      // Optionally update the skill's progress locally or let user manually manage it
+      alert("Session logged successfully!");
+    } catch (err) {
+      console.error("Failed to log session", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteSkill = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const ok = await confirm({ title: "Confirm Action", description: "Delete this skill?", variant: "destructive", confirmLabel: "Confirm" });
+    if (ok) {
+      try {
+        await apiClient.delete(`/personal/learning/skills/${id}`);
+      } catch (err) {
+        console.error("Failed to delete", err);
+      }
     }
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24 text-foreground font-sans flex flex-col">
-      <header className="px-6 md:px-10 pt-8 pb-6 border-b border-border bg-card shrink-0">
-        <div className="max-w-6xl mx-auto flex justify-between items-end">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              <span>Personal</span> / <span className="text-foreground">Development</span>
-            </div>
-            <h1 className="text-3xl font-bold">Learning Paths</h1>
-            <p className="mt-2 text-sm text-muted-foreground max-w-lg">
-              Define target skills, track study sessions, and link books or podcasts to your learning journey.
-            </p>
-          </div>
-          <button onClick={() => setOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-foreground text-background rounded-xl font-bold text-sm shadow-sm hover:bg-foreground/90 transition-all active:scale-95">
-            <Plus className="w-4 h-4" /> New Skill
-          </button>
+    <div className="w-full h-full flex flex-col p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto animate-in fade-in duration-500 overflow-y-auto hide-scrollbar">
+      
+      {/* Header */}
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-[32px] sm:text-[40px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-tight tracking-tight mb-2">
+            Learning & Skills
+          </h1>
+          <p className="text-[16px] text-[#52525B] dark:text-[#A1A1AA] max-w-[600px]">
+            Master new abilities, track your progress, and log your study sessions.
+          </p>
         </div>
-      </header>
 
-      <main className="max-w-6xl mx-auto p-6 md:p-10 w-full flex-1 grid lg:grid-cols-12 gap-8">
-        {loading ? (
-          <div className="lg:col-span-12 flex items-center justify-center py-20 animate-pulse">
-            <Brain className="w-12 h-12 text-muted-foreground/30" />
-          </div>
-        ) : skills.length === 0 ? (
-          <div className="lg:col-span-12 text-center py-20 border border-dashed border-border/60 rounded-3xl bg-card/25 max-w-3xl mx-auto w-full">
-            <Brain className="w-12 h-12 text-muted-foreground/60 mx-auto mb-4" />
-            <h3 className="text-lg font-bold mb-1">No skills mapped</h3>
-            <p className="text-sm text-muted-foreground mb-6">Choose a skill to start developing and tracking your mastery.</p>
-            <button onClick={() => setOpen(true)} className="px-5 py-2.5 bg-foreground text-background font-bold rounded-xl text-sm">Add Skill</button>
-          </div>
-        ) : (
-          <>
-            {/* Sidebar List */}
-            <aside className="lg:col-span-4 space-y-3">
-              <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4 px-2">Your Skills</h2>
-              {skills.map(skill => (
-                <button 
-                  key={skill.id}
-                  onClick={() => setSelectedSkillId(skill.id)}
-                  className={`w-full text-left p-4 rounded-2xl border transition-all ${selectedSkillId === skill.id ? "bg-card border-foreground/30 shadow-sm" : "bg-transparent border-border hover:border-foreground/20"}`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-bold text-base leading-tight truncate">{skill.name}</h3>
-                    <span className="text-[10px] font-bold uppercase tracking-wider bg-accent text-muted-foreground px-2 py-0.5 rounded-md">
-                      {skill.category}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs mb-2">
-                    <span className="text-muted-foreground font-medium">{skill.currentLevel}</span>
-                    <span className="text-muted-foreground flex items-center gap-1"><Target className="w-3 h-3"/> {skill.targetLevel}</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-accent rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${skill.progressPercent}%` }} />
-                  </div>
-                </button>
-              ))}
-            </aside>
+        <button 
+          onClick={() => setShowSkillModal(true)}
+          className="h-10 px-5 rounded-full bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808] text-sm font-medium hover:bg-[#333333] dark:hover:bg-[#E5E7EB] transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+        >
+          <Plus className="w-4 h-4" />
+          Add Skill
+        </button>
+      </div>
 
-            {/* Main Skill View */}
-            <section className="lg:col-span-8">
-              {selectedSkillId && skills.find(s => s.id === selectedSkillId) && (
-                <div className="space-y-6">
-                  <div className="bg-card border border-border rounded-3xl p-6 shadow-sm flex justify-between items-start">
-                    <div>
-                      <h2 className="text-2xl font-bold">{skills.find(s => s.id === selectedSkillId)?.name}</h2>
-                      <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-                        {skills.find(s => s.id === selectedSkillId)?.description || "No description provided."}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-3xl font-black">{skills.find(s => s.id === selectedSkillId)?.progressPercent}%</div>
-                      <div className="text-xs text-muted-foreground uppercase tracking-widest font-bold mt-1">Mastery</div>
-                    </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <LoaderCircle className="w-8 h-8 text-[#A1A1AA] animate-spin" />
+        </div>
+      ) : skills.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 px-4 border border-dashed border-[#E5E7EB] dark:border-[#242424] rounded-2xl bg-[#F4F4F5]/50 dark:bg-[#1D1D1D]/50 text-center">
+          <BookOpen className="w-12 h-12 text-[#A1A1AA] dark:text-[#52525B] mb-4" />
+          <h3 className="text-xl font-bold text-[#171717] dark:text-[#F5F5F5] mb-2">No skills tracked yet</h3>
+          <p className="text-[#52525B] dark:text-[#A1A1AA] max-w-md">
+            Add a language, programming framework, or any other skill you want to master.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {skills.map(skill => (
+            <div key={skill.id} className="bg-white dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#242424] rounded-2xl p-6 shadow-sm relative group hover:border-[#A1A1AA] dark:hover:border-[#52525B] transition-colors">
+              <button 
+                onClick={(e) => deleteSkill(skill.id, e)}
+                className="absolute top-4 right-4 p-1.5 rounded-md hover:bg-[#F4F4F5] dark:hover:bg-[#1D1D1D] text-[#A1A1AA] opacity-0 group-hover:opacity-100 transition-opacity text-xs font-medium hover:text-red-500"
+              >
+                Delete
+              </button>
+              
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-[#171717] dark:bg-[#F5F5F5] flex items-center justify-center text-white dark:text-[#080808]">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[#171717] dark:text-[#F5F5F5] leading-none mb-1 pr-12">{skill.name}</h3>
+                  <span className="text-xs font-medium text-[#52525B] dark:text-[#A1A1AA] bg-[#F4F4F5] dark:bg-[#1D1D1D] px-2 py-0.5 rounded-md">
+                    {skill.category || "General"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div>
+                  <div className="flex items-center justify-between text-sm mb-1.5">
+                    <span className="text-[#52525B] dark:text-[#A1A1AA] flex items-center gap-1.5"><Activity className="w-4 h-4" /> Current</span>
+                    <span className="font-semibold text-[#171717] dark:text-[#F5F5F5]">{skill.currentLevel}</span>
                   </div>
-
-                  <div className="grid md:grid-cols-2 gap-6">
-                    {/* Log Session Form */}
-                    <div className="bg-card border border-border rounded-3xl p-6 shadow-sm h-fit">
-                      <h3 className="font-bold mb-4 flex items-center gap-2"><Play className="w-4 h-4 text-emerald-500 fill-current" /> Log Study Session</h3>
-                      <form onSubmit={logSession} className="space-y-4">
-                        <div>
-                          <label className="block text-xs font-medium text-muted-foreground mb-1">Topic / Focus</label>
-                          <input type="text" value={sessionTopic} onChange={e=>setSessionTopic(e.target.value)} required placeholder="e.g. React Hooks" className="w-full h-10 px-3 text-sm rounded-xl border border-input bg-background focus:ring-2 focus:ring-ring" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-muted-foreground mb-1">Duration (Minutes)</label>
-                          <input type="number" value={sessionDuration} onChange={e=>setSessionDuration(e.target.value)} required min="1" placeholder="60" className="w-full h-10 px-3 text-sm rounded-xl border border-input bg-background focus:ring-2 focus:ring-ring" />
-                        </div>
-                        <button type="submit" className="w-full py-2.5 bg-foreground text-background font-bold text-sm rounded-xl hover:bg-foreground/90 transition-colors">
-                          Save Session
-                        </button>
-                      </form>
-                    </div>
-
-                    {/* Session History */}
-                    <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
-                      <h3 className="font-bold mb-4">Recent Sessions</h3>
-                      <div className="space-y-3">
-                        {sessions.length === 0 ? (
-                          <p className="text-sm text-muted-foreground py-4 text-center border border-dashed border-border rounded-xl">No sessions logged yet.</p>
-                        ) : (
-                          sessions.map(s => (
-                            <div key={s.id} className="flex items-center gap-3 p-3 rounded-xl border border-border/50 bg-background">
-                              <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-sm font-semibold truncate">{s.topic || "General Study"}</h4>
-                                <div className="text-xs text-muted-foreground">{new Date(s.date).toLocaleDateString()}</div>
-                              </div>
-                              <div className="text-sm font-bold shrink-0">{s.durationMinutes}m</div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[#52525B] dark:text-[#A1A1AA] flex items-center gap-1.5"><Target className="w-4 h-4" /> Target</span>
+                    <span className="font-semibold text-[#171717] dark:text-[#F5F5F5]">{skill.targetLevel}</span>
                   </div>
                 </div>
-              )}
-            </section>
-          </>
-        )}
-      </main>
 
-      <PersonalSkillAddModal
-        isOpen={open}
-        onClose={() => setOpen(false)}
-        onSave={() => fetchSkills()}
-      />
+                <div>
+                  <div className="flex justify-between text-xs font-medium text-[#52525B] dark:text-[#A1A1AA] mb-1.5">
+                    <span>Mastery Progress</span>
+                    <span>{skill.progressPercent}%</span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-[#E5E7EB] dark:bg-[#242424] overflow-hidden">
+                    <div className="h-full bg-[#171717] dark:bg-[#F5F5F5] rounded-full transition-all duration-500" style={{ width: `${skill.progressPercent}%` }} />
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setShowSessionModal(skill.id)}
+                className="w-full py-2.5 rounded-lg border border-[#E5E7EB] dark:border-[#242424] text-[#171717] dark:text-[#F5F5F5] text-sm font-medium hover:bg-[#F4F4F5] dark:hover:bg-[#1D1D1D] transition-colors flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> Log Session
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modals */}
+      {showSkillModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#242424] rounded-2xl w-full max-w-md p-6 shadow-xl animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-[#171717] dark:text-[#F5F5F5]">Add New Skill</h2>
+              <button onClick={() => setShowSkillModal(false)} className="text-[#A1A1AA] hover:text-[#171717] dark:hover:text-[#F5F5F5]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-[#52525B] dark:text-[#A1A1AA] mb-1.5">Skill Name</label>
+                <input 
+                  type="text" 
+                  value={newSkill.name} 
+                  onChange={(e) => setNewSkill({...newSkill, name: e.target.value})}
+                  className="w-full h-10 px-3 rounded-lg border border-[#E5E7EB] dark:border-[#242424] bg-transparent text-[#171717] dark:text-[#F5F5F5] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B]" 
+                  placeholder="e.g. Spanish, React, Guitar"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#52525B] dark:text-[#A1A1AA] mb-1.5">Category</label>
+                <input 
+                  type="text" 
+                  value={newSkill.category} 
+                  onChange={(e) => setNewSkill({...newSkill, category: e.target.value})}
+                  className="w-full h-10 px-3 rounded-lg border border-[#E5E7EB] dark:border-[#242424] bg-transparent text-[#171717] dark:text-[#F5F5F5] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B]" 
+                  placeholder="e.g. Language, Programming"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#52525B] dark:text-[#A1A1AA] mb-1.5">Current Level</label>
+                  <select 
+                    value={newSkill.currentLevel} 
+                    onChange={(e) => setNewSkill({...newSkill, currentLevel: e.target.value})}
+                    className="w-full h-10 px-3 rounded-lg border border-[#E5E7EB] dark:border-[#242424] bg-transparent text-[#171717] dark:text-[#F5F5F5] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B]"
+                  >
+                    <option value="Beginner">Beginner</option>
+                    <option value="Intermediate">Intermediate</option>
+                    <option value="Advanced">Advanced</option>
+                    <option value="Expert">Expert</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#52525B] dark:text-[#A1A1AA] mb-1.5">Target Level</label>
+                  <select 
+                    value={newSkill.targetLevel} 
+                    onChange={(e) => setNewSkill({...newSkill, targetLevel: e.target.value})}
+                    className="w-full h-10 px-3 rounded-lg border border-[#E5E7EB] dark:border-[#242424] bg-transparent text-[#171717] dark:text-[#F5F5F5] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B]"
+                  >
+                    <option value="Beginner">Beginner</option>
+                    <option value="Intermediate">Intermediate</option>
+                    <option value="Advanced">Advanced</option>
+                    <option value="Expert">Expert</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <button 
+              onClick={handleCreateSkill}
+              disabled={saving || !newSkill.name.trim()}
+              className="w-full h-10 rounded-lg bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808] text-sm font-medium hover:bg-[#333333] dark:hover:bg-[#E5E7EB] transition-colors disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Add Skill"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showSessionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#242424] rounded-2xl w-full max-w-md p-6 shadow-xl animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-[#171717] dark:text-[#F5F5F5]">Log Session</h2>
+              <button onClick={() => setShowSessionModal(null)} className="text-[#A1A1AA] hover:text-[#171717] dark:hover:text-[#F5F5F5]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-[#52525B] dark:text-[#A1A1AA] mb-1.5">Topic Covered (Optional)</label>
+                <input 
+                  type="text" 
+                  value={newSession.topic} 
+                  onChange={(e) => setNewSession({...newSession, topic: e.target.value})}
+                  className="w-full h-10 px-3 rounded-lg border border-[#E5E7EB] dark:border-[#242424] bg-transparent text-[#171717] dark:text-[#F5F5F5] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B]" 
+                  placeholder="e.g. Chapter 4, Verb conjugations"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#52525B] dark:text-[#A1A1AA] mb-1.5">Duration (Minutes)</label>
+                <input 
+                  type="number" 
+                  value={newSession.durationMinutes} 
+                  onChange={(e) => setNewSession({...newSession, durationMinutes: parseInt(e.target.value) || 0})}
+                  className="w-full h-10 px-3 rounded-lg border border-[#E5E7EB] dark:border-[#242424] bg-transparent text-[#171717] dark:text-[#F5F5F5] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B]" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#52525B] dark:text-[#A1A1AA] mb-1.5">Notes</label>
+                <textarea 
+                  value={newSession.notes} 
+                  onChange={(e) => setNewSession({...newSession, notes: e.target.value})}
+                  className="w-full h-24 p-3 rounded-lg border border-[#E5E7EB] dark:border-[#242424] bg-transparent text-[#171717] dark:text-[#F5F5F5] text-sm resize-none focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B]" 
+                  placeholder="Any reflections on this session?"
+                />
+              </div>
+            </div>
+
+            <button 
+              onClick={handleLogSession}
+              disabled={saving}
+              className="w-full h-10 rounded-lg bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808] text-sm font-medium hover:bg-[#333333] dark:hover:bg-[#E5E7EB] transition-colors disabled:opacity-50"
+            >
+              {saving ? "Logging..." : "Save Session"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

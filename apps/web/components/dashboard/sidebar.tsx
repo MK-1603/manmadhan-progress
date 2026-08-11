@@ -35,7 +35,6 @@ type NavGroup = {
   allowedRoles: string[]; // ["CEO", "CO-CEO", "MEMBER"]
 };
 
-// --- Data ---
 const NAVIGATION_DATA: NavGroup[] = [
   {
     id: "command",
@@ -46,55 +45,11 @@ const NAVIGATION_DATA: NavGroup[] = [
     ]
   },
   {
-    id: "work",
-    label: "Work",
-    allowedRoles: ["CEO", "CO-CEO", "MEMBER"],
-    items: [
-      { name: "Projects", href: "/projects", icon: FolderKanban },
-      { name: "Work", href: "/tasks", icon: CheckSquare },
-      { name: "Calendar", href: "/calendar", icon: Calendar },
-      { name: "Reviews", href: "/reviews", icon: CheckCircle2 }
-    ]
-  },
-  {
     id: "organization",
     label: "Organization",
     allowedRoles: ["CEO", "CO-CEO"],
     items: [
-      { name: "Members", href: "/members", icon: Users },
-      { name: "Departments", href: "/departments", icon: Building2 },
-      { name: "Assignments", href: "/assignments", icon: UserPlus },
-      { name: "Organization", href: "/organization", icon: ShieldAlert }
-    ]
-  },
-  {
-    id: "performance",
-    label: "Performance",
-    allowedRoles: ["CEO", "CO-CEO", "MEMBER"],
-    items: [
-      { name: "Progress", href: "/progress", icon: Activity },
-      { name: "Analytics", href: "/analytics", icon: LineChart },
-      { name: "Reports", href: "/reports", icon: PieChart },
-      { name: "Leaderboard", href: "/leaderboard", icon: BarChart3 }
-    ]
-  },
-  {
-    id: "communication",
-    label: "Communication",
-    allowedRoles: ["CEO", "CO-CEO", "MEMBER"],
-    items: [
-      { name: "Notifications", href: "/notifications", icon: Bell },
-      { name: "Activity", href: "/activity", icon: Zap }
-    ]
-  },
-  {
-    id: "automation",
-    label: "Automation & Intelligence",
-    allowedRoles: ["CEO", "CO-CEO"],
-    items: [
-      { name: "AI Intelligence", href: "/ai", icon: Zap },
-      { name: "Automations", href: "/automations", icon: Settings },
-      { name: "Integrations", href: "/integrations", icon: LinkIcon }
+      { name: "Members", href: "/members", icon: Users }
     ]
   },
   {
@@ -102,8 +57,7 @@ const NAVIGATION_DATA: NavGroup[] = [
     label: "Administration",
     allowedRoles: ["CEO"],
     items: [
-      { name: "Settings", href: "/settings", icon: Settings },
-      { name: "Audit Log", href: "/audit", icon: ClipboardList }
+      { name: "Settings", href: "/settings", icon: Settings }
     ]
   }
 ];

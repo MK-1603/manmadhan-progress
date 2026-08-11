@@ -1,164 +1,309 @@
-import { Router, Request, Response } from "express";
-import { personalDb } from "../../../database/client";
-import { personalTasks, personalProjects, personalTaskFiles, personalActivityLogs, personalMilestones, personalSuccessCriteria } from "../../../database/schema/personal.schema";
-import { eq, and, desc, ilike } from "drizzle-orm";
-import { authenticate } from "../../middleware/auth.middleware";
+import { and, eq, isNull, or } from "drizzle-orm";
+import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
+import { personalDb } from "../../../database/client";
+import { personalProjects, personalTasks } from "../../../database/schema";
+import { authenticate } from "../../middleware/auth.middleware";
+import { logger } from "../../services/logger.service";
+import { socketService } from "../../services/socket.service";
 
 export const personalTasksRouter = Router();
 
 personalTasksRouter.use(authenticate);
 
-// GET /api/v1/personal/tasks
+const getUserId = (req: Request) => (req as any).user?.id;
+
+// Get all tasks (can filter by project, date, etc. later)
 personalTasksRouter.get("/", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const { status, search, projectId } = req.query;
+	try {
+		const userId = getUserId(req);
+		if (!userId)
+			return res.status(401).json({ success: false, error: "Unauthorized" });
 
-    let conditions = [eq(personalTasks.ownerUserId, user.id as string)];
+		const { projectId, status } = req.query;
 
-    if (status && status !== "All") {
-      conditions.push(eq(personalTasks.status, String(status)));
-    }
-    if (search) {
-      conditions.push(ilike(personalTasks.title, `%${search}%`));
-    }
-    if (projectId) {
-      conditions.push(eq(personalTasks.projectId, String(projectId)));
-    }
+		const conditions = [eq(personalTasks.ownerUserId, userId)];
 
-    const result = await personalDb.select()
-      .from(personalTasks)
-      .where(and(...conditions))
-      .orderBy(desc(personalTasks.createdAt));
+		if (projectId)
+			conditions.push(eq(personalTasks.projectId, String(projectId)));
+		if (status) conditions.push(eq(personalTasks.status, String(status)));
 
-    return res.json({ success: true, data: result });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
+		const tasks = await personalDb.query.personalTasks.findMany({
+			where: and(...conditions),
+			orderBy: (tasks, { asc }) => [asc(tasks.deadline), asc(tasks.createdAt)],
+			with: {
+				project: true,
+			},
+		});
+
+		res.json({ success: true, data: tasks });
+	} catch (error: any) {
+		logger.error("Fetch Personal Tasks Error: " + error.message);
+		res.status(500).json({ success: false, error: "Failed to fetch tasks" });
+	}
 });
 
-// POST /api/v1/personal/tasks
+// Create a new task
 personalTasksRouter.post("/", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const { title, description, projectId, milestoneId, type, tags, status, priority, deadline, estimatedMinutes, files, remindAt, syncToCalendar, focusDuration } = req.body;
-    
-    if (!title) return res.status(400).json({ success: false, error: "Task title is required" });
+	try {
+		const userId = getUserId(req);
+		if (!userId)
+			return res.status(401).json({ success: false, error: "Unauthorized" });
 
-    // Validate project belongs to user if projectId is provided
-    if (projectId) {
-      const project = await personalDb.query.personalProjects.findFirst({
-        where: and(eq(personalProjects.id, projectId), eq(personalProjects.ownerUserId, user.id as string))
-      });
-      if (!project) return res.status(400).json({ success: false, error: "Invalid projectId or unauthorized" });
-    }
+		const {
+			title,
+			description,
+			projectId,
+			milestoneId,
+			type,
+			priority,
+			deadline,
+			estimatedMinutes,
+			scheduledStart,
+			scheduledEnd,
+		} = req.body;
 
-    const newTask = await personalDb.transaction(async (tx: any) => {
-      const taskId = uuidv4();
+		if (!title) {
+			return res
+				.status(400)
+				.json({ success: false, error: "Task title is required" });
+		}
 
-      const insertedTask = await tx.insert(personalTasks).values({
-        id: taskId,
-        ownerUserId: user.id as string,
-        projectId: projectId || null,
-        milestoneId: milestoneId || null,
-        title,
-        description,
-        type: type || "Task",
-        tags: tags || [],
-        status: status || "TODO",
-        priority: priority || "Medium",
-        deadline: deadline ? new Date(deadline) : null,
-        estimatedMinutes: estimatedMinutes ? parseInt(estimatedMinutes) : null,
-        remindAt: remindAt ? new Date(remindAt) : null,
-        syncToCalendar: syncToCalendar || false,
-        calendarEventId: syncToCalendar ? `mock-cal-event-${uuidv4()}` : null,
-        focusDuration: focusDuration ? parseInt(focusDuration) : null,
-      }).returning();
+		const newId = uuidv4();
+		const [task] = await personalDb
+			.insert(personalTasks)
+			.values({
+				id: newId,
+				ownerUserId: userId,
+				title,
+				description,
+				projectId: projectId || null,
+				milestoneId: milestoneId || null,
+				type: type || "Task",
+				status: "TODO",
+				priority: priority || "Medium",
+				deadline: deadline ? new Date(deadline) : null,
+				estimatedMinutes: estimatedMinutes || null,
+				scheduledStart: scheduledStart ? new Date(scheduledStart) : null,
+				scheduledEnd: scheduledEnd ? new Date(scheduledEnd) : null,
+			})
+			.returning();
 
-      // Handle Task Files
-      if (files && Array.isArray(files) && files.length > 0) {
-        // Insert Files
-        const fileData = files.map((f) => ({
-          id: uuidv4(),
-          taskId,
-          fileName: f.fileName,
-          fileType: f.fileType,
-          fileSize: f.fileSize,
-          url: f.url
-        }));
-        await tx.insert(personalTaskFiles).values(fileData);
-      }
+		socketService.emitToUser(userId, "task_created", task);
 
-      // Record Activity
-      // Log Activity
-      await tx.insert(personalActivityLogs).values({
-        id: uuidv4(),
-        ownerUserId: user.id as string,
-        projectId: projectId || null,
-        taskId,
-        milestoneId: milestoneId || null,
-        eventType: "Task created",
-        details: `Created task "${title}"`,
-      });
-
-      return insertedTask[0];
-    });
-
-    return res.status(201).json({ success: true, data: newTask });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
+		res.json({ success: true, data: task });
+	} catch (error: any) {
+		logger.error("Create Personal Task Error: " + error.message);
+		res.status(500).json({ success: false, error: "Failed to create task" });
+	}
 });
 
-// PATCH /api/v1/personal/tasks/:id
+// Update a task
 personalTasksRouter.patch("/:id", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const taskId = req.params.id as string;
-    const updates = req.body;
+	try {
+		const userId = getUserId(req);
+		const taskId = req.params.id;
+		if (!userId)
+			return res.status(401).json({ success: false, error: "Unauthorized" });
 
-    const task = await personalDb.query.personalTasks.findFirst({
-      where: and(eq(personalTasks.id, taskId), eq(personalTasks.ownerUserId, user.id as string))
-    });
+		const {
+			title,
+			description,
+			status,
+			priority,
+			deadline,
+			estimatedMinutes,
+			scheduledStart,
+			scheduledEnd,
+		} = req.body;
 
-    if (!task) return res.status(404).json({ success: false, error: "Task not found" });
+		const existing = await personalDb.query.personalTasks.findFirst({
+			where: and(
+				eq(personalTasks.id, String(taskId)),
+				eq(personalTasks.ownerUserId, userId),
+			),
+		});
 
-    if (updates.deadline) updates.deadline = new Date(updates.deadline);
-    updates.updatedAt = new Date();
+		if (!existing) {
+			return res.status(404).json({ success: false, error: "Task not found" });
+		}
 
-    if (updates.status === "COMPLETED" && task.status !== "COMPLETED") {
-      updates.completedAt = new Date();
-    } else if (updates.status !== "COMPLETED") {
-      updates.completedAt = null;
-    }
+		const updateData: any = { updatedAt: new Date() };
+		if (title !== undefined) updateData.title = title;
+		if (description !== undefined) updateData.description = description;
+		if (status !== undefined) updateData.status = status;
+		if (priority !== undefined) updateData.priority = priority;
+		if (deadline !== undefined)
+			updateData.deadline = deadline ? new Date(deadline) : null;
+		if (estimatedMinutes !== undefined)
+			updateData.estimatedMinutes = estimatedMinutes;
+		if (scheduledStart !== undefined)
+			updateData.scheduledStart = scheduledStart
+				? new Date(scheduledStart)
+				: null;
+		if (scheduledEnd !== undefined)
+			updateData.scheduledEnd = scheduledEnd ? new Date(scheduledEnd) : null;
 
-    const updated = await personalDb.update(personalTasks)
-      .set(updates)
-      .where(eq(personalTasks.id, taskId))
-      .returning();
+		if (
+			(status === "Completed" || status === "COMPLETED") &&
+			existing.status !== "Completed" &&
+			existing.status !== "COMPLETED"
+		) {
+			updateData.completedAt = new Date();
+		}
 
-    return res.json({ success: true, data: updated[0] });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
+		const [updated] = await personalDb
+			.update(personalTasks)
+			.set(updateData)
+			.where(
+				and(
+					eq(personalTasks.id, String(taskId)),
+					eq(personalTasks.ownerUserId, userId),
+				),
+			)
+			.returning();
+
+		socketService.emitToUser(userId, "task_updated", updated);
+
+		// Write timeline event on task completion
+		if (
+			(status === "Completed" || status === "COMPLETED") &&
+			existing.status !== "Completed" &&
+			existing.status !== "COMPLETED"
+		) {
+			try {
+				const { writeTimelineEvent } = require("./timeline.routes");
+				await writeTimelineEvent(
+					userId,
+					"TASK_COMPLETED",
+					`Completed task: ${updated.title}`,
+					{
+						taskId: String(taskId),
+						projectId: updated.projectId || undefined,
+					},
+				);
+			} catch {
+				/* non-fatal */
+			}
+		}
+
+		res.json({ success: true, data: updated });
+	} catch (error: any) {
+		logger.error("Update Personal Task Error: " + error.message);
+		res.status(500).json({ success: false, error: "Failed to update task" });
+	}
 });
 
-// DELETE /api/v1/personal/tasks/:id
+// Delete a task
 personalTasksRouter.delete("/:id", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const taskId = req.params.id as string;
+	try {
+		const userId = getUserId(req);
+		const taskId = req.params.id;
+		if (!userId)
+			return res.status(401).json({ success: false, error: "Unauthorized" });
 
-    const task = await personalDb.query.personalTasks.findFirst({
-      where: and(eq(personalTasks.id, taskId), eq(personalTasks.ownerUserId, user.id as string))
-    });
+		const existing = await personalDb.query.personalTasks.findFirst({
+			where: and(
+				eq(personalTasks.id, String(taskId)),
+				eq(personalTasks.ownerUserId, userId),
+			),
+		});
 
-    if (!task) return res.status(404).json({ success: false, error: "Task not found" });
+		if (!existing) {
+			return res.status(404).json({ success: false, error: "Task not found" });
+		}
 
-    await personalDb.delete(personalTasks).where(eq(personalTasks.id, taskId));
-    return res.json({ success: true, message: "Task deleted" });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
+		await personalDb
+			.delete(personalTasks)
+			.where(eq(personalTasks.id, String(taskId)));
+
+		socketService.emitToUser(userId, "task_deleted", { id: taskId });
+
+		res.json({ success: true, message: "Task deleted successfully" });
+	} catch (error: any) {
+		logger.error("Delete Personal Task Error: " + error.message);
+		res.status(500).json({ success: false, error: "Failed to delete task" });
+	}
 });
+
+// Generate Task via AI (Real AI generation)
+personalTasksRouter.post(
+	"/generate-task",
+	async (req: Request, res: Response) => {
+		try {
+			const userId = getUserId(req);
+			if (!userId)
+				return res.status(401).json({ success: false, error: "Unauthorized" });
+
+			const { prompt } = req.body;
+			if (!prompt)
+				return res
+					.status(400)
+					.json({ success: false, error: "Prompt is required" });
+
+			const { aiService } = require("../../services/ai.service");
+			const currentDate = new Date().toISOString().split("T")[0];
+
+			const systemPrompt = `You are a personal task planning assistant for ManMadhan Progress.
+Generate a structured task plan from the user prompt.
+Output ONLY valid JSON. No markdown, no backticks.
+Current date: ${currentDate}
+
+JSON structure:
+{
+  "title": "string",
+  "description": "string",
+  "type": "Development|Documentation|Design|Research|Testing|Meeting|Other",
+  "priority": "Low|Medium|High",
+  "estimatedMinutes": number,
+  "deadline": "YYYY-MM-DD or null",
+  "scheduledStart": "ISO datetime or null",
+  "scheduledEnd": "ISO datetime or null",
+  "requiresDocument": false,
+  "requiresGithub": false
+}
+
+User prompt: "${prompt}"`;
+
+			try {
+				const aiResponse = await aiService.generateWithSmartFailover(
+					systemPrompt,
+					"groq",
+				);
+				const cleanedText = aiResponse.text
+					.replace(/```json/g, "")
+					.replace(/```/g, "")
+					.trim();
+				const plan = JSON.parse(cleanedText);
+				res.json({ success: true, data: plan });
+			} catch (aiErr: any) {
+				const tomorrow = new Date();
+				tomorrow.setDate(tomorrow.getDate() + 1);
+				tomorrow.setHours(9, 0, 0, 0);
+				const end = new Date(tomorrow);
+				end.setHours(10, 0, 0, 0);
+				res.json({
+					success: true,
+					data: {
+						title:
+							prompt.length > 60 ? prompt.substring(0, 57) + "..." : prompt,
+						description: prompt,
+						type: "Task",
+						priority: "Medium",
+						estimatedMinutes: 60,
+						deadline: null,
+						scheduledStart: tomorrow,
+						scheduledEnd: end,
+						requiresDocument: false,
+						requiresGithub: false,
+					},
+				});
+			}
+		} catch (error: any) {
+			logger.error("Generate Task Plan Error: " + error.message);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to generate task plan" });
+		}
+	},
+);

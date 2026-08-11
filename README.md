@@ -89,7 +89,7 @@ Start both the backend and frontend servers:
 ```bash
 cd backend
 npm run dev
-# Runs on http://localhost:4000
+# Runs on http://localhost:4100
 ```
 
 **Frontend:**
@@ -105,10 +105,10 @@ npm run dev
 
 Because this app connects to personal Google Calendars and GitHub repositories, you must whitelist the following callback URLs in your respective Developer Consoles:
 
-- **Google (Authentication):** `http://localhost:4000/api/v1/auth/google/callback`
-- **Google (Calendar Integration):** `http://localhost:4000/api/v1/personal/integrations/GoogleCalendar/callback`
-- **GitHub (Authentication):** `http://localhost:4000/api/v1/auth/github/callback`
-- **GitHub (Integration):** `http://localhost:4000/api/v1/personal/integrations/GitHub/callback`
+- **Google (Authentication):** `http://localhost:4100/api/v1/auth/google/callback`
+- **Google (Calendar Integration):** `http://localhost:4100/api/v1/personal/integrations/GoogleCalendar/callback`
+- **GitHub (Authentication):** `http://localhost:4100/api/v1/auth/github/callback`
+- **GitHub (Integration):** `http://localhost:4100/api/v1/personal/integrations/GitHub/callback`
 
 *(Note: During local development, Google may display a "Google hasn't verified this app" warning. You can bypass this by clicking `Advanced -> Go to [App Name] (unsafe)`).*
 

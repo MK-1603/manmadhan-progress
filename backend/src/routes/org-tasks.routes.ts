@@ -1,0 +1,1380 @@
+import { and, desc, eq, gte, lte, or, sql } from "drizzle-orm";
+import { type Request, type Response, Router } from "express";
+import { v4 as uuidv4 } from "uuid";
+import { db } from "../../database/client";
+import {
+	activities,
+	auditLogs,
+	deadlineExtensions,
+	milestones,
+	notifications,
+	projects,
+	scoreLedger,
+	tasks,
+	timeTracking,
+	users,
+	workspaceMembers,
+} from "../../database/schema";
+import { authenticate } from "../middleware/auth.middleware";
+import { AssignmentDeliveryService } from "../services/assignment-delivery.service";
+import { logger } from "../services/logger.service";
+import { socketService } from "../services/socket.service";
+
+export const orgTasksRouter = Router();
+orgTasksRouter.use(authenticate);
+
+// ─── Middleware ───────────────────────────────────────────────────────────────
+const resolveWorkspace = async (req: Request, res: Response, next: any) => {
+	try {
+		const userId = (req as any).user?.id;
+		let workspaceId = String(
+			req.query.workspaceId || req.body.workspaceId || "",
+		).trim();
+
+		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
+			if (userId) {
+				const [m] = await db
+					.select()
+					.from(workspaceMembers)
+					.where(eq(workspaceMembers.userId, userId))
+					.limit(1);
+				if (m && m.workspaceId) {
+					workspaceId = m.workspaceId;
+					req.body.workspaceId = workspaceId;
+					(req.query as any).workspaceId = workspaceId;
+				}
+			}
+		}
+
+		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
+			const [firstWs] = await db.select().from(tasks).limit(1);
+			if (firstWs && firstWs.workspaceId) {
+				workspaceId = firstWs.workspaceId;
+				req.body.workspaceId = workspaceId;
+				(req.query as any).workspaceId = workspaceId;
+			}
+		}
+
+		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
+			return res
+				.status(400)
+				.json({ success: false, error: "workspaceId is required" });
+		}
+
+		(req as any).workspaceId = workspaceId;
+		next();
+	} catch (err: any) {
+		logger.error(
+			"resolveWorkspace tasks error: " +
+				(err?.stack || err?.message || String(err)),
+		);
+		return res
+			.status(500)
+			.json({ success: false, error: "Failed to resolve workspace" });
+	}
+};
+
+const requireMembership = async (req: Request, res: Response, next: any) => {
+	try {
+		const userId = (req as any).user?.id;
+		const workspaceId = (req as any).workspaceId;
+
+		if (!userId) {
+			return res
+				.status(401)
+				.json({ success: false, error: "Authentication required" });
+		}
+
+		const [m] = await db
+			.select()
+			.from(workspaceMembers)
+			.where(
+				and(
+					eq(workspaceMembers.workspaceId, workspaceId),
+					eq(workspaceMembers.userId, userId),
+				),
+			)
+			.limit(1);
+
+		if (!m) {
+			const [u] = await db
+				.select()
+				.from(users)
+				.where(eq(users.id, userId))
+				.limit(1);
+			if (u && (u.role === "CEO" || u.role === "admin" || u.systemOwner)) {
+				(req as any).membership = { role: "CEO", workspaceId, userId };
+				return next();
+			}
+			(req as any).membership = { role: "MEMBER", workspaceId, userId };
+			return next();
+		}
+
+		(req as any).membership = m;
+		next();
+	} catch (err: any) {
+		logger.error(
+			"requireMembership tasks error: " +
+				(err?.stack || err?.message || String(err)),
+		);
+		return res
+			.status(500)
+			.json({ success: false, error: "Membership verification error" });
+	}
+};
+
+// ─── Generate Task Plan from Prompt (Preview Stage) ─────────────────────────
+orgTasksRouter.post(
+	"/generate-plan-from-prompt",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const { prompt, projectId, milestoneId } = req.body;
+
+			if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+				return res
+					.status(400)
+					.json({
+						success: false,
+						error: "Prompt is required to generate task plan",
+					});
+			}
+
+			// Get workspace members for intelligent assignment lookup
+			const members = await db
+				.select({
+					id: users.id,
+					name: users.displayName,
+					role: workspaceMembers.role,
+				})
+				.from(workspaceMembers)
+				.innerJoin(users, eq(workspaceMembers.userId, users.id))
+				.where(eq(workspaceMembers.workspaceId, workspaceId));
+
+			const promptText = prompt.trim();
+			const lowerPrompt = promptText.toLowerCase();
+
+			// Natural Language Task Decomposition
+			const generatedTasks: any[] = [];
+			const now = new Date();
+			const defaultDeadline = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
+
+			// Extract names if mentioned in prompt
+			const findMemberByName = (str: string) => {
+				const match = members.find(
+					(m) => m.name && str.toLowerCase().includes(m.name.toLowerCase()),
+				);
+				return match ? match.id : null;
+			};
+
+			// Rule-based task decomposition based on natural language intent
+			if (
+				lowerPrompt.includes("auth") ||
+				lowerPrompt.includes("login") ||
+				lowerPrompt.includes("authentication")
+			) {
+				generatedTasks.push(
+					{
+						tempId: uuidv4(),
+						title: "Setup OAuth 2.0 & Session Authentication Engine",
+						description:
+							"Implement secure session tokens, password hashing, and OAuth login flows.",
+						type: "Development",
+						priority: "High",
+						estimatedMinutes: 240,
+						assigneeId: findMemberByName(promptText) || members[0]?.id || null,
+						deadline: defaultDeadline.toISOString(),
+						dependencies: [],
+					},
+					{
+						tempId: uuidv4(),
+						title: "Build Authentication UI Forms & State Management",
+						description:
+							"Create responsive login, signup, password reset pages and client auth state hooks.",
+						type: "Development",
+						priority: "High",
+						estimatedMinutes: 180,
+						assigneeId:
+							members.find((m) => m.name?.toLowerCase().includes("arun"))?.id ||
+							members[0]?.id ||
+							null,
+						deadline: defaultDeadline.toISOString(),
+						dependencies: ["Setup OAuth 2.0 & Session Authentication Engine"],
+					},
+					{
+						tempId: uuidv4(),
+						title: "Write Integration Unit Tests for Auth Endpoints",
+						description:
+							"Verify login, token refresh, RBAC rules, and invalid credential failure handling.",
+						type: "Development",
+						priority: "Medium",
+						estimatedMinutes: 120,
+						assigneeId: members[0]?.id || null,
+						deadline: defaultDeadline.toISOString(),
+						dependencies: ["Setup OAuth 2.0 & Session Authentication Engine"],
+					},
+					{
+						tempId: uuidv4(),
+						title: "Document Authentication API Specs & Security Audit",
+						description:
+							"Write OpenAPI spec and document token lifecycle & security boundaries.",
+						type: "Documentation",
+						priority: "Low",
+						estimatedMinutes: 90,
+						assigneeId: members[0]?.id || null,
+						deadline: defaultDeadline.toISOString(),
+						dependencies: [],
+					},
+				);
+			} else {
+				// General Task Plan Generation
+				const sentences = promptText
+					.split(/\.|\n/)
+					.map((s) => s.trim())
+					.filter((s) => s.length > 5);
+				const taskTitles =
+					sentences.length > 1
+						? sentences
+						: [
+								`Analyze Requirements for "${promptText.substring(0, 40)}"`,
+								`Develop Core Implementation for "${promptText.substring(0, 40)}"`,
+								`Perform Testing & Code Review for "${promptText.substring(0, 40)}"`,
+								`Prepare Documentation & Handover for "${promptText.substring(0, 40)}"`,
+							];
+
+				taskTitles.forEach((title, idx) => {
+					generatedTasks.push({
+						tempId: uuidv4(),
+						title: title.length > 80 ? title.substring(0, 77) + "..." : title,
+						description: `Generated from prompt: "${promptText}"`,
+						type:
+							idx === 0
+								? "Research"
+								: idx === taskTitles.length - 1
+									? "Documentation"
+									: "Development",
+						priority: idx === 0 ? "High" : "Medium",
+						estimatedMinutes: (idx + 1) * 60,
+						assigneeId: members[idx % members.length]?.id || null,
+						deadline: defaultDeadline.toISOString(),
+						dependencies: idx > 0 ? [taskTitles[idx - 1]] : [],
+					});
+				});
+			}
+
+			res.json({
+				success: true,
+				data: {
+					prompt: promptText,
+					projectId: projectId || null,
+					milestoneId: milestoneId || null,
+					taskCount: generatedTasks.length,
+					tasks: generatedTasks,
+					members,
+				},
+			});
+		} catch (err: any) {
+			logger.error(
+				"Generate task plan error: " + (err?.message || String(err)),
+			);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to generate task plan" });
+		}
+	},
+);
+
+// ─── Confirm & Create Tasks from Plan (Atomic Task Batch Creation) ──────────
+orgTasksRouter.post(
+	"/create-from-plan",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const { tasks: planTasks, projectId, milestoneId } = req.body;
+
+			if (!Array.isArray(planTasks) || planTasks.length === 0) {
+				return res
+					.status(400)
+					.json({
+						success: false,
+						error: "No tasks provided in confirmed plan",
+					});
+			}
+
+			const cleanProjectId =
+				projectId &&
+				projectId !== "undefined" &&
+				projectId !== "null" &&
+				String(projectId).trim()
+					? String(projectId).trim()
+					: null;
+			const cleanMilestoneId =
+				milestoneId &&
+				milestoneId !== "undefined" &&
+				milestoneId !== "null" &&
+				String(milestoneId).trim()
+					? String(milestoneId).trim()
+					: null;
+
+			const createdTasks = await db.transaction(async (tx) => {
+				const inserted: any[] = [];
+				for (const t of planTasks) {
+					if (!t.title || !String(t.title).trim()) continue;
+
+					const tProjId =
+						t.projectId &&
+						t.projectId !== "undefined" &&
+						t.projectId !== "null" &&
+						String(t.projectId).trim()
+							? String(t.projectId).trim()
+							: cleanProjectId;
+					const tMsId =
+						t.milestoneId &&
+						t.milestoneId !== "undefined" &&
+						t.milestoneId !== "null" &&
+						String(t.milestoneId).trim()
+							? String(t.milestoneId).trim()
+							: cleanMilestoneId;
+
+					const [created] = await tx
+						.insert(tasks)
+						.values({
+							id: uuidv4(),
+							workspaceId,
+							projectId: tProjId,
+							milestoneId: tMsId,
+							assigneeId:
+								t.assigneeId &&
+								t.assigneeId !== "undefined" &&
+								t.assigneeId !== "null"
+									? String(t.assigneeId)
+									: userId,
+							title: String(t.title).trim(),
+							description: t.description ? String(t.description) : null,
+							priority: t.priority || "Medium",
+							type: t.type || "Development",
+							status: "Draft",
+							sourceType: "PROMPT_AUTOMATION",
+							estimatedMinutes: Number(t.estimatedMinutes) || 120,
+							deadline:
+								t.deadline && !isNaN(new Date(t.deadline).getTime())
+									? new Date(t.deadline)
+									: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+						})
+						.returning();
+
+					inserted.push(created);
+				}
+				return inserted;
+			});
+
+			if (createdTasks.length > 0) {
+				await db.insert(auditLogs).values({
+					id: uuidv4(),
+					userId,
+					workspaceId,
+					eventType: "TASK_BATCH_GENERATED_FROM_PROMPT",
+					details: `Generated and confirmed batch of ${createdTasks.length} tasks via Automated Prompt Engine`,
+				});
+
+				await db.insert(activities).values({
+					id: uuidv4(),
+					workspaceId,
+					projectId: cleanProjectId,
+					userId,
+					action: "Prompt Tasks Created",
+					details: `Created ${createdTasks.length} automated tasks from user prompt plan preview`,
+				});
+
+				socketService.emitToWorkspace(workspaceId, "tasks.automated", {
+					count: createdTasks.length,
+				});
+			}
+
+			res.json({ success: true, data: createdTasks });
+		} catch (err: any) {
+			logger.error(
+				"Create tasks from plan error: " +
+					(err?.stack || err?.message || String(err)),
+			);
+			res
+				.status(500)
+				.json({
+					success: false,
+					error:
+						"Failed to create tasks from plan: " +
+						(err?.message || "Internal server error"),
+				});
+		}
+	},
+);
+
+// ─── List Tasks ───────────────────────────────────────────────────────────────
+orgTasksRouter.get(
+	"/",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const membership = (req as any).membership;
+			const { projectId, milestoneId, status, assigneeId, priority } =
+				req.query;
+
+			const conditions = [eq(tasks.workspaceId, workspaceId)];
+
+			if (projectId && projectId !== "undefined" && projectId !== "null") {
+				conditions.push(eq(tasks.projectId, String(projectId)));
+			}
+			if (
+				milestoneId &&
+				milestoneId !== "undefined" &&
+				milestoneId !== "null"
+			) {
+				conditions.push(eq(tasks.milestoneId, String(milestoneId)));
+			}
+			if (
+				status &&
+				status !== "undefined" &&
+				status !== "null" &&
+				status !== "All"
+			) {
+				conditions.push(eq(tasks.status, String(status)));
+			}
+			if (
+				priority &&
+				priority !== "undefined" &&
+				priority !== "null" &&
+				priority !== "All"
+			) {
+				conditions.push(eq(tasks.priority, String(priority)));
+			}
+
+			// Members can only see their own tasks
+			if (membership.role === "MEMBER") {
+				conditions.push(eq(tasks.assigneeId, userId));
+			} else if (
+				assigneeId &&
+				assigneeId !== "undefined" &&
+				assigneeId !== "null" &&
+				assigneeId !== "All"
+			) {
+				conditions.push(eq(tasks.assigneeId, String(assigneeId)));
+			}
+
+			const taskList = await db
+				.select({
+					task: tasks,
+					assigneeName: users.displayName,
+					assigneeEmail: users.email,
+					projectName: projects.name,
+					milestoneName: milestones.name,
+				})
+				.from(tasks)
+				.leftJoin(users, eq(tasks.assigneeId, users.id))
+				.leftJoin(projects, eq(tasks.projectId, projects.id))
+				.leftJoin(milestones, eq(tasks.milestoneId, milestones.id))
+				.where(and(...conditions))
+				.orderBy(desc(tasks.createdAt));
+
+			res.json({
+				success: true,
+				data: taskList.map((r) => ({
+					...r.task,
+					assigneeName: r.assigneeName || "Unassigned",
+					assigneeEmail: r.assigneeEmail || "",
+					projectName: r.projectName || null,
+					milestoneName: r.milestoneName || null,
+					isOverdue: r.task.deadline
+						? new Date(r.task.deadline).getTime() < Date.now() &&
+							r.task.status !== "Completed" &&
+							r.task.status !== "Approved"
+						: false,
+				})),
+			});
+		} catch (err: any) {
+			logger.error(
+				"List tasks error: " + (err?.stack || err?.message || String(err)),
+			);
+			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+// ─── Get Current Tasks (what's active right now) ──────────────────────────────
+orgTasksRouter.get(
+	"/current",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const membership = (req as any).membership;
+
+			if (membership.role === "MEMBER") {
+				// Member sees only their own current task
+				const currentTask = await db
+					.select({ task: tasks, projectName: projects.name })
+					.from(tasks)
+					.leftJoin(projects, eq(tasks.projectId, projects.id))
+					.where(
+						and(
+							eq(tasks.workspaceId, workspaceId),
+							eq(tasks.assigneeId, userId),
+							or(eq(tasks.status, "In Progress"), eq(tasks.status, "Accepted")),
+						),
+					)
+					.orderBy(desc(tasks.createdAt))
+					.limit(1);
+
+				return res.json({
+					success: true,
+					data: {
+						myCurrentTasks: currentTask.map((r) => ({
+							...r.task,
+							projectName: r.projectName,
+						})),
+					},
+				});
+			}
+
+			if (membership.role === "CO-CEO") {
+				// CO-CEO sees their own tasks + their members' current tasks
+				const myCurrentTasks = await db
+					.select({ task: tasks, projectName: projects.name })
+					.from(tasks)
+					.leftJoin(projects, eq(tasks.projectId, projects.id))
+					.where(
+						and(
+							eq(tasks.workspaceId, workspaceId),
+							eq(tasks.assigneeId, userId),
+							or(eq(tasks.status, "In Progress"), eq(tasks.status, "Accepted")),
+						),
+					)
+					.orderBy(desc(tasks.createdAt));
+
+				// Get members under this CO-CEO
+				const myMembers = await db
+					.select({
+						id: users.id,
+						displayName: users.displayName,
+						avatar: users.avatar,
+					})
+					.from(users)
+					.where(eq(users.managerId, userId));
+
+				const memberCurrentTasks = await Promise.all(
+					myMembers.map(async (member) => {
+						const currentTask = await db
+							.select({ task: tasks, projectName: projects.name })
+							.from(tasks)
+							.leftJoin(projects, eq(tasks.projectId, projects.id))
+							.where(
+								and(
+									eq(tasks.workspaceId, workspaceId),
+									eq(tasks.assigneeId, member.id),
+									or(
+										eq(tasks.status, "In Progress"),
+										eq(tasks.status, "Accepted"),
+									),
+								),
+							)
+							.orderBy(desc(tasks.createdAt))
+							.limit(1);
+						return {
+							member: {
+								id: member.id,
+								name: member.displayName || "Team Member",
+								avatar: member.avatar,
+							},
+							currentTask: currentTask[0]
+								? {
+										...currentTask[0].task,
+										projectName: currentTask[0].projectName,
+									}
+								: null,
+						};
+					}),
+				);
+
+				return res.json({
+					success: true,
+					data: {
+						myCurrentTasks: myCurrentTasks.map((r) => ({
+							...r.task,
+							projectName: r.projectName,
+						})),
+						memberCurrentTasks,
+					},
+				});
+			}
+
+			// CEO sees all current tasks across org
+			const currentTasks = await db
+				.select({
+					task: tasks,
+					assigneeName: users.displayName,
+					assigneeId: tasks.assigneeId,
+					projectName: projects.name,
+				})
+				.from(tasks)
+				.leftJoin(users, eq(tasks.assigneeId, users.id))
+				.leftJoin(projects, eq(tasks.projectId, projects.id))
+				.where(
+					and(
+						eq(tasks.workspaceId, workspaceId),
+						or(eq(tasks.status, "In Progress"), eq(tasks.status, "Accepted")),
+					),
+				)
+				.orderBy(desc(tasks.createdAt))
+				.limit(20);
+
+			res.json({
+				success: true,
+				data: {
+					currentTasks: currentTasks.map((r) => ({
+						...r.task,
+						assigneeName: r.assigneeName,
+						projectName: r.projectName,
+					})),
+				},
+			});
+		} catch (err: any) {
+			logger.error("Current tasks error: " + err.message);
+			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+// ─── Create Task ──────────────────────────────────────────────────────────────
+orgTasksRouter.post(
+	"/",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const membership = (req as any).membership;
+			if (membership.role === "MEMBER")
+				return res
+					.status(403)
+					.json({ success: false, error: "Members cannot create tasks" });
+
+			const {
+				title,
+				description,
+				projectId,
+				milestoneId,
+				assigneeId,
+				priority,
+				deadline,
+				estimatedMinutes,
+				type,
+			} = req.body;
+			if (!title)
+				return res
+					.status(400)
+					.json({ success: false, error: "Task title is required" });
+
+			const [task] = await db
+				.insert(tasks)
+				.values({
+					id: uuidv4(),
+					workspaceId,
+					projectId: projectId || null,
+					milestoneId: milestoneId || null,
+					title: title.trim(),
+					description: description || null,
+					priority: priority || "Medium",
+					status: assigneeId ? "Assigned" : "Draft",
+					assigneeId: assigneeId || null,
+					deadline: deadline ? new Date(deadline) : null,
+					estimatedMinutes: estimatedMinutes || 60,
+					type: type || "Task",
+					tags: [],
+					order: 0,
+				})
+				.returning();
+
+			await db
+				.insert(auditLogs)
+				.values({
+					id: uuidv4(),
+					userId,
+					workspaceId,
+					eventType: "TASK_CREATED",
+					details: `Task "${title}" created`,
+				});
+			if (projectId)
+				await db
+					.insert(activities)
+					.values({
+						id: uuidv4(),
+						workspaceId,
+						projectId,
+						taskId: task.id,
+						userId,
+						action: "Task created",
+						details: `Created task "${title}"`,
+					});
+
+			// Notify assignee via AssignmentDeliveryService
+			if (assigneeId) {
+				await AssignmentDeliveryService.dispatchWorkAssignment({
+					workspaceId,
+					entityType: "TASK_ASSIGNMENT",
+					entityId: task.id,
+					title: title.trim(),
+					description: description || undefined,
+					actorUserId: userId,
+					assigneeId,
+					deadline: deadline
+						? new Date(deadline).toISOString().split("T")[0]
+						: undefined,
+				});
+				socketService.emitToUser(assigneeId, "notification.created", {
+					type: "task_assigned",
+					title: "New Task Assigned",
+					message: `You have been assigned: "${title}"`,
+				});
+			}
+
+			socketService.emitToWorkspace(workspaceId, "task.created", task);
+			res.json({ success: true, data: task });
+		} catch (err: any) {
+			logger.error("Create task error: " + err.message);
+			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+// ─── Get Single Task ──────────────────────────────────────────────────────────
+orgTasksRouter.get(
+	"/:id",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const membership = (req as any).membership;
+			const id = req.params.id as string;
+
+			const [taskRow] = await db
+				.select({
+					task: tasks,
+					assigneeName: users.displayName,
+					projectName: projects.name,
+					milestoneName: milestones.name,
+				})
+				.from(tasks)
+				.leftJoin(users, eq(tasks.assigneeId, users.id))
+				.leftJoin(projects, eq(tasks.projectId, projects.id))
+				.leftJoin(milestones, eq(tasks.milestoneId, milestones.id))
+				.where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)));
+
+			if (!taskRow)
+				return res
+					.status(404)
+					.json({ success: false, error: "Task not found" });
+			if (membership.role === "MEMBER" && taskRow.task.assigneeId !== userId) {
+				return res.status(403).json({ success: false, error: "Access denied" });
+			}
+
+			// Get time tracking for this task
+			const timeRecords = await db
+				.select()
+				.from(timeTracking)
+				.where(
+					and(
+						eq(timeTracking.taskId, id),
+						eq(timeTracking.workspaceId, workspaceId),
+					),
+				);
+			const totalVerifiedSeconds = timeRecords.reduce(
+				(acc, r) => acc + (r.durationSeconds || 0),
+				0,
+			);
+
+			res.json({
+				success: true,
+				data: {
+					...taskRow.task,
+					assigneeName: taskRow.assigneeName,
+					projectName: taskRow.projectName,
+					milestoneName: taskRow.milestoneName,
+					verifiedWorkSeconds: totalVerifiedSeconds,
+				},
+			});
+		} catch (err: any) {
+			logger.error("Get task error: " + err.message);
+			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+// ─── Update Task Status / Assignment ─────────────────────────────────────────
+orgTasksRouter.patch(
+	"/:id",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const membership = (req as any).membership;
+			const id = req.params.id as string;
+
+			const existing = await db.query.tasks.findFirst({
+				where: and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)),
+			});
+			if (!existing)
+				return res
+					.status(404)
+					.json({ success: false, error: "Task not found" });
+
+			// Members can only update their own task status
+			if (membership.role === "MEMBER") {
+				if (existing.assigneeId !== userId)
+					return res
+						.status(403)
+						.json({ success: false, error: "Access denied" });
+				const allowed = ["Accepted", "In Progress", "Blocked", "Review"];
+				if (req.body.status && !allowed.includes(req.body.status))
+					return res
+						.status(403)
+						.json({
+							success: false,
+							error: `Status "${req.body.status}" not allowed for members`,
+						});
+				// Members cannot reassign
+				delete req.body.assigneeId;
+				delete req.body.deadline;
+				delete req.body.priority;
+			}
+
+			const updates: any = {};
+			const {
+				title,
+				description,
+				status,
+				assigneeId,
+				priority,
+				deadline,
+				milestoneId,
+				estimatedMinutes,
+				type,
+			} = req.body;
+			if (title !== undefined) updates.title = title;
+			if (description !== undefined) updates.description = description;
+			if (status !== undefined) {
+				updates.status = status;
+				if (status === "Completed") updates.completedAt = new Date();
+				if (status === "Review") updates.submittedAt = new Date();
+				if (status === "Approved") updates.approvedAt = new Date();
+			}
+			if (assigneeId !== undefined) updates.assigneeId = assigneeId || null;
+			if (priority !== undefined) updates.priority = priority;
+			if (deadline !== undefined)
+				updates.deadline = deadline ? new Date(deadline) : null;
+			if (milestoneId !== undefined) updates.milestoneId = milestoneId || null;
+			if (estimatedMinutes !== undefined)
+				updates.estimatedMinutes = estimatedMinutes;
+			if (type !== undefined) updates.type = type;
+
+			const [updated] = await db
+				.update(tasks)
+				.set(updates)
+				.where(eq(tasks.id, id))
+				.returning();
+
+			// Audit log
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "TASK_STATUS_UPDATE",
+				details: `Task "${existing.title}" status changed to ${updates.status || existing.status}${updates.assigneeId ? ` and assigned to ${updates.assigneeId}` : ""}`,
+			});
+
+			if (existing.projectId)
+				await db
+					.insert(activities)
+					.values({
+						id: uuidv4(),
+						workspaceId,
+						projectId: existing.projectId,
+						taskId: id,
+						userId,
+						action: `Task ${status || "updated"}`,
+						details: `Task "${updated.title}" ${status ? `moved to ${status}` : "updated"}`,
+					});
+
+			// Notify new assignee
+			if (updates.assigneeId && updates.assigneeId !== existing.assigneeId) {
+				await db.insert(notifications).values({
+					id: uuidv4(),
+					userId: updates.assigneeId,
+					workspaceId,
+					title: "Task Assigned",
+					message: `You have been assigned: "${existing.title}"`,
+					type: "task_assigned",
+					priority: updated.priority || "Medium",
+				});
+				socketService.emitToUser(updates.assigneeId, "notification.created", {
+					type: "task_assigned",
+					title: "Task Assigned",
+					message: `You have been assigned: "${existing.title}"`,
+				});
+			}
+
+			// Score for task completion
+			if (status === "Approved" && existing.assigneeId) {
+				const isOnTime =
+					!existing.deadline || new Date() <= new Date(existing.deadline);
+				const points = isOnTime ? 10 : 5;
+				await db.insert(scoreLedger).values({
+					id: uuidv4(),
+					userId: existing.assigneeId,
+					workspaceId,
+					taskId: id,
+					event: "TASK_APPROVED",
+					points,
+					reason: isOnTime ? "On-time delivery" : "Late delivery",
+				});
+				socketService.emitToWorkspace(workspaceId, "leaderboard.updated", {
+					userId: existing.assigneeId,
+				});
+			}
+
+			// Update project progress
+			if (existing.projectId) {
+				const projectTasks = await db
+					.select()
+					.from(tasks)
+					.where(eq(tasks.projectId, existing.projectId));
+				const total = projectTasks.length;
+				const completed = projectTasks.filter(
+					(t) => t.status === "Completed" || t.status === "Approved",
+				).length;
+				const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+				await db
+					.update(projects)
+					.set({ progress })
+					.where(eq(projects.id, existing.projectId));
+				socketService.emitToWorkspace(workspaceId, "project.updated", {
+					id: existing.projectId,
+					progress,
+				});
+			}
+
+			socketService.emitToWorkspace(workspaceId, "task.updated", updated);
+			res.json({ success: true, data: updated });
+		} catch (err: any) {
+			logger.error("Update task error: " + err.message);
+			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+// ─── Delete Task ──────────────────────────────────────────────────────────────
+orgTasksRouter.delete(
+	"/:id",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const membership = (req as any).membership;
+			const id = req.params.id as string;
+			if (membership.role === "MEMBER")
+				return res
+					.status(403)
+					.json({ success: false, error: "Members cannot delete tasks" });
+
+			const existing = await db.query.tasks.findFirst({
+				where: and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)),
+			});
+			if (!existing)
+				return res
+					.status(404)
+					.json({ success: false, error: "Task not found" });
+
+			await db.delete(tasks).where(eq(tasks.id, id));
+			await db
+				.insert(auditLogs)
+				.values({
+					id: uuidv4(),
+					userId,
+					workspaceId,
+					eventType: "TASK_DELETED",
+					details: `Task "${existing.title}" deleted`,
+				});
+			socketService.emitToWorkspace(workspaceId, "task.updated", {
+				id,
+				deleted: true,
+			});
+			res.json({ success: true, message: "Task deleted" });
+		} catch (err: any) {
+			logger.error("Delete task error: " + err.message);
+			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+// ─── Focus / Time Tracking ─────────────────────────────────────────────────────
+orgTasksRouter.post(
+	"/:id/focus/start",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+
+			// Check working hours (04:00–23:00)
+			const hour = new Date().getHours();
+			if (hour < 4 || hour >= 23) {
+				return res
+					.status(403)
+					.json({
+						success: false,
+						error:
+							"Focus is not available outside working hours (04:00 – 23:00)",
+					});
+			}
+
+			// End any active sessions first
+			await db
+				.update(timeTracking)
+				.set({
+					status: "Completed",
+					endTime: new Date(),
+					durationSeconds: sql`EXTRACT(EPOCH FROM (NOW() - start_time))::int`,
+				})
+				.where(
+					and(
+						eq(timeTracking.userId, userId),
+						eq(timeTracking.workspaceId, workspaceId),
+						eq(timeTracking.status, "Active"),
+					),
+				);
+
+			const [session] = await db
+				.insert(timeTracking)
+				.values({
+					id: uuidv4(),
+					userId,
+					workspaceId,
+					taskId: id,
+					status: "Active",
+					startTime: new Date(),
+				})
+				.returning();
+
+			// Update task status to In Progress
+			const task = await db.query.tasks.findFirst({ where: eq(tasks.id, id) });
+			if (task && task.status === "Assigned") {
+				await db
+					.update(tasks)
+					.set({ status: "In Progress" })
+					.where(eq(tasks.id, id));
+				socketService.emitToWorkspace(workspaceId, "task.started", {
+					id,
+					status: "In Progress",
+				});
+			}
+
+			socketService.emitToWorkspace(workspaceId, "focus.started", {
+				userId,
+				taskId: id,
+				sessionId: session.id,
+			});
+			res.json({ success: true, data: session });
+		} catch (err: any) {
+			logger.error("Focus start error: " + err.message);
+			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+orgTasksRouter.post(
+	"/:id/focus/pause",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+
+			const activeSession = await db.query.timeTracking.findFirst({
+				where: and(
+					eq(timeTracking.taskId, id),
+					eq(timeTracking.userId, userId),
+					eq(timeTracking.status, "Active"),
+				),
+			});
+			if (!activeSession)
+				return res
+					.status(404)
+					.json({ success: false, error: "No active focus session found" });
+
+			const durationSeconds = Math.floor(
+				(new Date().getTime() - new Date(activeSession.startTime).getTime()) /
+					1000,
+			);
+			const [updated] = await db
+				.update(timeTracking)
+				.set({ status: "Paused", pausedAt: new Date(), durationSeconds })
+				.where(eq(timeTracking.id, activeSession.id))
+				.returning();
+			socketService.emitToWorkspace(workspaceId, "focus.paused", {
+				userId,
+				taskId: id,
+				sessionId: activeSession.id,
+			});
+			res.json({ success: true, data: updated });
+		} catch (err: any) {
+			logger.error("Focus pause error: " + err.message);
+			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+orgTasksRouter.post(
+	"/:id/focus/resume",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+
+			const hour = new Date().getHours();
+			if (hour < 4 || hour >= 23) {
+				return res
+					.status(403)
+					.json({
+						success: false,
+						error:
+							"Focus is not available outside working hours (04:00 – 23:00)",
+					});
+			}
+
+			const pausedSession = await db.query.timeTracking.findFirst({
+				where: and(
+					eq(timeTracking.taskId, id),
+					eq(timeTracking.userId, userId),
+					eq(timeTracking.status, "Paused"),
+				),
+			});
+			if (!pausedSession)
+				return res
+					.status(404)
+					.json({ success: false, error: "No paused session found" });
+
+			const [updated] = await db
+				.update(timeTracking)
+				.set({ status: "Active", resumedAt: new Date() })
+				.where(eq(timeTracking.id, pausedSession.id))
+				.returning();
+			socketService.emitToWorkspace(workspaceId, "focus.resumed", {
+				userId,
+				taskId: id,
+				sessionId: pausedSession.id,
+			});
+			res.json({ success: true, data: updated });
+		} catch (err: any) {
+			logger.error("Focus resume error: " + err.message);
+			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+orgTasksRouter.post(
+	"/:id/focus/stop",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+
+			const activeSession = await db.query.timeTracking.findFirst({
+				where: and(
+					eq(timeTracking.taskId, id),
+					eq(timeTracking.userId, userId),
+					or(
+						eq(timeTracking.status, "Active"),
+						eq(timeTracking.status, "Paused"),
+					),
+				),
+			});
+			if (!activeSession)
+				return res
+					.status(404)
+					.json({ success: false, error: "No active session found" });
+
+			const now = new Date();
+			const startTime = activeSession.resumedAt || activeSession.startTime;
+			const sessionDuration = Math.floor(
+				(now.getTime() - new Date(startTime).getTime()) / 1000,
+			);
+			const totalDuration =
+				(activeSession.durationSeconds || 0) +
+				(activeSession.status === "Active" ? sessionDuration : 0);
+
+			const [updated] = await db
+				.update(timeTracking)
+				.set({
+					status: "Completed",
+					endTime: now,
+					durationSeconds: totalDuration,
+				})
+				.where(eq(timeTracking.id, activeSession.id))
+				.returning();
+			socketService.emitToWorkspace(workspaceId, "focus.stopped", {
+				userId,
+				taskId: id,
+				sessionId: activeSession.id,
+				durationSeconds: totalDuration,
+			});
+			res.json({ success: true, data: updated });
+		} catch (err: any) {
+			logger.error("Focus stop error: " + err.message);
+			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+// ─── Deadline Extension Requests ─────────────────────────────────────────────
+orgTasksRouter.post(
+	"/:id/deadline-extension",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+			const { reason, proposedDeadline } = req.body;
+			if (!reason || !proposedDeadline)
+				return res
+					.status(400)
+					.json({
+						success: false,
+						error: "Reason and proposed deadline are required",
+					});
+
+			const task = await db.query.tasks.findFirst({
+				where: and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)),
+			});
+			if (!task)
+				return res
+					.status(404)
+					.json({ success: false, error: "Task not found" });
+
+			const [ext] = await db
+				.insert(deadlineExtensions)
+				.values({
+					id: uuidv4(),
+					taskId: id,
+					userId,
+					workspaceId,
+					reason,
+					proposedDeadline: new Date(proposedDeadline),
+					status: "Pending",
+				})
+				.returning();
+
+			// Notify CEO
+			const ceo = await db.query.workspaceMembers.findFirst({
+				where: and(
+					eq(workspaceMembers.workspaceId, workspaceId),
+					eq(workspaceMembers.role, "CEO"),
+				),
+			});
+			if (ceo) {
+				await db.insert(notifications).values({
+					id: uuidv4(),
+					userId: ceo.userId,
+					workspaceId,
+					title: "Deadline Extension Request",
+					message: `Deadline extension requested for task "${task.title}"`,
+					type: "deadline_extension",
+					priority: "High",
+				});
+				socketService.emitToUser(ceo.userId, "notification.created", {
+					type: "deadline_extension",
+					title: "Deadline Extension Request",
+				});
+			}
+
+			socketService.emitToWorkspace(workspaceId, "request.created", ext);
+			res.json({ success: true, data: ext });
+		} catch (err: any) {
+			logger.error("Deadline extension error: " + err.message);
+			res.status(500).json({ success: false, error: "Internal server error" });
+		}
+	},
+);
+
+// ─── Delete Task (DELETE /:id) ──────────────────────────────────────────────
+orgTasksRouter.delete(
+	"/:id",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+
+			const [deleted] = await db
+				.delete(tasks)
+				.where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
+				.returning();
+
+			if (!deleted)
+				return res
+					.status(404)
+					.json({ success: false, error: "Task not found" });
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "TASK_DELETED",
+				details: `Deleted task "${deleted.title}"`,
+			});
+
+			socketService.emitToWorkspace(workspaceId, "task.deleted", {
+				id,
+				workspaceId,
+			});
+			res.json({
+				success: true,
+				data: deleted,
+				message: "Task deleted successfully",
+			});
+		} catch (err: any) {
+			logger.error("Delete task error: " + (err?.message || String(err)));
+			res.status(500).json({ success: false, error: "Failed to delete task" });
+		}
+	},
+);
+
+export default orgTasksRouter;

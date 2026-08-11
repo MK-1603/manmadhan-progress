@@ -1,13 +1,13 @@
-import { config } from "dotenv";
 import { neon } from "@neondatabase/serverless";
+import { config } from "dotenv";
 
 config({ path: ".env" });
 
 const sql = neon(process.env.DATABASE_URL!);
 
 async function run() {
-  console.log("Migrating Invitations table (v5)...");
-  await sql`
+	console.log("Migrating Invitations table (v5)...");
+	await sql`
     ALTER TABLE invitations 
     ADD COLUMN IF NOT EXISTS smtp_response text,
     ADD COLUMN IF NOT EXISTS provider_message_id text,
@@ -20,7 +20,7 @@ async function run() {
     ADD COLUMN IF NOT EXISTS workspace_assigned_at timestamp,
     ADD COLUMN IF NOT EXISTS activated_at timestamp
   `;
-  console.log("Done!");
+	console.log("Done!");
 }
 
 run().catch(console.error);

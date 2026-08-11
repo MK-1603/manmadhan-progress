@@ -37,22 +37,31 @@ type NavGroup = {
 // --- Data ---
 const NAVIGATION_DATA: NavGroup[] = [
   {
-    id: "today",
-    label: "Today",
+    id: "home",
+    label: "Home",
     items: [
       { name: "Dashboard", href: "/personal/dashboard", icon: LayoutDashboard },
-      { name: "Focus", href: "/personal/focus", icon: Focus },
-      { name: "Calendar", href: "/personal/calendar", icon: Calendar }
+      { name: "Focus", href: "/personal/focus", icon: Focus }
     ]
   },
   {
-    id: "execute",
-    label: "Execute",
+    id: "work",
+    label: "Work",
     items: [
-      { name: "Tasks", href: "/personal/tasks", icon: CheckSquare },
       { name: "Projects", href: "/personal/projects", icon: FolderKanban },
-      { name: "Goals", href: "/personal/goals", icon: Target },
-      { name: "Habits", href: "/personal/habits", icon: Repeat }
+      { name: "Tasks", href: "/personal/tasks", icon: CheckSquare },
+      { name: "Calendar", href: "/personal/calendar", icon: Calendar },
+      { name: "Timeline", href: "/personal/timeline", icon: History }
+    ]
+  },
+  {
+    id: "life",
+    label: "Life",
+    items: [
+      { name: "Journal", href: "/personal/journal", icon: PenTool },
+      { name: "Books", href: "/personal/books", icon: BookOpen },
+      { name: "Podcasts", href: "/personal/podcasts", icon: Headphones },
+      { name: "Learning", href: "/personal/learning", icon: GraduationCap }
     ]
   },
   {
@@ -60,47 +69,24 @@ const NAVIGATION_DATA: NavGroup[] = [
     label: "Knowledge",
     items: [
       { name: "Notes", href: "/personal/notes", icon: FileText },
-      { name: "Journal", href: "/personal/journal", icon: PenTool }
-    ]
-  },
-  {
-    id: "learn",
-    label: "Learn",
-    items: [
-      { name: "Books", href: "/personal/books", icon: BookOpen },
-      { name: "Learning", href: "/personal/learning", icon: GraduationCap },
-      { name: "Podcasts", href: "/personal/podcasts", icon: Headphones }
-    ]
-  },
-  {
-    id: "storage",
-    label: "Storage",
-    items: [
-      { name: "Files", href: "/personal/files", icon: Folder },
-      { name: "Personal Vault", href: "/personal/vault", icon: ShieldCheck }
-    ]
-  },
-  {
-    id: "insights",
-    label: "Insights",
-    items: [
-      { name: "Productivity", href: "/personal/productivity", icon: TrendingUp },
-      { name: "Personal Analytics", href: "/personal/analytics", icon: LineChart }
+      { name: "Documents", href: "/personal/documents", icon: Archive },
+      { name: "Prompt Library", href: "/personal/prompt-library", icon: Sparkles }
     ]
   },
   {
     id: "intelligence",
     label: "Intelligence",
     items: [
-      { name: "Personal Assistant", href: "/personal/assistant", icon: Sparkles }
+      { name: "AI Builder", href: "/personal/ai-builder", icon: Brain },
+      { name: "Prompt Library", href: "/personal/prompt-library", icon: BookOpen }
     ]
   },
   {
     id: "system",
     label: "System",
     items: [
-      { name: "Notifications", href: "/personal/notifications", icon: Bell },
       { name: "Integrations", href: "/personal/integrations", icon: LinkIcon },
+      { name: "Reports", href: "/personal/reports", icon: LineChart },
       { name: "Settings", href: "/personal/settings", icon: Settings }
     ]
   }
@@ -129,13 +115,10 @@ export function Sidebar() {
   }, []);
 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    "today": true,
-    "execute": true,
+    "home": true,
+    "work": true,
+    "life": true,
     "knowledge": true,
-    "learn": true,
-    "storage": true,
-    "insights": true,
-    "intelligence": true,
     "system": true
   });
 
@@ -154,6 +137,119 @@ export function Sidebar() {
   };
 
   // --- Components ---
+
+  const MobileSidebarContent = () => {
+    const mobileItems = [
+      { name: "Dashboard", href: "/personal/dashboard", icon: LayoutDashboard },
+      { name: "Focus", href: "/personal/focus", icon: Focus },
+      { name: "Projects", href: "/personal/projects", icon: FolderKanban },
+      { name: "Tasks", href: "/personal/tasks", icon: CheckSquare },
+      { name: "Calendar", href: "/personal/calendar", icon: Calendar },
+      { name: "Timeline", href: "/personal/timeline", icon: History },
+      { name: "Journal", href: "/personal/journal", icon: PenTool },
+      { name: "Books", href: "/personal/books", icon: BookOpen },
+      { name: "Podcasts", href: "/personal/podcasts", icon: Headphones },
+      { name: "Learning", href: "/personal/learning", icon: GraduationCap },
+      { name: "Notes", href: "/personal/notes", icon: FileText },
+      { name: "Files", href: "/personal/documents", icon: Archive },
+      { name: "AI Builder", href: "/personal/ai-builder", icon: Brain },
+      { name: "Prompt Library", href: "/personal/prompt-library", icon: BookOpen },
+      { name: "Integrations", href: "/personal/integrations", icon: LinkIcon },
+      { name: "Settings", href: "/personal/settings", icon: Settings }
+    ];
+
+    return (
+      <div className="flex flex-col h-[100dvh] overflow-hidden bg-card text-foreground">
+        {/* Top Brand & Close */}
+        <div className="flex items-center justify-between px-4 h-14 shrink-0">
+          <div className="font-bold text-[14px] sm:text-[15px] tracking-wide text-foreground">ManMadhan Progress</div>
+          <button 
+            onClick={() => setIsMobileDrawerOpen(false)}
+            className="w-11 h-11 flex items-center justify-center -mr-2 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Workspace Identity */}
+        <div className="flex items-center gap-3 px-4 py-2 sm:py-3 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-foreground text-background flex items-center justify-center font-bold shadow-sm border border-border">
+            M
+          </div>
+          <div className="flex flex-col flex-1 min-w-0 justify-center">
+            <span className="text-[14px] font-bold truncate text-foreground leading-tight mb-0.5">MM1107</span>
+            <span className="text-[12px] text-muted-foreground truncate leading-tight">Personal Workspace</span>
+          </div>
+          <div className="w-2.5 h-2.5 rounded-full bg-green-500 shadow-sm shrink-0" />
+        </div>
+
+        <div className="h-px bg-border/50 shrink-0 mx-4 my-2 sm:my-3" />
+
+        {/* Navigation Section */}
+        <div className="px-4 py-1 sm:py-2 shrink-0">
+          <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest px-1">
+            Navigation
+          </span>
+        </div>
+
+        {/* Navigation Grid (Auto-flowing 2 columns) */}
+        <div className="px-4 flex-1 min-h-0">
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 sm:gap-y-1.5 h-full content-start">
+            {mobileItems.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              return (
+                <Link key={item.name} href={item.href} onClick={() => setIsMobileDrawerOpen(false)}>
+                  <div className={`flex items-center gap-2.5 px-3 py-2 sm:py-2.5 rounded-[12px] transition-colors duration-200 ${
+                    isActive 
+                      ? "bg-[#D99A00]/10 dark:bg-[#F5B800]/10 text-foreground font-semibold" 
+                      : "text-muted-foreground font-medium hover:bg-accent/50"
+                  }`}>
+                    <item.icon className={`w-[18px] h-[18px] sm:w-[20px] sm:h-[20px] shrink-0 ${isActive ? "text-[#D99A00] dark:text-[#F5B800] stroke-[2.5]" : "stroke-2"}`} />
+                    <span className="text-[13px] sm:text-[14px] truncate pt-px">{item.name}</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="h-px bg-border/50 shrink-0 mx-4 my-2 sm:my-3" />
+
+        {/* Account Section */}
+        <div className="px-4 py-1 shrink-0">
+          <span className="text-[10px] font-bold text-muted-foreground/70 uppercase tracking-widest px-1">
+            Account
+          </span>
+        </div>
+        
+        <div className="px-4 pb-2 sm:pb-3 shrink-0 flex flex-col gap-0.5 sm:gap-1">
+          <Link href="/personal/notifications" onClick={() => setIsMobileDrawerOpen(false)}>
+            <div className="flex items-center justify-between px-3 py-2 sm:py-2.5 rounded-[12px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors font-medium cursor-pointer">
+              <div className="flex items-center gap-2.5">
+                <Bell className="w-[18px] h-[18px] sm:w-[20px] sm:h-[20px] shrink-0 stroke-2" />
+                <span className="text-[13px] sm:text-[14px] pt-px">Notifications</span>
+              </div>
+              <div className="w-1.5 h-1.5 rounded-full bg-[#3B82F6] shrink-0" />
+            </div>
+          </Link>
+          <div className="flex items-center justify-between px-3 py-2 sm:py-2.5 rounded-[12px] text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors font-medium cursor-pointer" onClick={() => setIsMobileDrawerOpen(false)}>
+            <div className="flex items-center gap-2.5">
+              <UserCircle className="w-[18px] h-[18px] sm:w-[20px] sm:h-[20px] shrink-0 stroke-2" />
+              <span className="text-[13px] sm:text-[14px] pt-px">Profile</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Branding */}
+        <div className="pb-4 sm:pb-6 pt-2 shrink-0 text-center flex justify-center">
+          <span className="text-[9px] sm:text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-40">
+            ManMadhan
+          </span>
+        </div>
+      </div>
+    );
+  };
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full overflow-hidden bg-card">
@@ -252,24 +348,7 @@ export function Sidebar() {
       {/* Footer Area */}
       <div className="flex flex-col shrink-0 border-t border-border bg-card">
         {/* Settings & Switcher */}
-        {(!isCollapsed || isMobile) ? (
-          <div className="p-3 flex flex-col gap-2">
-            <Link href="/personal/settings">
-              <div className={`flex items-center gap-3 px-2.5 py-2 rounded-lg transition-colors text-muted-foreground hover:bg-accent hover:text-foreground font-medium ${pathname === "/personal/settings" ? "bg-accent text-foreground font-semibold" : ""}`}>
-                <Settings className="w-[18px] h-[18px] shrink-0" />
-                <span className="text-[13px]">Settings</span>
-              </div>
-            </Link>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3 py-3">
-            <Link href="/personal/settings" title="Settings">
-              <div className={`p-2 rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors ${pathname === "/personal/settings" ? "bg-accent text-foreground" : ""}`}>
-                <Settings className="w-5 h-5" />
-              </div>
-            </Link>
-          </div>
-        )}
+        {/* Settings removed from here, now in SYSTEM group */}
 
         {/* Profile / Actions */}
         <div className={`p-4 flex flex-col gap-4 bg-muted/10 hidden md:flex border-t border-border/50`}>
@@ -366,15 +445,9 @@ export function Sidebar() {
                   setIsMobileDrawerOpen(false);
                 }
               }}
-              className="absolute top-0 left-0 bottom-0 w-[85vw] max-w-[320px] bg-card border-r border-border shadow-2xl overflow-y-auto"
+              className="absolute top-0 left-0 bottom-0 w-[calc(100vw-32px)] max-w-[390px] bg-card shadow-2xl overflow-hidden"
             >
-              <button 
-                onClick={() => setIsMobileDrawerOpen(false)}
-                className="absolute top-4 right-4 p-2 rounded-lg bg-muted/50 text-foreground z-10"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              <SidebarContent />
+              <MobileSidebarContent />
             </motion.div>
           </div>
         )}

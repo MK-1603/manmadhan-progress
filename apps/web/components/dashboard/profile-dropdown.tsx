@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
-  User as UserIcon, Shield, Settings, Building2,
-  LogOut, Check, Sun, Moon, Monitor
+  User as UserIcon, Settings, Building2,
+  LogOut, Check, Sun, Moon, Monitor, Bell, Layout, ChevronLeft
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
@@ -16,22 +16,24 @@ export function ProfileDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [showWorkspaces, setShowWorkspaces] = useState(false);
 
   const router = useRouter();
   const pathname = usePathname();
-  const { logout, user } = useAuth();
+  const { logout, user, isLoading } = useAuth();
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     setMounted(true);
+    if (isLoading || !user) return;
     const fetch = async () => {
       try {
         const res = await apiClient.get("/workspaces");
         if (res.data.success) setWorkspaces(res.data.data || []);
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error("Failed to fetch workspaces:", e); }
     };
     fetch();
-  }, []);
+  }, [user, isLoading]);
 
   const isPersonal = pathname?.startsWith("/personal");
   const activeWorkspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
@@ -68,24 +70,30 @@ export function ProfileDropdown() {
     }
   };
 
-  const handleMenuClick = (action: "profile" | "security" | "settings") => {
+  const handleMenuClick = (action: "profile" | "workspace" | "notifications" | "settings") => {
+    if (action === "workspace") {
+      setShowWorkspaces(true);
+      return;
+    }
+
     setIsOpen(false);
+    setShowWorkspaces(false);
+    
     let base = "/personal/settings";
     if (!isPersonal) {
       if (userRole === "CO-CEO") base = "/co-ceo/settings";
       else if (userRole === "MEMBER") base = "/member/settings";
       else base = "/ceo/settings";
     }
-    router.push(action === "security" ? `${base}#security` : base);
+    
+    if (action === "notifications") router.push(`${base}#notifications`);
+    else router.push(base);
   };
 
   const trigger = (
     <motion.button
       onClick={() => setIsOpen(!isOpen)}
-      whileHover={{ y: -1, scale: 1.02 }}
-      whileTap={{ scale: 0.96 }}
-      transition={{ duration: 0.12 }}
-      className="relative w-9 h-9 rounded-full flex items-center justify-center text-[#0B0B0C] font-bold text-xs shrink-0 cursor-pointer focus:outline-none bg-gold select-none"
+      className="relative w-9 h-9 rounded-full flex items-center justify-center text-[#0B0B0C] font-bold text-xs shrink-0 cursor-pointer focus:outline-none bg-gold select-none transition-colors hover:brightness-[1.05]"
       title="User Profile"
     >
       {userInitials}
@@ -116,28 +124,68 @@ export function ProfileDropdown() {
           <div className="flex flex-col min-w-0">
             <span className="text-[13px] font-semibold text-foreground dark:text-[#F5F5F4] truncate leading-snug">{userName}</span>
             <span className="text-[11px] text-muted-foreground dark:text-[#A1A1AA] truncate leading-tight font-normal">{getActiveWorkspaceName()}</span>
+            <span className="text-[10px] text-emerald-500 font-medium flex items-center gap-1.5 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Available
+            </span>
           </div>
         </div>
 
         {/* 2. ACCOUNT ROWS */}
-        <div className="flex flex-col gap-px mb-2.5">
-          {[
-            { label: "Profile", icon: UserIcon, action: "profile" as const },
-            { label: "Security", icon: Shield, action: "security" as const },
-            { label: "Account Settings", icon: Settings, action: "settings" as const },
-          ].map(({ label, icon: Icon, action }) => (
+        {showWorkspaces ? (
+          <div className="flex flex-col gap-px mb-2.5 pb-2.5 border-b dark:border-[rgba(255,255,255,0.06)]">
             <button
-              key={action}
-              onClick={() => handleMenuClick(action)}
-              className="w-full h-[32px] px-1.5 rounded-md flex items-center gap-2 text-left hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)] transition-colors focus:outline-none group cursor-pointer"
+              onClick={() => setShowWorkspaces(false)}
+              className="w-full h-[32px] px-1.5 rounded-md flex items-center gap-2 text-left hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)] focus:outline-none group cursor-pointer mb-1"
             >
               <div className="w-4 h-4 flex items-center justify-center shrink-0">
-                <Icon className="w-[15px] h-[15px] text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground transition-colors stroke-[1.7]" />
+                <ChevronLeft className="w-[15px] h-[15px] text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground stroke-[2]" />
               </div>
-              <span className="text-[12.5px] font-medium text-foreground dark:text-[#E4E4E7]">{label}</span>
+              <span className="text-[12.5px] font-medium text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground">Back</span>
             </button>
-          ))}
-        </div>
+            <button
+              onClick={() => handleWorkspaceSwitch("personal")}
+              className={`w-full h-[32px] px-1.5 rounded-md flex items-center gap-2 text-left focus:outline-none group cursor-pointer ${isPersonal ? "bg-accent/40 dark:bg-[rgba(255,255,255,0.04)]" : "bg-transparent hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)]"}`}
+            >
+              <div className="w-4 h-4 flex items-center justify-center shrink-0">
+                {isPersonal && <Check className="w-[14px] h-[14px] text-gold dark:text-[#D8A52B] stroke-[3]" />}
+              </div>
+              <span className={`text-[12.5px] font-medium ${isPersonal ? "text-foreground dark:text-[#E4E4E7]" : "text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground"}`}>Personal Workspace</span>
+            </button>
+            
+            <button
+              onClick={() => {
+                const orgWs = workspaces.find(w => w.type !== "personal") || workspaces[0];
+                handleWorkspaceSwitch("org", orgWs?.id);
+              }}
+              className={`w-full h-[32px] px-1.5 rounded-md flex items-center gap-2 text-left focus:outline-none group cursor-pointer ${!isPersonal ? "bg-accent/40 dark:bg-[rgba(255,255,255,0.04)]" : "bg-transparent hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)]"}`}
+            >
+              <div className="w-4 h-4 flex items-center justify-center shrink-0">
+                {!isPersonal && <Check className="w-[14px] h-[14px] text-gold dark:text-[#D8A52B] stroke-[3]" />}
+              </div>
+              <span className={`text-[12.5px] font-medium ${!isPersonal ? "text-foreground dark:text-[#E4E4E7]" : "text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground"}`}>Organization Workspace</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-px mb-2.5 pb-2.5 border-b dark:border-[rgba(255,255,255,0.06)]">
+            {[
+              { label: "Profile", icon: UserIcon, action: "profile" as const },
+              { label: "Workspace", icon: Layout, action: "workspace" as const },
+              { label: "Notifications", icon: Bell, action: "notifications" as const },
+              { label: "Account Settings", icon: Settings, action: "settings" as const },
+            ].map(({ label, icon: Icon, action }) => (
+              <button
+                key={action}
+                onClick={() => handleMenuClick(action)}
+                className="w-full h-[32px] px-1.5 rounded-md flex items-center gap-2 text-left hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)] focus:outline-none group cursor-pointer"
+              >
+                <div className="w-4 h-4 flex items-center justify-center shrink-0">
+                  <Icon className="w-[15px] h-[15px] text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground stroke-[1.7]" />
+                </div>
+                <span className="text-[12.5px] font-medium text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground">{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
 
 
@@ -177,7 +225,7 @@ export function ProfileDropdown() {
         <div className="pt-1.5 mt-1.5 border-t dark:border-[rgba(255,255,255,0.06)] border-border/60">
           <button
             onClick={() => { setIsOpen(false); logout(); }}
-            className="w-full h-[32px] px-1.5 rounded-md flex items-center gap-2 text-left hover:bg-rose-500/10 dark:hover:bg-[rgba(239,107,107,0.07)] transition-colors focus:outline-none cursor-pointer"
+            className="w-full h-[32px] px-1.5 rounded-md flex items-center gap-2 text-left hover:bg-rose-500/10 dark:hover:bg-[rgba(239,107,107,0.07)] focus:outline-none cursor-pointer"
           >
             <div className="w-4 h-4 flex items-center justify-center shrink-0">
               <LogOut className="w-[15px] h-[15px] text-[#EF6B6B] stroke-[1.7]" />
@@ -201,28 +249,68 @@ export function ProfileDropdown() {
           <div className="flex flex-col min-w-0">
             <span className="text-[16px] font-semibold text-foreground dark:text-[#F5F5F4] truncate leading-snug">{userName}</span>
             <span className="text-[13px] text-muted-foreground dark:text-[#A1A1AA] truncate leading-tight font-normal">{getActiveWorkspaceName()}</span>
+            <span className="text-[12px] text-emerald-500 font-medium flex items-center gap-1.5 mt-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Available
+            </span>
           </div>
         </div>
 
         {/* 2. ACCOUNT ROWS */}
-        <div className="flex flex-col gap-px mb-4">
-          {[
-            { label: "Profile", icon: UserIcon, action: "profile" as const },
-            { label: "Security", icon: Shield, action: "security" as const },
-            { label: "Account Settings", icon: Settings, action: "settings" as const },
-          ].map(({ label, icon: Icon, action }) => (
+        {showWorkspaces ? (
+          <div className="flex flex-col gap-px mb-4 pb-4 border-b dark:border-[rgba(255,255,255,0.06)]">
             <button
-              key={action}
-              onClick={() => handleMenuClick(action)}
-              className="w-full h-12 px-2 rounded-xl flex items-center gap-3 text-left hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)] transition-colors focus:outline-none group cursor-pointer"
+              onClick={() => setShowWorkspaces(false)}
+              className="w-full h-12 px-2 rounded-xl flex items-center gap-3 text-left hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)] focus:outline-none group cursor-pointer mb-2"
             >
               <div className="w-6 h-6 flex items-center justify-center shrink-0">
-                <Icon className="w-5 h-5 text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground transition-colors stroke-[1.7]" />
+                <ChevronLeft className="w-5 h-5 text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground stroke-[2]" />
               </div>
-              <span className="text-[15px] font-medium text-foreground dark:text-[#E4E4E7]">{label}</span>
+              <span className="text-[15px] font-medium text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground">Back</span>
             </button>
-          ))}
-        </div>
+            <button
+              onClick={() => handleWorkspaceSwitch("personal")}
+              className={`w-full h-12 px-2 rounded-xl flex items-center gap-3 text-left focus:outline-none group cursor-pointer ${isPersonal ? "bg-accent/40 dark:bg-[rgba(255,255,255,0.04)]" : "bg-transparent hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)]"}`}
+            >
+              <div className="w-6 h-6 flex items-center justify-center shrink-0">
+                {isPersonal && <Check className="w-5 h-5 text-gold dark:text-[#D8A52B] stroke-[3]" />}
+              </div>
+              <span className={`text-[15px] font-medium ${isPersonal ? "text-foreground dark:text-[#E4E4E7]" : "text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground"}`}>Personal Workspace</span>
+            </button>
+            
+            <button
+              onClick={() => {
+                const orgWs = workspaces.find(w => w.type !== "personal") || workspaces[0];
+                handleWorkspaceSwitch("org", orgWs?.id);
+              }}
+              className={`w-full h-12 px-2 rounded-xl flex items-center gap-3 text-left focus:outline-none group cursor-pointer ${!isPersonal ? "bg-accent/40 dark:bg-[rgba(255,255,255,0.04)]" : "bg-transparent hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)]"}`}
+            >
+              <div className="w-6 h-6 flex items-center justify-center shrink-0">
+                {!isPersonal && <Check className="w-5 h-5 text-gold dark:text-[#D8A52B] stroke-[3]" />}
+              </div>
+              <span className={`text-[15px] font-medium ${!isPersonal ? "text-foreground dark:text-[#E4E4E7]" : "text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground"}`}>Organization Workspace</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-px mb-4 pb-4 border-b dark:border-[rgba(255,255,255,0.06)]">
+            {[
+              { label: "Profile", icon: UserIcon, action: "profile" as const },
+              { label: "Workspace", icon: Layout, action: "workspace" as const },
+              { label: "Notifications", icon: Bell, action: "notifications" as const },
+              { label: "Account Settings", icon: Settings, action: "settings" as const },
+            ].map(({ label, icon: Icon, action }) => (
+              <button
+                key={action}
+                onClick={() => handleMenuClick(action)}
+                className="w-full h-12 px-2 rounded-xl flex items-center gap-3 text-left hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)] focus:outline-none group cursor-pointer"
+              >
+                <div className="w-6 h-6 flex items-center justify-center shrink-0">
+                  <Icon className="w-5 h-5 text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground stroke-[1.7]" />
+                </div>
+                <span className="text-[15px] font-medium text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground">{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
 
 
@@ -262,7 +350,7 @@ export function ProfileDropdown() {
         <div className="pt-3 border-t dark:border-[rgba(255,255,255,0.06)] border-border/60 mb-2">
           <button
             onClick={() => { setIsOpen(false); logout(); }}
-            className="w-full h-12 px-2 rounded-xl flex items-center gap-3 text-left hover:bg-rose-500/10 dark:hover:bg-[rgba(239,107,107,0.07)] transition-colors focus:outline-none cursor-pointer"
+            className="w-full h-12 px-2 rounded-xl flex items-center gap-3 text-left hover:bg-rose-500/10 dark:hover:bg-[rgba(239,107,107,0.07)] focus:outline-none cursor-pointer"
           >
             <div className="w-6 h-6 flex items-center justify-center shrink-0">
               <LogOut className="w-5 h-5 text-[#EF6B6B] stroke-[1.7]" />

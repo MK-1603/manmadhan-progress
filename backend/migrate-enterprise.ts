@@ -1,8 +1,8 @@
-import { config } from "dotenv";
-import { resolve } from "path";
-import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
+import { config } from "dotenv";
 import { sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/neon-http";
+import { resolve } from "path";
 
 config({ path: ".env" });
 
@@ -10,8 +10,8 @@ const sqlNeon = neon(process.env.DATABASE_URL!);
 const db = drizzle(sqlNeon);
 
 async function main() {
-  console.log("Creating departments table...");
-  await db.execute(sql`
+	console.log("Creating departments table...");
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "departments" (
       "id" text PRIMARY KEY NOT NULL,
       "workspace_id" text NOT NULL REFERENCES "workspaces"("id") ON DELETE cascade,
@@ -21,8 +21,8 @@ async function main() {
     );
   `);
 
-  console.log("Creating projects table...");
-  await db.execute(sql`
+	console.log("Creating projects table...");
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "projects" (
       "id" text PRIMARY KEY NOT NULL,
       "workspace_id" text NOT NULL REFERENCES "workspaces"("id") ON DELETE cascade,
@@ -35,8 +35,8 @@ async function main() {
     );
   `);
 
-  console.log("Creating tasks table...");
-  await db.execute(sql`
+	console.log("Creating tasks table...");
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "tasks" (
       "id" text PRIMARY KEY NOT NULL,
       "project_id" text REFERENCES "projects"("id") ON DELETE cascade,
@@ -50,8 +50,8 @@ async function main() {
     );
   `);
 
-  console.log("Creating password_resets table...");
-  await db.execute(sql`
+	console.log("Creating password_resets table...");
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "password_resets" (
       "id" text PRIMARY KEY NOT NULL,
       "user_id" text NOT NULL REFERENCES "users"("id") ON DELETE cascade,
@@ -62,8 +62,8 @@ async function main() {
     );
   `);
 
-  console.log("Creating time_tracking table...");
-  await db.execute(sql`
+	console.log("Creating time_tracking table...");
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "time_tracking" (
       "id" text PRIMARY KEY NOT NULL,
       "user_id" text NOT NULL REFERENCES "users"("id") ON DELETE cascade,
@@ -76,8 +76,8 @@ async function main() {
     );
   `);
 
-  console.log("Creating spaces table...");
-  await db.execute(sql`
+	console.log("Creating spaces table...");
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "spaces" (
       "id" text PRIMARY KEY NOT NULL,
       "workspace_id" text NOT NULL REFERENCES "workspaces"("id") ON DELETE cascade,
@@ -88,8 +88,8 @@ async function main() {
     );
   `);
 
-  console.log("Creating space_documents table...");
-  await db.execute(sql`
+	console.log("Creating space_documents table...");
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "space_documents" (
       "id" text PRIMARY KEY NOT NULL,
       "space_id" text NOT NULL REFERENCES "spaces"("id") ON DELETE cascade,
@@ -101,8 +101,8 @@ async function main() {
     );
   `);
 
-  console.log("Creating folders table...");
-  await db.execute(sql`
+	console.log("Creating folders table...");
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "folders" (
       "id" text PRIMARY KEY NOT NULL,
       "workspace_id" text NOT NULL REFERENCES "workspaces"("id") ON DELETE cascade,
@@ -112,8 +112,8 @@ async function main() {
     );
   `);
 
-  console.log("Creating files table...");
-  await db.execute(sql`
+	console.log("Creating files table...");
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "files" (
       "id" text PRIMARY KEY NOT NULL,
       "workspace_id" text NOT NULL REFERENCES "workspaces"("id") ON DELETE cascade,
@@ -126,8 +126,8 @@ async function main() {
     );
   `);
 
-  console.log("Creating workspace_settings table...");
-  await db.execute(sql`
+	console.log("Creating workspace_settings table...");
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "workspace_settings" (
       "id" text PRIMARY KEY NOT NULL,
       "workspace_id" text NOT NULL REFERENCES "workspaces"("id") ON DELETE cascade,
@@ -139,8 +139,8 @@ async function main() {
     );
   `);
 
-  console.log("Creating notifications table...");
-  await db.execute(sql`
+	console.log("Creating notifications table...");
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "notifications" (
       "id" text PRIMARY KEY NOT NULL,
       "user_id" text NOT NULL REFERENCES "users"("id") ON DELETE cascade,
@@ -154,8 +154,8 @@ async function main() {
     );
   `);
 
-  console.log("Creating ai_context table...");
-  await db.execute(sql`
+	console.log("Creating ai_context table...");
+	await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "ai_context" (
       "id" text PRIMARY KEY NOT NULL,
       "workspace_id" text NOT NULL REFERENCES "workspaces"("id") ON DELETE cascade,
@@ -166,7 +166,7 @@ async function main() {
     );
   `);
 
-  console.log("Migration complete!");
+	console.log("Migration complete!");
 }
 
 main().catch(console.error);

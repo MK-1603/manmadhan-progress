@@ -2,8 +2,8 @@
  * ManMadhan ASCII Banner Branding
  */
 export const printBanner = (): void => {
-  process.stdout.write("\x1Bc"); // Clear terminal screen
-  process.stdout.write(`\x1b[96m
+	process.stdout.write("\x1Bc"); // Clear terminal screen
+	process.stdout.write(`\x1b[96m
    ███╗   ███╗ █████╗ ███╗   ██╗███╗   ███╗ █████╗ ██████╗ ██╗  ██╗ █████╗ ███╗   ██╗
    ████╗ ████║██╔══██╗████╗  ██║████╗ ████║██╔══██╗██╔══██╗██║  ██║██╔══██╗████╗  ██║
    ██╔████╔██║███████║██╔██╗ ██║██╔████╔██║███████║██║  ██║███████║███████║██╔██╗ ██║

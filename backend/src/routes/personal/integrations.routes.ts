@@ -1,130 +1,75 @@
-import { Router, Request, Response } from "express";
+import { eq } from "drizzle-orm";
+import { type Request, type Response, Router } from "express";
 import { personalDb } from "../../../database/client";
 import { integrationAccounts } from "../../../database/schema/personal.schema";
-import { eq } from "drizzle-orm";
 import { authenticate } from "../../middleware/auth.middleware";
-import { IntegrationService } from "../../services/integrations/IntegrationService";
+import { logger } from "../../services/logger.service";
 
-// Initialize the IntegrationService (registers all providers)
-IntegrationService.initialize();
+export const personalIntegrationsRouter = Router();
+personalIntegrationsRouter.use(authenticate);
 
-export const integrationsRouter = Router();
+const getUserId = (req: Request) => (req as any).user?.id;
 
-// ==========================================
-// CALLBACK ROUTE (Must be before authenticate)
-// ==========================================
-integrationsRouter.get("/:provider/callback", async (req: Request, res: Response) => {
-  try {
-    const provider = req.params.provider as string;
-    const code = req.query.code as string;
-    const state = req.query.state as string;
-    const error = req.query.error as string;
+// GET /api/v1/personal/integrations — list all connected integrations (real status only)
+personalIntegrationsRouter.get("/", async (req: Request, res: Response) => {
+	try {
+		const userId = getUserId(req);
+		if (!userId)
+			return res.status(401).json({ success: false, error: "Unauthorized" });
 
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    const redirectBack = `${frontendUrl}/personal/integrations`;
+		const accounts = await personalDb.query.integrationAccounts.findMany({
+			where: eq(integrationAccounts.ownerUserId, userId),
+		});
 
-    if (error) {
-      return res.redirect(`${redirectBack}?error=${error}`);
-    }
+		// Return sanitized data — never expose tokens
+		const sanitized = accounts.map((a) => ({
+			id: a.id,
+			provider: a.provider,
+			integrationType: a.integrationType,
+			accountId: a.accountId,
+			accountName: a.accountName,
+			status: a.status,
+			lastSyncAt: a.lastSyncAt,
+			createdAt: a.createdAt,
+		}));
 
-    if (!code || !state) {
-      return res.redirect(`${redirectBack}?error=MissingCodeOrState`);
-    }
-
-    const userId = state;
-
-    await IntegrationService.connectOAuth(provider, userId, code);
-
-    return res.redirect(`${redirectBack}?success=true`);
-  } catch (error: any) {
-    console.error("Integration Callback Error:", error);
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    return res.redirect(`${frontendUrl}/personal/integrations?error=${encodeURIComponent(error.message)}`);
-  }
+		res.json({ success: true, data: sanitized });
+	} catch (err: any) {
+		logger.error("Get integrations error: " + err.message);
+		res
+			.status(500)
+			.json({ success: false, error: "Failed to fetch integrations" });
+	}
 });
 
+// DELETE /api/v1/personal/integrations/:id — disconnect an integration
+personalIntegrationsRouter.delete(
+	"/:id",
+	async (req: Request, res: Response) => {
+		try {
+			const userId = getUserId(req);
+			if (!userId)
+				return res.status(401).json({ success: false, error: "Unauthorized" });
 
-// All routes below require authentication
-integrationsRouter.use(authenticate);
+			const account = await personalDb.query.integrationAccounts.findFirst({
+				where: eq(integrationAccounts.id, req.params.id),
+			});
 
-// Get Connected Integrations
-integrationsRouter.get("/", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const accounts = await personalDb
-      .select({
-        id: integrationAccounts.id,
-        provider: integrationAccounts.provider,
-        integrationType: integrationAccounts.integrationType,
-        accountName: integrationAccounts.accountName,
-        status: integrationAccounts.status,
-        lastSyncAt: integrationAccounts.lastSyncAt,
-        createdAt: integrationAccounts.createdAt,
-      })
-      .from(integrationAccounts)
-      .where(eq(integrationAccounts.ownerUserId, user.id as string));
-      
-    return res.status(200).json({ success: true, data: accounts });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
+			if (!account || account.ownerUserId !== userId) {
+				return res
+					.status(404)
+					.json({ success: false, error: "Integration not found" });
+			}
 
-// Connect an Integration
-integrationsRouter.post("/:provider/connect", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const provider = req.params.provider as string;
-    
-    const integrationProvider = IntegrationService.getProvider(provider);
-
-    if (provider === "RSS") {
-      const { feedUrl } = req.body;
-      if (!feedUrl) return res.status(400).json({ success: false, error: "feedUrl is required for RSS" });
-      
-      const result = await IntegrationService.connectOAuth(provider, user.id as string, feedUrl);
-      return res.status(201).json({ success: true, data: result });
-    }
-
-    if (integrationProvider.getAuthUrl) {
-      let authUrl = integrationProvider.getAuthUrl();
-      authUrl += `&state=${user.id}`;
-      return res.status(200).json({ success: true, data: { authUrl } });
-    }
-
-    return res.status(400).json({ success: false, error: "Provider does not support connection initiation" });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Sync Integration
-integrationsRouter.post("/:id/sync", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const id = req.params.id as string;
-    
-    const result = await IntegrationService.syncIntegration(id, user.id as string);
-
-    return res.status(200).json({ success: true, data: result });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Disconnect
-integrationsRouter.delete("/:id", async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user;
-    const id = req.params.id as string;
-    
-    await personalDb.delete(integrationAccounts).where(
-      eq(integrationAccounts.id, id)
-    );
-    return res.status(200).json({ success: true });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-export default integrationsRouter;
+			await personalDb
+				.delete(integrationAccounts)
+				.where(eq(integrationAccounts.id, req.params.id));
+			res.json({ success: true, message: "Integration disconnected" });
+		} catch (err: any) {
+			logger.error("Delete integration error: " + err.message);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to disconnect integration" });
+		}
+	},
+);

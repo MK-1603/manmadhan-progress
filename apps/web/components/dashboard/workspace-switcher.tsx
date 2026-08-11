@@ -6,16 +6,19 @@ import { useAuth } from "../auth/auth-context";
 import { usePathname, useRouter } from "next/navigation";
 import { ResponsivePopover } from "../ui/responsive-popover";
 import apiClient from "@/lib/api-client";
+import { useSocket } from "@/components/providers/socket-provider";
 
 export function WorkspaceSwitcher() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   
   const [isOpen, setIsOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const { socket } = useSocket();
 
   useEffect(() => {
+    if (isLoading || !user) return;
     const fetchWorkspaces = async () => {
       try {
         const res = await apiClient.get("/workspaces");
@@ -23,11 +26,18 @@ export function WorkspaceSwitcher() {
           setWorkspaces(res.data.data || []);
         }
       } catch (e) {
-        console.error(e);
+        console.error("Failed to fetch workspaces:", e);
       }
     };
     fetchWorkspaces();
-  }, []);
+  }, [user, isLoading]);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleOrganizationUpdated = (updated: any) => setWorkspaces((items) => items.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
+    socket.on("organization.updated", handleOrganizationUpdated);
+    return () => { socket.off("organization.updated", handleOrganizationUpdated); };
+  }, [socket]);
 
   const isPersonal = pathname.startsWith("/personal");
   const activeWorkspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
@@ -36,7 +46,7 @@ export function WorkspaceSwitcher() {
   const getActiveWorkspaceName = () => {
     if (isPersonal) return "Personal Workspace";
     const current = workspaces.find(w => w.id === activeWorkspaceId);
-    return current ? current.name : "ManMadhan Workspace";
+    return current ? current.name : "Organization Workspace";
   };
 
   const getActiveWorkspaceSubtitle = () => {

@@ -8,6 +8,7 @@ import { AuthProvider } from "../components/auth/auth-context";
 import { SocketProvider } from "../components/providers/socket-provider";
 import { AuthModal } from "../components/auth/auth-modal";
 import { RestModeOverlay } from "../components/rest-mode-overlay";
+import { ConfirmProvider } from "../hooks/use-confirm";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -65,10 +66,12 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <AuthProvider>
             <SocketProvider>
-              <main>{children}</main>
-              <ScrollToTopButton />
-              <AuthModal />
-              <RestModeOverlay />
+              <ConfirmProvider>
+                <main>{children}</main>
+                <ScrollToTopButton />
+                <AuthModal />
+                <RestModeOverlay />
+              </ConfirmProvider>
             </SocketProvider>
           </AuthProvider>
         </ThemeProvider>

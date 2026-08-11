@@ -8,15 +8,17 @@ const nextConfig: NextConfig = {
   },
   typedRoutes: false,
   async rewrites() {
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL ? process.env.NEXT_PUBLIC_API_URL.replace('/api/v1', '') : "http://localhost:4100";
+
     return [
       {
         source: "/api/v1/:path*",
-        destination: "http://localhost:4000/api/v1/:path*",
+        destination: `${backendUrl}/api/v1/:path*`,
       },
       {
         source: "/socket.io/:path*",
-        destination: "http://localhost:4000/socket.io/:path*",
-      }
+        destination: `${backendUrl}/socket.io/:path*`,
+      },
     ];
   },
 };

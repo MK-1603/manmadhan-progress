@@ -70,12 +70,12 @@ export default function InvitationsPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-[24px] font-bold tracking-tight text-foreground">Invitation Center</h1>
-            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-widest text-gold bg-gold/10 px-2.5 py-0.5 rounded-full border border-gold/20">
-              <Sparkles className="w-3 h-3" /> AI Workspace
+            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-widest text-primary bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
+              <ShieldCheck className="w-3 h-3" /> Executive Dispatch
             </span>
           </div>
           <p className="text-[13px] text-muted-foreground mt-1">
-            Dispatch, manage, and monitor secure organization invitations with live AI timeline tracking.
+            Dispatch, manage, and monitor secure organization invitations with live audit timeline tracking.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground bg-layer-2 px-3.5 py-1.5 rounded-xl border border-border/50">

@@ -19,7 +19,12 @@ export function WorkspaceSwitcher({ isCollapsed, isMobile }: WorkspaceSwitcherPr
   const handleWorkspaceSwitch = (mode: "org" | "personal") => {
     setIsOpen(false);
     if (mode === "org") {
-      router.push("/ceo/dashboard");
+      // Check localStorage for cached role or use pathname
+      const isCurrentlyCoCeo = pathname.startsWith("/co-ceo");
+      const isCurrentlyMember = pathname.startsWith("/member");
+      if (isCurrentlyCoCeo) router.push("/co-ceo/dashboard");
+      else if (isCurrentlyMember) router.push("/member/dashboard");
+      else router.push("/ceo/dashboard");
     } else {
       router.push("/personal/dashboard");
     }

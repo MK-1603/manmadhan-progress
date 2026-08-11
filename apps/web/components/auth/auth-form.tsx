@@ -618,7 +618,11 @@ export function AuthForm({
                   setTransitionMessage("Redirecting to Google...");
                   setIsTransitioning(true);
                   setTimeout(() => {
-                    window.location.href = "http://localhost:4000/api/v1/auth/google";
+                    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100/api/v1";
+                    const googleAuthUrl = apiBase.endsWith("/api/v1") 
+                      ? `${apiBase}/auth/google` 
+                      : `${apiBase}/api/v1/auth/google`;
+                    window.location.href = googleAuthUrl;
                   }, 600);
                 }} 
               />

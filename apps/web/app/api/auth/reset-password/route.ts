@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "No active reset session. Please request a new link." }, { status: 401 });
     }
 
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100/api/v1";
     
     // Submit to backend
     const response = await fetch(`${backendUrl}/auth/reset-password`, {
