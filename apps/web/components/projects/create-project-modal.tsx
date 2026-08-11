@@ -8,16 +8,26 @@ interface CreateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (project: any) => void;
+  /** Pre-selects the CO-CEO assignee when opened from their profile page */
+  defaultAssigneeId?: string | null;
+  defaultAssigneeName?: string | null;
 }
 
-export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProjectModalProps) {
+export function CreateProjectModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  defaultAssigneeId = null,
+  defaultAssigneeName = null,
+}: CreateProjectModalProps) {
+  // When opened from CO-CEO profile, start at PROMPT but with CEO_TO_CO_CEO locked
   const [step, setStep] = useState<"PROMPT" | "ANALYSIS" | "CONFIRM">("PROMPT");
   const [prompt, setPrompt] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [deadline, setDeadline] = useState("");
   const [assignmentType, setAssignmentType] = useState<"CEO_TO_CO_CEO" | "CEO_TO_MEMBER">("CEO_TO_CO_CEO");
-  const [assignedToUserId, setAssignedToUserId] = useState("");
+  const [assignedToUserId, setAssignedToUserId] = useState(defaultAssigneeId || "");
   const [responsibleCoCeoId, setResponsibleCoCeoId] = useState("");
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -116,7 +126,11 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
             <Sparkles className="w-5 h-5 text-[#E3AA18] shrink-0" />
             <div>
               <h2 className="text-[19px] font-[650] text-[#F5F5F5] leading-tight">Create Organization Project</h2>
-              <p className="text-[13px] text-[#858585] mt-0.5">Define the project you want to execute.</p>
+              <p className="text-[13px] text-[#858585] mt-0.5">
+                {defaultAssigneeName
+                  ? `Assigning to ${defaultAssigneeName} (CO-CEO)`
+                  : "Define the project you want to execute."}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-[#858585] hover:text-[#F5F5F5] hover:bg-[#222222] transition-colors">
@@ -199,79 +213,43 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
 
           {step === "CONFIRM" && (
             <div className="space-y-4 text-xs">
-              <div>
-                <label className="block text-[12px] font-semibold text-[#D6D6D6] tracking-[0.06em] uppercase mb-2">
-                  ASSIGNMENT HIERARCHY
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => { setAssignmentType("CEO_TO_CO_CEO"); setAssignedToUserId(""); }}
-                    className={`p-3.5 rounded-xl border text-left transition-colors ${assignmentType === "CEO_TO_CO_CEO" ? "border-[#E3AA18] bg-[#E3AA18]/5" : "border-[#2A2A2A] bg-[#111111]"}`}
-                  >
-                    <div className="font-semibold text-[#F5F5F5] flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-[#E3AA18]" /> CEO → CO-CEO
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setAssignmentType("CEO_TO_MEMBER"); setAssignedToUserId(""); }}
-                    className={`p-3.5 rounded-xl border text-left transition-colors ${assignmentType === "CEO_TO_MEMBER" ? "border-[#E3AA18] bg-[#E3AA18]/5" : "border-[#2A2A2A] bg-[#111111]"}`}
-                  >
-                    <div className="font-semibold text-[#F5F5F5] flex items-center gap-2">
-                      <Users className="w-4 h-4 text-[#B8B8B8]" /> CEO → Member
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {assignmentType === "CEO_TO_CO_CEO" ? (
+              {/* Only show assignment type toggle when NOT pre-locked to a CO-CEO */}
+              {!defaultAssigneeId && (
                 <div>
                   <label className="block text-[12px] font-semibold text-[#D6D6D6] tracking-[0.06em] uppercase mb-2">
-                    ASSIGN TO CO-CEO *
+                    ASSIGNMENT HIERARCHY
                   </label>
-                  <select
-                    value={assignedToUserId}
-                    onChange={(e) => setAssignedToUserId(e.target.value)}
-                    className="w-full h-11 px-3.5 rounded-xl bg-[#111111] border border-[#2A2A2A] text-sm text-[#F5F5F5] focus:outline-none focus:border-[#E3AA18]"
-                  >
-                    <option value="">Select CO-CEO...</option>
-                    {coCeos.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name || c.email} (CO-CEO)</option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[12px] font-semibold text-[#D6D6D6] tracking-[0.06em] uppercase mb-2">
-                      RESPONSIBLE CO-CEO *
-                    </label>
-                    <select
-                      value={responsibleCoCeoId}
-                      onChange={(e) => setResponsibleCoCeoId(e.target.value)}
-                      className="w-full h-11 px-3.5 rounded-xl bg-[#111111] border border-[#2A2A2A] text-sm text-[#F5F5F5] focus:outline-none focus:border-[#E3AA18]"
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => { setAssignmentType("CEO_TO_CO_CEO"); setAssignedToUserId(""); }}
+                      className={`p-3.5 rounded-xl border text-left transition-colors ${assignmentType === "CEO_TO_CO_CEO" ? "border-[#E3AA18] bg-[#E3AA18]/5" : "border-[#2A2A2A] bg-[#111111]"}`}
                     >
-                      <option value="">Select CO-CEO...</option>
-                      {coCeos.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name || c.email}</option>
-                      ))}
-                    </select>
+                      <div className="font-semibold text-[#F5F5F5] flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-[#E3AA18]" /> CEO → CO-CEO
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAssignmentType("CEO_TO_MEMBER"); setAssignedToUserId(""); }}
+                      className={`p-3.5 rounded-xl border text-left transition-colors ${assignmentType === "CEO_TO_MEMBER" ? "border-[#E3AA18] bg-[#E3AA18]/5" : "border-[#2A2A2A] bg-[#111111]"}`}
+                    >
+                      <div className="font-semibold text-[#F5F5F5] flex items-center gap-2">
+                        <Users className="w-4 h-4 text-[#B8B8B8]" /> CEO → Member
+                      </div>
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-[12px] font-semibold text-[#D6D6D6] tracking-[0.06em] uppercase mb-2">
-                      TARGET MEMBER *
-                    </label>
-                    <select
-                      value={assignedToUserId}
-                      onChange={(e) => setAssignedToUserId(e.target.value)}
-                      className="w-full h-11 px-3.5 rounded-xl bg-[#111111] border border-[#2A2A2A] text-sm text-[#F5F5F5] focus:outline-none focus:border-[#E3AA18]"
-                    >
-                      <option value="">Select Member...</option>
-                      {memberUsers.map((m) => (
-                        <option key={m.id} value={m.id}>{m.name || m.email}</option>
-                      ))}
-                    </select>
+                </div>
+              )}
+
+              {/* Locked pre-selected CO-CEO (from profile page) */}
+              {defaultAssigneeId && (
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#D6D6D6] tracking-[0.06em] uppercase mb-2">
+                    ASSIGN TO CO-CEO
+                  </label>
+                  <div className="w-full h-11 px-3.5 rounded-xl bg-[#111111] border border-[#E3AA18]/40 text-sm text-[#F5F5F5] flex items-center justify-between">
+                    <span className="font-semibold">{defaultAssigneeName || "CO-CEO"}</span>
                   </div>
                 </div>
               )}

@@ -43,12 +43,15 @@ export function CreateTaskModal({
   onSuccess,
   defaultProjectId = null,
   defaultMilestoneId = null,
+  defaultAssigneeId = null,
+  defaultAssigneeName = null,
+  defaultAssigneeRole = null,
 }: CreateTaskModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState("Development");
   const [priority, setPriority] = useState("Medium");
-  const [assigneeId, setAssigneeId] = useState("");
+  const [assigneeId, setAssigneeId] = useState(defaultAssigneeId || "");
   const [projectId, setProjectId] = useState<string | null>(defaultProjectId);
   const [milestoneId, setMilestoneId] = useState<string | null>(defaultMilestoneId);
   const [deadline, setDeadline] = useState("");
@@ -179,7 +182,11 @@ export function CreateTaskModal({
             <CheckSquare className="w-5 h-5 text-gold shrink-0" />
             <div>
               <h2 className="text-[19px] font-[650] text-foreground leading-tight">Create Task</h2>
-              <p className="text-[13px] text-muted-foreground mt-0.5">Standalone or Project-linked Execution Task</p>
+              <p className="text-[13px] text-muted-foreground mt-0.5">
+                {defaultAssigneeName
+                  ? `Assigning to ${defaultAssigneeName} (${defaultAssigneeRole || "CO-CEO"})`
+                  : "Standalone or Project-linked Execution Task"}
+              </p>
             </div>
           </div>
           <button
@@ -272,29 +279,39 @@ export function CreateTaskModal({
               <label className="block text-[12px] font-semibold text-foreground tracking-[0.06em] uppercase mb-2">
                 ASSIGN TO *
               </label>
-              <select
-                value={assigneeId}
-                onChange={(e) => setAssigneeId(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-sm text-foreground focus:outline-none focus:border-gold"
-              >
-                <option value="">Select Assignee (CO-CEO or Member)...</option>
-                {members.filter(m => (m.role || "").toUpperCase().includes("CO")).length > 0 && (
-                  <optgroup label="CO-CEOs">
-                    {members.filter(m => (m.role || "").toUpperCase().includes("CO")).map((m) => (
+              {/* When launched from a CO-CEO profile, show locked pre-selection */}
+              {defaultAssigneeId ? (
+                <div className="w-full h-11 px-3.5 rounded-xl bg-background border border-gold/40 text-sm text-foreground flex items-center justify-between">
+                  <span className="font-semibold">{defaultAssigneeName || "CO-CEO"}</span>
+                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-purple-500/10 text-purple-500 border border-purple-500/20">
+                    {defaultAssigneeRole || "CO-CEO"}
+                  </span>
+                </div>
+              ) : (
+                <select
+                  value={assigneeId}
+                  onChange={(e) => setAssigneeId(e.target.value)}
+                  className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-sm text-foreground focus:outline-none focus:border-gold"
+                >
+                  <option value="">Select Assignee (CO-CEO or Member)...</option>
+                  {members.filter(m => (m.role || "").toUpperCase().includes("CO")).length > 0 && (
+                    <optgroup label="CO-CEOs">
+                      {members.filter(m => (m.role || "").toUpperCase().includes("CO")).map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name || m.email} (CO-CEO)
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  <optgroup label="Members">
+                    {members.filter(m => !(m.role || "").toUpperCase().includes("CO")).map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.name || m.email} (CO-CEO)
+                        {m.name || m.email} (Member)
                       </option>
                     ))}
                   </optgroup>
-                )}
-                <optgroup label="Members">
-                  {members.filter(m => !(m.role || "").toUpperCase().includes("CO")).map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name || m.email} (Member)
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
+                </select>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
