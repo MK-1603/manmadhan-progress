@@ -26,16 +26,16 @@ export class SessionService {
 
 		res.cookie("auth_token", accessToken, {
 			httpOnly: true,
-			secure: env.NODE_ENV === "production",
-			sameSite: "lax",
+			secure: true,
+			sameSite: "none",
 			path: "/",
 			maxAge: 15 * 60 * 1000,
 		});
 
 		res.cookie("refresh_token", refreshToken, {
 			httpOnly: true,
-			secure: env.NODE_ENV === "production",
-			sameSite: "lax",
+			secure: true,
+			sameSite: "none",
 			path: "/api/v1/auth/refresh",
 			maxAge: 7 * 24 * 60 * 60 * 1000,
 		});
@@ -46,15 +46,15 @@ export class SessionService {
 	static clearTokens(res: Response) {
 		res.cookie("auth_token", "", {
 			httpOnly: true,
-			secure: env.NODE_ENV === "production",
-			sameSite: "lax",
+			secure: true,
+			sameSite: "none",
 			path: "/",
 			maxAge: 0,
 		});
 		res.cookie("refresh_token", "", {
 			httpOnly: true,
-			secure: env.NODE_ENV === "production",
-			sameSite: "lax",
+			secure: true,
+			sameSite: "none",
 			path: "/api/v1/auth/refresh",
 			maxAge: 0,
 		});

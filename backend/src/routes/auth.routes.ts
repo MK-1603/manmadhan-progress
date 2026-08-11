@@ -602,8 +602,8 @@ authRouter.post("/refresh", async (req, res) => {
 		);
 		res.cookie("auth_token", newAccessToken, {
 			httpOnly: true,
-			secure: env.NODE_ENV === "production",
-			sameSite: "lax",
+			secure: true,
+			sameSite: "none",
 			path: "/",
 			maxAge: 15 * 60 * 1000,
 		});
