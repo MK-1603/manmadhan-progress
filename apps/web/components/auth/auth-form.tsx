@@ -257,8 +257,33 @@ export function AuthForm({
     setError("");
     try {
       const res = await apiClient.post("/auth/verify-otp", { email, otp: code });
-      setTempToken(res.data.tempToken);
-      setState(res.data.nextStep as AuthState);
+      
+      if (res.data.accessToken) {
+        localStorage.setItem("auth_token", res.data.accessToken);
+        localStorage.setItem("token", res.data.accessToken);
+      }
+
+      if (res.data.nextStep === "DASHBOARD") {
+        onComplete?.();
+        setTransitionMessage("Authenticating...");
+        setIsTransitioning(true);
+        await checkSession();
+        if (typeof window !== "undefined") {
+          const urlParams = new URLSearchParams(window.location.search);
+          const redirectParam = urlParams.get('redirect');
+          setTimeout(() => {
+            if (redirectParam) {
+              router.push(redirectParam);
+            } else {
+              router.push(res.data.role === "CEO" ? "/ceo/dashboard" : res.data.role === "CO-CEO" ? "/co-ceo/dashboard" : "/member/dashboard");
+            }
+            setTimeout(() => setIsTransitioning(false), 500);
+          }, 800);
+        }
+      } else {
+        setTempToken(res.data.tempToken);
+        setState(res.data.nextStep as AuthState);
+      }
     } catch (err: any) {
       handleError(err);
     } finally {
@@ -310,6 +335,10 @@ export function AuthForm({
               setLoadingState("");
             }, 600);
           } else {
+            if (res.data.accessToken) {
+              localStorage.setItem("auth_token", res.data.accessToken);
+              localStorage.setItem("token", res.data.accessToken);
+            }
             onComplete?.();
             setTransitionMessage("Authenticating...");
             setIsTransitioning(true);
