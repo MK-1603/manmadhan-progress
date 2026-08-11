@@ -62,148 +62,265 @@ export default function CEOTasksPage() {
     socket.on("task.updated", fetchTasks);
     socket.on("tasks.automated", fetchTasks);
     return () => {
-      socket.off("task.created");
-      socket.off("task.updated");
-      socket.off("tasks.automated");
+      socket.off("task.created", fetchTasks);
+      socket.off("task.updated", fetchTasks);
+      socket.off("tasks.automated", fetchTasks);
     };
   }, [socket, fetchTasks]);
 
   const filtered = tasks.filter(t => {
     const s = search.toLowerCase();
-    const matchSearch = t.title.toLowerCase().includes(s) || (t.assigneeName || "").toLowerCase().includes(s) || (t.projectName || "").toLowerCase().includes(s);
-    const matchStatus = statusFilter === "All" || t.status === statusFilter;
+    const matchSearch = (t.title || "").toLowerCase().includes(s)
+      || (t.assigneeName || "").toLowerCase().includes(s)
+      || (t.projectName || "").toLowerCase().includes(s);
     const matchPriority = priorityFilter === "All" || t.priority === priorityFilter;
-    return matchSearch && matchStatus && matchPriority;
+    if (!matchSearch || !matchPriority) return false;
+
+    if (activeTab === "Pending")     return t.status === "Pending" || t.status === "PENDING_ACCEPTANCE";
+    if (activeTab === "In Progress") return ["Assigned", "Accepted", "In Progress"].includes(t.status);
+    if (activeTab === "Review")      return ["Review", "Submitted"].includes(t.status);
+    if (activeTab === "Completed")   return ["Completed", "Approved"].includes(t.status);
+    if (activeTab === "Blocked")     return t.status === "Blocked";
+    return true;
   });
 
   const stats = {
-    total: tasks.length,
-    inProgress: tasks.filter(t => t.status === "In Progress").length,
-    review: tasks.filter(t => t.status === "Review").length,
-    completed: tasks.filter(t => t.status === "Completed" || t.status === "Approved").length,
-    overdue: tasks.filter(t => t.isOverdue).length,
+    total:      tasks.length,
+    inProgress: tasks.filter(t => ["Assigned", "Accepted", "In Progress"].includes(t.status)).length,
+    review:     tasks.filter(t => ["Review", "Submitted"].includes(t.status)).length,
+    completed:  tasks.filter(t => ["Completed", "Approved"].includes(t.status)).length,
+    overdue:    tasks.filter(t => t.isOverdue || (t.deadline && !["Completed","Approved"].includes(t.status) && new Date(t.deadline) < new Date())).length,
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Delete this task? This cannot be undone.")) return;
+    setDeletingId(id);
+    try {
+      const wsId = localStorage.getItem("workspaceId");
+      await apiClient.delete(`/org/tasks/${id}?workspaceId=${wsId}`);
+      fetchTasks();
+    } catch {
+      alert("Failed to delete task");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
-    <div className="p-4 lg:p-6 max-w-[1440px] mx-auto w-full space-y-5">
-      {/* Header Bar */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+    <div className="px-5 md:px-8 xl:px-10 pt-7 pb-16 max-w-[1440px] mx-auto w-full space-y-6">
+
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-bold text-foreground tracking-tight">Tasks</h1>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-500/10 border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Task Automation Active
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">Automated organization work queue generated from project mandates, roadmaps, and milestones</p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowGenerateModal(true)}
-          className="px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-xl shadow-sm hover:bg-primary/90 transition-colors flex items-center gap-2"
-        >
-          <ListPlus className="w-4 h-4" /> Generate Tasks
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {[
-          { label: "Generated", value: stats.total, color: "text-foreground" },
-          { label: "In Progress", value: stats.inProgress, color: "text-amber-500" },
-          { label: "In Review", value: stats.review, color: "text-purple-500" },
-          { label: "Completed", value: stats.completed, color: "text-emerald-500" },
-          { label: "Overdue", value: stats.overdue, color: "text-rose-500" },
-        ].map(s => (
-          <PremiumCard key={s.label} className="p-3">
-            <p className="text-[11px] text-muted-foreground">{s.label}</p>
-            <p className={`text-xl font-bold mt-0.5 ${s.color}`}>{s.value}</p>
-          </PremiumCard>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-2.5">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <input type="text" placeholder="Search automated tasks..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary" />
-        </div>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold text-foreground focus:outline-none focus:border-primary">
-          {["All", "Pending", "In Progress", "Review", "Approved", "Completed", "Blocked"].map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="px-3 py-2 bg-card border border-border rounded-xl text-xs font-semibold text-foreground focus:outline-none focus:border-primary">
-          {["All", "Urgent", "High", "Medium", "Low"].map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </div>
-
-      {/* Task List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-      ) : error ? (
-        <div className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-500 text-xs"><AlertCircle className="w-4 h-4 shrink-0" /> {error}</div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 p-4 border border-border rounded-xl bg-card space-y-2">
-          <CheckSquare className="w-8 h-8 text-muted-foreground/40 mx-auto" />
-          <p className="text-xs font-bold text-foreground">No automated tasks in queue</p>
-          <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
-            Tasks are automatically generated when project mandates, requirement analysis, roadmaps, and milestones are created.
+          <p className="text-[10.5px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">
+            ManMadhan · Organization
           </p>
+          <h1 className="text-[28px] sm:text-[30px] font-bold text-foreground tracking-tight leading-none">Tasks</h1>
+          <p className="text-[12px] text-muted-foreground mt-2">Track and manage all assigned work across the organization.</p>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((task, i) => (
-            <motion.div key={task.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }}>
-              <PremiumCard className="p-3.5 hover:border-primary/40 transition-colors">
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-foreground">{task.title}</span>
-                      <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-primary/20 bg-primary/10 text-primary flex items-center gap-1">
-                        <Tag className="w-2.5 h-2.5" /> {task.sourceType || "AUTOMATED"}
-                      </span>
-                      {task.isOverdue && <span className="text-[9px] font-bold text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">OVERDUE</span>}
-                    </div>
-                    {task.description && <p className="text-[11px] text-muted-foreground mt-1 line-clamp-1">{task.description}</p>}
-                    <div className="flex items-center gap-3 mt-2 flex-wrap text-[11px] text-muted-foreground">
-                      {task.projectName && <span className="flex items-center gap-1 font-semibold text-foreground">📁 {task.projectName}</span>}
-                      {task.assigneeName && <span className="flex items-center gap-1"><User className="w-3 h-3 text-primary" /> {task.assigneeName}</span>}
-                      {task.deadline && <span className="flex items-center gap-1 font-mono"><Clock className="w-3 h-3" /> {new Date(task.deadline).toLocaleDateString()}</span>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={`text-[10px] font-bold ${priorityColor(task.priority)}`}>{task.priority}</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${statusColor(task.status)}`}>{task.status}</span>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!confirm("Are you sure you want to delete this task?")) return;
-                        try {
-                          const workspaceId = localStorage.getItem("workspaceId");
-                          const res = await apiClient.delete(`/org/tasks/${task.id}?workspaceId=${workspaceId}`);
-                          if (res.data.success) fetchTasks();
-                        } catch (e) {
-                          alert("Failed to delete task");
-                        }
-                      }}
-                      className="p-1 rounded hover:bg-rose-500/10 text-muted-foreground hover:text-rose-500 transition-colors"
-                      title="Delete Task"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </PremiumCard>
-            </motion.div>
-          ))}
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={fetchTasks} className="p-2 rounded-xl border border-border bg-card hover:bg-muted transition-colors">
+            <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
+          </button>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gold hover:bg-gold/90 text-[#111827] text-[12px] font-bold transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> New Task
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 px-4 py-3 bg-card border border-border rounded-xl text-[12px] text-muted-foreground">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
         </div>
       )}
 
-      <GenerateTasksModal
-        isOpen={showGenerateModal}
-        onClose={() => setShowGenerateModal(false)}
-        onCreated={fetchTasks}
-      />
+      {/* ── KPI Strip ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        {[
+          { label: "Total Tasks", value: stats.total,      color: "text-foreground" },
+          { label: "In Progress", value: stats.inProgress, color: "text-blue-500" },
+          { label: "Pending Review",value: stats.review,   color: "text-amber-600" },
+          { label: "Completed",   value: stats.completed,  color: "text-emerald-600" },
+          { label: "Overdue",     value: stats.overdue,    color: "text-destructive" },
+        ].map(s => (
+          <div key={s.label} className="bg-card border border-border rounded-2xl px-4 py-4">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">{s.label}</p>
+            <p className={`text-[26px] font-bold font-mono leading-none mt-1.5 ${s.color}`}>{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Filters ── */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search tasks..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-3.5 py-2.5 bg-card border border-border rounded-xl text-[12px] text-foreground placeholder-muted-foreground focus:outline-none focus:ring-1 focus:ring-gold transition-all"
+          />
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+          {STATUS_TABS.map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-3 py-2 rounded-xl text-[11px] font-semibold transition-all shrink-0 ${
+                activeTab === tab
+                  ? "bg-foreground text-background"
+                  : "bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+        <select
+          value={priorityFilter}
+          onChange={e => setPriorityFilter(e.target.value)}
+          className="px-3 py-2 rounded-xl bg-card border border-border text-[11px] font-semibold text-muted-foreground focus:outline-none focus:ring-1 focus:ring-gold"
+        >
+          {["All", "Urgent", "High", "Medium", "Low"].map(p => (
+            <option key={p} value={p}>{p === "All" ? "All Priorities" : p}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* ── Task Table ── */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-5 h-5 animate-spin text-gold" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-20 text-center border border-dashed border-border rounded-2xl">
+          <CheckSquare className="w-8 h-8 text-muted-foreground/20" />
+          <p className="text-[14px] font-semibold text-foreground">
+            {search ? "No tasks match your search" : `No ${activeTab !== "All" ? activeTab.toLowerCase() : ""} tasks`}
+          </p>
+          <p className="text-[12px] text-muted-foreground">
+            {search ? "Try a different search term." : "Tasks will appear here when created or assigned."}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-2xl overflow-hidden">
+          {/* Table Header */}
+          <div className="hidden md:grid grid-cols-[2.5fr_1fr_1fr_1fr_90px_50px] items-center gap-4 px-5 py-3 border-b border-border bg-muted/30">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Task</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Project</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Assignee</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Status</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Deadline</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest text-right">·</span>
+          </div>
+
+          <AnimatePresence>
+            <div className="divide-y divide-border">
+              {filtered.map((task, idx) => {
+                const isOverdue = task.deadline
+                  && !["Completed","Approved"].includes(task.status)
+                  && new Date(task.deadline) < new Date();
+
+                return (
+                  <motion.div
+                    key={task.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: idx * 0.02 }}
+                    onClick={() => setSelectedTask(task)}
+                    className="group cursor-pointer"
+                  >
+                    {/* Desktop Row */}
+                    <div className="hidden md:grid grid-cols-[2.5fr_1fr_1fr_1fr_90px_50px] items-center gap-4 px-5 py-3.5 hover:bg-muted/20 transition-colors">
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold text-foreground truncate">{task.title}</p>
+                        {task.milestoneName && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{task.milestoneName}</p>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        {task.projectName
+                          ? <span className="flex items-center gap-1"><FolderKanban className="w-3 h-3 shrink-0" />{task.projectName}</span>
+                          : <span className="text-muted-foreground/40 italic">Standalone</span>}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        {task.assigneeName
+                          ? <span className="flex items-center gap-1"><User className="w-3 h-3 shrink-0" />{task.assigneeName}</span>
+                          : <span className="text-muted-foreground/40">Unassigned</span>}
+                      </div>
+                      <div>
+                        <span className={`px-2 py-0.5 rounded-lg border text-[10px] font-bold ${STATUS_STYLE[task.status] || STATUS_STYLE.Pending}`}>
+                          {task.status}
+                        </span>
+                      </div>
+                      <div className={`text-[11px] ${isOverdue ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+                        {task.deadline
+                          ? new Date(task.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                          : <span className="text-muted-foreground/40">—</span>}
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          onClick={(e) => handleDelete(task.id, e)}
+                          disabled={deletingId === task.id}
+                          className="p-1.5 rounded-lg hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Mobile Card */}
+                    <div className="md:hidden p-4 hover:bg-muted/20 transition-colors">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <p className="text-[13px] font-semibold text-foreground">{task.title}</p>
+                        <span className={`px-2 py-0.5 rounded-lg border text-[10px] font-bold shrink-0 ${STATUS_STYLE[task.status] || STATUS_STYLE.Pending}`}>
+                          {task.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
+                        {task.projectName && <span className="flex items-center gap-1"><FolderKanban className="w-3 h-3" />{task.projectName}</span>}
+                        {task.assigneeName && <span className="flex items-center gap-1"><User className="w-3 h-3" />{task.assigneeName}</span>}
+                        {task.deadline && (
+                          <span className={isOverdue ? "text-destructive font-semibold" : ""}>
+                            Due {new Date(task.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </span>
+                        )}
+                        {task.priority && (
+                          <span className={PRIORITY_STYLE[task.priority] || ""}>
+                            {task.priority}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </AnimatePresence>
+        </div>
+      )}
+
+      {showCreate && (
+        <CreateTaskModal
+          isOpen={showCreate}
+          onClose={() => setShowCreate(false)}
+          onSuccess={fetchTasks}
+        />
+      )}
+
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          isOpen={Boolean(selectedTask)}
+          onClose={() => setSelectedTask(null)}
+          onUpdate={fetchTasks}
+        />
+      )}
     </div>
   );
 }
