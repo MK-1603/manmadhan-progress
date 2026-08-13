@@ -14,11 +14,17 @@ export class GitHubProvider implements IIntegrationProvider {
 	public providerName = "GitHub";
 
 	public getAuthUrl(): string {
-		const clientId = process.env.GITHUB_INTEGRATION_CLIENT_ID;
-		const redirectUri = process.env.GITHUB_REDIRECT_URI;
+		const clientId = process.env.GITHUB_INTEGRATION_CLIENT_ID || process.env.GITHUB_CLIENT_ID;
+		const redirectUri =
+			process.env.GITHUB_REDIRECT_URI ||
+			process.env.GITHUB_CALLBACK_URL ||
+			process.env.GITHUB_AUTH_CALLBACK_URL ||
+			(process.env.SERVER_URL
+				? `${process.env.SERVER_URL.replace(/\/$/, "")}/api/v1/auth/github/callback`
+				: "http://localhost:4100/api/v1/auth/github/callback");
 		const scopes = "repo,user";
 
-		return `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopes}`;
+		return `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}`;
 	}
 
 	public async handleCallback(code: string) {

@@ -14,10 +14,18 @@ export class GoogleCalendarProvider implements IIntegrationProvider {
 	public providerName = "GoogleCalendar";
 
 	private getOAuthClient() {
+		const redirectUri =
+			process.env.GOOGLE_REDIRECT_URI ||
+			process.env.GOOGLE_CALLBACK_URL ||
+			process.env.GOOGLE_AUTH_CALLBACK_URL ||
+			(process.env.SERVER_URL
+				? `${process.env.SERVER_URL.replace(/\/$/, "")}/api/v1/auth/google/callback`
+				: "http://localhost:4100/api/v1/auth/google/callback");
+
 		return new google.auth.OAuth2(
 			process.env.GOOGLE_CLIENT_ID,
 			process.env.GOOGLE_CLIENT_SECRET,
-			process.env.GOOGLE_REDIRECT_URI,
+			redirectUri,
 		);
 	}
 
