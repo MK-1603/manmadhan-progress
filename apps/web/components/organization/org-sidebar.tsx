@@ -62,9 +62,10 @@ const CEO_NAV: NavGroup[] = [
   {
     id: "administration", label: "ADMINISTRATION", roles: ["CEO"],
     items: [
-      { name: "Automation",   href: "/ceo/automation",   icon: Zap },
-      { name: "Organization", href: "/ceo/organization", icon: Building },
-      { name: "Settings",     href: "/ceo/settings",     icon: Settings },
+      { name: "Automation",            href: "/ceo/automation",   icon: Zap },
+      { name: "Organization",          href: "/ceo/organization", icon: Building },
+      { name: "Organization Profile",  href: "/ceo/profile",      icon: UserIcon },
+      { name: "Organization Settings", href: "/ceo/settings",     icon: Settings },
     ],
   },
 ];
@@ -99,16 +100,11 @@ const COCEO_NAV: NavGroup[] = [
   {
     id: "organization", label: "ORGANIZATION", roles: ["CO-CEO"],
     items: [
-      { name: "Documents",          href: "/co-ceo/documents",          icon: FileText },
-      { name: "Leaderboard",        href: "/co-ceo/leaderboard",        icon: Trophy },
-      { name: "Organization Graph", href: "/co-ceo/organization-graph", icon: Network },
-    ],
-  },
-  {
-    id: "account", label: "ACCOUNT", roles: ["CO-CEO"],
-    items: [
-      { name: "Profile",  href: "/co-ceo/profile",  icon: UserIcon },
-      { name: "Settings", href: "/co-ceo/settings", icon: Settings },
+      { name: "Documents",             href: "/co-ceo/documents",          icon: FileText },
+      { name: "Leaderboard",           href: "/co-ceo/leaderboard",        icon: Trophy },
+      { name: "Organization Graph",    href: "/co-ceo/organization-graph", icon: Network },
+      { name: "Organization Profile",  href: "/co-ceo/profile",             icon: UserIcon },
+      { name: "Organization Settings", href: "/co-ceo/settings",            icon: Settings },
     ],
   },
 ];
@@ -136,7 +132,9 @@ const MEMBER_NAV: NavGroup[] = [
   {
     id: "submissions", label: "SUBMISSIONS", roles: ["MEMBER"],
     items: [
-      { name: "My Submissions", href: "/member/submissions", icon: ClipboardCheck },
+      { name: "My Submissions",        href: "/member/submissions", icon: ClipboardCheck },
+      { name: "Organization Profile",  href: "/member/profile",     icon: UserIcon },
+      { name: "Organization Settings", href: "/member/settings",    icon: Settings },
     ],
   },
   {
@@ -149,14 +147,6 @@ const MEMBER_NAV: NavGroup[] = [
     id: "progress", label: "PROGRESS", roles: ["MEMBER"],
     items: [
       { name: "My Progress", href: "/member/progress", icon: BarChart3 },
-    ],
-  },
-  {
-    id: "account", label: "ACCOUNT", roles: ["MEMBER"],
-    items: [
-      { name: "Notifications", href: "/member/notifications", icon: Bell },
-      { name: "Profile",       href: "/member/profile",       icon: UserIcon },
-      { name: "Settings",      href: "/member/settings",      icon: Settings },
     ],
   },
 ];
