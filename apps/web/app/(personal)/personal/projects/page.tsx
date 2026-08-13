@@ -20,7 +20,7 @@ import { useSocket } from "@/components/providers/socket-provider";
 import { useConfirm } from "@/hooks/use-confirm";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CreateProjectModal } from "@/components/projects/create-project-modal";
+import { PersonalCreateProjectModal } from "@/components/personal/personal-create-project-modal";
 
 export default function ProjectsPage() {
   const { socket, isConnected } = useSocket();
@@ -357,7 +357,7 @@ export default function ProjectsPage() {
       </section>
 
       {/* ── Create Project Dialog Modal ── */}
-      <CreateProjectModal
+      <PersonalCreateProjectModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={() => {

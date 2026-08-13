@@ -395,6 +395,60 @@ personalProjectsRouter.post(
 	},
 );
 
+// 5b. Create a project directly (simple form / quick-create / AI-builder)
+personalProjectsRouter.post("/", async (req: Request, res: Response) => {
+	try {
+		const userId = getUserId(req);
+		if (!userId)
+			return res.status(401).json({ success: false, error: "Unauthorized" });
+
+		const { name, description, goal, deadline, priority, status } = req.body;
+
+		if (!name || !String(name).trim()) {
+			return res
+				.status(400)
+				.json({ success: false, error: "Project name is required" });
+		}
+
+		const newProjectId = uuidv4();
+
+		const [project] = await personalDb
+			.insert(personalProjects)
+			.values({
+				id: newProjectId,
+				ownerUserId: userId,
+				name: String(name).trim(),
+				description: description || null,
+				goal: goal || null,
+				priority: priority || "Medium",
+				status: status || "Planning",
+				deadline: deadline ? new Date(deadline) : null,
+				progress: 0,
+			})
+			.returning();
+
+		// Write timeline event
+		try {
+			await writeTimelineEvent(
+				userId,
+				"PROJECT_CREATED",
+				`Created project: ${project.name}`,
+				{ projectId: newProjectId },
+			);
+		} catch {
+			/* non-fatal */
+		}
+
+		socketService.emitToUser(userId, "project_created", project);
+		res.json({ success: true, data: project });
+	} catch (error: any) {
+		logger.error(`Create Personal Project Error: ${error.message}`);
+		res
+			.status(500)
+			.json({ success: false, error: "Failed to create project" });
+	}
+});
+
 // 6. Generate Project Plan via AI (Prompt Project Creation)
 personalProjectsRouter.post(
 	"/generate-plan",
