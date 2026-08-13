@@ -14,7 +14,9 @@ import {
   MoreVertical,
   Edit,
   Trash2,
-  Zap,
+  Sparkles,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { useSocket } from "@/components/providers/socket-provider";
 import { useConfirm } from "@/hooks/use-confirm";
@@ -33,7 +35,7 @@ export default function ProjectsPage() {
   const [filterStatus, setFilterStatus] = useState<string>("All");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Integrated Prompt State
+  // Integrated Prompt & Planner State
   const [promptInput, setPromptInput] = useState("");
   const [isInterpreting, setIsInterpreting] = useState(false);
   const [previewProject, setPreviewProject] = useState<any | null>(null);
@@ -41,13 +43,17 @@ export default function ProjectsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchProjects = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const response = await apiClient.get("/personal/projects");
       if (response.data?.success && Array.isArray(response.data.data)) {
         setProjects(response.data.data);
+      } else {
+        setProjects([]);
       }
-    } catch (err) {
-      console.error("Failed to load projects", err);
+    } catch (err: any) {
+      setError("Unable to load projects. The project service is temporarily unavailable.");
     } finally {
       setLoading(false);
     }
@@ -76,8 +82,8 @@ export default function ProjectsPage() {
     };
   }, [socket, isConnected]);
 
-  // Integrated Prompt Interpretation
-  const handleInterpretProjectPrompt = async () => {
+  // Integrated Prompt Interpretation -> Project Planner Transition
+  const handleGeneratePlan = async () => {
     if (!promptInput.trim() || promptInput.trim().length < 5) return;
     setError(null);
     setIsInterpreting(true);
@@ -89,22 +95,28 @@ export default function ProjectsPage() {
         setPreviewProject(res.data.data);
       }
     } catch (e: any) {
-      // Fallback deterministic interpretation
+      // Fallback preview
       const title = promptInput.split("by")[0].replace(/build|create/gi, "").trim();
       setPreviewProject({
-        name: title.charAt(0).toUpperCase() + title.slice(1) || "New SaaS Project",
+        name: title ? title.charAt(0).toUpperCase() + title.slice(1) : "New Workspace Project",
         description: promptInput,
-        deadline: "2026-09-30",
+        deadline: "Not specified",
         dailyCapacity: "3 hours/day",
         milestonesCount: 4,
         tasksCount: 12,
+        milestones: [
+          { name: "Foundation & Setup", description: "Architecture setup", tasksCount: 3 },
+          { name: "Core Design", description: "Interface system", tasksCount: 3 },
+          { name: "Development", description: "Implementation", tasksCount: 4 },
+          { name: "Launch", description: "Deployment and verification", tasksCount: 2 },
+        ],
       });
     } finally {
       setIsInterpreting(false);
     }
   };
 
-  const handleSavePreviewProject = async () => {
+  const handleConfirmCreateProject = async () => {
     if (!previewProject) return;
     setIsSaving(true);
     setError(null);
@@ -112,7 +124,7 @@ export default function ProjectsPage() {
       const res = await apiClient.post("/personal/projects", {
         name: previewProject.name,
         description: previewProject.description || promptInput,
-        deadline: previewProject.deadline || null,
+        deadline: previewProject.deadline !== "Not specified" ? previewProject.deadline : null,
         status: "Planning",
       });
       if (res.data?.success && res.data.data?.id) {
@@ -125,7 +137,7 @@ export default function ProjectsPage() {
         setPromptInput("");
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || "Failed to create project.");
+      setError("Unable to create project. Please verify backend service.");
     } finally {
       setIsSaving(false);
     }
@@ -137,9 +149,11 @@ export default function ProjectsPage() {
       await apiClient.delete(`/personal/projects/${id}`);
       setProjects((prev) => prev.filter((p) => p.id !== id));
     } catch (err) {
-      console.error("Failed to delete project", err);
+      setError("Unable to delete project.");
     }
   };
+
+  const STATUS_TABS = ["All", "Active", "On Track", "At Risk", "Delayed", "Completed"];
 
   const filteredProjects = projects.filter((p) => {
     if (filterStatus === "Active") {
@@ -159,13 +173,13 @@ export default function ProjectsPage() {
   });
 
   return (
-    <div className="w-full min-h-full flex flex-col p-4 sm:p-6 md:p-8 space-y-6">
-      {/* ── Header Bar ── */}
+    <div className="w-full min-h-full flex flex-col p-4 sm:p-6 md:p-8 space-y-6 max-w-7xl mx-auto">
+      {/* Header */}
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-5">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">Projects</h1>
           <p className="text-xs text-muted-foreground font-medium mt-0.5">
-            Plan, build and complete your meaningful projects.
+            Build and manage the work that matters.
           </p>
         </div>
 
@@ -177,193 +191,242 @@ export default function ProjectsPage() {
               placeholder="Search projects..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-foreground/30"
+              className="w-full h-9 pl-9 pr-3 rounded-lg bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-foreground/30 transition-colors"
             />
           </div>
 
           <button
-            type="button"
             onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 h-9 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all flex items-center gap-1.5 shrink-0 shadow-xs"
+            className="px-3.5 h-9 rounded-lg bg-foreground text-background font-bold text-xs hover:opacity-90 transition-opacity flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" /> Create Project
+            <Plus className="w-4 h-4" />
+            New Project
           </button>
         </div>
       </header>
 
-      {/* ── Compact Tab Filters ── */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
-        {["All", "Active", "On Track", "At Risk", "Delayed", "Completed"].map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilterStatus(status)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
-              filterStatus === status
-                ? "bg-foreground text-background shadow-xs"
-                : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            {status}
-          </button>
-        ))}
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-border text-xs font-bold">
+        {STATUS_TABS.map((tab) => {
+          const active = filterStatus === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => setFilterStatus(tab)}
+              className={`px-3 py-1.5 rounded-md transition-colors whitespace-nowrap cursor-pointer ${
+                active
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              }`}
+            >
+              {tab}
+            </button>
+          );
+        })}
       </div>
 
-      {/* ── Integrated Prompt Creation Box ── */}
-      <section className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-3 shadow-xs">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xs font-bold text-foreground">Create a Project with Prompt</h2>
-            <p className="text-[11px] text-muted-foreground font-medium">
-              Describe what you want to build, deadline, and daily available time.
-            </p>
+      {error && (
+        <div className="p-3.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
           </div>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-center gap-2">
-          <input
-            type="text"
-            placeholder="e.g. Build an AI SaaS platform by September 30. I can work 3 hours a day. Create milestones and tasks."
-            value={promptInput}
-            onChange={(e) => setPromptInput(e.target.value)}
-            className="w-full h-10 px-3.5 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-foreground/30"
-          />
           <button
-            type="button"
-            onClick={handleInterpretProjectPrompt}
-            disabled={isInterpreting || !promptInput.trim()}
-            className="w-full sm:w-auto px-4 h-10 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs transition-all flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-40"
+            onClick={fetchProjects}
+            className="px-2.5 py-1 rounded bg-destructive/20 text-destructive font-bold text-[11px] hover:bg-destructive/30 transition-colors flex items-center gap-1 cursor-pointer"
           >
-            {isInterpreting ? "Generating Plan..." : "Generate Plan"} <ArrowRight className="w-3.5 h-3.5" />
+            <RefreshCw className="w-3 h-3" /> Retry
           </button>
         </div>
-      </section>
-
-      {/* ── Human-Readable Project Preview Card ── */}
-      {previewProject && (
-        <section className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-sm animate-in fade-in duration-300">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
-              Project Preview: {previewProject.name}
-            </h3>
-            <span className="px-2 py-0.5 rounded-md bg-gold/10 text-gold text-[10px] font-bold border border-gold/20">
-              {previewProject.status || "Planning"}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-background border border-border">
-            <div>
-              <span className="text-[10px] font-bold uppercase text-muted-foreground">Deadline</span>
-              <p className="text-xs font-bold text-foreground">{previewProject.deadline || "Sept 30"}</p>
-            </div>
-            <div>
-              <span className="text-[10px] font-bold uppercase text-muted-foreground">Daily Capacity</span>
-              <p className="text-xs font-bold text-foreground">{previewProject.dailyCapacity || "3 hours/day"}</p>
-            </div>
-            <div>
-              <span className="text-[10px] font-bold uppercase text-muted-foreground">Milestones</span>
-              <p className="text-xs font-bold text-foreground">{previewProject.milestonesCount || 4}</p>
-            </div>
-            <div>
-              <span className="text-[10px] font-bold uppercase text-muted-foreground">Tasks</span>
-              <p className="text-xs font-bold text-foreground">{previewProject.tasksCount || 12}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 pt-1">
-            <button
-              onClick={() => setPreviewProject(null)}
-              className="px-3.5 py-1.5 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:bg-muted"
-            >
-              Discard
-            </button>
-            <button
-              onClick={handleSavePreviewProject}
-              disabled={isSaving}
-              className="px-4 py-1.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90"
-            >
-              {isSaving ? "Creating Project..." : "Confirm & Create Project"}
-            </button>
-          </div>
-        </section>
       )}
 
-      {/* ── Error Banner ── */}
-      {error && (
-        <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
+      {/* Prompt AI Generation Section */}
+      {!previewProject ? (
+        <div className="p-4 rounded-xl border border-border bg-card shadow-xs space-y-3">
+          <label className="block text-xs font-bold text-foreground">
+            PROJECT GENERATOR
+          </label>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="text"
+              placeholder="Describe what you want to build... (e.g., Build my portfolio website by Sept 30)"
+              value={promptInput}
+              onChange={(e) => setPromptInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleGeneratePlan()}
+              className="flex-1 h-10 px-3.5 rounded-lg bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-foreground/30 transition-colors"
+            />
+            <button
+              onClick={handleGeneratePlan}
+              disabled={isInterpreting || !promptInput.trim()}
+              className="px-5 h-10 rounded-lg bg-foreground text-background font-bold text-xs hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-40 cursor-pointer"
+            >
+              {isInterpreting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                "Generate Plan"
+              )}
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Dedicated Project Planner View */
+        <div className="p-5 sm:p-6 rounded-xl border border-border bg-card shadow-xs space-y-5">
+          <div className="flex items-center justify-between border-b border-border pb-4">
+            <div>
+              <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+                PROJECT PLANNER PREVIEW
+              </span>
+              <h2 className="text-base font-bold text-foreground mt-1">
+                {previewProject.name}
+              </h2>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPreviewProject(null)}
+                className="px-3 h-8 rounded-lg border border-border text-xs font-bold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmCreateProject}
+                disabled={isSaving}
+                className="px-4 h-8 rounded-lg bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-opacity flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isSaving ? "Creating..." : "Confirm & Create Project"}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div className="p-3 rounded-lg border border-border bg-background space-y-1">
+              <span className="text-muted-foreground font-bold text-[10px]">DEADLINE</span>
+              <p className="font-bold text-foreground">{previewProject.deadline || "Not specified"}</p>
+            </div>
+            <div className="p-3 rounded-lg border border-border bg-background space-y-1">
+              <span className="text-muted-foreground font-bold text-[10px]">DAILY CAPACITY</span>
+              <p className="font-bold text-foreground">{previewProject.dailyCapacity || "3 hours/day"}</p>
+            </div>
+            <div className="p-3 rounded-lg border border-border bg-background space-y-1">
+              <span className="text-muted-foreground font-bold text-[10px]">SUGGESTED MILESTONES</span>
+              <p className="font-bold text-foreground">{previewProject.milestonesCount || 4} Milestones</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
+              GENERATED MILESTONES & TASKS
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              {(previewProject.milestones || []).map((m: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="p-3.5 rounded-lg border border-border bg-background space-y-1"
+                >
+                  <p className="font-bold text-foreground">
+                    {idx + 1}. {m.name}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">{m.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── Main Projects List / Table ── */}
-      <section className="flex-1 min-h-0">
-        {loading ? (
-          <div className="py-12 text-center text-xs text-muted-foreground font-medium">
-            Loading projects...
-          </div>
-        ) : filteredProjects.length === 0 ? (
-          /* Compact Space-Efficient Empty State */
-          <div className="p-8 text-center rounded-2xl border border-dashed border-border bg-card space-y-2">
-            <FolderKanban className="w-8 h-8 text-muted-foreground mx-auto opacity-50" />
-            <p className="text-xs font-bold text-foreground">No projects found</p>
-            <p className="text-[11px] text-muted-foreground max-w-sm mx-auto font-medium">
-              Describe what you want to build above or tap Create Project to start your first project.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredProjects.map((p) => (
-              <article
-                key={p.id}
-                className="p-5 rounded-2xl border border-border bg-card hover:border-foreground/20 transition-all flex flex-col justify-between space-y-4 shadow-xs group"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-0.5 rounded-md bg-muted text-foreground text-[10px] font-bold uppercase tracking-wider border border-border">
-                      {p.status || "Planning"}
-                    </span>
+      {/* Projects List Grid */}
+      {loading ? (
+        <div className="py-12 text-center text-xs text-muted-foreground font-medium">
+          Loading projects...
+        </div>
+      ) : filteredProjects.length === 0 ? (
+        /* Compact 120-160px Empty State */
+        <div className="h-40 rounded-xl border border-dashed border-border bg-muted/20 p-6 flex flex-col items-center justify-center text-center space-y-2">
+          <p className="text-xs font-bold text-foreground">No projects found</p>
+          <p className="text-[11px] text-muted-foreground">
+            Create your first project to start planning and building your work.
+          </p>
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="mt-1 px-3.5 h-8 rounded-lg bg-foreground text-background font-bold text-xs hover:opacity-90 transition-opacity flex items-center gap-1.5 shadow-xs cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            New Project
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredProjects.map((project) => (
+            <div
+              key={project.id}
+              className="p-5 rounded-xl border border-border bg-card hover:border-foreground/30 transition-colors space-y-4 flex flex-col justify-between shadow-xs group"
+            >
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-sm font-bold text-foreground group-hover:text-gold transition-colors line-clamp-1">
+                    {project.name}
+                  </h3>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-muted text-foreground uppercase border border-border shrink-0">
+                    {project.status || "Planning"}
+                  </span>
+                </div>
+
+                {project.description && (
+                  <p className="text-xs text-muted-foreground font-medium line-clamp-2 leading-relaxed">
+                    {project.description}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-3 pt-2 border-t border-border/60">
+                <div className="flex items-center justify-between text-xs font-medium">
+                  <span className="text-muted-foreground">Progress</span>
+                  <span className="font-bold text-foreground">{project.progress || 0}%</span>
+                </div>
+
+                {/* Compact Progress Bar */}
+                <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-foreground transition-all duration-300"
+                    style={{ width: `${project.progress || 0}%` }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <span className="text-[11px] text-muted-foreground">
+                    {project.deadline ? `Due ${new Date(project.deadline).toLocaleDateString()}` : "No deadline"}
+                  </span>
+
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleDelete(p.id)}
-                      className="p-1 rounded-lg text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                      onClick={() => handleDelete(project.id)}
+                      className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                      title="Delete Project"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
+                    <Link
+                      href={`/personal/projects/${project.id}`}
+                      className="px-2.5 py-1 rounded bg-muted text-foreground font-bold text-xs hover:bg-foreground hover:text-background transition-colors flex items-center gap-1"
+                    >
+                      Open <ArrowRight className="w-3 h-3" />
+                    </Link>
                   </div>
-
-                  <Link href={`/personal/projects/${p.id}`} className="block group-hover:text-primary">
-                    <h3 className="text-sm font-bold text-foreground truncate">{p.name}</h3>
-                    <p className="text-xs text-muted-foreground font-medium line-clamp-2 mt-1">
-                      {p.description || "No description provided."}
-                    </p>
-                  </Link>
                 </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-                <div className="pt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground font-medium">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>{p.deadline ? new Date(p.deadline).toLocaleDateString() : "No deadline"}</span>
-                  </div>
-                  <Link
-                    href={`/personal/projects/${p.id}`}
-                    className="text-xs font-bold text-foreground hover:underline flex items-center gap-1"
-                  >
-                    Open <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* ── Create Project Dialog Modal ── */}
+      {/* Create Project Modal */}
       <PersonalCreateProjectModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={() => {
-          setIsCreateModalOpen(false);
-          fetchProjects();
-        }}
+        onSuccess={fetchProjects}
       />
     </div>
   );

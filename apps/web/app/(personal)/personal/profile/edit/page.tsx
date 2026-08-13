@@ -67,7 +67,7 @@ export default function PersonalProfileEditPage() {
     setSuccess(null);
 
     try {
-      const res = await apiClient.patch("/auth/profile", {
+      const res = await apiClient.put("/auth/me", {
         name: name.trim(),
         displayName: displayName.trim(),
         timezone,
