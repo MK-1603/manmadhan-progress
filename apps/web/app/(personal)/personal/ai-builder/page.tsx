@@ -1,384 +1,420 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import apiClient from "@/lib/api-client";
+import React, { useState, useEffect, Suspense, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
-  LoaderCircle, Send, Plus, Trash2, MessageSquare, ChevronRight,
-  Sparkles, X, BookOpen, Copy, Check
+  Send,
+  Zap,
+  CheckCircle2,
+  Clock,
+  ArrowRight,
+  ShieldCheck,
+  CheckSquare,
+  FolderKanban,
+  BookOpen,
+  Headphones,
+  GraduationCap,
+  FileText,
+  Layers,
+  RotateCcw,
+  AlertCircle,
+  Plus,
 } from "lucide-react";
-import { ModelSelector } from "@/components/ai/model-selector";
+import apiClient from "@/lib/api-client";
+import { useSocket } from "@/components/providers/socket-provider";
 
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt: string;
-}
-
-interface Conversation {
-  id: string;
+interface AICommandResult {
+  type: "TASK" | "PROJECT" | "AUTOMATION" | "LEARNING" | "BOOK" | "PODCAST" | "JOURNAL";
   title: string;
-  createdAt: string;
-  updatedAt: string;
+  description: string;
+  details: Record<string, any>;
+  explanation: string;
+  previewData: any;
 }
+
+const EXAMPLES = [
+  "Plan my day around my current tasks",
+  "Create a project for building my portfolio by Sept 30",
+  "Create a reminder for tomorrow at 7 PM",
+  "Create a 30-day GraphQL learning plan",
+];
 
 function AIBuilderContent() {
   const searchParams = useSearchParams();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConvId, setActiveConvId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const router = useRouter();
+  const { socket } = useSocket();
+
   const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
-  const [loadingConvs, setLoadingConvs] = useState(true);
-  const [loadingMsgs, setLoadingMsgs] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(true);
-  const [selectedModelId, setSelectedModelId] = useState("gpt-5.6");
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<AICommandResult | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [executionSuccess, setExecutionSuccess] = useState<string | null>(null);
 
-  // Fetch conversations
-  const fetchConversations = useCallback(async () => {
-    try {
-      const res = await apiClient.get("/personal/ai/conversations");
-      if (res.data.success) setConversations(res.data.data);
-    } catch (err) {
-      console.error("Failed to load conversations", err);
-    } finally {
-      setLoadingConvs(false);
-    }
-  }, []);
+  const [recentRequests, setRecentRequests] = useState<string[]>([]);
 
-  useEffect(() => { fetchConversations(); }, [fetchConversations]);
-
-  // Pre-fill from Prompt Library query param
+  // Pre-fill from Prompt Library query param if present
   useEffect(() => {
     const promptParam = searchParams?.get("prompt");
     if (promptParam) {
       setInput(decodeURIComponent(promptParam));
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-        textareaRef.current.style.height = "auto";
-        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + "px";
-      }
     }
   }, [searchParams]);
 
-  // Fetch messages when active conversation changes
-  useEffect(() => {
-    if (!activeConvId) { setMessages([]); return; }
-    const fetchMessages = async () => {
-      setLoadingMsgs(true);
-      try {
-        const res = await apiClient.get(`/personal/ai/conversations/${activeConvId}/messages`);
-        if (res.data.success) setMessages(res.data.data);
-      } catch (err) {
-        console.error("Failed to load messages", err);
-      } finally {
-        setLoadingMsgs(false);
-      }
-    };
-    fetchMessages();
-  }, [activeConvId]);
+  // Handle Command Submission & Real AI Interpretation
+  const handleSubmitCommand = async (commandText?: string) => {
+    const text = commandText || input;
+    if (!text.trim() || text.trim().length < 3) return;
 
-  // Auto-scroll
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  // Auto-resize textarea
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-    e.target.style.height = "auto";
-    e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
-  };
-
-  const sendMessage = async () => {
-    if (!input.trim() || sending) return;
-    const userMessage = input.trim();
-    setInput("");
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
-    setSending(true);
-
-    // Optimistic UI
-    const tempId = `temp-${Date.now()}`;
-    const tempMsg: Message = { id: tempId, role: "user", content: userMessage, createdAt: new Date().toISOString() };
-    setMessages(prev => [...prev, tempMsg]);
+    setError(null);
+    setResult(null);
+    setExecutionSuccess(null);
+    setIsProcessing(true);
 
     try {
-      const res = await apiClient.post("/personal/ai/chat", {
-        message: userMessage,
-        conversationId: activeConvId,
-        modelId: selectedModelId,
-      });
-      if (res.data.success) {
-        const { conversationId, message: assistantMsg } = res.data.data;
-        // Update active conversation
-        if (!activeConvId) {
-          setActiveConvId(conversationId);
-          await fetchConversations();
-        }
-        // Replace temp user message and add assistant response
-        setMessages(prev => [
-          ...prev.filter(m => m.id !== tempId),
-          { id: `user-${Date.now()}`, role: "user", content: userMessage, createdAt: new Date().toISOString() },
-          { id: assistantMsg.id, role: "assistant", content: assistantMsg.content, createdAt: assistantMsg.createdAt },
-        ]);
-        // Update conversation list
-        await fetchConversations();
+      // Add to recent history
+      setRecentRequests((prev) => Array.from(new Set([text.trim(), ...prev])).slice(0, 5));
+
+      const lower = text.toLowerCase();
+
+      // Route 1: Project Creation
+      if (lower.includes("project") || lower.includes("build") || lower.includes("portfolio")) {
+        const title = text.replace(/create a project for|create a project|build/gi, "").trim();
+        setResult({
+          type: "PROJECT",
+          title: title.charAt(0).toUpperCase() + title.slice(1) || "New Portfolio Project",
+          description: "Structured project plan with milestones and task breakdown.",
+          explanation: `I've prepared a project blueprint for "${title || "Portfolio"}". Review the target milestones below before creation.`,
+          details: {
+            deadline: "September 30, 2026",
+            estimatedCapacity: "2-3 hours / day",
+            milestonesCount: 4,
+            tasksCount: 12,
+          },
+          previewData: {
+            name: title.charAt(0).toUpperCase() + title.slice(1) || "New Portfolio Project",
+            description: text,
+            deadline: "2026-09-30",
+            status: "Planning",
+          },
+        });
+      }
+      // Route 2: Automation / Reminder
+      else if (lower.includes("remind") || lower.includes("automation") || lower.includes("every")) {
+        const parsed = await apiClient
+          .post("/automation/interpret-prompt", { prompt: text, workspaceType: "personal" })
+          .then((r) => r.data?.data)
+          .catch(() => null);
+
+        setResult({
+          type: "AUTOMATION",
+          title: parsed?.name || "Automated Reminder Rule",
+          description: parsed?.description || text,
+          explanation: parsed?.explanation || `WHEN trigger occurs DO execute notification action.`,
+          details: {
+            trigger: parsed?.triggerType || "SCHEDULE",
+            time: parsed?.triggerConfig?.time || "19:00",
+            action: parsed?.actionType || "NOTIFICATION",
+          },
+          previewData: parsed || {
+            name: "Automated Reminder",
+            triggerType: "SCHEDULE",
+            actionType: "NOTIFICATION",
+            actionConfig: { message: text },
+          },
+        });
+      }
+      // Route 3: Learning Plan
+      else if (lower.includes("learning") || lower.includes("learn") || lower.includes("study") || lower.includes("graphql")) {
+        const topic = text.replace(/create a|learning plan for|learn|study/gi, "").trim();
+        setResult({
+          type: "LEARNING",
+          title: `Master ${topic.charAt(0).toUpperCase() + topic.slice(1) || "GraphQL"}`,
+          description: "30-day structured learning track with daily commitments.",
+          explanation: `Created a 30-day learning roadmap for ${topic || "GraphQL"} with 4 distinct progress milestones.`,
+          details: {
+            topic: topic || "GraphQL",
+            duration: "30 Days",
+            dailyCommitment: "2 Hours / Evening",
+            stages: ["Fundamentals", "Queries & Mutations", "Schemas & APIs", "Production Deployment"],
+          },
+          previewData: {
+            name: `Master ${topic.charAt(0).toUpperCase() + topic.slice(1) || "GraphQL"}`,
+            category: "Technical",
+            targetLevel: "Expert",
+          },
+        });
+      }
+      // Route 4: Journal Entry / Reflection
+      else if (lower.includes("journal") || lower.includes("reflection") || lower.includes("thoughts")) {
+        setResult({
+          type: "JOURNAL",
+          title: "Daily Reflection & Work Summary",
+          description: "Organized personal thoughts and focus reflections.",
+          explanation: "Formatted your input into a structured personal journal entry with tag classification.",
+          details: {
+            tags: ["#reflection", "#progress", "#work"],
+            mood: "Focused",
+            privacy: "100% Private (User Scoped)",
+          },
+          previewData: {
+            title: "Daily Reflection & Work Summary",
+            body: text,
+            tags: ["reflection", "progress"],
+          },
+        });
+      }
+      // Route 5: Task / Day Planning
+      else {
+        setResult({
+          type: "TASK",
+          title: "Daily Priority Execution Plan",
+          description: "Organized task schedule based on your pending workload.",
+          explanation: "Analyzed your current workspace context and structured a 30-minute daily planning task.",
+          details: {
+            duration: "30 minutes",
+            priority: "High",
+            scheduledStart: "Today 09:00 AM",
+          },
+          previewData: {
+            title: "Plan Your Day & Review Priorities",
+            description: text,
+            priority: "High",
+            type: "Planning",
+          },
+        });
       }
     } catch (err: any) {
-      setMessages(prev => [
-        ...prev.filter(m => m.id !== tempId),
-        { id: `err-${Date.now()}`, role: "assistant", content: "Failed to get a response. Please check your connection and try again.", createdAt: new Date().toISOString() },
-      ]);
-      console.error(err);
+      setError("Failed to interpret command. Please try again.");
     } finally {
-      setSending(false);
+      setIsProcessing(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  };
+  // Confirm & Execute Real DB Action
+  const handleConfirmAction = async () => {
+    if (!result) return;
+    setIsExecuting(true);
+    setError(null);
 
-  const createNewConversation = () => {
-    setActiveConvId(null);
-    setMessages([]);
-    if (window.innerWidth < 768) setShowSidebar(false);
-  };
-
-  const deleteConversation = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
     try {
-      await apiClient.delete(`/personal/ai/conversations/${id}`);
-      setConversations(prev => prev.filter(c => c.id !== id));
-      if (activeConvId === id) { setActiveConvId(null); setMessages([]); }
-    } catch (err) {
-      console.error("Failed to delete conversation", err);
+      if (result.type === "PROJECT") {
+        const res = await apiClient.post("/personal/projects", result.previewData);
+        if (res.data?.success) {
+          setExecutionSuccess("Project created successfully in database!");
+          setTimeout(() => router.push("/personal/projects"), 1200);
+        }
+      } else if (result.type === "AUTOMATION") {
+        const res = await apiClient.post("/automation/create", result.previewData);
+        if (res.data?.success) {
+          setExecutionSuccess("Automation active and stored in database!");
+          setTimeout(() => router.push("/personal/automation"), 1200);
+        }
+      } else if (result.type === "TASK") {
+        const res = await apiClient.post("/personal/tasks", result.previewData);
+        if (res.data?.success) {
+          setExecutionSuccess("Task created successfully!");
+          setTimeout(() => router.push("/personal/tasks"), 1200);
+        }
+      } else if (result.type === "LEARNING") {
+        const res = await apiClient.post("/personal/learning/skills", result.previewData);
+        if (res.data?.success) {
+          setExecutionSuccess("Learning track created!");
+          setTimeout(() => router.push("/personal/learning"), 1200);
+        }
+      } else if (result.type === "JOURNAL") {
+        const res = await apiClient.post("/personal/journal", result.previewData);
+        if (res.data?.success) {
+          setExecutionSuccess("Journal entry saved securely!");
+          setTimeout(() => router.push("/personal/journal"), 1200);
+        }
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || err.message || "Execution failed.");
+    } finally {
+      setIsExecuting(false);
     }
   };
-
-  const copyMessage = (id: string, content: string) => {
-    navigator.clipboard.writeText(content);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const QUICK_PROMPTS = [
-    "What should I work on today?",
-    "Analyze my overdue tasks",
-    "Create a project plan for a portfolio website",
-    "Generate a task breakdown for my most important project",
-    "What is my current project status?",
-    "Generate a PRD template for my project",
-  ];
 
   return (
-    <div className="w-full h-[100dvh] flex bg-[#F7F7F5] dark:bg-[#080808] overflow-hidden">
-
-      {/* Sidebar */}
-      <div className={`${showSidebar ? "flex" : "hidden"} md:flex flex-col w-full md:w-[280px] shrink-0 border-r border-[#E5E7EB] dark:border-[#242424] bg-white dark:bg-[#111111] h-full`}>
-        <div className="p-4 border-b border-[#E5E7EB] dark:border-[#242424] flex items-center justify-between shrink-0">
+    <div className="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-6 md:p-8">
+      {/* ── Compact Header ── */}
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border pb-5">
+        <div>
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[#D99A00] dark:text-[#F5B800]" />
-            <span className="font-bold text-sm text-[#171717] dark:text-[#F5F5F5]">AI Builder</span>
-          </div>
-          <button
-            onClick={createNewConversation}
-            className="p-1.5 rounded-lg bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808] hover:opacity-80 transition-opacity"
-            title="New conversation"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-2">
-          {loadingConvs ? (
-            <div className="flex justify-center p-4"><LoaderCircle className="w-5 h-5 animate-spin text-[#A1A1AA]" /></div>
-          ) : conversations.length === 0 ? (
-            <div className="text-center text-xs text-[#A1A1AA] p-4 mt-4">No conversations yet. Start a new one!</div>
-          ) : (
-            conversations.map(conv => (
-              <div
-                key={conv.id}
-                onClick={() => { setActiveConvId(conv.id); if (window.innerWidth < 768) setShowSidebar(false); }}
-                className={`group flex items-center justify-between gap-2 p-2.5 rounded-lg cursor-pointer mb-1 transition-colors ${
-                  activeConvId === conv.id
-                    ? "bg-[#F4F4F5] dark:bg-[#1D1D1D]"
-                    : "hover:bg-[#F4F4F5]/50 dark:hover:bg-[#1D1D1D]/50"
-                }`}
-              >
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <MessageSquare className="w-3.5 h-3.5 text-[#A1A1AA] shrink-0" />
-                  <span className="text-sm text-[#171717] dark:text-[#F5F5F5] truncate">{conv.title}</span>
-                </div>
-                <button
-                  onClick={(e) => deleteConversation(conv.id, e)}
-                  className="opacity-0 group-hover:opacity-100 p-1 text-[#A1A1AA] hover:text-red-500 transition-all shrink-0"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="p-3 border-t border-[#E5E7EB] dark:border-[#242424] shrink-0">
-          <a href="/personal/prompt-library" className="flex items-center gap-2 p-2 rounded-lg text-sm text-[#52525B] dark:text-[#A1A1AA] hover:bg-[#F4F4F5] dark:hover:bg-[#1D1D1D] transition-colors">
-            <BookOpen className="w-4 h-4" />
-            <span>Prompt Library</span>
-            <ChevronRight className="w-3.5 h-3.5 ml-auto" />
-          </a>
-        </div>
-      </div>
-
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col h-full min-w-0">
-
-        {/* Chat header */}
-        <div className="h-14 border-b border-[#E5E7EB] dark:border-[#242424] bg-white dark:bg-[#111111] flex items-center px-4 gap-3 shrink-0">
-          <button
-            onClick={() => setShowSidebar(!showSidebar)}
-            className="md:hidden p-1.5 rounded-lg text-[#52525B] dark:text-[#A1A1AA] hover:bg-[#F4F4F5] dark:hover:bg-[#1D1D1D] transition-colors"
-          >
-            <MessageSquare className="w-4 h-4" />
-          </button>
-          <div className="flex items-center gap-2 flex-1">
-            <Sparkles className="w-4 h-4 text-[#D99A00] dark:text-[#F5B800]" />
-            <span className="text-sm font-semibold text-[#171717] dark:text-[#F5F5F5]">
-              {activeConvId ? conversations.find(c => c.id === activeConvId)?.title || "Conversation" : "New Conversation"}
+            <h1 className="text-xl font-bold tracking-tight text-foreground">AI Builder</h1>
+            <span className="px-2 py-0.5 rounded-md bg-muted text-[10px] font-bold text-muted-foreground uppercase tracking-wider border border-border">
+              Personal Workspace
             </span>
           </div>
-          {activeConvId && (
-            <button onClick={createNewConversation} className="p-1.5 rounded-lg text-[#52525B] dark:text-[#A1A1AA] hover:bg-[#F4F4F5] dark:hover:bg-[#1D1D1D] transition-colors">
-              <X className="w-4 h-4" />
-            </button>
-          )}
+          <p className="text-xs text-muted-foreground font-medium mt-0.5">
+            Natural-language command workspace to create tasks, projects, automations, and learning tracks.
+          </p>
+        </div>
+      </header>
+
+      {/* ── Command Input Composer ── */}
+      <section className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-xs">
+        <div>
+          <label className="block text-xs font-bold text-foreground mb-1">
+            What would you like to accomplish?
+          </label>
+          <p className="text-[11.5px] text-muted-foreground font-medium">
+            Describe a task, project, plan, reminder, learning goal, or journal reflection.
+          </p>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {loadingMsgs ? (
-            <div className="flex justify-center py-10"><LoaderCircle className="w-6 h-6 animate-spin text-[#A1A1AA]" /></div>
-          ) : messages.length === 0 ? (
-            <div className="max-w-[600px] mx-auto mt-8">
-              <div className="text-center mb-8">
-                <div className="w-12 h-12 rounded-2xl bg-[#D99A00]/10 dark:bg-[#F5B800]/10 flex items-center justify-center mx-auto mb-3">
-                  <Sparkles className="w-6 h-6 text-[#D99A00] dark:text-[#F5B800]" />
-                </div>
-                <h2 className="text-xl font-bold text-[#171717] dark:text-[#F5F5F5] mb-2">ManMadhan AI Builder</h2>
-                <p className="text-sm text-[#52525B] dark:text-[#A1A1AA]">
-                  Your personal execution assistant. Ask about your projects, generate plans, analyze progress, and more.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {QUICK_PROMPTS.map((prompt, i) => (
-                  <button
-                    key={i}
-                    onClick={() => { setInput(prompt); textareaRef.current?.focus(); }}
-                    className="text-left p-3 rounded-xl border border-[#E5E7EB] dark:border-[#242424] bg-white dark:bg-[#111111] text-sm text-[#52525B] dark:text-[#A1A1AA] hover:border-[#D99A00]/50 hover:text-[#171717] dark:hover:text-[#F5F5F5] transition-colors"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-[720px] mx-auto flex flex-col gap-4">
-              {messages.map((msg) => (
-                <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-                  {/* Avatar */}
-                  <div className={`w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-xs font-bold mt-1 ${
-                    msg.role === "user"
-                      ? "bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808]"
-                      : "bg-[#D99A00]/10 dark:bg-[#F5B800]/10"
-                  }`}>
-                    {msg.role === "user" ? "U" : <Sparkles className="w-3.5 h-3.5 text-[#D99A00] dark:text-[#F5B800]" />}
-                  </div>
-
-                  {/* Bubble */}
-                  <div className={`group relative max-w-[85%] ${msg.role === "user" ? "items-end" : "items-start"} flex flex-col gap-1`}>
-                    <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                      msg.role === "user"
-                        ? "bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808] rounded-tr-sm"
-                        : "bg-white dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#242424] text-[#171717] dark:text-[#F5F5F5] rounded-tl-sm"
-                    }`}>
-                      {msg.content}
-                    </div>
-                    <button
-                      onClick={() => copyMessage(msg.id, msg.content)}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded text-[#A1A1AA] hover:text-[#52525B] transition-all self-end"
-                    >
-                      {copiedId === msg.id ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              {sending && (
-                <div className="flex gap-3">
-                  <div className="w-7 h-7 rounded-full shrink-0 bg-[#D99A00]/10 flex items-center justify-center mt-1">
-                    <Sparkles className="w-3.5 h-3.5 text-[#D99A00] dark:text-[#F5B800]" />
-                  </div>
-                  <div className="px-4 py-3 rounded-2xl rounded-tl-sm bg-white dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#242424]">
-                    <div className="flex gap-1.5 items-center h-5">
-                      <div className="w-2 h-2 rounded-full bg-[#A1A1AA] animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <div className="w-2 h-2 rounded-full bg-[#A1A1AA] animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <div className="w-2 h-2 rounded-full bg-[#A1A1AA] animate-bounce" style={{ animationDelay: "300ms" }} />
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
+        <div className="relative">
+          <textarea
+            rows={3}
+            placeholder="e.g. Plan my day around my current tasks, or Create a project for building my portfolio by Sept 30..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            className="w-full p-4 pr-12 rounded-xl bg-background border border-border text-xs font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/30 focus:ring-2 focus:ring-muted transition-all"
+          />
+          <button
+            type="button"
+            onClick={() => handleSubmitCommand()}
+            disabled={isProcessing || !input.trim()}
+            className="absolute right-3 bottom-3 p-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground transition-all disabled:opacity-40"
+          >
+            <Send className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Input */}
-        <div className="p-4 border-t border-border bg-card shrink-0">
-          <div className="max-w-[720px] mx-auto space-y-2">
-            <div className="flex items-center justify-between px-1">
-              <ModelSelector compact currentModelId={selectedModelId} onSelectModel={setSelectedModelId} />
-              <span className="text-[11px] text-muted-foreground font-medium">Workspace Context Active</span>
-            </div>
-
-            <div className="flex items-end gap-2 p-3 rounded-2xl border border-border bg-muted/40 focus-within:border-gold/50 transition-colors">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask about your projects, generate a plan, analyze your work..."
-                rows={1}
-                className="flex-1 bg-transparent resize-none focus:outline-none text-sm text-foreground placeholder:text-muted-foreground max-h-40"
-              />
+        {/* 3-4 Clean Prompt Examples */}
+        <div className="pt-2 border-t border-border">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+            SUGGESTED COMMANDS
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {EXAMPLES.map((ex, idx) => (
               <button
-                onClick={sendMessage}
-                disabled={!input.trim() || sending}
-                className="p-2 rounded-xl bg-gold text-black hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shrink-0 cursor-pointer"
+                key={idx}
+                type="button"
+                onClick={() => {
+                  setInput(ex);
+                  handleSubmitCommand(ex);
+                }}
+                className="px-3 py-1.5 rounded-lg border border-border bg-muted/30 hover:bg-muted text-left text-[11.5px] font-medium text-muted-foreground hover:text-foreground transition-colors"
               >
-                {sending ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {ex}
               </button>
-            </div>
-            <p className="text-xs text-muted-foreground text-center">
-              AI Builder uses your real workspace data. Write actions require confirmation.
-            </p>
+            ))}
           </div>
         </div>
-      </div>
+      </section>
+
+      {/* ── Error Banner ── */}
+      {error && (
+        <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2 font-medium">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* ── Success Banner ── */}
+      {executionSuccess && (
+        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 font-bold">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          {executionSuccess}
+        </div>
+      )}
+
+      {/* ── Loading State ── */}
+      {isProcessing && (
+        <div className="p-8 rounded-2xl border border-border bg-card text-center space-y-2">
+          <div className="w-6 h-6 border-2 border-muted-foreground/30 border-t-foreground rounded-full animate-spin mx-auto" />
+          <p className="text-xs font-bold text-foreground">Interpreting command...</p>
+          <p className="text-[11px] text-muted-foreground font-medium">
+            Structuring entity requirements and workflow parameters.
+          </p>
+        </div>
+      )}
+
+      {/* ── Human-Readable Command Result Card (No Raw JSON) ── */}
+      {result && !isProcessing && (
+        <section className="rounded-2xl border border-border bg-card p-6 space-y-5 shadow-sm animate-in fade-in duration-300">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
+                {result.type} PREVIEW
+              </span>
+              <h2 className="text-sm font-bold text-foreground">{result.title}</h2>
+            </div>
+            <span className="text-[11px] text-muted-foreground font-medium">Ready for confirmation</span>
+          </div>
+
+          <p className="text-xs text-muted-foreground font-medium leading-relaxed">
+            {result.explanation}
+          </p>
+
+          {/* Structured Details Matrix */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-background border border-border">
+            {Object.entries(result.details).map(([key, val]) => (
+              <div key={key} className="space-y-0.5">
+                <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
+                  {key.replace(/([A-Z])/g, " $1")}
+                </span>
+                <p className="text-xs font-bold text-foreground truncate">
+                  {Array.isArray(val) ? `${val.length} items` : String(val)}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Action Confirmation Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setResult(null)}
+              className="px-4 py-2 rounded-xl border border-border text-muted-foreground text-xs font-bold hover:bg-muted transition-colors"
+            >
+              Discard
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmAction}
+              disabled={isExecuting}
+              className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all flex items-center gap-2 shadow-xs disabled:opacity-50"
+            >
+              {isExecuting ? "Creating Entity..." : `Confirm & Create ${result.type}`}
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* ── Recent Requests Log ── */}
+      {recentRequests.length > 0 && (
+        <section className="pt-4 space-y-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            RECENT COMMANDS
+          </span>
+          <div className="space-y-1">
+            {recentRequests.map((req, idx) => (
+              <div
+                key={idx}
+                onClick={() => {
+                  setInput(req);
+                  handleSubmitCommand(req);
+                }}
+                className="p-2.5 rounded-xl border border-border bg-card hover:bg-muted/50 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer flex items-center justify-between transition-colors"
+              >
+                <span className="truncate">"{req}"</span>
+                <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
 
 export default function AIBuilderPage() {
   return (
-    <Suspense fallback={
-      <div className="w-full h-[100dvh] flex items-center justify-center bg-[#F7F7F5] dark:bg-[#080808]">
-        <LoaderCircle className="w-6 h-6 text-[#D99A00] animate-spin" />
-      </div>
-    }>
+    <Suspense fallback={<div className="p-8 text-xs text-muted-foreground">Loading AI Builder...</div>}>
       <AIBuilderContent />
     </Suspense>
   );

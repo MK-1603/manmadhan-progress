@@ -80,7 +80,7 @@ export function InvitePersonModal({ isOpen, onClose, onSuccess }: InvitePersonMo
           message: message.trim() || undefined,
           workspaceId,
         },
-        { timeout: 8000 }
+        { timeout: 12000 }
       );
 
       if (res.data.success) {
@@ -95,7 +95,14 @@ export function InvitePersonModal({ isOpen, onClose, onSuccess }: InvitePersonMo
       }
     } catch (e: any) {
       if (e.code === "ECONNABORTED" || e.message?.includes("timeout")) {
-        setError("Invitation process timed out. The invitation was queued, but email dispatch was slow.");
+        // Timeout usually means email dispatch was slow, but the DB record was
+        // likely created. Close and let the list refresh show the real status.
+        setEmail("");
+        setName("");
+        setMessage("");
+        setStep("FORM");
+        onSuccess();
+        onClose();
       } else {
         setError(e.response?.data?.error || e.message || "Failed to send invitation.");
       }

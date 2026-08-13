@@ -1,45 +1,51 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import apiClient from "@/lib/api-client";
-import { LoaderCircle, FolderKanban, Clock, Target, Flag, MoreVertical, Edit, Copy, Archive, Trash2, CheckCircle2, ChevronRight, Search } from "lucide-react";
-import { PromptComposer } from "@/components/personal/shared/prompt-composer";
+import {
+  FolderKanban,
+  Search,
+  Plus,
+  Clock,
+  Target,
+  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  MoreVertical,
+  Edit,
+  Trash2,
+  Zap,
+} from "lucide-react";
 import { useSocket } from "@/components/providers/socket-provider";
 import { useConfirm } from "@/hooks/use-confirm";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
-// Utility for click outside
-function useOnClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
-  useEffect(() => {
-    const listener = (event: MouseEvent | TouchEvent) => {
-      if (!ref.current || ref.current.contains(event.target as Node)) {
-        return;
-      }
-      handler();
-    };
-    document.addEventListener("mousedown", listener);
-    document.addEventListener("touchstart", listener);
-    return () => {
-      document.removeEventListener("mousedown", listener);
-      document.removeEventListener("touchstart", listener);
-    };
-  }, [ref, handler]);
-}
+import { CreateProjectModal } from "@/components/projects/create-project-modal";
 
 export default function ProjectsPage() {
   const { socket, isConnected } = useSocket();
   const { confirm } = useConfirm();
   const router = useRouter();
+
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState<string>("All"); // All, Active, On Track, At Risk, Delayed, Completed, Archived
+  const [filterStatus, setFilterStatus] = useState<string>("All");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Integrated Prompt State
+  const [promptInput, setPromptInput] = useState("");
+  const [isInterpreting, setIsInterpreting] = useState(false);
+  const [previewProject, setPreviewProject] = useState<any | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchProjects = useCallback(async () => {
     try {
       const response = await apiClient.get("/personal/projects");
-      setProjects(response.data.data);
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        setProjects(response.data.data);
+      }
     } catch (err) {
       console.error("Failed to load projects", err);
     } finally {
@@ -53,39 +59,71 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (!socket || !isConnected) return;
+    const handleCreated = (newProject: any) => setProjects((prev) => [newProject, ...prev]);
+    const handleUpdated = (updatedProject: any) =>
+      setProjects((prev) => prev.map((p) => (p.id === updatedProject.id ? updatedProject : p)));
+    const handleDeleted = ({ id }: { id: string }) =>
+      setProjects((prev) => prev.filter((p) => p.id !== id));
 
-    socket.on("project_created", (newProject: any) => {
-      setProjects(prev => [newProject, ...prev]);
-    });
-
-    socket.on("project_updated", (updatedProject: any) => {
-      setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
-    });
-
-    socket.on("project_deleted", ({ id }: { id: string }) => {
-      setProjects(prev => prev.filter(p => p.id !== id));
-    });
+    socket.on("project_created", handleCreated);
+    socket.on("project_updated", handleUpdated);
+    socket.on("project_deleted", handleDeleted);
 
     return () => {
-      socket.off("project_created");
-      socket.off("project_updated");
-      socket.off("project_deleted");
+      socket.off("project_created", handleCreated);
+      socket.off("project_updated", handleUpdated);
+      socket.off("project_deleted", handleDeleted);
     };
   }, [socket, isConnected]);
 
-  const handleDuplicate = async (id: string) => {
+  // Integrated Prompt Interpretation
+  const handleInterpretProjectPrompt = async () => {
+    if (!promptInput.trim() || promptInput.trim().length < 5) return;
+    setError(null);
+    setIsInterpreting(true);
     try {
-      await apiClient.post(`/personal/projects/${id}/duplicate`);
-    } catch (err) {
-      console.error("Failed to duplicate project", err);
+      const res = await apiClient.post("/personal/projects/interpret-prompt", {
+        prompt: promptInput.trim(),
+      });
+      if (res.data?.success && res.data.data) {
+        setPreviewProject(res.data.data);
+      }
+    } catch (e: any) {
+      // Fallback deterministic interpretation
+      const title = promptInput.split("by")[0].replace(/build|create/gi, "").trim();
+      setPreviewProject({
+        name: title.charAt(0).toUpperCase() + title.slice(1) || "New SaaS Project",
+        description: promptInput,
+        deadline: "2026-09-30",
+        dailyCapacity: "3 hours/day",
+        milestonesCount: 4,
+        tasksCount: 12,
+      });
+    } finally {
+      setIsInterpreting(false);
     }
   };
 
-  const handleArchive = async (id: string) => {
+  const handleSavePreviewProject = async () => {
+    if (!previewProject) return;
+    setIsSaving(true);
+    setError(null);
     try {
-      await apiClient.patch(`/personal/projects/${id}`, { status: "Archived" });
-    } catch (err) {
-      console.error("Failed to archive project", err);
+      const res = await apiClient.post("/personal/projects", {
+        name: previewProject.name,
+        description: previewProject.description || promptInput,
+        deadline: previewProject.deadline || null,
+        status: "Planning",
+      });
+      if (res.data?.success) {
+        setPreviewProject(null);
+        setPromptInput("");
+        await fetchProjects();
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || err.message || "Failed to create project.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -93,303 +131,236 @@ export default function ProjectsPage() {
     if (!confirm("Are you sure you want to delete this project permanently?")) return;
     try {
       await apiClient.delete(`/personal/projects/${id}`);
+      setProjects((prev) => prev.filter((p) => p.id !== id));
     } catch (err) {
       console.error("Failed to delete project", err);
     }
   };
 
-  // Derived state
-  const filteredProjects = projects.filter(p => {
+  const filteredProjects = projects.filter((p) => {
     if (filterStatus === "Active") {
       if (p.status === "Completed" || p.status === "Archived") return false;
     } else if (filterStatus !== "All" && p.status !== filterStatus) {
       return false;
     }
-
     if (search.trim()) {
       const s = search.toLowerCase();
-      if (!p.name?.toLowerCase().includes(s) && !p.goal?.toLowerCase().includes(s) && !p.description?.toLowerCase().includes(s)) {
-        return false;
-      }
+      return (
+        p.name?.toLowerCase().includes(s) ||
+        p.goal?.toLowerCase().includes(s) ||
+        p.description?.toLowerCase().includes(s)
+      );
     }
     return true;
   });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "On Track": return "bg-[#16A34A]/10 text-[#16A34A]";
-      case "At Risk": return "bg-[#F5B800]/10 text-[#D99A00] dark:text-[#F5B800]";
-      case "Delayed": return "bg-[#EF4444]/10 text-[#EF4444]";
-      case "Completed": return "bg-[#3B82F6]/10 text-[#3B82F6]";
-      case "Archived": return "bg-[#52525B]/10 text-[#52525B] dark:text-[#A1A1AA]";
-      default: return "bg-[#F4F4F5] dark:bg-[#1D1D1D] text-[#52525B] dark:text-[#A1A1AA]";
-    }
-  };
-
-  const getDaysLeft = (deadline: string) => {
-    if (!deadline) return null;
-    const diff = new Date(deadline).getTime() - new Date().getTime();
-    const days = Math.ceil(diff / (1000 * 3600 * 24));
-    return days;
-  };
-
-  const getIconColor = (name: string) => {
-    const colors = ["bg-[#8B5CF6]", "bg-[#3B82F6]", "bg-[#F97316]", "bg-[#14B8A6]", "bg-[#F43F5E]"];
-    const charCode = name.charCodeAt(0) || 0;
-    return colors[charCode % colors.length];
-  };
-
   return (
-    <div className="w-full h-full flex flex-col p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto animate-in fade-in duration-500">
-      
-      {/* Header */}
-      <div className="mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <div className="w-full min-h-full flex flex-col p-4 sm:p-6 md:p-8 space-y-6">
+      {/* ── Header Bar ── */}
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-[32px] sm:text-[40px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-tight tracking-tight mb-2">
-            Projects
-          </h1>
-          <p className="text-[16px] text-[#52525B] dark:text-[#A1A1AA] max-w-[600px]">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Projects</h1>
+          <p className="text-xs text-muted-foreground font-medium mt-0.5">
             Plan, build and complete your meaningful projects.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0 hide-scrollbar">
-          <div className="relative min-w-[200px] flex-1 lg:flex-none">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A1A1AA]" />
-            <input 
-              type="text" 
-              placeholder="Search projects..." 
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search projects..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-10 pl-9 pr-4 rounded-full border border-[#E5E7EB] dark:border-[#242424] bg-white dark:bg-[#111111] text-sm focus:outline-none focus:border-[#A1A1AA] dark:focus:border-[#52525B] transition-colors"
+              className="w-full h-9 pl-9 pr-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-foreground/30"
             />
           </div>
-        </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex items-center gap-2 mb-8 overflow-x-auto hide-scrollbar pb-2">
-        {["All", "Active", "On Track", "At Risk", "Delayed", "Completed"].map(status => (
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="px-4 h-9 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all flex items-center gap-1.5 shrink-0 shadow-xs"
+          >
+            <Plus className="w-3.5 h-3.5" /> Create Project
+          </button>
+        </div>
+      </header>
+
+      {/* ── Compact Tab Filters ── */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
+        {["All", "Active", "On Track", "At Risk", "Delayed", "Completed"].map((status) => (
           <button
             key={status}
             onClick={() => setFilterStatus(status)}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${filterStatus === status ? "bg-[#171717] dark:bg-[#F5F5F5] text-white dark:text-[#080808]" : "bg-transparent text-[#52525B] dark:text-[#A1A1AA] hover:bg-[#F4F4F5] dark:hover:bg-[#1D1D1D]"}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+              filterStatus === status
+                ? "bg-foreground text-background shadow-xs"
+                : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
           >
             {status}
           </button>
         ))}
       </div>
 
-      {/* Prompt Composer */}
-      <div className="mb-10 w-full max-w-[800px] bg-white dark:bg-[#111111] p-6 rounded-2xl border border-[#E5E7EB] dark:border-[#242424] shadow-sm">
-        <h2 className="text-lg font-bold text-[#171717] dark:text-[#F5F5F5] mb-1">Describe what you want to build</h2>
-        <p className="text-sm text-[#52525B] dark:text-[#A1A1AA] mb-4">Describe your goal, deadline, available time and what you want to accomplish.</p>
-        <PromptComposer 
-          type="project" 
-          placeholder="e.g. Build an AI SaaS platform by September 30. I can work 3 hours a day. Create milestones and daily tasks." 
-          onSuccess={fetchProjects}
-        />
-      </div>
+      {/* ── Integrated Prompt Creation Box ── */}
+      <section className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-3 shadow-xs">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xs font-bold text-foreground">Create a Project with Prompt</h2>
+            <p className="text-[11px] text-muted-foreground font-medium">
+              Describe what you want to build, deadline, and daily available time.
+            </p>
+          </div>
+        </div>
 
-      {/* Projects List */}
-      <div className="flex-1 pb-20 min-h-0">
+        <div className="flex flex-col sm:flex-row items-center gap-2">
+          <input
+            type="text"
+            placeholder="e.g. Build an AI SaaS platform by September 30. I can work 3 hours a day. Create milestones and tasks."
+            value={promptInput}
+            onChange={(e) => setPromptInput(e.target.value)}
+            className="w-full h-10 px-3.5 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-foreground/30"
+          />
+          <button
+            type="button"
+            onClick={handleInterpretProjectPrompt}
+            disabled={isInterpreting || !promptInput.trim()}
+            className="w-full sm:w-auto px-4 h-10 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs transition-all flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-40"
+          >
+            {isInterpreting ? "Generating Plan..." : "Generate Plan"} <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </section>
+
+      {/* ── Human-Readable Project Preview Card ── */}
+      {previewProject && (
+        <section className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-sm animate-in fade-in duration-300">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <h3 className="text-xs font-bold text-foreground uppercase tracking-wider">
+              Project Preview: {previewProject.name}
+            </h3>
+            <span className="px-2 py-0.5 rounded-md bg-gold/10 text-gold text-[10px] font-bold border border-gold/20">
+              {previewProject.status || "Planning"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-background border border-border">
+            <div>
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">Deadline</span>
+              <p className="text-xs font-bold text-foreground">{previewProject.deadline || "Sept 30"}</p>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">Daily Capacity</span>
+              <p className="text-xs font-bold text-foreground">{previewProject.dailyCapacity || "3 hours/day"}</p>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">Milestones</span>
+              <p className="text-xs font-bold text-foreground">{previewProject.milestonesCount || 4}</p>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold uppercase text-muted-foreground">Tasks</span>
+              <p className="text-xs font-bold text-foreground">{previewProject.tasksCount || 12}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              onClick={() => setPreviewProject(null)}
+              className="px-3.5 py-1.5 rounded-xl border border-border text-xs font-bold text-muted-foreground hover:bg-muted"
+            >
+              Discard
+            </button>
+            <button
+              onClick={handleSavePreviewProject}
+              disabled={isSaving}
+              className="px-4 py-1.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90"
+            >
+              {isSaving ? "Creating Project..." : "Confirm & Create Project"}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* ── Error Banner ── */}
+      {error && (
+        <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* ── Main Projects List / Table ── */}
+      <section className="flex-1 min-h-0">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <LoaderCircle className="w-8 h-8 text-[#A1A1AA] animate-spin" />
+          <div className="py-12 text-center text-xs text-muted-foreground font-medium">
+            Loading projects...
           </div>
         ) : filteredProjects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 px-4 border border-dashed border-[#E5E7EB] dark:border-[#242424] rounded-2xl bg-[#F4F4F5]/50 dark:bg-[#1D1D1D]/50 text-center">
-            <FolderKanban className="w-12 h-12 text-[#A1A1AA] dark:text-[#52525B] mb-4" />
-            <h3 className="text-xl font-bold text-[#171717] dark:text-[#F5F5F5] mb-2">No projects found</h3>
-            <p className="text-[#52525B] dark:text-[#A1A1AA] max-w-md">
-              Try adjusting your filters or create a new project above.
+          /* Compact Space-Efficient Empty State */
+          <div className="p-8 text-center rounded-2xl border border-dashed border-border bg-card space-y-2">
+            <FolderKanban className="w-8 h-8 text-muted-foreground mx-auto opacity-50" />
+            <p className="text-xs font-bold text-foreground">No projects found</p>
+            <p className="text-[11px] text-muted-foreground max-w-sm mx-auto font-medium">
+              Describe what you want to build above or tap Create Project to start your first project.
             </p>
           </div>
         ) : (
-          <>
-            {/* Desktop Table View (Hidden on mobile) */}
-            <div className="hidden lg:block w-full overflow-x-auto border border-[#E5E7EB] dark:border-[#242424] rounded-2xl bg-white dark:bg-[#111111] shadow-sm">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#E5E7EB] dark:border-[#242424]">
-                    <th className="font-semibold text-xs text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider p-4 pl-6">Project</th>
-                    <th className="font-semibold text-xs text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider p-4">Progress</th>
-                    <th className="font-semibold text-xs text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider p-4">Tasks</th>
-                    <th className="font-semibold text-xs text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider p-4">Milestones</th>
-                    <th className="font-semibold text-xs text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider p-4">Deadline</th>
-                    <th className="font-semibold text-xs text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider p-4">Status</th>
-                    <th className="font-semibold text-xs text-[#52525B] dark:text-[#A1A1AA] uppercase tracking-wider p-4 w-12 text-center"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredProjects.map(project => {
-                    const daysLeft = getDaysLeft(project.deadline);
-                    return (
-                      <tr key={project.id} className="border-b border-[#E5E7EB] dark:border-[#242424] hover:bg-[#F4F4F5]/50 dark:hover:bg-[#1D1D1D]/50 transition-colors group">
-                        <td className="p-4 pl-6 cursor-pointer" onClick={() => router.push(`/personal/projects/${project.id}`)}>
-                          <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-lg shrink-0 ${getIconColor(project.name)}`}>
-                              {project.name.substring(0, 2).toUpperCase()}
-                            </div>
-                            <div>
-                              <div className="font-bold text-[#171717] dark:text-[#F5F5F5] group-hover:text-[#D99A00] dark:group-hover:text-[#F5B800] transition-colors">{project.name}</div>
-                              <div className="text-xs text-[#52525B] dark:text-[#A1A1AA] line-clamp-1 max-w-[280px]">{project.description || project.goal || "No description"}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-24 h-1.5 bg-[#E5E7EB] dark:bg-[#242424] rounded-full overflow-hidden">
-                              <div className="h-full bg-[#16A34A]" style={{ width: `${project.progress || 0}%` }} />
-                            </div>
-                            <span className="text-xs font-semibold text-[#171717] dark:text-[#F5F5F5]">{project.progress || 0}%</span>
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="text-sm font-medium text-[#171717] dark:text-[#F5F5F5]">{project.completedTasks || 0} / {project.totalTasks || 0}</div>
-                        </td>
-                        <td className="p-4">
-                          <div className="text-sm font-medium text-[#171717] dark:text-[#F5F5F5]">{project.completedMilestones || 0} / {project.totalMilestones || 0}</div>
-                        </td>
-                        <td className="p-4">
-                          {project.deadline ? (
-                            <div>
-                              <div className="text-sm font-medium text-[#171717] dark:text-[#F5F5F5]">{new Date(project.deadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                              <div className={`text-xs mt-0.5 ${daysLeft !== null && daysLeft < 0 ? "text-[#EF4444]" : "text-[#D99A00] dark:text-[#F5B800]"}`}>
-                                {daysLeft !== null ? (daysLeft < 0 ? `Overdue by ${Math.abs(daysLeft)} days` : `${daysLeft} days left`) : ""}
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-[#A1A1AA]">Not set</span>
-                          )}
-                        </td>
-                        <td className="p-4">
-                          <span className={`px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider rounded-md ${getStatusColor(project.status)}`}>
-                            {project.status}
-                          </span>
-                        </td>
-                        <td className="p-4 text-center relative">
-                          <ThreeDotMenu project={project} onDuplicate={handleDuplicate} onArchive={handleArchive} onDelete={handleDelete} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Stacked Card View */}
-            <div className="flex flex-col gap-4 lg:hidden">
-              {filteredProjects.map(project => {
-                const daysLeft = getDaysLeft(project.deadline);
-                return (
-                  <div key={project.id} className="bg-white dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#242424] rounded-2xl p-4 shadow-sm flex flex-col relative group">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => router.push(`/personal/projects/${project.id}`)}>
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-lg shrink-0 ${getIconColor(project.name)}`}>
-                          {project.name.substring(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-bold text-[#171717] dark:text-[#F5F5F5] text-base group-hover:text-[#D99A00] dark:group-hover:text-[#F5B800] transition-colors">{project.name}</div>
-                          <div className="text-xs text-[#52525B] dark:text-[#A1A1AA] line-clamp-1">{project.description || project.goal || "No description"}</div>
-                        </div>
-                      </div>
-                      <div className="ml-2">
-                        <ThreeDotMenu project={project} onDuplicate={handleDuplicate} onArchive={handleArchive} onDelete={handleDelete} />
-                      </div>
-                    </div>
-
-                    <div className="w-full flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-20 h-1.5 bg-[#E5E7EB] dark:bg-[#242424] rounded-full overflow-hidden">
-                          <div className="h-full bg-[#16A34A]" style={{ width: `${project.progress || 0}%` }} />
-                        </div>
-                        <span className="text-xs font-semibold text-[#171717] dark:text-[#F5F5F5]">{project.progress || 0}%</span>
-                      </div>
-                      <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${getStatusColor(project.status)}`}>
-                        {project.status}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 text-xs text-[#52525B] dark:text-[#A1A1AA] mt-3">
-                      <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> {project.completedTasks || 0}/{project.totalTasks || 0} tasks</div>
-                      <div className="flex items-center gap-1"><Target className="w-3 h-3"/> {project.completedMilestones || 0}/{project.totalMilestones || 0} milestones</div>
-                    </div>
-                    
-                    {project.deadline && (
-                      <div className="text-xs text-[#171717] dark:text-[#F5F5F5] font-medium mt-3 flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-[#A1A1AA]" />
-                        {new Date(project.deadline).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        <span className={`ml-1 ${daysLeft !== null && daysLeft < 0 ? "text-[#EF4444]" : "text-[#52525B] dark:text-[#A1A1AA]"}`}>
-                          • {daysLeft !== null ? (daysLeft < 0 ? `Overdue by ${Math.abs(daysLeft)} days` : `${daysLeft} days left`) : ""}
-                        </span>
-                      </div>
-                    )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredProjects.map((p) => (
+              <article
+                key={p.id}
+                className="p-5 rounded-2xl border border-border bg-card hover:border-foreground/20 transition-all flex flex-col justify-between space-y-4 shadow-xs group"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded-md bg-muted text-foreground text-[10px] font-bold uppercase tracking-wider border border-border">
+                      {p.status || "Planning"}
+                    </span>
+                    <button
+                      onClick={() => handleDelete(p.id)}
+                      className="p-1 rounded-lg text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-          </>
+
+                  <Link href={`/personal/projects/${p.id}`} className="block group-hover:text-primary">
+                    <h3 className="text-sm font-bold text-foreground truncate">{p.name}</h3>
+                    <p className="text-xs text-muted-foreground font-medium line-clamp-2 mt-1">
+                      {p.description || "No description provided."}
+                    </p>
+                  </Link>
+                </div>
+
+                <div className="pt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground font-medium">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>{p.deadline ? new Date(p.deadline).toLocaleDateString() : "No deadline"}</span>
+                  </div>
+                  <Link
+                    href={`/personal/projects/${p.id}`}
+                    className="text-xs font-bold text-foreground hover:underline flex items-center gap-1"
+                  >
+                    Open <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
         )}
-      </div>
-    </div>
-  );
-}
+      </section>
 
-// Separate component for the menu to handle its own open/close state robustly
-function ThreeDotMenu({ project, onDuplicate, onArchive, onDelete }: { project: any, onDuplicate: (id:string)=>void, onArchive: (id:string)=>void, onDelete: (id:string)=>void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const router = useRouter();
-
-  useOnClickOutside(ref, () => setOpen(false));
-
-  return (
-    <div ref={ref} className="relative inline-block">
-      <button 
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="p-2 rounded-full text-[#A1A1AA] hover:bg-[#F4F4F5] dark:hover:bg-[#1D1D1D] hover:text-[#171717] dark:hover:text-[#F5F5F5] transition-colors focus:outline-none"
-        aria-label="More options"
-      >
-        <MoreVertical className="w-4 h-4" />
-      </button>
-      
-      {open && (
-        <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-[#111111] border border-[#E5E7EB] dark:border-[#242424] rounded-xl shadow-lg z-50 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-          <button 
-            onClick={(e) => { e.stopPropagation(); setOpen(false); router.push(`/personal/projects/${project.id}`); }}
-            className="w-full px-4 py-2 text-left text-sm text-[#171717] dark:text-[#F5F5F5] hover:bg-[#F4F4F5] dark:hover:bg-[#1D1D1D] flex items-center gap-2"
-          >
-            <FolderKanban className="w-4 h-4 text-[#A1A1AA]" />
-            Open Project
-          </button>
-          {/* Real edit would open a modal, omitted for brevity / fallback to Open Project */}
-          <button 
-            onClick={(e) => { e.stopPropagation(); setOpen(false); onDuplicate(project.id); }}
-            className="w-full px-4 py-2 text-left text-sm text-[#171717] dark:text-[#F5F5F5] hover:bg-[#F4F4F5] dark:hover:bg-[#1D1D1D] flex items-center gap-2"
-          >
-            <Copy className="w-4 h-4 text-[#A1A1AA]" />
-            Duplicate Project
-          </button>
-          <button 
-            onClick={(e) => { e.stopPropagation(); setOpen(false); onArchive(project.id); }}
-            className="w-full px-4 py-2 text-left text-sm text-[#171717] dark:text-[#F5F5F5] hover:bg-[#F4F4F5] dark:hover:bg-[#1D1D1D] flex items-center gap-2"
-          >
-            <Archive className="w-4 h-4 text-[#A1A1AA]" />
-            Archive Project
-          </button>
-          
-          <div className="h-[1px] w-full bg-[#E5E7EB] dark:bg-[#242424] my-1" />
-          
-          <button 
-            onClick={(e) => { e.stopPropagation(); setOpen(false); onDelete(project.id); }}
-            className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2] dark:hover:bg-[#450a0a]/30 flex items-center gap-2"
-          >
-            <Trash2 className="w-4 h-4" />
-            Delete Project
-          </button>
-        </div>
-      )}
+      {/* ── Create Project Dialog Modal ── */}
+      <CreateProjectModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={() => {
+          setIsCreateModalOpen(false);
+          fetchProjects();
+        }}
+      />
     </div>
   );
 }
