@@ -27,7 +27,7 @@ export async function writeTimelineEvent(
 	} = {},
 ) {
 	try {
-		await personalDb.insert(personalActivityLogs).values({
+		const newEvent = {
 			id: uuidv4(),
 			ownerUserId: userId,
 			eventType,
@@ -35,7 +35,16 @@ export async function writeTimelineEvent(
 			projectId: options.projectId || null,
 			taskId: options.taskId || null,
 			milestoneId: options.milestoneId || null,
-		});
+			createdAt: new Date().toISOString(),
+		};
+		await personalDb.insert(personalActivityLogs).values(newEvent as any);
+
+		try {
+			const { socketService } = require("../../services/socket.service");
+			socketService.toUser(userId, "personal_timeline_event", newEvent);
+		} catch (sErr) {
+			// Non-fatal socket error
+		}
 	} catch (err) {
 		// Non-fatal: don't crash the main operation if timeline write fails
 		logger.warn(`Timeline write failed: ${String(err)}`);

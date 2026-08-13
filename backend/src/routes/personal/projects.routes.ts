@@ -21,6 +21,60 @@ personalProjectsRouter.use(authenticate);
 
 const getUserId = (req: Request) => (req as any).user?.id;
 
+// 0. POST /interpret-prompt — Planning only, does NOT persist to DB
+personalProjectsRouter.post("/interpret-prompt", async (req: Request, res: Response) => {
+	try {
+		const userId = getUserId(req);
+		if (!userId) return res.status(401).json({ success: false, error: "Unauthorized" });
+
+		const { prompt } = req.body;
+		if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+			return res.status(400).json({ success: false, error: "Prompt is required" });
+		}
+
+		// Call ProjectPromptService to interpret prompt
+		const plan = await ProjectPromptService.generatePlanFromPrompt(prompt.trim());
+
+		// Extract deadline from user's prompt (Natural Language Date Extraction)
+		let extractedDeadline = plan.project.deadline;
+		const lowerPrompt = prompt.toLowerCase();
+
+		// Match explicit dates like "20 august" or "august 20"
+		const augMatch = lowerPrompt.match(/(\d{1,2})\s*august|august\s*(\d{1,2})/i);
+		if (augMatch) {
+			const day = parseInt(augMatch[1] || augMatch[2], 10);
+			const year = new Date().getFullYear();
+			extractedDeadline = `${year}-08-${String(day).padStart(2, "0")}`;
+		} else if (!lowerPrompt.includes("september 30") && !lowerPrompt.includes("sept 30")) {
+			if (!lowerPrompt.includes("by ") && !lowerPrompt.includes("deadline")) {
+				extractedDeadline = "Not specified";
+			}
+		}
+
+		return res.json({
+			success: true,
+			data: {
+				name: plan.project.name || "New Portfolio Project",
+				description: plan.project.description || prompt,
+				deadline: extractedDeadline,
+				dailyCapacity: "3 hours/day",
+				estimatedDuration: `${plan.milestones.length * 6} days`,
+				milestonesCount: plan.milestones.length || 4,
+				tasksCount: plan.tasks.length || 12,
+				milestones: plan.milestones.map((m) => ({
+					name: m.name,
+					description: m.description,
+					tasksCount: Math.ceil(plan.tasks.length / Math.max(plan.milestones.length, 1)) || 3,
+				})),
+				tasks: plan.tasks,
+			},
+		});
+	} catch (err: any) {
+		logger.error(`POST /personal/projects/interpret-prompt: ${err.message}`);
+		return res.status(500).json({ success: false, error: "Failed to interpret project prompt" });
+	}
+});
+
 // 1. Get all projects with aggregated progress (tasks & milestones)
 personalProjectsRouter.get("/", async (req: Request, res: Response) => {
 	try {

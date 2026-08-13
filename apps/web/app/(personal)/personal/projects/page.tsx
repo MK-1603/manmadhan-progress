@@ -115,10 +115,14 @@ export default function ProjectsPage() {
         deadline: previewProject.deadline || null,
         status: "Planning",
       });
-      if (res.data?.success) {
+      if (res.data?.success && res.data.data?.id) {
         setPreviewProject(null);
         setPromptInput("");
+        router.push(`/personal/projects/${res.data.data.id}`);
+      } else {
         await fetchProjects();
+        setPreviewProject(null);
+        setPromptInput("");
       }
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || "Failed to create project.");
