@@ -1328,4 +1328,47 @@ export const organizationPrompts = pgTable("organization_prompts", {
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Real Automation Engine Tables
+export const automations = pgTable("automations", {
+	id: text("id").primaryKey(),
+	workspaceId: text("workspace_id").references(() => workspaces.id, {
+		onDelete: "cascade",
+	}),
+	createdByUserId: text("created_by_user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	name: text("name").notNull(),
+	description: text("description"),
+	creationMode: text("creation_mode").default("PROMPT").notNull(), // PROMPT, VISUAL
+	originalPrompt: text("original_prompt"),
+	triggerType: text("trigger_type").notNull(), // SCHEDULE, TASK_ASSIGNED, TASK_ACCEPTED, TASK_COMPLETED, TASK_OVERDUE, PROGRESS_UPDATED
+	triggerConfig: jsonb("trigger_config").default({}).notNull(),
+	conditionConfig: jsonb("condition_config").default({}).notNull(),
+	actionType: text("action_type").notNull(), // NOTIFICATION, TASK_UPDATE, SCHEDULER, PROGRESS_UPDATE
+	actionConfig: jsonb("action_config").default({}).notNull(),
+	status: text("status").default("ACTIVE").notNull(), // DRAFT, ACTIVE, PAUSED, FAILED, COMPLETED, DISABLED
+	requiresConfirmation: boolean("requires_confirmation").default(false).notNull(),
+	lastRunAt: timestamp("last_run_at"),
+	nextRunAt: timestamp("next_run_at"),
+	runCount: integer("run_count").default(0).notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const automationLogs = pgTable("automation_logs", {
+	id: text("id").primaryKey(),
+	automationId: text("automation_id")
+		.notNull()
+		.references(() => automations.id, { onDelete: "cascade" }),
+	workspaceId: text("workspace_id").references(() => workspaces.id, {
+		onDelete: "cascade",
+	}),
+	userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+	status: text("status").notNull(), // SUCCESS, FAILED, PENDING_CONFIRMATION
+	triggeredBy: text("triggered_by").notNull(), // CRON, EVENT_TASK, EVENT_PROGRESS
+	executionDetails: jsonb("execution_details").default({}).notNull(),
+	errorMessage: text("error_message"),
+	executedAt: timestamp("executed_at").defaultNow().notNull(),
+});
+
 export * from "./schema/personal.schema";

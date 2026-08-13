@@ -393,7 +393,11 @@ export function Sidebar() {
                         <Link
                           key={item.href}
                           href={item.href}
-                          onClick={() => isMobile && setIsMobileDrawerOpen(false)}
+                          onClick={() => {
+                            if (isMobile) setIsMobileDrawerOpen(false);
+                            const m = document.querySelector("main");
+                            if (m) m.scrollTop = 0;
+                          }}
                           aria-current={active ? "page" : undefined}
                           title={tt(item.name)}
                           className={`

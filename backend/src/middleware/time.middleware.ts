@@ -25,11 +25,20 @@ export const enforceWorkExecutionPolicy = async (
 		}
 
 		if (!token) {
-			// Allow it to pass so auth.middleware handles the 401 correctly
+			// No token — let auth.middleware handle the 401 correctly
 			return next();
 		}
 
-		const decoded = jwt.verify(token, env.JWT_SECRET) as any;
+		let decoded: any;
+		try {
+			decoded = jwt.verify(token, env.JWT_SECRET) as any;
+		} catch (jwtErr: any) {
+			// Expired or invalid token — skip policy enforcement and let
+			// auth.middleware return the proper 401. Do NOT log this as an error;
+			// it is an expected condition for every request made with a stale token.
+			return next();
+		}
+
 		const userId = decoded.id;
 
 		// CEO can bypass Rest Mode

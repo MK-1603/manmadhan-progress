@@ -7,6 +7,42 @@ export interface UrlMetadata {
 	type?: string;
 }
 
+// ─── Centralized URL Builder ────────────────────────────────────────────────
+// All production URLs must be constructed through this function to prevent
+// double-slash URLs and accidental use of localhost/preview URLs in production.
+
+/**
+ * Strips trailing slash from a base URL so joining paths never produces `//`.
+ */
+export function normalizeBase(base: string): string {
+	return base.replace(/\/+$/, "");
+}
+
+/**
+ * Returns the frontend (CLIENT_URL) base, normalized.
+ * Falls back to localhost:3000 in development.
+ */
+export function getClientBase(): string {
+	return normalizeBase(process.env.CLIENT_URL || "http://localhost:3000");
+}
+
+/**
+ * Builds an absolute frontend URL, preventing double slashes.
+ * @param path - Must start with "/"
+ */
+export function buildClientUrl(path: string): string {
+	const base = getClientBase();
+	const safePath = path.startsWith("/") ? path : `/${path}`;
+	return `${base}${safePath}`;
+}
+
+/**
+ * Builds the invitation acceptance URL.
+ */
+export function buildInviteUrl(token: string): string {
+	return buildClientUrl(`/invite/${token}`);
+}
+
 export function extractUrls(text: string): string[] {
 	const urlRegex = /(https?:\/\/[^\s]+)/g;
 	const matches = text.match(urlRegex);

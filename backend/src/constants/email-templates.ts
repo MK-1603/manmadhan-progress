@@ -111,7 +111,8 @@ export const AppEvents: Record<string, NotificationTemplate> = {
 			`${data.inviterName} has invited you to join their workspace on ManMadhan Progress.`,
 		],
 		actionText: "Accept Invitation",
-		getDefaultActionUrl: (data, url) => `${url}/invite/${data.inviteToken}`,
+		getDefaultActionUrl: (data, url) =>
+			`${url.replace(/\/+$/, "")}/invite/${data.inviteToken}`,
 	},
 	ROLE_CHANGED: {
 		type: "ROLE_CHANGED",

@@ -38,6 +38,7 @@ export default function InvitationsPage() {
 
     if (socket) {
       socket.on("INVITATION_SENT", () => fetchInvitations());
+      socket.on("INVITATION_SEND_FAILED", () => fetchInvitations());
       socket.on("INVITATION_UPDATED", () => fetchInvitations());
       socket.on("INVITATION_ACCEPTED", () => fetchInvitations());
       socket.on("INVITATION_DELETED", () => fetchInvitations());
@@ -46,6 +47,7 @@ export default function InvitationsPage() {
     return () => {
       if (socket) {
         socket.off("INVITATION_SENT");
+        socket.off("INVITATION_SEND_FAILED");
         socket.off("INVITATION_UPDATED");
         socket.off("INVITATION_ACCEPTED");
         socket.off("INVITATION_DELETED");

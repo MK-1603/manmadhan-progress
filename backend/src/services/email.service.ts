@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { env } from "../../config/env.config";
+import { buildInviteUrl, buildClientUrl } from "../utils/url.utils";
 import { maskEmail } from "../utils/string.utils";
 import {
 	EmailTemplateBuilder,
@@ -146,8 +147,7 @@ class EmailService {
 		role: string,
 		inviterName: string = "A team member",
 	): Promise<boolean> {
-		const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
-		const actionUrl = `${clientUrl}/invite/${token}`;
+		const actionUrl = buildInviteUrl(token);
 		logger.info(
 			`[InvitationEmail] Sending invitation to ${to} (${role}) via link: ${actionUrl}`,
 		);
@@ -181,8 +181,7 @@ class EmailService {
 		deadline?: string | null;
 		taskId: string;
 	}): Promise<boolean> {
-		const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
-		const actionUrl = `${clientUrl}/ceo/my-work?taskId=${options.taskId}`;
+		const actionUrl = buildClientUrl(`/ceo/my-work?taskId=${options.taskId}`);
 		const projectText = options.projectName
 			? options.projectName
 			: "Standalone Task";
@@ -222,8 +221,7 @@ class EmailService {
 		deadline?: string | null;
 		projectId: string;
 	}): Promise<boolean> {
-		const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
-		const actionUrl = `${clientUrl}/co-ceo/my-work?projectId=${options.projectId}`;
+		const actionUrl = buildClientUrl(`/co-ceo/my-work?projectId=${options.projectId}`);
 
 		const html = `
 			<p style="margin:0 0 16px 0; font-size:15px; color:#3F3F46;">You have been assigned as <strong>${options.role}</strong> for project <strong>${options.projectName}</strong> by <strong>${options.assignerName}</strong>.</p>

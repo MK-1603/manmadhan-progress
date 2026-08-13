@@ -67,7 +67,13 @@ export default function CEOInvitationsPage() {
 
   useEffect(() => {
     if (!socket) return;
-    const events = ["INVITATION_SENT", "INVITATION_UPDATED", "INVITATION_ACCEPTED", "INVITATION_DELETED"];
+    const events = [
+      "INVITATION_SENT",
+      "INVITATION_SEND_FAILED",
+      "INVITATION_UPDATED",
+      "INVITATION_ACCEPTED",
+      "INVITATION_DELETED",
+    ];
     events.forEach(e => socket.on(e, fetchInvitations));
     return () => events.forEach(e => socket.off(e));
   }, [socket]);

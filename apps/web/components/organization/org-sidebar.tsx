@@ -562,7 +562,11 @@ export function OrgSidebar({ role, base }: OrgSidebarProps) {
                         <Link
                           key={item.href}
                           href={item.href}
-                          onClick={() => isMobile && setIsMobileOpen(false)}
+                          onClick={() => {
+                            if (isMobile) setIsMobileOpen(false);
+                            const m = document.querySelector("main");
+                            if (m) m.scrollTop = 0;
+                          }}
                           aria-current={active ? "page" : undefined}
                           title={tooltipTitle(item.name)}
                           className={`

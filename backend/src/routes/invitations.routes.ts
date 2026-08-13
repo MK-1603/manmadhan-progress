@@ -338,10 +338,13 @@ invitationsRouter.post("/send", async (req: Request, res: Response) => {
 			status: finalStatus,
 		};
 
-		// Socket notification
+		// Socket notification — only emit INVITATION_SENT when email was actually accepted
+		// by the mail provider. Emit INVITATION_SEND_FAILED so the frontend can show the
+		// real state without a misleading "sent" indicator.
+		const socketEvent = emailSent ? "INVITATION_SENT" : "INVITATION_SEND_FAILED";
 		socketService.emitToWorkspace(
 			String(workspaceId),
-			"INVITATION_SENT",
+			socketEvent,
 			responseData,
 		);
 
@@ -408,6 +411,17 @@ invitationsRouter.post(
 				.update(invitations)
 				.set({ status: finalStatus })
 				.where(eq(invitations.id, invitation.id));
+
+			const resendSocketEvent = emailSent
+				? "INVITATION_SENT"
+				: "INVITATION_SEND_FAILED";
+			if (invitation.organizationId) {
+				socketService.emitToWorkspace(
+					invitation.organizationId,
+					resendSocketEvent,
+					{ ...invitation, status: finalStatus },
+				);
+			}
 
 			res.json({
 				success: true,
@@ -791,21 +805,38 @@ invitationsRouter.post("/batch-send", async (req: Request, res: Response) => {
 					invitedById: inviterId,
 					batchNumber: batchNumber || null,
 					expiresAt,
-					status: "Queued",
+					status: "Sending",
 				})
 				.returning();
 
-			await emailService.sendInvitationEmail(
-				email,
-				token,
-				String(role),
-				inviterName,
-			);
-			createdInvites.push(newInvite);
+			let batchEmailSent = false;
+			try {
+				batchEmailSent = await emailService.sendInvitationEmail(
+					email,
+					token,
+					String(role),
+					inviterName,
+				);
+			} catch (err: any) {
+				logger.warn(`Batch invitation email failed for ${email}: ${err.message}`);
+			}
+
+			const batchFinalStatus = batchEmailSent ? "Sent" : "Email Failed";
+			await db
+				.update(invitations)
+				.set({ status: batchFinalStatus })
+				.where(eq(invitations.id, newInvite.id));
+
+			const batchResponseData = { ...newInvite, status: batchFinalStatus };
+			createdInvites.push(batchResponseData);
+
+			const batchSocketEvent = batchEmailSent
+				? "INVITATION_SENT"
+				: "INVITATION_SEND_FAILED";
 			socketService.emitToWorkspace(
 				String(workspaceId),
-				"INVITATION_SENT",
-				newInvite,
+				batchSocketEvent,
+				batchResponseData,
 			);
 		}
 

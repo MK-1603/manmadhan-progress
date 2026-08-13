@@ -1,6 +1,14 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  ReactNode,
+  useCallback,
+} from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "@/components/auth/auth-context";
 
@@ -17,62 +25,139 @@ const SocketContext = createContext<SocketContextType>({
 export const useSocket = () => useContext(SocketContext);
 
 /**
+ * Strips /api/v1 suffix from NEXT_PUBLIC_API_URL to get the socket origin.
+ */
+function resolveSocketUrl(): string {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4100";
+  return apiUrl.replace(/\/api\/v1\/?$/, "").replace(/\/+$/, "");
+}
+
+/**
+ * Reads the current auth token from localStorage.
+ * Returns empty string if not available (SSR or missing).
+ */
+function readStoredToken(): string {
+  if (typeof window === "undefined") return "";
+  return (
+    localStorage.getItem("auth_token") ||
+    localStorage.getItem("token") ||
+    ""
+  );
+}
+
+/**
+ * Attempts a token refresh via the backend /auth/refresh endpoint.
+ * Returns the new token string on success, null on failure.
+ *
+ * Uses a plain fetch so there is no dependency on the axios interceptor
+ * (which would itself trigger another socket reconnect cycle).
+ */
+async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const apiBase =
+      typeof window !== "undefined"
+        ? "/api/v1" // client-side: use Next.js proxy
+        : (process.env.INTERNAL_API_URL ??
+           process.env.NEXT_PUBLIC_API_URL ??
+           "http://localhost:4100/api/v1");
+
+    const res = await fetch(`${apiBase}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const token: string | undefined =
+      data?.accessToken || data?.data?.accessToken || data?.data?.token;
+
+    if (token) {
+      localStorage.setItem("auth_token", token);
+      localStorage.setItem("token", token);
+      return token;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * SocketProvider — stable single-instance socket lifecycle.
  *
- * Key design rules:
- *  1. The socket is created ONCE on mount and NEVER recreated.
- *  2. Room subscriptions (join_room) are managed separately from the connection.
- *  3. When user/workspace changes, we emit new join_room events — we do NOT disconnect.
- *  4. WebSocket transport is tried first (faster), polling is the fallback.
- *  5. The dashboard renders from the API; socket is only for realtime updates.
+ * Design rules:
+ *  1. Socket is created ONCE per authenticated user session.
+ *  2. When the token is expired the socket is NOT reconnected with the same
+ *     stale token. Instead we attempt a token refresh first. If refresh
+ *     succeeds we reconnect once with the new token. If refresh fails we
+ *     disconnect permanently and let the HTTP layer redirect to /login.
+ *  3. Room joins (join_room) are managed separately from the connection.
+ *  4. No duplicate sockets are created during route changes.
  */
 export const SocketProvider = ({ children }: { children: ReactNode }) => {
   const socketRef = useRef<Socket | null>(null);
-  const userIdRef = useRef<string | null>(null); // stable ref — avoids re-creating socket on user change
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
+  // Track whether we already attempted a refresh for this socket lifecycle
+  const refreshAttemptedRef = useRef(false);
+  // Track current userId to detect user changes
+  const userIdRef = useRef<string | null>(null);
+
   const { user } = useAuth();
 
-  // ── Step 1: Manage socket lifecycle based on authentication ───────────────
-  useEffect(() => {
-    // If not authenticated, do not connect socket
-    if (!user?.id) {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-        setSocket(null);
-        setIsConnected(false);
+  const joinRooms = useCallback(
+    (sock: Socket) => {
+      if (!sock.connected) return;
+      const workspaceId = localStorage.getItem("workspaceId");
+      if (workspaceId && workspaceId !== "undefined" && workspaceId !== "null") {
+        sock.emit("join_room", `workspace_${workspaceId}`);
       }
+      if (userIdRef.current) {
+        sock.emit("join_room", `user_${userIdRef.current}`);
+      }
+    },
+    [],
+  );
+
+  const destroySocket = useCallback(() => {
+    if (socketRef.current) {
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+    setSocket(null);
+    setIsConnected(false);
+    refreshAttemptedRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    // ── Not authenticated ──────────────────────────────────────────────────
+    if (!user?.id) {
+      destroySocket();
+      userIdRef.current = null;
       return;
+    }
+
+    // ── User changed (e.g. account switch) — recreate socket ──────────────
+    if (userIdRef.current && userIdRef.current !== user.id) {
+      destroySocket();
     }
 
     userIdRef.current = user.id;
 
+    // ── Socket already alive — just rejoin rooms ───────────────────────────
     if (socketRef.current) {
-      // Re-join user room if already connected
       if (socketRef.current.connected) {
-        socketRef.current.emit("join_room", `user_${user.id}`);
-        const workspaceId = localStorage.getItem("workspaceId");
-        if (workspaceId) {
-          socketRef.current.emit("join_room", `workspace_${workspaceId}`);
-        }
+        joinRooms(socketRef.current);
       }
       return;
     }
 
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL 
-      ? process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, '') 
-      : "http://localhost:4100";
-
-    let SOCKET_URL = backendUrl;
-    if (typeof window !== "undefined" && backendUrl.includes("localhost") && window.location.hostname !== "localhost") {
-      SOCKET_URL = `http://${window.location.hostname}:${backendUrl.split(':').pop()}`;
-    }
-
-    const token = typeof window !== "undefined"
-      ? localStorage.getItem("auth_token") || localStorage.getItem("token") || ""
-      : "";
+    // ── Create a new socket ────────────────────────────────────────────────
+    const SOCKET_URL = resolveSocketUrl();
+    const token = readStoredToken();
 
     const socketInstance = io(SOCKET_URL, {
       path: "/socket.io/",
@@ -80,73 +165,97 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       auth: { token },
       query: { token },
       transports: ["websocket", "polling"],
+      // Reconnection is enabled but limited. We stop after exhausting attempts
+      // so we never spin forever with a stale token.
       reconnection: true,
-      reconnectionAttempts: 8,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
       autoConnect: true,
     });
 
+    // ── connect ────────────────────────────────────────────────────────────
     socketInstance.on("connect", () => {
+      refreshAttemptedRef.current = false; // reset on successful connect
       setIsConnected(true);
-
-      const workspaceId = localStorage.getItem("workspaceId");
-      if (workspaceId) {
-        socketInstance.emit("join_room", `workspace_${workspaceId}`);
-      }
-      if (userIdRef.current) {
-        socketInstance.emit("join_room", `user_${userIdRef.current}`);
-      }
+      joinRooms(socketInstance);
     });
 
-    socketInstance.on("session.revoked", () => {
+    // ── disconnect ────────────────────────────────────────────────────────
+    socketInstance.on("disconnect", (_reason) => {
       setIsConnected(false);
-      socketInstance.disconnect();
+    });
+
+    // ── connect_error — handle authentication failures ────────────────────
+    socketInstance.on("connect_error", async (err) => {
+      setIsConnected(false);
+
+      const isAuthError =
+        err.message?.toLowerCase().includes("authentication") ||
+        err.message?.toLowerCase().includes("jwt") ||
+        err.message?.toLowerCase().includes("expired") ||
+        err.message?.toLowerCase().includes("token");
+
+      if (isAuthError && !refreshAttemptedRef.current) {
+        // Try to refresh the token exactly once per socket lifecycle
+        refreshAttemptedRef.current = true;
+        socketInstance.io.opts.reconnection = false; // pause auto-reconnect
+
+        const newToken = await refreshAccessToken();
+
+        if (newToken) {
+          // Update auth credentials and reconnect once with the new token
+          socketInstance.auth = { token: newToken };
+          (socketInstance.io.opts as any).query = { token: newToken };
+          socketInstance.io.opts.reconnection = true;
+          socketInstance.io.opts.reconnectionAttempts = 3;
+          socketInstance.connect();
+        } else {
+          // Refresh failed — session is dead, clean up and redirect
+          destroySocket();
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            if (!window.location.pathname.startsWith("/login")) {
+              window.location.href = "/login?error=SessionExpired";
+            }
+          }
+        }
+        return;
+      }
+
+      // Non-auth error or already retried — leave reconnection to Socket.IO
+    });
+
+    // ── Server-initiated session invalidation ─────────────────────────────
+    const handleForceLogout = () => {
+      destroySocket();
       if (typeof window !== "undefined") {
         localStorage.clear();
         sessionStorage.clear();
         window.location.href = "/login?error=session_revoked";
       }
-    });
+    };
 
-    socketInstance.on("connect_error", (err) => {
-      setIsConnected(false);
-      if (err.message.includes("Authentication") || err.message.includes("token")) {
-        // Retry silently with polling fallback if websocket fails
-      }
-    });
-
-    socketInstance.on("FORCE_LOGOUT", () => {
-      setIsConnected(false);
-      socketInstance.disconnect();
-      if (typeof window !== "undefined") {
-        localStorage.clear();
-        sessionStorage.clear();
-        window.location.href = "/account-not-found";
-      }
-    });
-
+    socketInstance.on("session.revoked", handleForceLogout);
+    socketInstance.on("FORCE_LOGOUT", handleForceLogout);
     socketInstance.on("ACCOUNT_DELETED", () => {
-      setIsConnected(false);
-      socketInstance.disconnect();
+      destroySocket();
       if (typeof window !== "undefined") {
         localStorage.clear();
         sessionStorage.clear();
         window.location.href = "/account-not-found";
       }
-    });
-
-    socketInstance.on("disconnect", () => {
-      setIsConnected(false);
     });
 
     socketRef.current = socketInstance;
     setSocket(socketInstance);
 
     return () => {
-      socketInstance.disconnect();
-      socketRef.current = null;
+      destroySocket();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   return (

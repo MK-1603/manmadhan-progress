@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CheckSquare, X, Calendar, Clock, User, Shield, AlertCircle, FileText, CheckCircle2 } from "lucide-react";
+import { CheckSquare, X, Calendar, Clock, User, Shield, AlertCircle, FileText, CheckCircle2, Sparkles, Zap, Lightbulb } from "lucide-react";
 import apiClient from "@/lib/api-client";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { MobileSheet } from "@/components/ui/mobile-sheet";
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -16,23 +18,18 @@ interface CreateTaskModalProps {
   defaultAssigneeRole?: string | null;
 }
 
+const TASK_PROMPT_EXAMPLES = [
+  "Create a high-priority task to finish the portfolio homepage by Friday at 6 PM.",
+  "Add a task to study GraphQL tomorrow from 7 PM to 9 PM.",
+  "Create a task to review the project backend, due this Sunday.",
+  "Add a task to prepare the weekly progress report every Friday.",
+  "Create a task to test the production deployment and mark it high priority.",
+];
+
 const TASK_TYPES = [
-  "Development",
-  "Documentation",
-  "Research",
-  "Study",
-  "Design",
-  "Testing",
-  "Planning",
-  "Analysis",
-  "Framework",
-  "Writing",
-  "Configuration",
-  "Deployment",
-  "Review",
-  "Meeting",
-  "Learning",
-  "Other",
+  "Development", "Documentation", "Research", "Study", "Design",
+  "Testing", "Planning", "Analysis", "Framework", "Writing",
+  "Configuration", "Deployment", "Review", "Meeting", "Learning", "Other"
 ];
 
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
@@ -47,6 +44,11 @@ export function CreateTaskModal({
   defaultAssigneeName = null,
   defaultAssigneeRole = null,
 }: CreateTaskModalProps) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
+
+  const [creationMode, setCreationMode] = useState<"MANUAL" | "PROMPT">("MANUAL");
+  const [promptText, setPromptText] = useState("");
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState("Development");
@@ -61,6 +63,9 @@ export function CreateTaskModal({
   const [verificationRequired, setVerificationRequired] = useState(false);
   const [deliverable, setDeliverable] = useState("");
 
+  // Contextual Automation Checkbox
+  const [enableAutomation, setEnableAutomation] = useState(false);
+
   const [members, setMembers] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [availableMilestones, setAvailableMilestones] = useState<any[]>([]);
@@ -70,101 +75,114 @@ export function CreateTaskModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Load Workspace Members
-    async function loadMembers() {
+    async function loadData() {
       try {
-        const res = await apiClient.get("/organization/members");
-        if (res.data?.data) {
-          setMembers(res.data.data);
-        }
+        const [memRes, projRes] = await Promise.all([
+          apiClient.get("/organization/members").catch(() => ({ data: { data: [] } })),
+          apiClient.get("/org/projects").catch(() => ({ data: { data: [] } })),
+        ]);
+        if (memRes.data?.data) setMembers(memRes.data.data);
+        if (projRes.data?.data && Array.isArray(projRes.data.data)) setProjects(projRes.data.data);
       } catch (e) {
-        console.error("Failed to load members:", e);
+        console.error("Failed to load task creation data:", e);
       }
     }
-
-    // Load Projects
-    async function loadProjects() {
-      try {
-        const res = await apiClient.get("/org/projects");
-        if (res.data?.data && Array.isArray(res.data.data)) {
-          setProjects(res.data.data);
-        }
-      } catch (e) {
-        console.error("Failed to load projects:", e);
-      }
-    }
-
-    loadMembers();
-    loadProjects();
+    loadData();
   }, [isOpen]);
 
-  // Handle Project selection change to load its milestones
   useEffect(() => {
-    if (!projectId || projectId === "NONE") {
-      setMilestoneId(null);
+    if (!projectId) {
       setAvailableMilestones([]);
+      setMilestoneId(null);
       return;
     }
-
-    async function loadMilestones() {
-      try {
-        const res = await apiClient.get(`/org/projects/${projectId}`);
-        if (res.data?.data?.milestones) {
-          setAvailableMilestones(res.data.data.milestones);
-        } else {
-          setAvailableMilestones([]);
-        }
-      } catch (e) {
-        console.error("Failed to load milestones for project:", e);
-        setAvailableMilestones([]);
-      }
+    const foundProj = projects.find((p) => p.id === projectId);
+    if (foundProj && Array.isArray(foundProj.milestones)) {
+      setAvailableMilestones(foundProj.milestones);
+    } else {
+      setAvailableMilestones([]);
     }
-    loadMilestones();
-  }, [projectId]);
+  }, [projectId, projects]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) {
-      setError("Task title is required.");
+  // Natural Language Task Prompt Parser
+  const handleParsePrompt = () => {
+    if (!promptText.trim() || promptText.trim().length < 5) {
+      setError("Please provide a task prompt (min 5 characters).");
       return;
     }
-    if (!assigneeId) {
-      setError("Please select an assignee for this task.");
+    setError(null);
+    const text = promptText.trim();
+    const lower = text.toLowerCase();
+
+    // Extract Title
+    let parsedTitle = text.split("by")[0].split("due")[0].replace(/create a task|add a task|create task/gi, "").trim();
+    if (parsedTitle.length > 0) {
+      parsedTitle = parsedTitle.charAt(0).toUpperCase() + parsedTitle.slice(1);
+    } else {
+      parsedTitle = text.slice(0, 50);
+    }
+
+    // Extract Priority
+    let parsedPriority = "Medium";
+    if (lower.includes("high priority") || fontHas("high")) parsedPriority = "High";
+    else if (lower.includes("critical")) parsedPriority = "Critical";
+
+    setTitle(parsedTitle);
+    setDescription(text);
+    setPriority(parsedPriority);
+    setCreationMode("MANUAL");
+  };
+
+  function fontHas(sub: string) {
+    return promptText.toLowerCase().includes(sub);
+  }
+
+  const handleCreateTask = async () => {
+    if (!title.trim()) {
+      setError("Task title is required.");
       return;
     }
 
     setError(null);
     setIsSubmitting(true);
     try {
-      const workspaceId = localStorage.getItem("workspaceId");
-      const cleanProjectId = projectId && projectId !== "NONE" ? projectId : null;
-      const cleanMilestoneId = cleanProjectId && milestoneId ? milestoneId : null;
-
-      const payload = {
-        workspaceId,
+      const res = await apiClient.post("/org/tasks/create", {
         title: title.trim(),
-        description: description.trim() || null,
+        description: description.trim() || title.trim(),
         type,
         priority,
-        assigneeId,
-        projectId: cleanProjectId,
-        milestoneId: cleanMilestoneId,
+        assigneeUserId: assigneeId || null,
+        projectId: projectId || null,
+        milestoneId: milestoneId || null,
         deadline: deadline || null,
         startTime: startTime || null,
         endTime: endTime || null,
         approvalRequired,
         verificationRequired,
-        deliverable: deliverable.trim() || null,
-      };
+        deliverable: deliverable || null,
+      });
 
-      const res = await apiClient.post("/org/tasks", payload);
       if (res.data?.success) {
-        onSuccess(res.data.data);
+        // If contextual task automation was checked, create automation rule
+        if (enableAutomation) {
+          try {
+            await apiClient.post("/automation/create", {
+              name: `Automation for Task: ${title.trim().slice(0, 30)}`,
+              description: `Auto-alert when task "${title.trim()}" becomes overdue.`,
+              triggerType: "TASK_OVERDUE",
+              actionType: "NOTIFICATION",
+              actionConfig: { message: `Task "${title.trim()}" is overdue.` },
+              status: "ACTIVE",
+            });
+          } catch (autoErr) {
+            console.error("Contextual automation creation failed:", autoErr);
+          }
+        }
+
+        onSuccess(res.data.data.task);
         onClose();
-      } else {
-        setError(res.data?.error || "Failed to create task");
       }
     } catch (err: any) {
       setError(err.response?.data?.error || err.message || "Failed to create task.");
@@ -173,287 +191,251 @@ export function CreateTaskModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-card border border-border rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-        {/* Modal Header */}
-        <div className="px-6 py-5 border-b border-border flex items-center justify-between shrink-0 bg-muted/20">
-          <div className="flex items-center gap-3">
-            <CheckSquare className="w-5 h-5 text-gold shrink-0" />
-            <div>
-              <h2 className="text-[19px] font-[650] text-foreground leading-tight">Create Task</h2>
-              <p className="text-[13px] text-muted-foreground mt-0.5">
-                {defaultAssigneeName
-                  ? `Assigning to ${defaultAssigneeName} (${defaultAssigneeRole || "CO-CEO"})`
-                  : "Standalone or Project-linked Execution Task"}
-              </p>
+  /* ────────────────────────────────── Form Body ────────────────────────────────── */
+  const renderFormBody = () => (
+    <div className="space-y-4 text-xs">
+      {error && (
+        <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive flex items-center gap-2 font-medium">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* Mode Switcher */}
+      <div className="flex items-center gap-2 p-1 rounded-xl bg-muted border border-border">
+        <button
+          type="button"
+          onClick={() => setCreationMode("MANUAL")}
+          className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition-all ${
+            creationMode === "MANUAL"
+              ? "bg-card text-foreground shadow-xs border border-border"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Manual Form
+        </button>
+        <button
+          type="button"
+          onClick={() => setCreationMode("PROMPT")}
+          className={`flex-1 py-1.5 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 ${
+            creationMode === "PROMPT"
+              ? "bg-card text-foreground shadow-xs border border-border"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5 text-gold" /> Create with Prompt
+        </button>
+      </div>
+
+      {creationMode === "PROMPT" ? (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[11px] font-bold text-foreground uppercase tracking-wider mb-1.5">
+              DESCRIBE TASK MANDATE *
+            </label>
+            <textarea
+              rows={3}
+              placeholder="e.g. Create a high-priority task to finish the portfolio homepage by Friday at 6 PM..."
+              value={promptText}
+              onChange={(e) => setPromptText(e.target.value)}
+              className="w-full p-3.5 rounded-xl bg-background border border-border text-xs font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-gold"
+            />
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleParsePrompt}
+              className="px-4 py-2 rounded-xl bg-gold text-gold-foreground font-bold text-xs hover:bg-gold-hover transition-all flex items-center gap-1.5"
+            >
+              <Zap className="w-3.5 h-3.5" /> Interpret & Fill Form
+            </button>
+          </div>
+
+          <div className="pt-2 border-t border-border">
+            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+              TASK PROMPT EXAMPLES (TAP TO POPULATE)
+            </label>
+            <div className="space-y-1.5">
+              {TASK_PROMPT_EXAMPLES.map((ex, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    setPromptText(ex);
+                    setError(null);
+                  }}
+                  className="w-full p-2 rounded-lg border border-border/80 bg-muted/20 hover:bg-muted/50 text-left text-[11px] text-muted-foreground hover:text-foreground font-medium truncate transition-colors"
+                >
+                  "{ex}"
+                </button>
+              ))}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-[11px] font-bold uppercase text-foreground mb-1">
+              TASK TITLE *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Build REST Authentication Engine"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full h-10 px-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold uppercase text-foreground mb-1">
+                TASK TYPE
+              </label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
+              >
+                {TASK_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold uppercase text-foreground mb-1">
+                PRIORITY
+              </label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
+              >
+                {PRIORITIES.map((p) => (
+                  <option key={p} value={p}>
+                    {p} Priority
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold uppercase text-foreground mb-1">
+              DESCRIPTION
+            </label>
+            <textarea
+              rows={2}
+              placeholder="Specify requirements and deliverables..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full p-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold uppercase text-foreground mb-1">
+                ASSIGNEE
+              </label>
+              <select
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name || m.email} ({m.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold uppercase text-foreground mb-1">
+                TARGET DEADLINE
+              </label>
+              <input
+                type="date"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
+              />
+            </div>
+          </div>
+
+          {/* Contextual Automation Checkbox */}
+          <div className="pt-2">
+            <label className="flex items-center gap-2 p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 cursor-pointer transition-colors">
+              <input
+                type="checkbox"
+                checked={enableAutomation}
+                onChange={(e) => setEnableAutomation(e.target.checked)}
+                className="w-4 h-4 rounded text-gold focus:ring-gold"
+              />
+              <div>
+                <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-gold" /> Automate this Task
+                </p>
+                <p className="text-[10px] text-muted-foreground font-medium">
+                  Automatically send a notification if this task becomes overdue.
+                </p>
+              </div>
+            </label>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderFooter = () => (
+    <div className="flex items-center justify-between w-full">
+      <button
+        type="button"
+        onClick={onClose}
+        className="px-4 py-2 rounded-xl border border-border text-muted-foreground font-bold text-xs hover:bg-muted transition-colors"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        onClick={handleCreateTask}
+        disabled={isSubmitting || !title.trim()}
+        className="px-5 py-2 rounded-xl bg-gold text-gold-foreground font-bold text-xs hover:bg-gold-hover transition-all shadow-xs disabled:opacity-50"
+      >
+        {isSubmitting ? "Creating Task..." : "Create Task"}
+      </button>
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <MobileSheet isOpen={isOpen} onClose={onClose} title="Create Task" footerActions={renderFooter()}>
+        {renderFormBody()}
+      </MobileSheet>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-card border border-border text-card-foreground rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+            <CheckSquare className="w-4 h-4 text-gold" /> Create Task
+          </h3>
+          <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Modal Form */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 flex-1 text-xs">
-          {error && (
-            <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {error}
-            </div>
-          )}
+        {renderFormBody()}
 
-          {/* Section 1: Task Basics */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-[12px] font-semibold text-foreground tracking-[0.06em] uppercase mb-2">
-                TASK TITLE *
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Research OAuth Security or Setup Redis Cache"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-gold"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[12px] font-semibold text-foreground tracking-[0.06em] uppercase mb-2">
-                DESCRIPTION
-              </label>
-              <textarea
-                rows={3}
-                placeholder="Describe scope, objectives and instructions for this task..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full p-3.5 rounded-xl bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-gold"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[12px] font-semibold text-foreground tracking-[0.06em] uppercase mb-2">
-                  TASK TYPE
-                </label>
-                <select
-                  value={type}
-                  onChange={(e) => setType(e.target.value)}
-                  className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-sm text-foreground focus:outline-none focus:border-gold"
-                >
-                  {TASK_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[12px] font-semibold text-foreground tracking-[0.06em] uppercase mb-2">
-                  PRIORITY
-                </label>
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
-                  className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-sm text-foreground focus:outline-none focus:border-gold"
-                >
-                  {PRIORITIES.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-border" />
-
-          {/* Section 2: Assignment & Project Linkage */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-[12px] font-semibold text-foreground tracking-[0.06em] uppercase mb-2">
-                ASSIGN TO *
-              </label>
-              {/* When launched from a CO-CEO profile, show locked pre-selection */}
-              {defaultAssigneeId ? (
-                <div className="w-full h-11 px-3.5 rounded-xl bg-background border border-gold/40 text-sm text-foreground flex items-center justify-between">
-                  <span className="font-semibold">{defaultAssigneeName || "CO-CEO"}</span>
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-purple-500/10 text-purple-500 border border-purple-500/20">
-                    {defaultAssigneeRole || "CO-CEO"}
-                  </span>
-                </div>
-              ) : (
-                <select
-                  value={assigneeId}
-                  onChange={(e) => setAssigneeId(e.target.value)}
-                  className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-sm text-foreground focus:outline-none focus:border-gold"
-                >
-                  <option value="">Select Assignee (CO-CEO or Member)...</option>
-                  {members.filter(m => (m.role || "").toUpperCase().includes("CO")).length > 0 && (
-                    <optgroup label="CO-CEOs">
-                      {members.filter(m => (m.role || "").toUpperCase().includes("CO")).map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name || m.email} (CO-CEO)
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  <optgroup label="Members">
-                    {members.filter(m => !(m.role || "").toUpperCase().includes("CO")).map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name || m.email} (Member)
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[12px] font-semibold text-foreground tracking-[0.06em] uppercase mb-2">
-                  PROJECT (OPTIONAL)
-                </label>
-                <select
-                  value={projectId || "NONE"}
-                  onChange={(e) => setProjectId(e.target.value === "NONE" ? null : e.target.value)}
-                  className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-sm text-foreground focus:outline-none focus:border-gold"
-                >
-                  <option value="NONE">No Project (Standalone Task)</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[12px] font-semibold text-foreground tracking-[0.06em] uppercase mb-2">
-                  MILESTONE (OPTIONAL)
-                </label>
-                <select
-                  disabled={!projectId || projectId === "NONE"}
-                  value={milestoneId || ""}
-                  onChange={(e) => setMilestoneId(e.target.value || null)}
-                  className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-sm text-foreground focus:outline-none focus:border-gold disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <option value="">
-                    {!projectId || projectId === "NONE"
-                      ? "Select Project First..."
-                      : "Optional Milestone..."}
-                  </option>
-                  {availableMilestones.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name || `Stage ${m.stageNumber}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-foreground tracking-[0.06em] uppercase mb-1.5">
-                  TARGET DEADLINE
-                </label>
-                <input
-                  type="date"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                  className="w-full h-11 px-3 rounded-xl bg-background border border-border text-xs text-foreground focus:outline-none focus:border-gold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-foreground tracking-[0.06em] uppercase mb-1.5">
-                  START TIME
-                </label>
-                <input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full h-11 px-3 rounded-xl bg-background border border-border text-xs text-foreground focus:outline-none focus:border-gold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-foreground tracking-[0.06em] uppercase mb-1.5">
-                  END TIME
-                </label>
-                <input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full h-11 px-3 rounded-xl bg-background border border-border text-xs text-foreground focus:outline-none focus:border-gold"
-                />
-              </div>
-            </div>
-          </div>
-
-          <hr className="border-border" />
-
-          {/* Section 3: Verification & Governance */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <label className="flex items-center gap-2.5 p-3 rounded-xl bg-background border border-border cursor-pointer hover:border-gold/50">
-                <input
-                  type="checkbox"
-                  checked={approvalRequired}
-                  onChange={(e) => setApprovalRequired(e.target.checked)}
-                  className="w-4 h-4 rounded border-border bg-background text-gold focus:ring-gold"
-                />
-                <span className="text-xs font-semibold text-foreground">Approval Required</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-3 rounded-xl bg-background border border-border cursor-pointer hover:border-gold/50">
-                <input
-                  type="checkbox"
-                  checked={verificationRequired}
-                  onChange={(e) => setVerificationRequired(e.target.checked)}
-                  className="w-4 h-4 rounded border-border bg-background text-gold focus:ring-gold"
-                />
-                <span className="text-xs font-semibold text-foreground">Verification Required</span>
-              </label>
-            </div>
-
-            <div>
-              <label className="block text-[12px] font-semibold text-foreground tracking-[0.06em] uppercase mb-2">
-                EXPECTED DELIVERABLE
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. PR link, PDF document, architecture summary"
-                value={deliverable}
-                onChange={(e) => setDeliverable(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl bg-background border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-gold"
-              />
-            </div>
-          </div>
-
-          {/* Modal Footer */}
-          <div className="pt-4 border-t border-border flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-xl bg-transparent border border-border text-muted-foreground font-semibold hover:bg-accent hover:text-foreground transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-5 py-2.5 rounded-xl bg-gold hover:bg-gold-hover text-[#0A0A0A] font-semibold transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50"
-            >
-              {isSubmitting ? "Creating Task..." : "Create Task"}
-            </button>
-          </div>
-        </form>
+        <div className="border-t border-border pt-4">{renderFooter()}</div>
       </div>
     </div>
   );
