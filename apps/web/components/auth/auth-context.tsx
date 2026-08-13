@@ -16,6 +16,11 @@ export type User = {
   avatar: string;
   role: string;
   workspaceId?: string;
+  timezone?: string;
+  language?: string;
+  dateFormat?: string;
+  timeFormat?: string;
+  batchNumber?: string;
 };
 
 type AuthContextValue = {
@@ -37,6 +42,8 @@ type AuthContextValue = {
   verifyOtp: (tempToken: string, otp: string) => Promise<void>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
+  /** Re-fetches the current user from /auth/me and updates context state. */
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -156,6 +163,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  /** Silently re-fetches the current user from /auth/me without touching loading state. */
+  const refreshUser = React.useCallback(async () => {
+    try {
+      const res = await apiClient.get("/auth/me");
+      if (res.data.authenticated && res.data.user) {
+        setUser(res.data.user);
+      }
+    } catch {
+      // Silently ignore — if the session is gone the 401 interceptor handles it
+    }
+  }, []);
+
   useEffect(() => {
     checkSession();
   }, [checkSession]);
@@ -212,7 +231,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     verifyOtp,
     logout,
     checkSession,
-  }), [user, isLoading, openModal, isDirty, isTransitioning, transitionMessage, authState, setAuthState, authData, setAuthData, open, close, verifyOtp, logout, checkSession]);
+    refreshUser,
+  }), [user, isLoading, openModal, isDirty, isTransitioning, transitionMessage, authState, setAuthState, authData, setAuthData, open, close, verifyOtp, logout, checkSession, refreshUser]);
 
   return (
     <AuthContext.Provider value={contextValue}>

@@ -42,23 +42,27 @@ export const env = {
 	APPLE_CLIENT_ID: process.env.APPLE_CLIENT_ID || "",
 	APPLE_CLIENT_SECRET: process.env.APPLE_CLIENT_SECRET || "",
 
-	// Mail Transport Settings (Nodemailer-Sender)
+	// Mail Transport Settings
+	// When RESEND_API_KEY is set, SMTP credentials are not required.
 	MAIL_MODE: process.env.MAIL_MODE || "gmail",
 	MAIL_USER: process.env.MAIL_USER || "manmadhannotify@gmail.com",
-	MAIL_PASS: requiredSecret("MAIL_PASS"),
+	MAIL_PASS: process.env.MAIL_PASS || "",
 	MAIL_FROM_NAME: process.env.MAIL_FROM_NAME || "ManMadhan Progress",
 	MAIL_FROM_ADDRESS:
 		process.env.MAIL_FROM_ADDRESS || "manmadhannotify@gmail.com",
 
-	// Generic SMTPS Provider
+	// Generic SMTPS Provider (local / self-hosted only)
 	SMTP_HOST: process.env.SMTP_HOST || "smtp.gmail.com",
 	SMTP_PORT: parseInt(process.env.SMTP_PORT || "465", 10),
 	SMTP_SECURE: process.env.SMTP_SECURE === "true",
 	SMTP_USER: process.env.SMTP_USER || "manmadhannotify@gmail.com",
-	SMTP_PASS: requiredSecret("SMTP_PASS"),
+	SMTP_PASS: process.env.SMTP_PASS || "",
 	EMAIL_FROM:
 		process.env.EMAIL_FROM ||
 		'"ManMadhan Progress" <manmadhannotify@gmail.com>',
+
+	// Resend HTTPS Email API — required on Render / Vercel / Railway
+	RESEND_API_KEY: process.env.RESEND_API_KEY || "",
 
 	// Cloudinary Media Storage (fmiadecb)
 	CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "fmiadecb",

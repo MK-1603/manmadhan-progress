@@ -91,7 +91,9 @@ const NAVIGATION: NavGroup[] = [
 
 /* ─────────────────────────────── active-route helper (exact segment) */
 function isNavItemActive(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(href + "/");
+  if (pathname === href) return true;
+  if (href === "/personal/dashboard" || href === "/personal") return false;
+  return pathname.startsWith(href + "/");
 }
 
 /* ─────────────────────────── WorkspaceSwitcher (personal sidebar variant) */

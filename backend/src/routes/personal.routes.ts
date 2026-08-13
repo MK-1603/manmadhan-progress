@@ -41,17 +41,26 @@ personalRouter.get("/reminders", async (req: Request, res: Response) => {
 				.status(400)
 				.json({ success: false, error: "Workspace not found" });
 
-		const data = await db
-			.select()
-			.from(reminders)
-			.where(
-				and(
-					eq(reminders.userId, userId),
-					eq(reminders.workspaceId, workspaceId),
-				),
-			)
-			.orderBy(desc(reminders.remindAt));
-
+		let query;
+		if (workspaceId) {
+			query = db
+				.select()
+				.from(reminders)
+				.where(
+					and(
+						eq(reminders.userId, userId),
+						eq(reminders.workspaceId, workspaceId),
+					),
+				)
+				.orderBy(desc(reminders.remindAt));
+		} else {
+			query = db
+				.select()
+				.from(reminders)
+				.where(eq(reminders.userId, userId))
+				.orderBy(desc(reminders.remindAt));
+		}
+		const data = await query;
 		return res.json({ success: true, data });
 	} catch (err: any) {
 		logger.error(`GET /personal/reminders: ${err.message}`);

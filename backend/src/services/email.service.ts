@@ -38,14 +38,12 @@ class EmailService {
 	constructor() {
 		if (process.env.RESEND_API_KEY) {
 			this.resend = new Resend(process.env.RESEND_API_KEY);
-			this.usingResend = true;
-			logger.info("EmailService: using Resend HTTPS transport");
-		} else {
-			this.nodemailerTransport = this.buildNodemailerTransport();
-			logger.info(
-				`EmailService: using Nodemailer ${env.MAIL_MODE === "gmail" ? "Gmail" : "SMTP"} transport`,
-			);
+			logger.info("EmailService: Resend Primary Provider configured");
 		}
+		this.nodemailerTransport = this.buildNodemailerTransport();
+		logger.info(
+			`EmailService: Nodemailer ${env.MAIL_MODE === "gmail" ? "Gmail" : "SMTP"} Fallback Provider configured`,
+		);
 	}
 
 	// ── Nodemailer transport factory ─────────────────────────────────────────
@@ -78,20 +76,21 @@ class EmailService {
 		});
 	}
 
-	// ── Connection verification (no-op for Resend) ───────────────────────────
+	// ── Connection verification ──────────────────────────────────────────────
 	public async verifyConnection(): Promise<boolean> {
-		if (this.usingResend) {
-			logger.trace("EmailService: Resend transport active — no SMTP verify needed");
-			return true;
+		if (this.resend) {
+			logger.trace("EmailService: Resend active — primary provider ready");
 		}
 		try {
-			await Promise.race([
-				this.nodemailerTransport!.verify(),
-				new Promise<never>((_, reject) =>
-					setTimeout(() => reject(new Error("SMTP verify timeout")), 6000),
-				),
-			]);
-			logger.trace("EmailService: Nodemailer SMTP connection verified");
+			if (this.nodemailerTransport) {
+				await Promise.race([
+					this.nodemailerTransport.verify(),
+					new Promise<never>((_, reject) =>
+						setTimeout(() => reject(new Error("SMTP verify timeout")), 6000),
+					),
+				]);
+				logger.trace("EmailService: Nodemailer SMTP fallback verified");
+			}
 			return true;
 		} catch (err: any) {
 			logger.debug(
@@ -129,8 +128,8 @@ class EmailService {
 					actionText: options.actionText,
 				});
 
-		// ── Resend path ────────────────────────────────────────────────────
-		if (this.usingResend && this.resend) {
+		// ── Step 1: Resend Primary Provider ─────────────────────────────────
+		if (this.resend) {
 			try {
 				const { data, error } = await this.resend.emails.send({
 					from: `${fromName} <${fromAddress}>`,
@@ -140,57 +139,57 @@ class EmailService {
 					text: options.text,
 				});
 
-				if (error) {
-					logger.error(
-						{ error: error.message, to: maskEmail(options.to) },
-						"Resend email dispatch failed",
+				if (!error && data?.id) {
+					logger.info(
+						{ messageId: data.id, to: maskEmail(options.to) },
+						"Email dispatched via Resend Primary Provider",
 					);
-					return { success: false, error: error.message };
+					return { success: true, messageId: data.id };
 				}
 
-				logger.info(
-					{ messageId: data?.id, to: maskEmail(options.to) },
-					"Email dispatched via Resend",
+				logger.warn(
+					{ error: error?.message, to: maskEmail(options.to) },
+					"Resend Primary Provider failed — attempting Nodemailer SMTP fallback...",
 				);
-				return { success: true, messageId: data?.id };
-			} catch (err: any) {
-				logger.error(
-					{ error: err.message, to: maskEmail(options.to) },
-					"Resend email dispatch exception",
+			} catch (resendErr: any) {
+				logger.warn(
+					{ error: resendErr.message, to: maskEmail(options.to) },
+					"Resend Primary Provider exception — attempting Nodemailer SMTP fallback...",
 				);
-				return { success: false, error: err.message };
 			}
 		}
 
-		// ── Nodemailer path ────────────────────────────────────────────────
+		// ── Step 2: Nodemailer SMTP Fallback Provider ───────────────────────
 		try {
-			const sendPromise = this.nodemailerTransport!.sendMail({
-				from: `"${fromName}" <${fromAddress}>`,
-				to: options.to,
-				subject: cleanSubject,
-				text: options.text,
-				html: finalHtml,
-			});
+			if (!this.nodemailerTransport) {
+				this.nodemailerTransport = this.buildNodemailerTransport();
+			}
 
 			const info: any = await Promise.race([
-				sendPromise,
+				this.nodemailerTransport.sendMail({
+					from: `"${fromName}" <${fromAddress}>`,
+					to: options.to,
+					subject: cleanSubject,
+					text: options.text,
+					html: finalHtml,
+				}),
 				new Promise<never>((_, reject) =>
 					setTimeout(
-						() => reject(new Error("Email dispatch timed out after 9000ms")),
-						9000,
+						() => reject(new Error("Email dispatch timed out after 8000ms")),
+						8000,
 					),
 				),
 			]);
 
 			logger.info(
 				{ messageId: info.messageId, to: maskEmail(options.to) },
-				"Email dispatched via Nodemailer",
+				"Email dispatched via Nodemailer SMTP Fallback Provider",
 			);
 			return { success: true, messageId: info.messageId };
 		} catch (err: any) {
 			logger.error(
 				{ error: err.message, to: maskEmail(options.to) },
-				"Nodemailer email dispatch failed",
+				"Both email providers (Resend Primary & Nodemailer Fallback) failed to dispatch email",
 			);
 			return { success: false, error: err.message };
 		}

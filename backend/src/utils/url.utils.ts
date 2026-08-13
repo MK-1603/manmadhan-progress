@@ -32,8 +32,8 @@ export function getClientBase(): string {
  */
 export function buildClientUrl(path: string): string {
 	const base = getClientBase();
-	const safePath = path.startsWith("/") ? path : `/${path}`;
-	return `${base}${safePath}`;
+	const cleanPath = path.replace(/^\/+/, "");
+	return `${base}/${cleanPath}`;
 }
 
 /**
