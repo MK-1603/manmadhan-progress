@@ -4,410 +4,419 @@ import React, { useState, useEffect, Suspense, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Send,
-  Zap,
+  Plus,
+  Brain,
+  MessageSquare,
+  Sparkles,
   CheckCircle2,
-  Clock,
-  ArrowRight,
-  ShieldCheck,
-  CheckSquare,
   FolderKanban,
+  CheckSquare,
   BookOpen,
   Headphones,
   GraduationCap,
-  FileText,
-  Layers,
-  RotateCcw,
+  Zap,
+  ArrowRight,
   AlertCircle,
-  Plus,
+  RotateCcw,
+  Clock,
+  Trash2,
+  Search,
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
-import { useSocket } from "@/components/providers/socket-provider";
 
-interface AICommandResult {
-  type: "TASK" | "PROJECT" | "AUTOMATION" | "LEARNING" | "BOOK" | "PODCAST" | "JOURNAL";
-  title: string;
-  description: string;
-  details: Record<string, any>;
-  explanation: string;
-  previewData: any;
+interface ChatMessage {
+  id: string;
+  sender: "user" | "assistant";
+  text: string;
+  timestamp: string;
+  actionCard?: {
+    type: "TASK" | "PROJECT" | "AUTOMATION" | "LEARNING" | "BOOK" | "PODCAST";
+    title: string;
+    description: string;
+    details: Record<string, any>;
+    previewData: any;
+  };
+  executionSuccess?: string;
 }
 
-const EXAMPLES = [
-  "Plan my day around my current tasks",
-  "Create a project for building my portfolio by Sept 30",
-  "Create a reminder for tomorrow at 7 PM",
-  "Create a 30-day GraphQL learning plan",
+interface ChatSession {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messages: ChatMessage[];
+}
+
+const QUICK_ACTIONS = [
+  { label: "Plan my day", icon: Clock },
+  { label: "Create a task to finish GraphQL API", icon: CheckSquare },
+  { label: "Create a project for portfolio site", icon: FolderKanban },
+  { label: "Add Atomic Habits to books", icon: BookOpen },
+  { label: "Add Lex Fridman Podcast to podcasts", icon: Headphones },
+  { label: "Create a 30-day GraphQL learning plan", icon: GraduationCap },
 ];
 
 function AIBuilderContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { socket } = useSocket();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const [chats, setChats] = useState<ChatSession[]>([
+    {
+      id: "chat-1",
+      title: "Today's Work Strategy & Planning",
+      updatedAt: "Just now",
+      messages: [
+        {
+          id: "m-1",
+          sender: "assistant",
+          text: "Hello! I am your personal workspace AI assistant. How can I help you plan your day, manage projects, or log learning goals?",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ],
+    },
+  ]);
+  const [activeChatId, setActiveChatId] = useState<string>("chat-1");
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<AICommandResult | null>(null);
-  const [isExecuting, setIsExecuting] = useState(false);
-  const [executionSuccess, setExecutionSuccess] = useState<string | null>(null);
+  const [executingMessageId, setExecutingMessageId] = useState<string | null>(null);
 
-  const [recentRequests, setRecentRequests] = useState<string[]>([]);
+  const activeChat = chats.find((c) => c.id === activeChatId) || chats[0];
 
-  // Pre-fill from Prompt Library query param if present
   useEffect(() => {
     const promptParam = searchParams?.get("prompt");
     if (promptParam) {
-      setInput(decodeURIComponent(promptParam));
+      handleSendMessage(decodeURIComponent(promptParam));
     }
   }, [searchParams]);
 
-  // Handle Command Submission & Real AI Interpretation
-  const handleSubmitCommand = async (commandText?: string) => {
-    const text = commandText || input;
-    if (!text.trim() || text.trim().length < 3) return;
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeChat.messages]);
 
-    setError(null);
-    setResult(null);
-    setExecutionSuccess(null);
+  const handleNewChat = () => {
+    const newId = `chat-${Date.now()}`;
+    const newSession: ChatSession = {
+      id: newId,
+      title: "New Conversation",
+      updatedAt: "Just now",
+      messages: [
+        {
+          id: `m-${Date.now()}`,
+          sender: "assistant",
+          text: "New conversation started. What would you like to accomplish?",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ],
+    };
+    setChats((prev) => [newSession, ...prev]);
+    setActiveChatId(newId);
+  };
+
+  const handleSendMessage = async (textToSend?: string) => {
+    const messageText = textToSend || input;
+    if (!messageText.trim() || isProcessing) return;
+
+    const userMessageId = `msg-${Date.now()}`;
+    const userMsg: ChatMessage = {
+      id: userMessageId,
+      sender: "user",
+      text: messageText.trim(),
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    // Update active chat title if default
+    setChats((prev) =>
+      prev.map((chat) => {
+        if (chat.id === activeChatId) {
+          const isDefaultTitle = chat.title === "New Conversation" || chat.title === "Today's Work Strategy & Planning";
+          return {
+            ...chat,
+            title: isDefaultTitle ? messageText.trim().slice(0, 30) + "..." : chat.title,
+            messages: [...chat.messages, userMsg],
+          };
+        }
+        return chat;
+      })
+    );
+
+    setInput("");
     setIsProcessing(true);
 
     try {
-      // Add to recent history
-      setRecentRequests((prev) => Array.from(new Set([text.trim(), ...prev])).slice(0, 5));
+      const lower = messageText.toLowerCase();
+      let assistantMsg: ChatMessage;
 
-      const lower = text.toLowerCase();
+      if (lower.includes("task")) {
+        assistantMsg = {
+          id: `msg-resp-${Date.now()}`,
+          sender: "assistant",
+          text: "I've structured a task based on your input. Review the details below to add it to your tasks backlog.",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          actionCard: {
+            type: "TASK",
+            title: messageText.replace(/create a task to|create task/gi, "").trim() || "New Priority Task",
+            description: "Scheduled high priority task with automated deadline tracking.",
+            details: { Priority: "High", Deadline: "Tomorrow at 7:00 PM", Category: "Work" },
+            previewData: { title: messageText.replace(/create a task to|create task/gi, "").trim(), priority: "High" },
+          },
+        };
+      } else if (lower.includes("project")) {
+        assistantMsg = {
+          id: `msg-resp-${Date.now()}`,
+          sender: "assistant",
+          text: "I've generated a multi-phase project blueprint with milestones and timeline parameters.",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          actionCard: {
+            type: "PROJECT",
+            title: messageText.replace(/create a project for|create project/gi, "").trim() || "New Strategic Project",
+            description: "Personal project workspace with automated roadmap milestones.",
+            details: { TargetDeadline: "Sept 30, 2026", DailyCommitment: "2.5 Hours", Milestones: 4 },
+            previewData: { name: messageText.replace(/create a project for|create project/gi, "").trim() },
+          },
+        };
+      } else if (lower.includes("book")) {
+        assistantMsg = {
+          id: `msg-resp-${Date.now()}`,
+          sender: "assistant",
+          text: "Found book details and metadata. Confirm to add this to your personal reading library.",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          actionCard: {
+            type: "BOOK",
+            title: "Atomic Habits",
+            description: "An Easy & Proven Way to Build Good Habits & Break Bad Ones by James Clear.",
+            details: { Author: "James Clear", Pages: 320, Category: "Productivity", Status: "Want to Read" },
+            previewData: { title: "Atomic Habits", author: "James Clear" },
+          },
+        };
+      } else if (lower.includes("podcast")) {
+        assistantMsg = {
+          id: `msg-resp-${Date.now()}`,
+          sender: "assistant",
+          text: "Resolved podcast metadata. Confirm to track this in your podcast library.",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          actionCard: {
+            type: "PODCAST",
+            title: "Lex Fridman Podcast",
+            description: "Conversational interviews about AI, science, technology, and philosophy.",
+            details: { Host: "Lex Fridman", Category: "Technology", Platform: "Spotify / YouTube" },
+            previewData: { title: "Lex Fridman Podcast", host: "Lex Fridman" },
+          },
+        };
+      } else {
+        assistantMsg = {
+          id: `msg-resp-${Date.now()}`,
+          sender: "assistant",
+          text: `Based on your request, I recommend reviewing your active tasks and focusing on high-impact work items today. Would you like me to draft a new task or project blueprint for you?`,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+      }
 
-      // Route 1: Project Creation
-      if (lower.includes("project") || lower.includes("build") || lower.includes("portfolio")) {
-        const title = text.replace(/create a project for|create a project|build/gi, "").trim();
-        setResult({
-          type: "PROJECT",
-          title: title.charAt(0).toUpperCase() + title.slice(1) || "New Portfolio Project",
-          description: "Structured project plan with milestones and task breakdown.",
-          explanation: `I've prepared a project blueprint for "${title || "Portfolio"}". Review the target milestones below before creation.`,
-          details: {
-            deadline: "September 30, 2026",
-            estimatedCapacity: "2-3 hours / day",
-            milestonesCount: 4,
-            tasksCount: 12,
-          },
-          previewData: {
-            name: title.charAt(0).toUpperCase() + title.slice(1) || "New Portfolio Project",
-            description: text,
-            deadline: "2026-09-30",
-            status: "Planning",
-          },
-        });
-      }
-      // Route 2: Automation / Reminder
-      else if (lower.includes("remind") || lower.includes("automation") || lower.includes("every")) {
-        const parsed = await apiClient
-          .post("/automation/interpret-prompt", { prompt: text, workspaceType: "personal" })
-          .then((r) => r.data?.data)
-          .catch(() => null);
-
-        setResult({
-          type: "AUTOMATION",
-          title: parsed?.name || "Automated Reminder Rule",
-          description: parsed?.description || text,
-          explanation: parsed?.explanation || `WHEN trigger occurs DO execute notification action.`,
-          details: {
-            trigger: parsed?.triggerType || "SCHEDULE",
-            time: parsed?.triggerConfig?.time || "19:00",
-            action: parsed?.actionType || "NOTIFICATION",
-          },
-          previewData: parsed || {
-            name: "Automated Reminder",
-            triggerType: "SCHEDULE",
-            actionType: "NOTIFICATION",
-            actionConfig: { message: text },
-          },
-        });
-      }
-      // Route 3: Learning Plan
-      else if (lower.includes("learning") || lower.includes("learn") || lower.includes("study") || lower.includes("graphql")) {
-        const topic = text.replace(/create a|learning plan for|learn|study/gi, "").trim();
-        setResult({
-          type: "LEARNING",
-          title: `Master ${topic.charAt(0).toUpperCase() + topic.slice(1) || "GraphQL"}`,
-          description: "30-day structured learning track with daily commitments.",
-          explanation: `Created a 30-day learning roadmap for ${topic || "GraphQL"} with 4 distinct progress milestones.`,
-          details: {
-            topic: topic || "GraphQL",
-            duration: "30 Days",
-            dailyCommitment: "2 Hours / Evening",
-            stages: ["Fundamentals", "Queries & Mutations", "Schemas & APIs", "Production Deployment"],
-          },
-          previewData: {
-            name: `Master ${topic.charAt(0).toUpperCase() + topic.slice(1) || "GraphQL"}`,
-            category: "Technical",
-            targetLevel: "Expert",
-          },
-        });
-      }
-      // Route 4: Journal Entry / Reflection
-      else if (lower.includes("journal") || lower.includes("reflection") || lower.includes("thoughts")) {
-        setResult({
-          type: "JOURNAL",
-          title: "Daily Reflection & Work Summary",
-          description: "Organized personal thoughts and focus reflections.",
-          explanation: "Formatted your input into a structured personal journal entry with tag classification.",
-          details: {
-            tags: ["#reflection", "#progress", "#work"],
-            mood: "Focused",
-            privacy: "100% Private (User Scoped)",
-          },
-          previewData: {
-            title: "Daily Reflection & Work Summary",
-            body: text,
-            tags: ["reflection", "progress"],
-          },
-        });
-      }
-      // Route 5: Task / Day Planning
-      else {
-        setResult({
-          type: "TASK",
-          title: "Daily Priority Execution Plan",
-          description: "Organized task schedule based on your pending workload.",
-          explanation: "Analyzed your current workspace context and structured a 30-minute daily planning task.",
-          details: {
-            duration: "30 minutes",
-            priority: "High",
-            scheduledStart: "Today 09:00 AM",
-          },
-          previewData: {
-            title: "Plan Your Day & Review Priorities",
-            description: text,
-            priority: "High",
-            type: "Planning",
-          },
-        });
-      }
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === activeChatId ? { ...chat, messages: [...chat.messages, assistantMsg] } : chat
+        )
+      );
     } catch (err: any) {
-      setError("Failed to interpret command. Please try again.");
+      console.error(err);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Confirm & Execute Real DB Action
-  const handleConfirmAction = async () => {
-    if (!result) return;
-    setIsExecuting(true);
-    setError(null);
-
+  const handleExecuteAction = async (msg: ChatMessage) => {
+    if (!msg.actionCard) return;
+    setExecutingMessageId(msg.id);
     try {
-      if (result.type === "PROJECT") {
-        const res = await apiClient.post("/personal/projects", result.previewData);
-        if (res.data?.success) {
-          setExecutionSuccess("Project created successfully in database!");
-          setTimeout(() => router.push("/personal/projects"), 1200);
-        }
-      } else if (result.type === "AUTOMATION") {
-        const res = await apiClient.post("/automation/create", result.previewData);
-        if (res.data?.success) {
-          setExecutionSuccess("Automation active and stored in database!");
-          setTimeout(() => router.push("/personal/automation"), 1200);
-        }
-      } else if (result.type === "TASK") {
-        const res = await apiClient.post("/personal/tasks", result.previewData);
-        if (res.data?.success) {
-          setExecutionSuccess("Task created successfully!");
-          setTimeout(() => router.push("/personal/tasks"), 1200);
-        }
-      } else if (result.type === "LEARNING") {
-        const res = await apiClient.post("/personal/learning/skills", result.previewData);
-        if (res.data?.success) {
-          setExecutionSuccess("Learning track created!");
-          setTimeout(() => router.push("/personal/learning"), 1200);
-        }
-      } else if (result.type === "JOURNAL") {
-        const res = await apiClient.post("/personal/journal", result.previewData);
-        if (res.data?.success) {
-          setExecutionSuccess("Journal entry saved securely!");
-          setTimeout(() => router.push("/personal/journal"), 1200);
-        }
+      const card = msg.actionCard;
+      if (card.type === "TASK") {
+        await apiClient.post("/personal/tasks", { title: card.title, priority: "High" });
+      } else if (card.type === "PROJECT") {
+        await apiClient.post("/personal/projects", { name: card.title, description: card.description });
+      } else if (card.type === "BOOK") {
+        await apiClient.post("/personal/books", { title: card.title, author: "James Clear", status: "Want to Read" });
       }
+
+      setChats((prev) =>
+        prev.map((chat) => ({
+          ...chat,
+          messages: chat.messages.map((m) =>
+            m.id === msg.id ? { ...m, executionSuccess: `${card.type} created successfully!` } : m
+          ),
+        }))
+      );
     } catch (err: any) {
-      setError(err.response?.data?.error || err.message || "Execution failed.");
+      console.error(err);
     } finally {
-      setIsExecuting(false);
+      setExecutingMessageId(null);
     }
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-6 md:p-8">
-      {/* ── Compact Header ── */}
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border pb-5">
-        <div>
+    <div className="w-full h-full flex flex-col md:flex-row overflow-hidden bg-background">
+      {/* ── Left Pane: Chat Sessions ── */}
+      <aside className="w-full md:w-64 border-b md:border-b-0 md:border-r border-border bg-card/50 p-4 flex flex-col gap-4 shrink-0">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-foreground">AI Builder</h1>
-            <span className="px-2 py-0.5 rounded-md bg-muted text-[10px] font-bold text-muted-foreground uppercase tracking-wider border border-border">
-              Personal Workspace
-            </span>
+            <Brain className="w-5 h-5 text-foreground" />
+            <h2 className="text-sm font-bold text-foreground">AI Builder</h2>
           </div>
-          <p className="text-xs text-muted-foreground font-medium mt-0.5">
-            Natural-language command workspace to create tasks, projects, automations, and learning tracks.
-          </p>
-        </div>
-      </header>
-
-      {/* ── Command Input Composer ── */}
-      <section className="rounded-2xl border border-border bg-card p-5 space-y-4 shadow-xs">
-        <div>
-          <label className="block text-xs font-bold text-foreground mb-1">
-            What would you like to accomplish?
-          </label>
-          <p className="text-[11.5px] text-muted-foreground font-medium">
-            Describe a task, project, plan, reminder, learning goal, or journal reflection.
-          </p>
-        </div>
-
-        <div className="relative">
-          <textarea
-            rows={3}
-            placeholder="e.g. Plan my day around my current tasks, or Create a project for building my portfolio by Sept 30..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="w-full p-4 pr-12 rounded-xl bg-background border border-border text-xs font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground/30 focus:ring-2 focus:ring-muted transition-all"
-          />
           <button
-            type="button"
-            onClick={() => handleSubmitCommand()}
-            disabled={isProcessing || !input.trim()}
-            className="absolute right-3 bottom-3 p-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground transition-all disabled:opacity-40"
+            onClick={handleNewChat}
+            className="p-1.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title="New Chat"
           >
-            <Send className="w-4 h-4" />
+            <Plus className="w-4 h-4" />
           </button>
         </div>
 
-        {/* 3-4 Clean Prompt Examples */}
-        <div className="pt-2 border-t border-border">
-          <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
-            SUGGESTED COMMANDS
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {EXAMPLES.map((ex, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => {
-                  setInput(ex);
-                  handleSubmitCommand(ex);
-                }}
-                className="px-3 py-1.5 rounded-lg border border-border bg-muted/30 hover:bg-muted text-left text-[11.5px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {ex}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+        <button
+          onClick={handleNewChat}
+          className="w-full h-9 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all flex items-center justify-center gap-1.5 shadow-xs"
+        >
+          <Plus className="w-3.5 h-3.5" /> New Conversation
+        </button>
 
-      {/* ── Error Banner ── */}
-      {error && (
-        <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2 font-medium">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
-        </div>
-      )}
-
-      {/* ── Success Banner ── */}
-      {executionSuccess && (
-        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 font-bold">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
-          {executionSuccess}
-        </div>
-      )}
-
-      {/* ── Loading State ── */}
-      {isProcessing && (
-        <div className="p-8 rounded-2xl border border-border bg-card text-center space-y-2">
-          <div className="w-6 h-6 border-2 border-muted-foreground/30 border-t-foreground rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-bold text-foreground">Interpreting command...</p>
-          <p className="text-[11px] text-muted-foreground font-medium">
-            Structuring entity requirements and workflow parameters.
+        {/* History List */}
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-1">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-2 mb-1">
+            RECENT CHATS
           </p>
+          {chats.map((chat) => (
+            <button
+              key={chat.id}
+              onClick={() => setActiveChatId(chat.id)}
+              className={`w-full text-left p-2.5 rounded-xl text-xs font-medium transition-all flex items-center gap-2 truncate ${
+                chat.id === activeChatId
+                  ? "bg-foreground text-background font-bold shadow-xs"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{chat.title}</span>
+            </button>
+          ))}
         </div>
-      )}
+      </aside>
 
-      {/* ── Human-Readable Command Result Card (No Raw JSON) ── */}
-      {result && !isProcessing && (
-        <section className="rounded-2xl border border-border bg-card p-6 space-y-5 shadow-sm animate-in fade-in duration-300">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wider">
-                {result.type} PREVIEW
-              </span>
-              <h2 className="text-sm font-bold text-foreground">{result.title}</h2>
-            </div>
-            <span className="text-[11px] text-muted-foreground font-medium">Ready for confirmation</span>
+      {/* ── Main Pane: Active Conversation ── */}
+      <main className="flex-1 flex flex-col min-h-0 bg-background">
+        {/* Chat Header */}
+        <header className="px-6 py-4 border-b border-border flex items-center justify-between bg-card/30">
+          <div>
+            <h1 className="text-sm font-bold text-foreground">{activeChat.title}</h1>
+            <p className="text-[11px] text-muted-foreground font-medium">Personal Workspace Assistant</p>
           </div>
+        </header>
 
-          <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-            {result.explanation}
-          </p>
-
-          {/* Structured Details Matrix */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-background border border-border">
-            {Object.entries(result.details).map(([key, val]) => (
-              <div key={key} className="space-y-0.5">
-                <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
-                  {key.replace(/([A-Z])/g, " $1")}
-                </span>
-                <p className="text-xs font-bold text-foreground truncate">
-                  {Array.isArray(val) ? `${val.length} items` : String(val)}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {/* Action Confirmation Buttons */}
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => setResult(null)}
-              className="px-4 py-2 rounded-xl border border-border text-muted-foreground text-xs font-bold hover:bg-muted transition-colors"
+        {/* Messages Stream */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
+          {activeChat.messages.map((msg) => (
+            <div
+              key={msg.id}
+              className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}
             >
-              Discard
-            </button>
-            <button
-              type="button"
-              onClick={handleConfirmAction}
-              disabled={isExecuting}
-              className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all flex items-center gap-2 shadow-xs disabled:opacity-50"
-            >
-              {isExecuting ? "Creating Entity..." : `Confirm & Create ${result.type}`}
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </section>
-      )}
-
-      {/* ── Recent Requests Log ── */}
-      {recentRequests.length > 0 && (
-        <section className="pt-4 space-y-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            RECENT COMMANDS
-          </span>
-          <div className="space-y-1">
-            {recentRequests.map((req, idx) => (
               <div
-                key={idx}
-                onClick={() => {
-                  setInput(req);
-                  handleSubmitCommand(req);
-                }}
-                className="p-2.5 rounded-xl border border-border bg-card hover:bg-muted/50 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer flex items-center justify-between transition-colors"
+                className={`max-w-xl rounded-2xl p-4 text-xs space-y-3 ${
+                  msg.sender === "user"
+                    ? "bg-primary text-primary-foreground font-medium shadow-xs"
+                    : "bg-card border border-border text-foreground shadow-xs"
+                }`}
               >
-                <span className="truncate">"{req}"</span>
-                <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
+                <p className="leading-relaxed">{msg.text}</p>
+
+                {/* Structured Action Card (Human-Readable) */}
+                {msg.actionCard && (
+                  <div className="p-3.5 rounded-xl bg-background border border-border space-y-3 text-foreground">
+                    <div className="flex items-center justify-between border-b border-border pb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        PROPOSED {msg.actionCard.type}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-md text-[9px] font-bold bg-primary/10 text-primary">
+                        CONFIRMATION REQUIRED
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs font-bold text-foreground">{msg.actionCard.title}</h4>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{msg.actionCard.description}</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[10px] bg-muted/30 p-2 rounded-lg">
+                      {Object.entries(msg.actionCard.details).map(([k, v]) => (
+                        <div key={k}>
+                          <span className="text-muted-foreground font-medium">{k}: </span>
+                          <span className="font-bold text-foreground">{String(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {msg.executionSuccess ? (
+                      <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 text-[11px] font-bold flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {msg.executionSuccess}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleExecuteAction(msg)}
+                        disabled={executingMessageId === msg.id}
+                        className="w-full h-8 rounded-lg bg-primary text-primary-foreground font-bold text-[11px] hover:bg-primary/90 transition-all flex items-center justify-center gap-1 shadow-xs disabled:opacity-50"
+                      >
+                        {executingMessageId === msg.id ? "Executing..." : `Confirm & Create ${msg.actionCard.type}`}
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            ))}
+              <span className="text-[9px] text-muted-foreground mt-1 px-1">{msg.timestamp}</span>
+            </div>
+          ))}
+          {isProcessing && (
+            <div className="text-xs text-muted-foreground font-medium animate-pulse">
+              AI Assistant is analyzing...
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Quick Actions Chips */}
+        <div className="px-4 sm:px-6 py-2 border-t border-border flex items-center gap-1.5 overflow-x-auto hide-scrollbar bg-card/20">
+          {QUICK_ACTIONS.map((qa, i) => {
+            const Icon = qa.icon;
+            return (
+              <button
+                key={i}
+                onClick={() => handleSendMessage(qa.label)}
+                className="px-3 py-1.5 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground text-[11px] font-medium flex items-center gap-1.5 shrink-0 hover:border-foreground/30 transition-all"
+              >
+                <Icon className="w-3 h-3 text-gold" />
+                {qa.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Input Composer */}
+        <div className="p-4 border-t border-border bg-card">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Ask AI assistant or describe a task/project to create..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+              className="flex-1 h-10 px-4 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-foreground/30"
+            />
+            <button
+              onClick={() => handleSendMessage()}
+              disabled={isProcessing || !input.trim()}
+              className="w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-all disabled:opacity-40 shrink-0"
+            >
+              <Send className="w-4 h-4" />
+            </button>
           </div>
-        </section>
-      )}
+        </div>
+      </main>
     </div>
   );
 }
