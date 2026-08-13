@@ -88,10 +88,10 @@ export function OrgSettingsView({ userRole, basePath }: OrgSettingsViewProps) {
 					)}
 					<div>
 						<h1 className="text-lg md:text-xl font-black text-foreground tracking-tight flex items-center gap-2">
-							<SettingsIcon className="w-5 h-5 text-gold dark:text-[#F0BC2B]" /> Settings
+							<SettingsIcon className="w-5 h-5 text-gold dark:text-[#F0BC2B]" /> Organization Settings
 						</h1>
 						<p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-[240px] sm:max-w-none">
-							My Account · Personal Profile, Preferences, Notifications & Security
+							ManMadhan Organization · Workspace Code MK1603 · Role Controls ({userRole})
 						</p>
 					</div>
 				</div>
