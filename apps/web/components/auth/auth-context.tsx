@@ -121,10 +121,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   const logout = React.useCallback(async () => {
+    isNavigatingRef.current = true;
     setTransitionMessage("Signing out securely...");
     setIsTransitioning(true);
     
-    // Give animation time to play before we kill the state
     setTimeout(async () => {
       try {
         await apiClient.post("/auth/logout");
@@ -135,11 +135,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("workspaceId");
         sessionStorage.removeItem("authData");
       }
-      router.push("/");
+      router.push("/login");
       
-      // Remove overlay after nav
-      setTimeout(() => setIsTransitioning(false), 500);
-    }, 800);
+      setTimeout(() => {
+        setIsTransitioning(false);
+        isNavigatingRef.current = false;
+      }, 500);
+    }, 400);
   }, [router]);
 
   const checkSession = React.useCallback(async () => {

@@ -21,7 +21,13 @@ function LoginContent() {
   const { theme, setTheme } = useTheme();
 
   const redirectUrl = searchParams.get("redirect") || "/personal/dashboard";
-  const initialError = searchParams.get("error") || "";
+  const rawError = searchParams.get("error") || "";
+  const initialError =
+    rawError === "Unauthorized"
+      ? "Please sign in to access your workspace."
+      : rawError === "SessionExpired"
+      ? "Your session has expired. Please sign in again."
+      : rawError;
 
   return (
     <div className="min-h-screen w-full bg-background flex flex-col justify-between p-4 sm:p-6 lg:p-10 relative overflow-hidden">
