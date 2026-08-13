@@ -12,7 +12,8 @@ import {
   Shield,
   Laptop,
   Activity,
-  Globe,
+  ArrowLeft,
+  ChevronRight,
   AlertCircle,
   Lock,
 } from "lucide-react";
@@ -32,7 +33,9 @@ export default function PersonalSettingsPage() {
   const { user, refreshUser } = useAuth();
   const { theme, setTheme } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>("General");
+  const [activeTab, setActiveTab] = useState<SettingsTab | null>("General");
+  const [mobileSubPageOpen, setMobileSubPageOpen] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -91,24 +94,29 @@ export default function PersonalSettingsPage() {
   const update = (key: string, val: any) =>
     setPrefs((prev) => ({ ...prev, [key]: val }));
 
-  const TABS: { id: SettingsTab; label: string; icon: React.ElementType }[] = [
-    { id: "General", label: "General & Identity", icon: User },
-    { id: "Appearance", label: "Appearance & Theme", icon: Palette },
-    { id: "Focus & Work", label: "Focus & Work Schedule", icon: Clock },
-    { id: "Notifications", label: "Notifications & Alerts", icon: Bell },
-    { id: "Security", label: "Security & Passwords", icon: Shield },
-    { id: "Devices", label: "Connected Devices", icon: Laptop },
-    { id: "Activity", label: "Security Activity", icon: Activity },
+  const TABS: { id: SettingsTab; label: string; description: string; icon: React.ElementType }[] = [
+    { id: "General", label: "General & Identity", description: "Display name and email details.", icon: User },
+    { id: "Appearance", label: "Appearance & Theme", description: "Light, dark, and system color mode.", icon: Palette },
+    { id: "Focus & Work", label: "Focus & Work Schedule", description: "Daily targets and work hours.", icon: Clock },
+    { id: "Notifications", label: "Notifications & Alerts", description: "Task and reminder alert channels.", icon: Bell },
+    { id: "Security", label: "Security & Passwords", description: "Authentication method & protection.", icon: Shield },
+    { id: "Devices", label: "Connected Devices", description: "Active session management.", icon: Laptop },
+    { id: "Activity", label: "Security Activity", description: "Login audit log timeline.", icon: Activity },
   ];
 
+  const handleMobileTabSelect = (tabId: SettingsTab) => {
+    setActiveTab(tabId);
+    setMobileSubPageOpen(true);
+  };
+
   return (
-    <div className="w-full min-h-full flex flex-col p-4 sm:p-6 md:p-8 space-y-6 max-w-6xl mx-auto">
+    <div className="w-full min-h-full flex flex-col p-4 sm:p-6 md:p-8 space-y-6 max-w-6xl mx-auto pb-24 md:pb-8">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-border pb-5">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">Personal Settings</h1>
           <p className="text-xs text-muted-foreground font-medium mt-0.5">
-            Manage your individual preferences, notification rules, and theme settings.
+            Configure your personal workspace preferences and notification rules.
           </p>
         </div>
 
@@ -116,7 +124,7 @@ export default function PersonalSettingsPage() {
           type="button"
           onClick={saveSettings}
           disabled={saving}
-          className="px-5 h-9 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+          className="px-5 h-9 rounded-lg bg-foreground text-background font-bold text-xs hover:opacity-90 transition-opacity flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
         >
           {saved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
           {saving ? "Saving..." : saved ? "Saved!" : "Save Changes"}
@@ -124,38 +132,75 @@ export default function PersonalSettingsPage() {
       </header>
 
       {error && (
-        <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium flex items-center gap-2">
+        <div className="p-3.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
           {error}
         </div>
       )}
 
-      {/* Main Settings Tabbed Layout */}
+      {/* Main Settings Desktop Layout / Mobile Index View */}
       <div className="flex flex-col md:flex-row gap-6">
-        {/* Left Tab Navigation */}
-        <aside className="w-full md:w-64 flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-y-auto shrink-0 pb-2 md:pb-0">
+        {/* Left Tab Navigation (Desktop) / Mobile Full-Width Row Index */}
+        <aside className="w-full md:w-64 space-y-2 md:space-y-1 shrink-0">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-bold text-left transition-all flex items-center gap-2.5 whitespace-nowrap ${
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setMobileSubPageOpen(true);
+                }}
+                className={`w-full p-3.5 md:px-3.5 md:py-2.5 rounded-xl md:rounded-lg text-xs font-bold text-left transition-colors flex items-center justify-between group cursor-pointer min-h-[48px] ${
                   active
                     ? "bg-foreground text-background shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                    : "bg-card border border-border md:bg-transparent md:border-none text-muted-foreground hover:text-foreground hover:bg-muted/60"
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span>{tab.label}</span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="truncate font-bold">{tab.label}</p>
+                    <p className="text-[10px] opacity-75 truncate md:hidden">{tab.description}</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 shrink-0 md:hidden text-muted-foreground" />
               </button>
             );
           })}
         </aside>
 
-        {/* Right Content Pane */}
-        <main className="flex-1 rounded-2xl border border-border bg-card p-5 sm:p-6 space-y-6 shadow-xs">
+        {/* Right Content Pane (Desktop) / Dedicated Mobile Full-Screen Sub-Page */}
+        <main
+          className={`flex-1 rounded-xl border border-border bg-card p-5 sm:p-6 space-y-6 shadow-xs ${
+            mobileSubPageOpen
+              ? "fixed inset-0 z-50 bg-background p-4 overflow-y-auto md:relative md:inset-auto md:bg-card md:p-6"
+              : "hidden md:block"
+          }`}
+        >
+          {/* Mobile Back Header */}
+          {mobileSubPageOpen && (
+            <header className="sticky top-0 z-10 bg-background/95 backdrop-blur-md pb-4 border-b border-border flex items-center justify-between md:hidden">
+              <button
+                onClick={() => setMobileSubPageOpen(false)}
+                className="flex items-center gap-2 text-xs font-bold text-foreground hover:text-gold transition-colors min-h-[44px]"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Settings</span>
+              </button>
+
+              <button
+                onClick={saveSettings}
+                disabled={saving}
+                className="px-4 h-9 rounded-lg bg-foreground text-background font-bold text-xs hover:opacity-90 transition-opacity flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+              >
+                {saved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+                {saving ? "Saving..." : saved ? "Saved!" : "Save"}
+              </button>
+            </header>
+          )}
+
           {loading ? (
             <div className="py-12 text-center text-xs text-muted-foreground font-medium">
               Loading settings...
@@ -179,7 +224,7 @@ export default function PersonalSettingsPage() {
                         type="text"
                         value={user?.displayName || user?.name || ""}
                         disabled
-                        className="w-full h-10 px-3.5 rounded-xl bg-muted/40 border border-border text-xs font-medium text-foreground opacity-70"
+                        className="w-full h-11 px-3.5 rounded-lg bg-muted/40 border border-border text-xs font-medium text-foreground opacity-70"
                       />
                     </div>
                     <div>
@@ -188,7 +233,7 @@ export default function PersonalSettingsPage() {
                         type="email"
                         value={user?.email || ""}
                         disabled
-                        className="w-full h-10 px-3.5 rounded-xl bg-muted/40 border border-border text-xs font-medium text-foreground opacity-70"
+                        className="w-full h-11 px-3.5 rounded-lg bg-muted/40 border border-border text-xs font-medium text-foreground opacity-70"
                       />
                     </div>
                   </div>
@@ -210,10 +255,10 @@ export default function PersonalSettingsPage() {
                       <button
                         key={t}
                         onClick={() => setTheme(t)}
-                        className={`px-4 py-2 rounded-xl border text-xs font-bold capitalize transition-all ${
+                        className={`flex-1 h-11 rounded-lg border text-xs font-bold capitalize transition-colors cursor-pointer ${
                           theme === t
                             ? "bg-foreground text-background border-foreground shadow-xs"
-                            : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                            : "border-border text-muted-foreground hover:bg-muted"
                         }`}
                       >
                         {t}
@@ -243,7 +288,7 @@ export default function PersonalSettingsPage() {
                         step={30}
                         value={prefs.dailyFocusGoalMinutes}
                         onChange={(e) => update("dailyFocusGoalMinutes", parseInt(e.target.value) || 360)}
-                        className="w-full h-10 px-3.5 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
+                        className="w-full h-11 px-3.5 rounded-lg bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-foreground/30"
                       />
                     </div>
 
@@ -252,34 +297,12 @@ export default function PersonalSettingsPage() {
                       <select
                         value={prefs.timezone}
                         onChange={(e) => update("timezone", e.target.value)}
-                        className="w-full h-10 px-3.5 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
+                        className="w-full h-11 px-3.5 rounded-lg bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-foreground/30"
                       >
                         <option value="UTC">UTC</option>
                         <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
                         <option value="America/New_York">America/New_York (EST)</option>
-                        <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
-                        <option value="Europe/London">Europe/London (GMT)</option>
                       </select>
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-foreground mb-1">WORK START TIME</label>
-                      <input
-                        type="time"
-                        value={prefs.workingHoursStart}
-                        onChange={(e) => update("workingHoursStart", e.target.value)}
-                        className="w-full h-10 px-3.5 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-bold text-foreground mb-1">WORK END TIME</label>
-                      <input
-                        type="time"
-                        value={prefs.workingHoursEnd}
-                        onChange={(e) => update("workingHoursEnd", e.target.value)}
-                        className="w-full h-10 px-3.5 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
-                      />
                     </div>
                   </div>
                 </div>
@@ -296,10 +319,10 @@ export default function PersonalSettingsPage() {
                   </div>
 
                   <div className="space-y-3 text-xs">
-                    <label className="flex items-center justify-between p-3 rounded-xl border border-border bg-background cursor-pointer">
+                    <label className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-background cursor-pointer min-h-[48px]">
                       <div>
                         <p className="font-bold text-foreground">Email Notifications</p>
-                        <p className="text-[11px] text-muted-foreground">Receive personal task and reminder updates via email.</p>
+                        <p className="text-[11px] text-muted-foreground">Receive personal task updates via email.</p>
                       </div>
                       <input
                         type="checkbox"
@@ -309,23 +332,10 @@ export default function PersonalSettingsPage() {
                       />
                     </label>
 
-                    <label className="flex items-center justify-between p-3 rounded-xl border border-border bg-background cursor-pointer">
-                      <div>
-                        <p className="font-bold text-foreground">Focus Reminders</p>
-                        <p className="text-[11px] text-muted-foreground">Receive reminders to start focus sessions.</p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={prefs.focusReminders}
-                        onChange={(e) => update("focusReminders", e.target.checked)}
-                        className="w-4 h-4 rounded border-border"
-                      />
-                    </label>
-
-                    <label className="flex items-center justify-between p-3 rounded-xl border border-border bg-background cursor-pointer">
+                    <label className="flex items-center justify-between p-3.5 rounded-xl border border-border bg-background cursor-pointer min-h-[48px]">
                       <div>
                         <p className="font-bold text-foreground">Deadline Alerts</p>
-                        <p className="text-[11px] text-muted-foreground">Receive notifications when task or project deadlines approach.</p>
+                        <p className="text-[11px] text-muted-foreground">Receive notifications when deadlines approach.</p>
                       </div>
                       <input
                         type="checkbox"
@@ -354,7 +364,7 @@ export default function PersonalSettingsPage() {
                       OAuth Authentication Active
                     </div>
                     <p className="text-[11px] text-muted-foreground font-medium">
-                      Your account is protected via Google / GitHub OAuth and Email OTP authentication.
+                      Your account is protected via OAuth session cookie authentication.
                     </p>
                   </div>
                 </div>
@@ -370,16 +380,16 @@ export default function PersonalSettingsPage() {
                     </p>
                   </div>
 
-                  <div className="p-3.5 rounded-xl border border-border bg-background flex items-center justify-between text-xs">
+                  <div className="p-3.5 rounded-xl border border-border bg-background flex items-center justify-between text-xs min-h-[48px]">
                     <div className="flex items-center gap-3">
                       <Laptop className="w-4 h-4 text-muted-foreground" />
                       <div>
                         <p className="font-bold text-foreground">Current Desktop Browser</p>
-                        <p className="text-[10px] text-muted-foreground">Active Now • Windows Chrome / Edge</p>
+                        <p className="text-[10px] text-muted-foreground">Active Now • Windows</p>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-600">
-                      CURRENT DEVICE
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600">
+                      CURRENT
                     </span>
                   </div>
                 </div>

@@ -9,10 +9,7 @@ import {
   Activity,
   Award,
   ArrowLeft,
-  Check,
-  Save,
-  AlertCircle,
-  FileText,
+  ChevronRight,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
 
@@ -78,7 +75,7 @@ export function OrgProfileView({ userRole, basePath }: OrgProfileViewProps) {
   ];
 
   return (
-    <div className="w-full min-h-full flex flex-col p-4 sm:p-6 md:p-8 space-y-6 max-w-6xl mx-auto">
+    <div className="w-full min-h-full flex flex-col p-4 sm:p-6 md:p-8 space-y-6 max-w-6xl mx-auto pb-24 md:pb-8">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-border pb-5">
         <div>
@@ -89,11 +86,11 @@ export function OrgProfileView({ userRole, basePath }: OrgProfileViewProps) {
         </div>
       </header>
 
-      {/* Main Two-Column Layout OR Section Detail View */}
+      {/* Main Two-Column Desktop Layout / Mobile Index View */}
       {!activeSection ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Organization Identity Card */}
-          <div className="lg:col-span-1 p-6 rounded-2xl border border-border bg-card shadow-xs flex flex-col items-center text-center space-y-4">
+          <div className="lg:col-span-1 p-6 rounded-xl border border-border bg-card shadow-xs flex flex-col items-center text-center space-y-4">
             <div className="w-20 h-20 rounded-2xl bg-gold/20 text-gold font-black text-2xl flex items-center justify-center border-2 border-gold/40 shadow-xs">
               MM
             </div>
@@ -132,138 +129,147 @@ export function OrgProfileView({ userRole, basePath }: OrgProfileViewProps) {
             </div>
           </div>
 
-          {/* Right Section Cards */}
-          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Right Section Cards / Mobile Full-Width Rows */}
+          <div className="lg:col-span-2 space-y-2 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
             {SECTIONS.map((sec) => {
               const Icon = sec.icon;
               return (
                 <button
                   key={sec.id}
                   onClick={() => setActiveSection(sec.id)}
-                  className="p-5 rounded-2xl border border-border bg-card hover:bg-muted/50 transition-all text-left space-y-2 group shadow-xs hover:border-foreground/30 cursor-pointer"
+                  className="w-full p-4 md:p-5 rounded-xl border border-border bg-card hover:bg-muted/50 transition-colors text-left flex items-center justify-between group shadow-xs cursor-pointer min-h-[48px]"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-gold/10 text-gold flex items-center justify-center transition-colors">
-                    <Icon className="w-4.5 h-4.5" />
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-gold/10 text-gold flex items-center justify-center shrink-0">
+                      <Icon className="w-4.5 h-4.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-xs sm:text-sm font-bold text-foreground truncate">
+                        {sec.title}
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground font-medium truncate hidden sm:block">
+                        {sec.description}
+                      </p>
+                    </div>
                   </div>
-                  <h3 className="text-sm font-bold text-foreground group-hover:text-gold transition-colors">
-                    {sec.title}
-                  </h3>
-                  <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-                    {sec.description}
-                  </p>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 md:hidden" />
                 </button>
               );
             })}
           </div>
         </div>
       ) : (
-        /* Inside Section Detail View */
-        <div className="rounded-2xl border border-border bg-card p-6 space-y-6 shadow-xs">
-          <div className="flex items-center justify-between border-b border-border pb-4">
+        /* Native Full-Screen Mobile Sub-Page / Desktop Detail View */
+        <div className="fixed inset-0 z-50 md:relative md:inset-auto bg-background md:bg-transparent overflow-y-auto p-4 sm:p-6 space-y-6">
+          {/* Header */}
+          <header className="sticky top-0 z-10 bg-background/95 backdrop-blur-md pb-4 border-b border-border flex items-center justify-between">
             <button
               onClick={() => setActiveSection(null)}
-              className="flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              className="flex items-center gap-2 text-xs font-bold text-foreground hover:text-gold transition-colors min-h-[44px] cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back to Organization Profile
+              <span>Back to Organization Profile</span>
             </button>
-          </div>
+          </header>
 
-          {/* Render Active Section Form */}
-          {activeSection === "info" && (
-            <div className="space-y-4 max-w-lg text-xs">
-              <h3 className="text-sm font-bold text-foreground">Organization Information</h3>
-              <div>
-                <label className="block font-bold text-foreground mb-1">ORGANIZATION NAME</label>
-                <input
-                  type="text"
-                  value="ManMadhan Organization"
-                  disabled
-                  className="w-full h-10 px-3.5 rounded-xl bg-muted/40 border border-border font-medium text-foreground opacity-80"
-                />
+          <main className="max-w-xl mx-auto space-y-6 pt-2">
+            {activeSection === "info" && (
+              <div className="space-y-4 text-xs">
+                <h3 className="text-sm font-bold text-foreground">Organization Information</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block font-bold text-foreground mb-1">ORGANIZATION NAME</label>
+                    <input
+                      type="text"
+                      value="ManMadhan Organization"
+                      disabled
+                      className="w-full h-11 px-3.5 rounded-lg bg-muted/40 border border-border font-medium text-foreground opacity-80"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-foreground mb-1">DESCRIPTION</label>
+                    <textarea
+                      rows={3}
+                      value="Production SaaS application workspace for ManMadhan Progress."
+                      disabled
+                      className="w-full p-3 rounded-lg bg-muted/40 border border-border font-medium text-foreground opacity-80"
+                    />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block font-bold text-foreground mb-1">DESCRIPTION</label>
-                <textarea
-                  rows={3}
-                  value="Production SaaS application workspace for ManMadhan Progress."
-                  disabled
-                  className="w-full p-3 rounded-xl bg-muted/40 border border-border font-medium text-foreground opacity-80"
-                />
-              </div>
-            </div>
-          )}
+            )}
 
-          {activeSection === "code" && (
-            <div className="space-y-4 max-w-lg text-xs">
-              <h3 className="text-sm font-bold text-foreground">Workspace & Batch Code</h3>
-              <div className="p-4 rounded-xl bg-gold/10 border border-gold/20 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-foreground">CANONICAL WORKSPACE CODE</span>
-                  <span className="px-3 py-1 rounded-lg bg-gold text-black font-black text-xs">
-                    MK1603
+            {activeSection === "code" && (
+              <div className="space-y-4 text-xs">
+                <h3 className="text-sm font-bold text-foreground">Workspace & Batch Code</h3>
+                <div className="p-4 rounded-xl bg-gold/10 border border-gold/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-foreground">CANONICAL WORKSPACE CODE</span>
+                    <span className="px-3 py-1 rounded-lg bg-gold text-black font-black text-xs">
+                      MK1603
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground font-medium">
+                    Verified server-side batch context. Used for database queries, Socket.IO rooms, and organization authorization.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeSection === "role" && (
+              <div className="space-y-4 text-xs">
+                <h3 className="text-sm font-bold text-foreground">Current Role & Scope</h3>
+                <div className="p-4 rounded-xl border border-border bg-card space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-foreground">ACTIVE ROLE</span>
+                    <span className="font-black text-primary uppercase text-xs">{userRole}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground font-medium">
+                    {userRole === "CEO" && "Full administrative control over organization members, settings, and permissions."}
+                    {userRole === "CO-CEO" && "Management authority over assigned members and progress review."}
+                    {userRole === "MEMBER" && "Execution authority for assigned tasks and workspace contributions."}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeSection === "membership" && (
+              <div className="space-y-4 text-xs">
+                <h3 className="text-sm font-bold text-foreground">Organization Membership</h3>
+                <div className="p-4 rounded-xl border border-border bg-card flex items-center justify-between min-h-[48px]">
+                  <div>
+                    <p className="font-bold text-foreground">{user?.displayName || user?.name || "Member"}</p>
+                    <p className="text-[10px] text-muted-foreground">{user?.email || ""}</p>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-600">
+                    VERIFIED {userRole}
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground font-medium">
-                  Verified server-side batch context. Used for database queries, Socket.IO rooms, and organization authorization.
-                </p>
               </div>
-            </div>
-          )}
+            )}
 
-          {activeSection === "role" && (
-            <div className="space-y-4 max-w-lg text-xs">
-              <h3 className="text-sm font-bold text-foreground">Current Role & Scope</h3>
-              <div className="p-4 rounded-xl border border-border bg-background space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-foreground">ACTIVE ROLE</span>
-                  <span className="font-black text-primary uppercase text-xs">{userRole}</span>
+            {activeSection === "activity" && (
+              <div className="space-y-4 text-xs">
+                <h3 className="text-sm font-bold text-foreground">Organization Activity</h3>
+                <div className="p-4 rounded-xl border border-border bg-card text-xs space-y-1">
+                  <p className="font-bold text-foreground">Organization Session Active</p>
+                  <p className="text-[10px] text-muted-foreground font-medium">
+                    Context: MK1603 • Authorized at {new Date().toLocaleTimeString()}
+                  </p>
                 </div>
-                <p className="text-[11px] text-muted-foreground font-medium">
-                  {userRole === "CEO" && "Full administrative control over organization members, settings, and permissions."}
-                  {userRole === "CO-CEO" && "Management authority over assigned members and progress review."}
-                  {userRole === "MEMBER" && "Execution authority for assigned tasks and workspace contributions."}
-                </p>
               </div>
-            </div>
-          )}
+            )}
 
-          {activeSection === "membership" && (
-            <div className="space-y-4 max-w-lg text-xs">
-              <h3 className="text-sm font-bold text-foreground">Organization Membership</h3>
-              <div className="p-3.5 rounded-xl border border-border bg-background flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-foreground">{user?.displayName || user?.name || "Member"}</p>
-                  <p className="text-[10px] text-muted-foreground">{user?.email || ""}</p>
+            {activeSection === "rules" && (
+              <div className="space-y-4 text-xs">
+                <h3 className="text-sm font-bold text-foreground">Working Rules & Policy</h3>
+                <div className="p-4 rounded-xl border border-border bg-card text-xs space-y-2">
+                  <p className="font-bold text-foreground">Standard Working Hours</p>
+                  <p className="text-[11px] text-muted-foreground">09:00 AM – 06:00 PM (IST)</p>
                 </div>
-                <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-600">
-                  VERIFIED {userRole}
-                </span>
               </div>
-            </div>
-          )}
-
-          {activeSection === "activity" && (
-            <div className="space-y-4 max-w-lg text-xs">
-              <h3 className="text-sm font-bold text-foreground">Organization Activity</h3>
-              <div className="p-3.5 rounded-xl border border-border bg-background text-xs space-y-1">
-                <p className="font-bold text-foreground">Organization Session Active</p>
-                <p className="text-[10px] text-muted-foreground font-medium">
-                  Context: MK1603 • Authorized at {new Date().toLocaleTimeString()}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {activeSection === "rules" && (
-            <div className="space-y-4 max-w-lg text-xs">
-              <h3 className="text-sm font-bold text-foreground">Working Rules & Policy</h3>
-              <div className="p-3.5 rounded-xl border border-border bg-background text-xs space-y-2">
-                <p className="font-bold text-foreground">Standard Working Hours</p>
-                <p className="text-[11px] text-muted-foreground">09:00 AM – 06:00 PM (IST)</p>
-              </div>
-            </div>
-          )}
+            )}
+          </main>
         </div>
       )}
     </div>

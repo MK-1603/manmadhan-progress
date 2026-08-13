@@ -10,6 +10,7 @@ export const personalRouter = Router();
 personalRouter.use(authenticate);
 
 // ─── Helper: resolve a workspaceId for the current user ───────────────────────
+// For personal users who have no org workspace, return "personal" as fallback.
 async function resolveWorkspaceId(req: Request): Promise<string | null> {
 	const userId = (req as any).user?.id;
 	if (!userId) return null;
@@ -25,7 +26,8 @@ async function resolveWorkspaceId(req: Request): Promise<string | null> {
 		.from(workspaceMembers)
 		.where(eq(workspaceMembers.userId, userId))
 		.limit(1);
-	return m?.workspaceId ?? null;
+	// Personal-only users have no org workspace — use "personal" as virtual workspace
+	return m?.workspaceId ?? "personal";
 }
 
 // ─── GET /personal/reminders ──────────────────────────────────────────────────
@@ -35,32 +37,13 @@ personalRouter.get("/reminders", async (req: Request, res: Response) => {
 		if (!userId)
 			return res.status(401).json({ success: false, error: "Unauthorized" });
 
-		const workspaceId = await resolveWorkspaceId(req);
-		if (!workspaceId)
-			return res
-				.status(400)
-				.json({ success: false, error: "Workspace not found" });
+		// Fetch all reminders for this user regardless of workspace
+		const data = await db
+			.select()
+			.from(reminders)
+			.where(eq(reminders.userId, userId))
+			.orderBy(desc(reminders.remindAt));
 
-		let query;
-		if (workspaceId) {
-			query = db
-				.select()
-				.from(reminders)
-				.where(
-					and(
-						eq(reminders.userId, userId),
-						eq(reminders.workspaceId, workspaceId),
-					),
-				)
-				.orderBy(desc(reminders.remindAt));
-		} else {
-			query = db
-				.select()
-				.from(reminders)
-				.where(eq(reminders.userId, userId))
-				.orderBy(desc(reminders.remindAt));
-		}
-		const data = await query;
 		return res.json({ success: true, data });
 	} catch (err: any) {
 		logger.error(`GET /personal/reminders: ${err.message}`);

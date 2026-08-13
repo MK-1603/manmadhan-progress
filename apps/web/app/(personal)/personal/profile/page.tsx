@@ -13,12 +13,10 @@ import {
   Edit2,
   Check,
   Save,
-  LogOut,
+  ChevronRight,
   AlertCircle,
-  Globe,
   Clock,
   Lock,
-  Smartphone,
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
 import { useTheme } from "next-themes";
@@ -34,7 +32,7 @@ type ProfileSection =
   | "security";
 
 export default function PersonalProfilePage() {
-  const { user, refreshUser, logout } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { theme, setTheme } = useTheme();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -158,7 +156,7 @@ export default function PersonalProfilePage() {
   ];
 
   return (
-    <div className="w-full min-h-full flex flex-col p-4 sm:p-6 md:p-8 space-y-6 max-w-6xl mx-auto">
+    <div className="w-full min-h-full flex flex-col p-4 sm:p-6 md:p-8 space-y-6 max-w-6xl mx-auto pb-24 md:pb-8">
       {/* Header */}
       <header className="flex items-center justify-between border-b border-border pb-5">
         <div>
@@ -170,7 +168,7 @@ export default function PersonalProfilePage() {
 
         <Link
           href="/personal/profile/edit"
-          className="px-4 h-9 rounded-xl bg-foreground text-background font-bold text-xs hover:opacity-90 transition-all flex items-center gap-1.5 shadow-xs"
+          className="px-4 h-9 rounded-lg bg-foreground text-background font-bold text-xs hover:opacity-90 transition-opacity flex items-center gap-1.5 shadow-xs"
         >
           <Edit2 className="w-3.5 h-3.5" />
           Edit Profile
@@ -178,17 +176,17 @@ export default function PersonalProfilePage() {
       </header>
 
       {error && (
-        <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium flex items-center gap-2">
+        <div className="p-3.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
           {error}
         </div>
       )}
 
-      {/* Main Two-Column Layout OR Section Detail View */}
+      {/* Main Two-Column Desktop / Mobile Index View */}
       {!activeSection ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Identity Card */}
-          <div className="lg:col-span-1 p-6 rounded-2xl border border-border bg-card shadow-xs flex flex-col items-center text-center space-y-4">
+          <div className="lg:col-span-1 p-6 rounded-xl border border-border bg-card shadow-xs flex flex-col items-center text-center space-y-4">
             <div className="w-20 h-20 rounded-2xl bg-gold/20 text-gold font-black text-2xl flex items-center justify-center border-2 border-gold/40 shadow-xs">
               {initials}
             </div>
@@ -218,160 +216,195 @@ export default function PersonalProfilePage() {
             </div>
           </div>
 
-          {/* Right Section Cards */}
-          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Right Section Rows / Desktop Grid */}
+          <div className="lg:col-span-2 space-y-2 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
             {SECTIONS.map((sec) => {
               const Icon = sec.icon;
               return (
                 <button
                   key={sec.id}
                   onClick={() => openSection(sec.id)}
-                  className="p-5 rounded-2xl border border-border bg-card hover:bg-muted/50 transition-all text-left space-y-2 group shadow-xs hover:border-foreground/30 cursor-pointer"
+                  className="w-full p-4 md:p-5 rounded-xl border border-border bg-card hover:bg-muted/50 transition-colors text-left flex items-center justify-between group shadow-xs cursor-pointer min-h-[48px]"
                 >
-                  <div className="w-9 h-9 rounded-xl bg-muted group-hover:bg-foreground group-hover:text-background text-foreground flex items-center justify-center transition-colors">
-                    <Icon className="w-4.5 h-4.5" />
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-muted text-foreground flex items-center justify-center shrink-0">
+                      <Icon className="w-4.5 h-4.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-xs sm:text-sm font-bold text-foreground truncate">
+                        {sec.title}
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground font-medium truncate hidden sm:block">
+                        {sec.description}
+                      </p>
+                    </div>
                   </div>
-                  <h3 className="text-sm font-bold text-foreground group-hover:text-gold transition-colors">
-                    {sec.title}
-                  </h3>
-                  <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-                    {sec.description}
-                  </p>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
                 </button>
               );
             })}
           </div>
         </div>
       ) : (
-        /* Inside Section Detail View */
-        <div className="rounded-2xl border border-border bg-card p-6 space-y-6 shadow-xs">
-          <div className="flex items-center justify-between border-b border-border pb-4">
+        /* Native Full-Screen Mobile / Desktop Sub-Page Navigation */
+        <div className="fixed inset-0 z-50 md:relative md:inset-auto bg-background md:bg-transparent overflow-y-auto p-4 sm:p-6 space-y-6">
+          {/* Mobile Full-Screen Header */}
+          <header className="sticky top-0 z-10 bg-background/95 backdrop-blur-md pb-4 border-b border-border flex items-center justify-between">
             <button
               onClick={closeSection}
-              className="flex items-center gap-2 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              className="flex items-center gap-2 text-xs font-bold text-foreground hover:text-gold transition-colors cursor-pointer min-h-[44px]"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back to Personal Profile
+              <span>Back to Profile</span>
             </button>
 
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-4 h-8 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+              className="px-4 h-9 rounded-lg bg-foreground text-background font-bold text-xs hover:opacity-90 transition-opacity flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
             >
               {saved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
               {saving ? "Saving..." : saved ? "Saved!" : "Save Changes"}
             </button>
-          </div>
+          </header>
 
-          {/* Render Active Section Form */}
-          {activeSection === "info" && (
-            <div className="space-y-4 max-w-lg text-xs">
-              <h3 className="text-sm font-bold text-foreground">Profile Information</h3>
-              <div>
-                <label className="block font-bold text-foreground mb-1">FULL DISPLAY NAME</label>
-                <input
-                  type="text"
-                  value={formData.displayName}
-                  onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                  className="w-full h-10 px-3.5 rounded-xl bg-background border border-border font-medium text-foreground focus:outline-none focus:border-gold"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-foreground mb-1">EMAIL ADDRESS</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  disabled
-                  className="w-full h-10 px-3.5 rounded-xl bg-muted/40 border border-border font-medium text-foreground opacity-70"
-                />
-              </div>
-            </div>
-          )}
-
-          {activeSection === "preferences" && (
-            <div className="space-y-4 max-w-lg text-xs">
-              <h3 className="text-sm font-bold text-foreground">Personal Preferences</h3>
-              <div>
-                <label className="block font-bold text-foreground mb-1">TIMEZONE</label>
-                <select
-                  value={formData.timezone}
-                  onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                  className="w-full h-10 px-3.5 rounded-xl bg-background border border-border font-medium text-foreground focus:outline-none focus:border-gold"
-                >
-                  <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                  <option value="UTC">UTC</option>
-                  <option value="America/New_York">America/New_York (EST)</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {activeSection === "notifications" && (
-            <div className="space-y-3 max-w-lg text-xs">
-              <h3 className="text-sm font-bold text-foreground">Personal Notifications</h3>
-              <label className="flex items-center justify-between p-3 rounded-xl border border-border bg-background cursor-pointer">
-                <span className="font-bold text-foreground">Task Deadline Alerts</span>
-                <input
-                  type="checkbox"
-                  checked={formData.deadlineAlerts}
-                  onChange={(e) => setFormData({ ...formData, deadlineAlerts: e.target.checked })}
-                  className="w-4 h-4 rounded border-border"
-                />
-              </label>
-            </div>
-          )}
-
-          {activeSection === "appearance" && (
-            <div className="space-y-4 max-w-lg text-xs">
-              <h3 className="text-sm font-bold text-foreground">Appearance & Theme</h3>
-              <div className="flex gap-2">
-                {["light", "dark", "system"].map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTheme(t)}
-                    className={`px-4 py-2 rounded-xl border font-bold capitalize transition-all ${
-                      theme === t
-                        ? "bg-foreground text-background border-foreground shadow-xs"
-                        : "border-border text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeSection === "devices" && (
-            <div className="space-y-4 max-w-lg text-xs">
-              <h3 className="text-sm font-bold text-foreground">Connected Devices</h3>
-              <div className="p-3.5 rounded-xl border border-border bg-background flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Laptop className="w-4 h-4 text-muted-foreground" />
+          <main className="max-w-xl mx-auto space-y-6 pt-2">
+            {/* Profile Information Section */}
+            {activeSection === "info" && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Profile Information</h3>
+                  <p className="text-xs text-muted-foreground">Update your full display name and identity.</p>
+                </div>
+                <div className="space-y-3">
                   <div>
-                    <p className="font-bold text-foreground">Desktop Browser</p>
-                    <p className="text-[10px] text-muted-foreground">Active Now • Windows</p>
+                    <label className="block font-bold text-foreground mb-1">FULL DISPLAY NAME</label>
+                    <input
+                      type="text"
+                      value={formData.displayName}
+                      onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                      className="w-full h-11 px-3.5 rounded-lg bg-background border border-border font-medium text-foreground focus:outline-none focus:border-foreground/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-foreground mb-1">EMAIL ADDRESS</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      disabled
+                      className="w-full h-11 px-3.5 rounded-lg bg-muted/40 border border-border font-medium text-foreground opacity-70"
+                    />
                   </div>
                 </div>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/10 text-emerald-600">
-                  CURRENT
-                </span>
               </div>
-            </div>
-          )}
+            )}
 
-          {activeSection === "security" && (
-            <div className="space-y-4 max-w-lg text-xs">
-              <h3 className="text-sm font-bold text-foreground">Security & Activity</h3>
-              <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-1">
-                <p className="font-bold text-foreground flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-emerald-500" /> OAuth & OTP Protected
-                </p>
-                <p className="text-[11px] text-muted-foreground">Your account is secured via standard OAuth session cookies.</p>
+            {/* Preferences Section */}
+            {activeSection === "preferences" && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Personal Preferences</h3>
+                  <p className="text-xs text-muted-foreground">Configure localization and timezone defaults.</p>
+                </div>
+                <div>
+                  <label className="block font-bold text-foreground mb-1">TIMEZONE</label>
+                  <select
+                    value={formData.timezone}
+                    onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                    className="w-full h-11 px-3.5 rounded-lg bg-background border border-border font-medium text-foreground focus:outline-none focus:border-foreground/30"
+                  >
+                    <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                    <option value="UTC">UTC</option>
+                    <option value="America/New_York">America/New_York (EST)</option>
+                  </select>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+
+            {/* Notifications Section */}
+            {activeSection === "notifications" && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Personal Notifications</h3>
+                  <p className="text-xs text-muted-foreground">Manage personal task and deadline alert preferences.</p>
+                </div>
+                <label className="flex items-center justify-between p-4 rounded-xl border border-border bg-card cursor-pointer min-h-[48px]">
+                  <span className="font-bold text-foreground">Task Deadline Alerts</span>
+                  <input
+                    type="checkbox"
+                    checked={formData.deadlineAlerts}
+                    onChange={(e) => setFormData({ ...formData, deadlineAlerts: e.target.checked })}
+                    className="w-4 h-4 rounded border-border"
+                  />
+                </label>
+              </div>
+            )}
+
+            {/* Appearance Section */}
+            {activeSection === "appearance" && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Appearance & Theme</h3>
+                  <p className="text-xs text-muted-foreground">Select light, dark, or system color mode.</p>
+                </div>
+                <div className="flex gap-2">
+                  {["light", "dark", "system"].map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setTheme(t)}
+                      className={`flex-1 h-11 rounded-lg border font-bold capitalize transition-colors cursor-pointer ${
+                        theme === t
+                          ? "bg-foreground text-background border-foreground shadow-xs"
+                          : "border-border text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Connected Devices Section */}
+            {activeSection === "devices" && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Connected Devices</h3>
+                  <p className="text-xs text-muted-foreground">Active desktop and mobile browser sessions.</p>
+                </div>
+                <div className="p-4 rounded-xl border border-border bg-card flex items-center justify-between min-h-[48px]">
+                  <div className="flex items-center gap-3">
+                    <Laptop className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <p className="font-bold text-foreground">Current Desktop Browser</p>
+                      <p className="text-[10px] text-muted-foreground">Active Now • Windows</p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600">
+                    CURRENT
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Security Section */}
+            {activeSection === "security" && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Security & Activity</h3>
+                  <p className="text-xs text-muted-foreground">Recent authentication logs and account protection.</p>
+                </div>
+                <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-1">
+                  <p className="font-bold text-foreground flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-emerald-500" /> OAuth Session Protected
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Your account session is secured via HTTP-only cookie authentication.
+                  </p>
+                </div>
+              </div>
+            )}
+          </main>
         </div>
       )}
     </div>
