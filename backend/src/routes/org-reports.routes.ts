@@ -1,12 +1,8 @@
-import { and, desc, eq, gte, ilike, lte, ne, or, sql } from "drizzle-orm";
+import { and, eq, gte, ilike, lte, ne, or, sql } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
-import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
 import {
-	auditLogs,
 	deadlineExtensions,
-	leaderboardCache,
-	leaves,
 	projects,
 	scoreLedger,
 	tasks,
@@ -295,7 +291,7 @@ orgReportsRouter.get(
 				},
 			});
 		} catch (err: any) {
-			logger.error("Reports overview error: " + err.message);
+			logger.error(`Reports overview error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -358,10 +354,7 @@ orgReportsRouter.get(
 				.from(workspaceMembers)
 				.innerJoin(users, eq(workspaceMembers.userId, users.id))
 				.where(
-					and(
-						eq(workspaceMembers.workspaceId, workspaceId),
-						roleCondition,
-					),
+					and(eq(workspaceMembers.workspaceId, workspaceId), roleCondition),
 				);
 
 			// Calculate scores for each member
@@ -503,7 +496,7 @@ orgReportsRouter.get(
 
 			res.json({ success: true, data: { period, leaderboard: visible } });
 		} catch (err: any) {
-			logger.error("Leaderboard error: " + err.message);
+			logger.error(`Leaderboard error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},

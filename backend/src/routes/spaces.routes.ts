@@ -43,7 +43,7 @@ const verifyWorkspaceAccess = async (
 
 		next();
 	} catch (error) {
-		logger.error("Workspace Verification Error: " + (error as Error).message);
+		logger.error(`Workspace Verification Error: ${(error as Error).message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 };
@@ -63,7 +63,7 @@ spacesRouter.get(
 
 			res.json({ success: true, data: allSpaces });
 		} catch (error: any) {
-			logger.error("List Spaces Error: " + (error as Error).message);
+			logger.error(`List Spaces Error: ${(error as Error).message}`);
 			res.status(500).json({ success: false, error: "Internal server error." });
 		}
 	},
@@ -101,7 +101,7 @@ spacesRouter.post(
 				data: newSpace[0],
 			});
 		} catch (error: any) {
-			logger.error("Create Space Error: " + (error as Error).message);
+			logger.error(`Create Space Error: ${(error as Error).message}`);
 			res.status(500).json({ success: false, error: "Internal server error." });
 		}
 	},
@@ -163,7 +163,7 @@ spacesRouter.post(
 				data: newDoc[0],
 			});
 		} catch (error: any) {
-			logger.error("Add Document Error: " + (error as Error).message);
+			logger.error(`Add Document Error: ${(error as Error).message}`);
 			res.status(500).json({ success: false, error: "Internal server error." });
 		}
 	},

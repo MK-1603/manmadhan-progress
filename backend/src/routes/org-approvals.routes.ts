@@ -1,4 +1,4 @@
-import { and, desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
@@ -74,8 +74,8 @@ orgApprovalsRouter.get(
 	async (req: Request, res: Response) => {
 		try {
 			const workspaceId = (req as any).workspaceId;
-			const userId = (req as any).user?.id;
-			const membership = (req as any).membership;
+			const _userId = (req as any).user?.id;
+			const _membership = (req as any).membership;
 
 			// Tasks in Review state
 			const pendingTasks = await db
@@ -159,7 +159,7 @@ orgApprovalsRouter.get(
 				},
 			});
 		} catch (err: any) {
-			logger.error("Get approvals error: " + err.message);
+			logger.error(`Get approvals error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -227,15 +227,13 @@ orgApprovalsRouter.post(
 				});
 			}
 
-			await db
-				.insert(auditLogs)
-				.values({
-					id: uuidv4(),
-					userId,
-					workspaceId,
-					eventType: "TASK_APPROVED",
-					details: `Task "${task.title}" approved${feedback ? `: ${feedback}` : ""}`,
-				});
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "TASK_APPROVED",
+				details: `Task "${task.title}" approved${feedback ? `: ${feedback}` : ""}`,
+			});
 			socketService.emitToWorkspace(workspaceId, "approval.updated", {
 				type: "task",
 				id: taskId,
@@ -243,7 +241,7 @@ orgApprovalsRouter.post(
 			});
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Approve task error: " + err.message);
+			logger.error(`Approve task error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -261,12 +259,10 @@ orgApprovalsRouter.post(
 			const taskId = req.params.taskId as string;
 			const { feedback } = req.body;
 			if (!feedback)
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: "Feedback/reason is required for rejection",
-					});
+				return res.status(400).json({
+					success: false,
+					error: "Feedback/reason is required for rejection",
+				});
 
 			const task = await db.query.tasks.findFirst({
 				where: and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId)),
@@ -299,15 +295,13 @@ orgApprovalsRouter.post(
 				});
 			}
 
-			await db
-				.insert(auditLogs)
-				.values({
-					id: uuidv4(),
-					userId,
-					workspaceId,
-					eventType: "TASK_REJECTED",
-					details: `Task "${task.title}" rejected: ${feedback}`,
-				});
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "TASK_REJECTED",
+				details: `Task "${task.title}" rejected: ${feedback}`,
+			});
 			socketService.emitToWorkspace(workspaceId, "approval.updated", {
 				type: "task",
 				id: taskId,
@@ -315,7 +309,7 @@ orgApprovalsRouter.post(
 			});
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Reject task error: " + err.message);
+			logger.error(`Reject task error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -370,15 +364,13 @@ orgApprovalsRouter.post(
 				title: "Deadline Extended",
 			});
 
-			await db
-				.insert(auditLogs)
-				.values({
-					id: uuidv4(),
-					userId,
-					workspaceId,
-					eventType: "DEADLINE_EXTENSION_APPROVED",
-					details: `Extension approved for task ${ext.taskId}`,
-				});
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "DEADLINE_EXTENSION_APPROVED",
+				details: `Extension approved for task ${ext.taskId}`,
+			});
 			socketService.emitToWorkspace(workspaceId, "request.updated", {
 				type: "extension",
 				id: extId,
@@ -386,7 +378,7 @@ orgApprovalsRouter.post(
 			});
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Approve extension error: " + err.message);
+			logger.error(`Approve extension error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -441,7 +433,7 @@ orgApprovalsRouter.post(
 			});
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Reject extension error: " + err.message);
+			logger.error(`Reject extension error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -508,7 +500,7 @@ orgApprovalsRouter.post(
 			});
 			res.json({ success: true, data: leave });
 		} catch (err: any) {
-			logger.error("Leave request error: " + err.message);
+			logger.error(`Leave request error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -552,15 +544,13 @@ orgApprovalsRouter.post(
 				type: "leave_approved",
 				title: "Leave Approved",
 			});
-			await db
-				.insert(auditLogs)
-				.values({
-					id: uuidv4(),
-					userId,
-					workspaceId,
-					eventType: "LEAVE_APPROVED",
-					details: `Leave approved for user ${leave.userId}`,
-				});
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "LEAVE_APPROVED",
+				details: `Leave approved for user ${leave.userId}`,
+			});
 			socketService.emitToWorkspace(workspaceId, "request.updated", {
 				type: "leave",
 				id: leaveId,
@@ -568,7 +558,7 @@ orgApprovalsRouter.post(
 			});
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Approve leave error: " + err.message);
+			logger.error(`Approve leave error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -582,7 +572,7 @@ orgApprovalsRouter.post(
 	async (req: Request, res: Response) => {
 		try {
 			const workspaceId = (req as any).workspaceId;
-			const userId = (req as any).user?.id;
+			const _userId = (req as any).user?.id;
 			const leaveId = req.params.leaveId as string;
 			const { reason } = req.body;
 
@@ -620,7 +610,7 @@ orgApprovalsRouter.post(
 			});
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Reject leave error: " + err.message);
+			logger.error(`Reject leave error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -672,7 +662,7 @@ orgApprovalsRouter.get(
 				pagination: { page, limit, total: logs.length },
 			});
 		} catch (err: any) {
-			logger.error("Audit log error: " + err.message);
+			logger.error(`Audit log error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -732,7 +722,7 @@ orgApprovalsRouter.get(
 				},
 			});
 		} catch (err: any) {
-			logger.error("Requests error: " + err.message);
+			logger.error(`Requests error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},

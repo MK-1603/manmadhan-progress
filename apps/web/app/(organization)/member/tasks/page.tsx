@@ -1,2 +1,7 @@
 "use client";
-export { default } from "@/app/(organization)/ceo/tasks/page";
+
+import { MyWorkWorkspace } from "@/components/organization/my-work-workspace";
+
+export default function MemberTasksPage() {
+	return <MyWorkWorkspace userRole="MEMBER" />;
+}

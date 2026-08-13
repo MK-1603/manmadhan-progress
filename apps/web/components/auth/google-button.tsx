@@ -22,7 +22,7 @@ export function GoogleButton({ onClick, isMobile = false, disabled = false }: { 
         aria-hidden="true"
         className="h-5 w-5"
       />
-      <span>Continue with Google</span>
+      <span>Google</span>
     </motion.button>
   );
 }

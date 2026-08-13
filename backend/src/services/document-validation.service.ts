@@ -72,11 +72,16 @@ export class DocumentValidationService {
 	/**
 	 * Validates document content for required section headers and length limits
 	 */
-	static validateDocument(documentType: string, content: string): ValidationResult {
+	static validateDocument(
+		documentType: string,
+		content: string,
+	): ValidationResult {
 		const text = content || "";
 		const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-		const maxLimit = this.MAX_WORD_LIMITS[documentType] || 6000;
-		const required = this.REQUIRED_SECTIONS[documentType] || [];
+		const maxLimit =
+			DocumentValidationService.MAX_WORD_LIMITS[documentType] || 6000;
+		const required =
+			DocumentValidationService.REQUIRED_SECTIONS[documentType] || [];
 
 		const missingSections: string[] = [];
 		const contentLower = text.toLowerCase();
@@ -92,7 +97,9 @@ export class DocumentValidationService {
 		const warnings: string[] = [];
 
 		if (words > maxLimit) {
-			consistencyErrors.push(`Document word count (${words} words) exceeds max allowed limit of ${maxLimit} words.`);
+			consistencyErrors.push(
+				`Document word count (${words} words) exceeds max allowed limit of ${maxLimit} words.`,
+			);
 		}
 
 		if (words < 100) {
@@ -112,19 +119,34 @@ export class DocumentValidationService {
 	/**
 	 * Performs cross-document consistency verification between PRD, TRD and Database Plan
 	 */
-	static verifyCrossDocumentConsistency(prdContent: string, trdContent: string, dbContent?: string): string[] {
+	static verifyCrossDocumentConsistency(
+		prdContent: string,
+		trdContent: string,
+		_dbContent?: string,
+	): string[] {
 		const errors: string[] = [];
 		const prdLower = (prdContent || "").toLowerCase();
 		const trdLower = (trdContent || "").toLowerCase();
 
 		// Role Consistency Check
-		if (prdLower.includes("co-ceo") && !trdLower.includes("co-ceo") && !trdLower.includes("rbac")) {
-			errors.push("Role Consistency Conflict: PRD specifies CO-CEO role, but TRD lacks RBAC or CO-CEO specification.");
+		if (
+			prdLower.includes("co-ceo") &&
+			!trdLower.includes("co-ceo") &&
+			!trdLower.includes("rbac")
+		) {
+			errors.push(
+				"Role Consistency Conflict: PRD specifies CO-CEO role, but TRD lacks RBAC or CO-CEO specification.",
+			);
 		}
 
 		// Security Isolation Check
-		if (prdLower.includes("personal workspace") && !trdLower.includes("isolation")) {
-			errors.push("Security Boundary Warning: PRD specifies Personal Workspace, but TRD does not specify workspace isolation.");
+		if (
+			prdLower.includes("personal workspace") &&
+			!trdLower.includes("isolation")
+		) {
+			errors.push(
+				"Security Boundary Warning: PRD specifies Personal Workspace, but TRD does not specify workspace isolation.",
+			);
 		}
 
 		return errors;

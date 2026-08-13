@@ -122,16 +122,16 @@ export function WorkspaceSearch() {
 
   // Group configurations
   const groupConfig = [
-    { key: "tasks", label: "Tasks", icon: CheckSquare, path: (id: string) => isPersonal ? `/personal/tasks` : `/tasks` },
-    { key: "projects", label: "Projects", icon: FolderKanban, path: (id: string) => isPersonal ? `/personal/projects` : `/projects` },
+    { key: "tasks", label: "Tasks", icon: CheckSquare, path: (id: string) => isPersonal ? `/personal/tasks` : `/ceo/tasks` },
+    { key: "projects", label: "Projects", icon: FolderKanban, path: (id: string) => isPersonal ? `/personal/projects` : `/ceo/projects` },
     { key: "notes", label: "Notes", icon: FileText, path: (id: string) => `/personal/notes` },
     { key: "journals", label: "Journal", icon: Book, path: (id: string) => `/personal/journal` },
-    { key: "ideas", label: "Ideas", icon: Book, path: (id: string) => `/personal/ideas` },
-    { key: "goals", label: "Goals", icon: Target, path: (id: string) => `/personal/goals` },
-    { key: "files", label: "Files", icon: FileText, path: (id: string) => `/personal/library` },
+    { key: "ideas", label: "Ideas", icon: Book, path: (id: string) => `/personal/notes` },
+    { key: "goals", label: "Goals", icon: Target, path: (id: string) => `/personal/tasks` },
+    { key: "files", label: "Files", icon: FileText, path: (id: string) => `/personal/documents` },
     { key: "reminders", label: "Reminders", icon: Bell, path: (id: string) => `/personal/reminders` },
-    { key: "habits", label: "Habits", icon: Activity, path: (id: string) => `/personal/habits` },
-    { key: "members", label: "Members", icon: Users, path: (id: string) => `/organization/members` },
+    { key: "habits", label: "Habits", icon: Activity, path: (id: string) => `/personal/focus` },
+    { key: "members", label: "Members", icon: Users, path: (id: string) => `/ceo/members` },
   ];
 
   // Flatten results for keyboard navigation

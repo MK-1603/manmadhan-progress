@@ -404,7 +404,9 @@ export const tasks = pgTable(
 		startTime: timestamp("start_time"),
 		endTime: timestamp("end_time"),
 		approvalRequired: boolean("approval_required").default(false).notNull(),
-		verificationRequired: boolean("verification_required").default(false).notNull(),
+		verificationRequired: boolean("verification_required")
+			.default(false)
+			.notNull(),
 		deliverable: text("deliverable"),
 	},
 	(table) => ({
@@ -718,16 +720,24 @@ export const taskAssignments = pgTable("task_assignments", {
 // 19.1 Task Assignment Tracker (Acceptance Workflow)
 export const taskAssignmentTracker = pgTable("task_assignment_tracker", {
 	id: text("id").primaryKey(),
-	taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
-	assigneeId: text("assignee_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-	assignedById: text("assigned_by_id").notNull().references(() => users.id),
+	taskId: text("task_id")
+		.notNull()
+		.references(() => tasks.id, { onDelete: "cascade" }),
+	assigneeId: text("assignee_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	assignedById: text("assigned_by_id")
+		.notNull()
+		.references(() => users.id),
 	assigneeRole: text("assignee_role").notNull(), // CO-CEO, MEMBER
 	status: text("status").default("PENDING_ACCEPTANCE").notNull(), // PENDING_ACCEPTANCE, ACCEPTED, DECLINED, REASSIGNED, CANCELLED
 	declineReason: text("decline_reason"),
 	acceptedAt: timestamp("accepted_at"),
 	declinedAt: timestamp("declined_at"),
 	reassignedAt: timestamp("reassigned_at"),
-	workspaceId: text("workspace_id").notNull().references(() => workspaces.id, { onDelete: "cascade" }),
+	workspaceId: text("workspace_id")
+		.notNull()
+		.references(() => workspaces.id, { onDelete: "cascade" }),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -1108,12 +1118,18 @@ export const activities = pgTable("activities", {
 // Central Requests & Approvals System
 export const centralRequests = pgTable("central_requests", {
 	id: text("id").primaryKey(),
-	workspaceId: text("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+	workspaceId: text("workspace_id").references(() => workspaces.id, {
+		onDelete: "cascade",
+	}),
 	requestType: text("request_type").notNull(), // PROJECT_ASSIGNMENT, PROJECT_CHANGE, TASK_APPROVAL, TASK_CHANGE, DOCUMENT_REVIEW, DEADLINE_CHANGE, GITHUB_VERIFICATION, OTHER
 	title: text("title").notNull(),
 	description: text("description"),
-	requesterId: text("requester_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-	approverId: text("approver_id").references(() => users.id, { onDelete: "set null" }),
+	requesterId: text("requester_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	approverId: text("approver_id").references(() => users.id, {
+		onDelete: "set null",
+	}),
 	status: text("status").default("PENDING").notNull(), // PENDING, IN_REVIEW, APPROVED, CHANGES_REQUESTED, REJECTED
 	rejectionReason: text("rejection_reason"),
 	entityType: text("entity_type"), // PROJECT, TASK, DOCUMENT, GITHUB
@@ -1126,10 +1142,16 @@ export const centralRequests = pgTable("central_requests", {
 // Project Assignment Tracker
 export const projectAssignments = pgTable("project_assignments", {
 	id: text("id").primaryKey(),
-	projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+	projectId: text("project_id")
+		.notNull()
+		.references(() => projects.id, { onDelete: "cascade" }),
 	workspaceId: text("workspace_id").references(() => workspaces.id),
-	createdByUserId: text("created_by_user_id").notNull().references(() => users.id),
-	assignedToUserId: text("assigned_to_user_id").notNull().references(() => users.id),
+	createdByUserId: text("created_by_user_id")
+		.notNull()
+		.references(() => users.id),
+	assignedToUserId: text("assigned_to_user_id")
+		.notNull()
+		.references(() => users.id),
 	responsibleCoCeoId: text("responsible_co_ceo_id").references(() => users.id),
 	assignmentType: text("assignment_type").default("CEO_TO_CO_CEO").notNull(), // CEO_TO_CO_CEO, CEO_TO_MEMBER, CO_CEO_TO_MEMBER
 	status: text("status").default("PENDING_ACCEPTANCE").notNull(), // PENDING_ACCEPTANCE, ACCEPTED, DECLINED, REASSIGNED, CANCELLED
@@ -1143,7 +1165,9 @@ export const projectAssignments = pgTable("project_assignments", {
 // 7-Stage Project Milestones Engine V2
 export const projectMilestonesV2 = pgTable("project_milestones_v2", {
 	id: text("id").primaryKey(),
-	projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+	projectId: text("project_id")
+		.notNull()
+		.references(() => projects.id, { onDelete: "cascade" }),
 	stageNumber: integer("stage_number").notNull(), // 1 to 7
 	milestoneCode: text("milestone_code").notNull(), // STAGE_01_ACTIVATION, STAGE_02_PRD, STAGE_03_TRD, STAGE_04_WORKFLOW, STAGE_05_UIUX, STAGE_06_DATABASE, STAGE_07_IMPLEMENTATION
 	name: text("name").notNull(),
@@ -1160,8 +1184,12 @@ export const projectMilestonesV2 = pgTable("project_milestones_v2", {
 // Project Documents Registry V2
 export const projectDocumentsV2 = pgTable("project_documents_v2", {
 	id: text("id").primaryKey(),
-	projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-	milestoneId: text("milestone_id").references(() => projectMilestonesV2.id, { onDelete: "cascade" }),
+	projectId: text("project_id")
+		.notNull()
+		.references(() => projects.id, { onDelete: "cascade" }),
+	milestoneId: text("milestone_id").references(() => projectMilestonesV2.id, {
+		onDelete: "cascade",
+	}),
 	stageNumber: integer("stage_number").notNull(),
 	documentType: text("document_type").notNull(), // ACTIVATION, PRD, TRD, WORKFLOW, UIUX_BRIEF, DATABASE_PLAN, IMPLEMENTATION_PLAN
 	title: text("title").notNull(),
@@ -1169,7 +1197,9 @@ export const projectDocumentsV2 = pgTable("project_documents_v2", {
 	status: text("status").default("DRAFT").notNull(), // DRAFT, SUBMITTED, VALIDATING, UNDER_REVIEW, APPROVED, CHANGES_REQUESTED, REJECTED
 	wordCount: integer("word_count").default(0),
 	folderPath: text("folder_path").notNull(),
-	createdById: text("created_by_id").notNull().references(() => users.id),
+	createdById: text("created_by_id")
+		.notNull()
+		.references(() => users.id),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -1177,10 +1207,14 @@ export const projectDocumentsV2 = pgTable("project_documents_v2", {
 // Document Version History
 export const documentVersions = pgTable("document_versions", {
 	id: text("id").primaryKey(),
-	documentId: text("document_id").notNull().references(() => projectDocumentsV2.id, { onDelete: "cascade" }),
+	documentId: text("document_id")
+		.notNull()
+		.references(() => projectDocumentsV2.id, { onDelete: "cascade" }),
 	versionNumber: integer("version_number").notNull(),
 	content: text("content").notNull(),
-	authorId: text("author_id").notNull().references(() => users.id),
+	authorId: text("author_id")
+		.notNull()
+		.references(() => users.id),
 	wordCount: integer("word_count").default(0).notNull(),
 	validationStatus: text("validation_status").default("PENDING").notNull(), // PENDING, PASSED, FAILED
 	validationErrors: jsonb("validation_errors").default([]),
@@ -1190,9 +1224,15 @@ export const documentVersions = pgTable("document_versions", {
 // Active Work Sessions
 export const workSessions = pgTable("work_sessions", {
 	id: text("id").primaryKey(),
-	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-	taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
-	projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
+	userId: text("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	taskId: text("task_id")
+		.notNull()
+		.references(() => tasks.id, { onDelete: "cascade" }),
+	projectId: text("project_id").references(() => projects.id, {
+		onDelete: "cascade",
+	}),
 	startedAt: timestamp("started_at").defaultNow().notNull(),
 	pausedAt: timestamp("paused_at"),
 	resumedAt: timestamp("resumed_at"),
@@ -1205,7 +1245,9 @@ export const workSessions = pgTable("work_sessions", {
 // Dual GitHub Account Connections
 export const githubConnections = pgTable("github_connections", {
 	id: text("id").primaryKey(),
-	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+	userId: text("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
 	accountSlot: text("account_slot").notNull(), // ACCOUNT_A, ACCOUNT_B
 	githubUserId: text("github_user_id").notNull(),
 	username: text("username").notNull(),
@@ -1221,8 +1263,12 @@ export const githubConnections = pgTable("github_connections", {
 // Project GitHub Repository Bindings
 export const githubProjectBindings = pgTable("github_project_bindings", {
 	id: text("id").primaryKey(),
-	projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-	githubConnectionId: text("github_connection_id").notNull().references(() => githubConnections.id, { onDelete: "cascade" }),
+	projectId: text("project_id")
+		.notNull()
+		.references(() => projects.id, { onDelete: "cascade" }),
+	githubConnectionId: text("github_connection_id")
+		.notNull()
+		.references(() => githubConnections.id, { onDelete: "cascade" }),
 	repositoryId: text("repository_id").notNull(),
 	repositoryName: text("repository_name").notNull(),
 	repositoryOwner: text("repository_owner").notNull(),
@@ -1237,8 +1283,12 @@ export const githubProjectBindings = pgTable("github_project_bindings", {
 // Daily Work Reports & Verification
 export const dailyWorkReports = pgTable("daily_work_reports", {
 	id: text("id").primaryKey(),
-	userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-	workspaceId: text("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+	userId: text("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	workspaceId: text("workspace_id").references(() => workspaces.id, {
+		onDelete: "cascade",
+	}),
 	date: text("date").notNull(), // YYYY-MM-DD
 	scheduledMinutes: integer("scheduled_minutes").default(0).notNull(),
 	actualMinutes: integer("actual_minutes").default(0).notNull(),
@@ -1247,8 +1297,12 @@ export const dailyWorkReports = pgTable("daily_work_reports", {
 	tasksCarriedForward: integer("tasks_carried_forward").default(0).notNull(),
 	documentsSubmitted: integer("documents_submitted").default(0).notNull(),
 	githubCommitsCount: integer("github_commits_count").default(0).notNull(),
-	verificationPercentage: integer("verification_percentage").default(0).notNull(),
-	verificationStatus: text("verification_status").default("COMPLETED").notNull(),
+	verificationPercentage: integer("verification_percentage")
+		.default(0)
+		.notNull(),
+	verificationStatus: text("verification_status")
+		.default("COMPLETED")
+		.notNull(),
 	summary: jsonb("summary").default({}),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -1256,8 +1310,12 @@ export const dailyWorkReports = pgTable("daily_work_reports", {
 // Organization Prompts & Prompt Library
 export const organizationPrompts = pgTable("organization_prompts", {
 	id: text("id").primaryKey(),
-	workspaceId: text("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
-	createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+	workspaceId: text("workspace_id").references(() => workspaces.id, {
+		onDelete: "cascade",
+	}),
+	createdByUserId: text("created_by_user_id").references(() => users.id, {
+		onDelete: "set null",
+	}),
 	title: text("title").notNull(),
 	description: text("description"),
 	category: text("category").default("Projects").notNull(),

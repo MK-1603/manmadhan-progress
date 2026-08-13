@@ -202,11 +202,11 @@ USER PROMPT:
 		}
 	}
 
-	private static safeParseJSON(rawText: string, promptText: string): any {
+	private static safeParseJSON(rawText: string, _promptText: string): any {
 		// 1. Attempt direct parse
 		try {
 			return JSON.parse(rawText);
-		} catch (e) {
+		} catch (_e) {
 			// Continue to repair strategies
 		}
 
@@ -225,7 +225,7 @@ USER PROMPT:
 
 		try {
 			return JSON.parse(jsonStr);
-		} catch (e) {
+		} catch (_e) {
 			// Continue to advanced repair
 		}
 
@@ -236,7 +236,7 @@ USER PROMPT:
 
 		try {
 			return JSON.parse(repaired);
-		} catch (e) {
+		} catch (_e) {
 			// Continue to truncation auto-close
 		}
 
@@ -280,7 +280,7 @@ USER PROMPT:
 		plan: PromptProjectModel,
 		currentDateStr: string,
 	): PromptProjectModel {
-		if (!plan.project || !plan.project.name) {
+		if (!plan.project?.name) {
 			throw new Error("Invalid project structure");
 		}
 
@@ -376,14 +376,11 @@ USER PROMPT:
 		plan.tasks.forEach((t) => {
 			if (
 				t.type === "DOCUMENTATION" ||
-				(t.title && t.title.toLowerCase().includes("prd"))
+				t.title?.toLowerCase().includes("prd")
 			) {
 				t.requiresDocument = true;
 			}
-			if (
-				t.type === "DEVELOPMENT" ||
-				(t.title && t.title.toLowerCase().includes("api"))
-			) {
+			if (t.type === "DEVELOPMENT" || t.title?.toLowerCase().includes("api")) {
 				t.requiresGithub = true;
 			}
 		});
@@ -404,7 +401,7 @@ USER PROMPT:
 		endDate.setDate(endDate.getDate() + 30);
 		const deadlineStr = endDate.toISOString().split("T")[0];
 		const cleanTitle =
-			promptText.length > 50 ? promptText.substring(0, 47) + "..." : promptText;
+			promptText.length > 50 ? `${promptText.substring(0, 47)}...` : promptText;
 
 		return {
 			project: {

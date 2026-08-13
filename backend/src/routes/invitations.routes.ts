@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import crypto from "node:crypto";
 import { and, eq, or } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
@@ -23,13 +23,11 @@ invitationsRouter.get("/:token", async (req: Request, res: Response) => {
 		});
 
 		if (!invitation || invitation.status === "Revoked") {
-			return res
-				.status(404)
-				.json({
-					success: false,
-					error:
-						"Invitation not found or has been revoked by organization administrator.",
-				});
+			return res.status(404).json({
+				success: false,
+				error:
+					"Invitation not found or has been revoked by organization administrator.",
+			});
 		}
 
 		if (
@@ -80,7 +78,7 @@ invitationsRouter.get("/:token", async (req: Request, res: Response) => {
 			},
 		});
 	} catch (error: any) {
-		logger.error("View Invitation Error: " + (error as Error).message);
+		logger.error(`View Invitation Error: ${(error as Error).message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });
@@ -96,20 +94,16 @@ invitationsRouter.post("/:token/setup", async (req: Request, res: Response) => {
 		});
 
 		if (!invitation || invitation.status === "Revoked") {
-			return res
-				.status(404)
-				.json({
-					success: false,
-					error: "Invitation not found or has been revoked.",
-				});
+			return res.status(404).json({
+				success: false,
+				error: "Invitation not found or has been revoked.",
+			});
 		}
 		if (invitation.status === "Accepted" || invitation.status === "Expired") {
-			return res
-				.status(400)
-				.json({
-					success: false,
-					error: `Invitation is already ${invitation.status.toLowerCase()}.`,
-				});
+			return res.status(400).json({
+				success: false,
+				error: `Invitation is already ${invitation.status.toLowerCase()}.`,
+			});
 		}
 
 		const userName =
@@ -204,7 +198,7 @@ invitationsRouter.post("/:token/setup", async (req: Request, res: Response) => {
 			workspaceId: invitation.organizationId,
 		});
 	} catch (error: any) {
-		logger.error("Setup Invitation Error: " + (error as Error).message);
+		logger.error(`Setup Invitation Error: ${(error as Error).message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });
@@ -243,22 +237,18 @@ invitationsRouter.post("/send", async (req: Request, res: Response) => {
 		}
 
 		if (!email || !role || !workspaceId) {
-			return res
-				.status(400)
-				.json({
-					success: false,
-					error: "Email, role, and workspaceId are required.",
-				});
+			return res.status(400).json({
+				success: false,
+				error: "Email, role, and workspaceId are required.",
+			});
 		}
 
 		const normRole = String(role).toUpperCase();
 		if (normRole === "MEMBER" && !managerId) {
-			return res
-				.status(400)
-				.json({
-					success: false,
-					error: "Member invitations MUST have an assigned CO-CEO (managerId).",
-				});
+			return res.status(400).json({
+				success: false,
+				error: "Member invitations MUST have an assigned CO-CEO (managerId).",
+			});
 		}
 
 		// Verify leadership
@@ -285,12 +275,10 @@ invitationsRouter.post("/send", async (req: Request, res: Response) => {
 			if (anyLeadership) {
 				workspaceId = anyLeadership.workspaceId;
 			} else {
-				return res
-					.status(403)
-					.json({
-						success: false,
-						error: "Only CEO or CO-CEO can send invitations.",
-					});
+				return res.status(403).json({
+					success: false,
+					error: "Only CEO or CO-CEO can send invitations.",
+				});
 			}
 		}
 
@@ -314,7 +302,7 @@ invitationsRouter.post("/send", async (req: Request, res: Response) => {
 				message: message || null,
 				permissions: Array.isArray(permissions) ? permissions : [],
 				expiresAt,
-				status: "Queued",
+				status: "Sending",
 			})
 			.returning();
 
@@ -325,27 +313,118 @@ invitationsRouter.post("/send", async (req: Request, res: Response) => {
 		const inviterName =
 			inviter?.displayName || inviter?.name || "A team member";
 
-		// Send the real invitation email
-		await emailService.sendInvitationEmail(
-			String(email),
-			token,
-			String(role),
-			inviterName,
-		);
+		// Attempt email dispatch with safe error handling & status update
+		let emailSent = false;
+		try {
+			emailSent = await emailService.sendInvitationEmail(
+				String(email),
+				token,
+				String(role),
+				inviterName,
+			);
+		} catch (err: any) {
+			logger.warn(`Invitation email send failed for ${email}: ${err.message}`);
+			emailSent = false;
+		}
+
+		const finalStatus = emailSent ? "Sent" : "Email Failed";
+		await db
+			.update(invitations)
+			.set({ status: finalStatus })
+			.where(eq(invitations.id, newInvite[0].id));
+
+		const responseData = {
+			...newInvite[0],
+			status: finalStatus,
+		};
 
 		// Socket notification
 		socketService.emitToWorkspace(
 			String(workspaceId),
 			"INVITATION_SENT",
-			newInvite[0],
+			responseData,
 		);
 
-		res.json({ success: true, data: newInvite[0] });
+		res.json({
+			success: true,
+			data: responseData,
+			emailSent,
+			warning: emailSent
+				? undefined
+				: "Invitation record created, but email delivery timed out or failed. The invite link is ready to copy or resend.",
+		});
 	} catch (error: any) {
-		logger.error("Create Invitation Error: " + (error as Error).message);
+		logger.error(`Create Invitation Error: ${(error as Error).message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });
+
+// POST /api/v1/invitations/:id/resend — Resend invitation email
+invitationsRouter.post(
+	"/:id/resend",
+	authenticate,
+	async (req: Request, res: Response) => {
+		try {
+			const { id } = req.params;
+			const invitation = await db.query.invitations.findFirst({
+				where: eq(invitations.id, String(id)),
+			});
+
+			if (!invitation) {
+				return res
+					.status(404)
+					.json({ success: false, error: "Invitation not found." });
+			}
+
+			await db
+				.update(invitations)
+				.set({ status: "Sending" })
+				.where(eq(invitations.id, invitation.id));
+
+			const inviterId = (req as any).user?.id;
+			const inviter = await db.query.users.findFirst({
+				where: eq(users.id, inviterId),
+			});
+			const inviterName =
+				inviter?.displayName || inviter?.name || "A team member";
+
+			let emailSent = false;
+			try {
+				emailSent = await emailService.sendInvitationEmail(
+					invitation.email,
+					invitation.token,
+					invitation.role,
+					inviterName,
+				);
+			} catch (err: any) {
+				logger.warn(
+					`Resend email failed for ${invitation.email}: ${err.message}`,
+				);
+				emailSent = false;
+			}
+
+			const finalStatus = emailSent ? "Sent" : "Email Failed";
+			await db
+				.update(invitations)
+				.set({ status: finalStatus })
+				.where(eq(invitations.id, invitation.id));
+
+			res.json({
+				success: true,
+				data: { ...invitation, status: finalStatus },
+				emailSent,
+				message: emailSent
+					? "Invitation email resent successfully."
+					: "Email delivery timed out or failed. Invite link remains valid.",
+			});
+		} catch (error: any) {
+			logger.error(`Resend Invitation Error: ${(error as Error).message}`);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to resend invitation." });
+		}
+	},
+);
 
 // Get all invitations for an organization
 invitationsRouter.get("/", async (req: Request, res: Response) => {
@@ -367,7 +446,7 @@ invitationsRouter.get("/", async (req: Request, res: Response) => {
 			}
 		}
 
-		const userRole = ((req as any).user?.role || "").toUpperCase();
+		const _userRole = ((req as any).user?.role || "").toUpperCase();
 		let allInvitations = [];
 
 		if (workspaceId) {
@@ -487,7 +566,7 @@ invitationsRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: enrichedInvitations, summary });
 	} catch (error: any) {
-		logger.error("Get Invitations Error: " + error.message);
+		logger.error(`Get Invitations Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });
@@ -496,7 +575,7 @@ invitationsRouter.get("/", async (req: Request, res: Response) => {
 invitationsRouter.post("/:id/resend", async (req: Request, res: Response) => {
 	try {
 		const { id } = req.params;
-		const inviterId = (req as any).user?.id;
+		const _inviterId = (req as any).user?.id;
 
 		const invitation = await db.query.invitations.findFirst({
 			where: eq(invitations.id, String(id)),
@@ -523,7 +602,7 @@ invitationsRouter.post("/:id/resend", async (req: Request, res: Response) => {
 
 		res.json({ success: true, message: "Invitation resent." });
 	} catch (error: any) {
-		logger.error("Resend Invitation Error: " + error.message);
+		logger.error(`Resend Invitation Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });
@@ -558,7 +637,7 @@ invitationsRouter.post("/:id/revoke", async (req: Request, res: Response) => {
 
 		res.json({ success: true, message: "Invitation revoked." });
 	} catch (error: any) {
-		logger.error("Revoke Invitation Error: " + error.message);
+		logger.error(`Revoke Invitation Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });
@@ -604,13 +683,13 @@ invitationsRouter.put("/:id", async (req: Request, res: Response) => {
 			data: updated[0],
 		});
 	} catch (error: any) {
-		logger.error("Edit Invitation Error: " + error.message);
+		logger.error(`Edit Invitation Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });
 
 // Clear all test invitations (preserves users & organization)
-invitationsRouter.delete("/clear-all", async (req: Request, res: Response) => {
+invitationsRouter.delete("/clear-all", async (_req: Request, res: Response) => {
 	try {
 		await db.delete(invitations);
 		res.json({
@@ -618,7 +697,7 @@ invitationsRouter.delete("/clear-all", async (req: Request, res: Response) => {
 			message: "All invitation records cleared from database.",
 		});
 	} catch (error: any) {
-		logger.error("Clear Invitations Error: " + error.message);
+		logger.error(`Clear Invitations Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });
@@ -649,7 +728,7 @@ invitationsRouter.delete("/:id", async (req: Request, res: Response) => {
 
 		res.json({ success: true, message: "Invitation permanently deleted." });
 	} catch (error: any) {
-		logger.error("Delete Invitation Error: " + error.message);
+		logger.error(`Delete Invitation Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });
@@ -680,12 +759,10 @@ invitationsRouter.post("/batch-send", async (req: Request, res: Response) => {
 			!role ||
 			!workspaceId
 		) {
-			return res
-				.status(400)
-				.json({
-					success: false,
-					error: "Emails array, role, and workspaceId are required.",
-				});
+			return res.status(400).json({
+				success: false,
+				error: "Emails array, role, and workspaceId are required.",
+			});
 		}
 
 		const createdInvites = [];
@@ -697,7 +774,7 @@ invitationsRouter.post("/batch-send", async (req: Request, res: Response) => {
 
 		for (const rawEmail of emails) {
 			const email = String(rawEmail).trim();
-			if (!email || !email.includes("@")) continue;
+			if (!email?.includes("@")) continue;
 
 			const token = crypto.randomBytes(32).toString("hex");
 			const expiresAt = new Date();
@@ -738,7 +815,7 @@ invitationsRouter.post("/batch-send", async (req: Request, res: Response) => {
 			data: createdInvites,
 		});
 	} catch (error: any) {
-		logger.error("Batch Invitation Error: " + error.message);
+		logger.error(`Batch Invitation Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });
@@ -761,12 +838,10 @@ invitationsRouter.post(
 					.status(404)
 					.json({ success: false, error: "Invitation not found." });
 			if (invitation.status === "Accepted" || invitation.status === "Expired") {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: `Invitation is already ${invitation.status.toLowerCase()}.`,
-					});
+				return res.status(400).json({
+					success: false,
+					error: `Invitation is already ${invitation.status.toLowerCase()}.`,
+				});
 			}
 
 			// Optionally enforce that the authenticated user's email matches the invitation email.
@@ -810,7 +885,7 @@ invitationsRouter.post(
 
 			res.json({ success: true, message: "Invitation accepted." });
 		} catch (error: any) {
-			logger.error("Accept Invitation Error: " + (error as Error).message);
+			logger.error(`Accept Invitation Error: ${(error as Error).message}`);
 			res.status(500).json({ success: false, error: "Internal server error." });
 		}
 	},
@@ -832,12 +907,10 @@ invitationsRouter.post(
 					.status(404)
 					.json({ success: false, error: "Invitation not found." });
 			if (invitation.status === "Accepted" || invitation.status === "Expired") {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: `Invitation is already ${invitation.status.toLowerCase()}.`,
-					});
+				return res.status(400).json({
+					success: false,
+					error: `Invitation is already ${invitation.status.toLowerCase()}.`,
+				});
 			}
 
 			// Mark as Rejected/Expired
@@ -856,7 +929,7 @@ invitationsRouter.post(
 
 			res.json({ success: true, message: "Invitation rejected." });
 		} catch (error: any) {
-			logger.error("Reject Invitation Error: " + (error as Error).message);
+			logger.error(`Reject Invitation Error: ${(error as Error).message}`);
 			res.status(500).json({ success: false, error: "Internal server error." });
 		}
 	},
@@ -902,7 +975,7 @@ invitationsRouter.post("/webhook", async (req: Request, res: Response) => {
 
 		res.json({ success: true });
 	} catch (error: any) {
-		logger.error("Webhook Error: " + error.message);
+		logger.error(`Webhook Error: ${error.message}`);
 		res.status(500).json({ success: false });
 	}
 });

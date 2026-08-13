@@ -33,12 +33,9 @@ export function CommunityWorkspaceView({ initialMode = "list" }: CommunityWorksp
 			memberCount: 3,
 			createdAt: "2026-08-01",
 			members: [
-				{ id: "m1", name: user?.displayName || user?.name || "Hemanth MM", email: user?.email || "hemanthmm1107@gmail.com", role: "CEO", joined: "Today" },
-				{ id: "m2", name: "Executive Co-CEO", email: "coceo@manmadhan.com", role: "CO-CEO", joined: "Yesterday" },
+				{ id: "m1", name: user?.displayName || user?.name || "CEO", email: user?.email || "", role: "CEO", joined: "Today" },
 			],
-			invitations: [
-				{ id: "inv_1", email: "advisor@manmadhan.com", role: "CO-CEO", status: "PENDING", sentAt: "Today, 04:30 PM" },
-			],
+			invitations: [],
 			lastActive: "Just now",
 			status: "Active",
 		},
@@ -52,8 +49,7 @@ export function CommunityWorkspaceView({ initialMode = "list" }: CommunityWorksp
 			memberCount: 8,
 			createdAt: "2026-08-05",
 			members: [
-				{ id: "m1", name: user?.displayName || user?.name || "Hemanth MM", email: user?.email || "hemanthmm1107@gmail.com", role: "CEO", joined: "Today" },
-				{ id: "m3", name: "Senior Engineer", email: "engineer@manmadhan.com", role: "MEMBER", joined: "Today" },
+				{ id: "m1", name: user?.displayName || user?.name || "CEO", email: user?.email || "", role: "CEO", joined: "Today" },
 			],
 			invitations: [],
 			lastActive: "12 mins ago",
@@ -120,7 +116,7 @@ export function CommunityWorkspaceView({ initialMode = "list" }: CommunityWorksp
 				{
 					id: `user_${Date.now()}`,
 					name: user?.displayName || user?.name || "CEO",
-					email: user?.email || "ceo@manmadhan.com",
+					email: user?.email || "",
 					role: "CEO",
 					joined: "Just now",
 				},

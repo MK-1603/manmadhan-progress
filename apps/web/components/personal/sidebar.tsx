@@ -7,7 +7,7 @@ import {
   LayoutDashboard, CheckSquare, FolderKanban, Focus, Calendar, Bell, History,
   PenTool, BookOpen, Headphones, GraduationCap,
   FileText, Archive, Sparkles, Brain,
-  LinkIcon, LineChart, Settings,
+  LinkIcon, LineChart, Settings, Zap,
   PanelLeftClose, PanelLeftOpen, ChevronDown,
   LogOut, Moon, Sun, User as UserIcon, Building, Check, X,
 } from "lucide-react";
@@ -74,8 +74,9 @@ const NAVIGATION: NavGroup[] = [
     id: "system",
     label: "SYSTEM",
     items: [
-      { name: "Reminders", href: "/personal/reminders", icon: Bell },
-      { name: "Reports",   href: "/personal/reports",   icon: LineChart },
+      { name: "Automation", href: "/personal/automation", icon: Zap },
+      { name: "Reminders",  href: "/personal/reminders",  icon: Bell },
+      { name: "Reports",    href: "/personal/reports",    icon: LineChart },
     ],
   },
   {

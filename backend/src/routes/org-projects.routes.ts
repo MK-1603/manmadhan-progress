@@ -5,7 +5,6 @@ import { db } from "../../database/client";
 import {
 	activities,
 	auditLogs,
-	centralRequests,
 	milestones,
 	notifications,
 	projectAssignments,
@@ -17,7 +16,6 @@ import {
 	projectRequirements,
 	projectRoadmaps,
 	projects,
-	scoreLedger,
 	tasks,
 	users,
 	workspaceMembers,
@@ -31,7 +29,6 @@ import { ProjectAnalyzerService } from "../services/project-analyzer.service";
 import { ProjectPromptService } from "../services/project-prompt.service";
 import { RequestEngineService } from "../services/request-engine.service";
 import { socketService } from "../services/socket.service";
-import { TaskAutomationService } from "../services/task-automation.service";
 
 export const orgProjectsRouter = Router();
 orgProjectsRouter.use(authenticate);
@@ -51,20 +48,11 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 					.from(workspaceMembers)
 					.where(eq(workspaceMembers.userId, userId))
 					.limit(1);
-				if (m && m.workspaceId) {
+				if (m?.workspaceId) {
 					workspaceId = m.workspaceId;
 					req.body.workspaceId = workspaceId;
 					(req.query as any).workspaceId = workspaceId;
 				}
-			}
-		}
-
-		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
-			const [firstWs] = await db.select().from(projects).limit(1);
-			if (firstWs && firstWs.workspaceId) {
-				workspaceId = firstWs.workspaceId;
-				req.body.workspaceId = workspaceId;
-				(req.query as any).workspaceId = workspaceId;
 			}
 		}
 
@@ -78,7 +66,7 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 		next();
 	} catch (err: any) {
 		logger.error(
-			"resolveWorkspace error: " + (err?.stack || err?.message || String(err)),
+			`resolveWorkspace error: ${err?.stack || err?.message || String(err)}`,
 		);
 		return res
 			.status(500)
@@ -109,48 +97,16 @@ const requireMembership = async (req: Request, res: Response, next: any) => {
 			.limit(1);
 
 		if (!m) {
-			// Fallback 1: any workspace membership for this user (invitation flow)
-			const [anyMembership] = await db
-				.select()
-				.from(workspaceMembers)
-				.where(eq(workspaceMembers.userId, userId))
-				.limit(1);
-
-			if (anyMembership) {
-				logger.info(`[AUTH DEBUG] org-projects: userId=${userId} using fallback ws=${anyMembership.workspaceId} role=${anyMembership.role}`);
-				(req as any).workspaceId = anyMembership.workspaceId;
-				(req as any).membership = anyMembership;
-				return next();
-			}
-
-			// Fallback 2: derive from token / users table
-			const tokenRole = String((req as any).user?.role || "").toUpperCase();
-			if (tokenRole === "CEO" || tokenRole === "CO-CEO" || tokenRole === "CO_CEO" || tokenRole === "ADMIN") {
-				const normalizedRole = tokenRole === "CO-CEO" || tokenRole === "CO_CEO" ? "CO-CEO" : "CEO";
-				(req as any).membership = { role: normalizedRole, workspaceId, userId };
-				return next();
-			}
-
-			const [u] = await db
-				.select()
-				.from(users)
-				.where(eq(users.id, userId))
-				.limit(1);
-			const dbRole = (u?.role || "MEMBER").toUpperCase();
-			const normalizedRole = dbRole === "CEO" || u?.systemOwner ? "CEO"
-				: dbRole === "CO-CEO" || dbRole === "CO_CEO" ? "CO-CEO"
-				: "MEMBER";
-
-			logger.info(`[AUTH DEBUG] org-projects: userId=${userId} no ws record — DB role=${normalizedRole}`);
-			(req as any).membership = { role: normalizedRole, workspaceId, userId };
-			return next();
+			return res
+				.status(403)
+				.json({ success: false, error: "Not a member of this workspace" });
 		}
 
 		(req as any).membership = m;
 		next();
 	} catch (err: any) {
 		logger.error(
-			"requireMembership error: " + (err?.stack || err?.message || String(err)),
+			`requireMembership error: ${err?.stack || err?.message || String(err)}`,
 		);
 		return res
 			.status(500)
@@ -169,7 +125,7 @@ const requireLeadership = async (req: Request, res: Response, next: any) => {
 		.json({ success: false, error: "Leadership authorization required" });
 };
 
-function inferPriority(prompt: string): string {
+function _inferPriority(prompt: string): string {
 	if (/critical|urgent|asap/i.test(prompt)) return "CRITICAL";
 	if (/high priority|important|soon/i.test(prompt)) return "High";
 	if (/low priority|whenever|flexible/i.test(prompt)) return "Low";
@@ -220,13 +176,11 @@ orgProjectsRouter.post(
 				},
 			});
 		} catch (err: any) {
-			logger.error("Plan from prompt error: " + (err?.message || String(err)));
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: "Failed to generate project plan from prompt",
-				});
+			logger.error(`Plan from prompt error: ${err?.message || String(err)}`);
+			res.status(500).json({
+				success: false,
+				error: "Failed to generate project plan from prompt",
+			});
 		}
 	},
 );
@@ -241,14 +195,21 @@ orgProjectsRouter.post(
 		try {
 			const { prompt } = req.body;
 			if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-				return res.status(400).json({ success: false, error: "Project prompt is required" });
+				return res
+					.status(400)
+					.json({ success: false, error: "Project prompt is required" });
 			}
 
-			const analysis = await ProjectAnalyzerService.analyzePrompt(prompt.trim());
+			const analysis = await ProjectAnalyzerService.analyzePrompt(
+				prompt.trim(),
+			);
 			res.json({ success: true, data: analysis });
 		} catch (err: any) {
-			logger.error("Analyze project error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: err.message || "Failed to analyze project prompt" });
+			logger.error(`Analyze project error: ${err?.message || String(err)}`);
+			res.status(500).json({
+				success: false,
+				error: err.message || "Failed to analyze project prompt",
+			});
 		}
 	},
 );
@@ -277,12 +238,16 @@ orgProjectsRouter.post(
 				analysisData,
 			} = req.body;
 
-			if (!title || !title.trim()) {
-				return res.status(400).json({ success: false, error: "Project title is required" });
+			if (!title?.trim()) {
+				return res
+					.status(400)
+					.json({ success: false, error: "Project title is required" });
 			}
 
 			if (!assignedToUserId) {
-				return res.status(400).json({ success: false, error: "Assigned user is required" });
+				return res
+					.status(400)
+					.json({ success: false, error: "Assigned user is required" });
 			}
 
 			// Validate CEO -> Member assignment rules
@@ -290,7 +255,8 @@ orgProjectsRouter.post(
 				if (!responsibleCoCeoId) {
 					return res.status(400).json({
 						success: false,
-						error: "Responsible CO-CEO is mandatory when assigning a project directly to a Member.",
+						error:
+							"Responsible CO-CEO is mandatory when assigning a project directly to a Member.",
 					});
 				}
 			}
@@ -321,7 +287,11 @@ orgProjectsRouter.post(
 
 			// 2. Create Project Assignment Record
 			const assignmentId = uuidv4();
-			const coCeoVal = (typeof responsibleCoCeoId === "string" && responsibleCoCeoId.trim().length > 0) ? responsibleCoCeoId.trim() : assignedToUserId;
+			const coCeoVal =
+				typeof responsibleCoCeoId === "string" &&
+				responsibleCoCeoId.trim().length > 0
+					? responsibleCoCeoId.trim()
+					: assignedToUserId;
 			await db.insert(projectAssignments).values({
 				id: assignmentId,
 				projectId,
@@ -337,8 +307,16 @@ orgProjectsRouter.post(
 
 			// Dispatch Notification & Email to Assignee
 			try {
-				const [assigneeUser] = await db.select().from(users).where(eq(users.id, assignedToUserId)).limit(1);
-				const [creatorUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+				const [assigneeUser] = await db
+					.select()
+					.from(users)
+					.where(eq(users.id, assignedToUserId))
+					.limit(1);
+				const [creatorUser] = await db
+					.select()
+					.from(users)
+					.where(eq(users.id, userId))
+					.limit(1);
 				const assigneeRole = (assigneeUser?.role || "CO-CEO").toUpperCase();
 
 				await db.insert(notifications).values({
@@ -353,29 +331,88 @@ orgProjectsRouter.post(
 				});
 
 				if (assigneeUser?.email) {
-					emailService.sendProjectAssignmentEmail({
-						to: assigneeUser.email,
-						projectName: title.trim(),
-						assignerName: creatorUser?.displayName || creatorUser?.name || "CEO",
-						role: assigneeRole,
-						deadline: projectDeadline ? projectDeadline.toISOString().split("T")[0] : null,
-						projectId,
-					}).catch((e) => logger.error("Async project assignment email error: " + e.message));
+					emailService
+						.sendProjectAssignmentEmail({
+							to: assigneeUser.email,
+							projectName: title.trim(),
+							assignerName:
+								creatorUser?.displayName || creatorUser?.name || "CEO",
+							role: assigneeRole,
+							deadline: projectDeadline
+								? projectDeadline.toISOString().split("T")[0]
+								: null,
+							projectId,
+						})
+						.catch((e) =>
+							logger.error(
+								`Async project assignment email error: ${e.message}`,
+							),
+						);
 				}
 			} catch (notifErr: any) {
-				logger.error("Project notification dispatch error: " + notifErr.message);
+				logger.error(
+					`Project notification dispatch error: ${notifErr.message}`,
+				);
 			}
 
 			// 3. Generate 8 Mandatory Organization Milestones
 			const STAGES = [
-				{ stage: 1, code: "STAGE_01_ACTIVATION", name: "01 — Project Invite & Connect", desc: "Prepare project assignment, invitation & repository binding", folder: "01-Project-Invite-Connect" },
-				{ stage: 2, code: "STAGE_02_PRD", name: "02 — PRD", desc: "Product Requirements Document", folder: "02-PRD" },
-				{ stage: 3, code: "STAGE_03_TRD", name: "03 — TRD", desc: "Technical Requirements Document", folder: "03-TRD" },
-				{ stage: 4, code: "STAGE_04_WORKFLOW", name: "04 — Application Workflow", desc: "Application Workflow & Visual Journeys", folder: "04-App-Workflow" },
-				{ stage: 5, code: "STAGE_05_UIUX", name: "05 — UI/UX Brief", desc: "UI/UX Design Brief & Screen Inventory", folder: "05-UI-UX" },
-				{ stage: 6, code: "STAGE_06_DATABASE", name: "06 — Database Plan", desc: "Backend Schema & Database Plan", folder: "06-Database" },
-				{ stage: 7, code: "STAGE_07_IMPLEMENTATION", name: "07 — Implementation Plan", desc: "Implementation Plan & Task Breakdown", folder: "07-Implementation" },
-				{ stage: 8, code: "STAGE_08_FINAL_VERIFICATION", name: "08 — Implementation & Final Verification", desc: "Implementation Execution, Code Verification & Final Review", folder: "08-Implementation-Final" },
+				{
+					stage: 1,
+					code: "STAGE_01_ACTIVATION",
+					name: "01 — Project Invite & Connect",
+					desc: "Prepare project assignment, invitation & repository binding",
+					folder: "01-Project-Invite-Connect",
+				},
+				{
+					stage: 2,
+					code: "STAGE_02_PRD",
+					name: "02 — PRD",
+					desc: "Product Requirements Document",
+					folder: "02-PRD",
+				},
+				{
+					stage: 3,
+					code: "STAGE_03_TRD",
+					name: "03 — TRD",
+					desc: "Technical Requirements Document",
+					folder: "03-TRD",
+				},
+				{
+					stage: 4,
+					code: "STAGE_04_WORKFLOW",
+					name: "04 — Application Workflow",
+					desc: "Application Workflow & Visual Journeys",
+					folder: "04-App-Workflow",
+				},
+				{
+					stage: 5,
+					code: "STAGE_05_UIUX",
+					name: "05 — UI/UX Brief",
+					desc: "UI/UX Design Brief & Screen Inventory",
+					folder: "05-UI-UX",
+				},
+				{
+					stage: 6,
+					code: "STAGE_06_DATABASE",
+					name: "06 — Database Plan",
+					desc: "Backend Schema & Database Plan",
+					folder: "06-Database",
+				},
+				{
+					stage: 7,
+					code: "STAGE_07_IMPLEMENTATION",
+					name: "07 — Implementation Plan",
+					desc: "Implementation Plan & Task Breakdown",
+					folder: "07-Implementation",
+				},
+				{
+					stage: 8,
+					code: "STAGE_08_FINAL_VERIFICATION",
+					name: "08 — Implementation & Final Verification",
+					desc: "Implementation Execution, Code Verification & Final Review",
+					folder: "08-Implementation-Final",
+				},
 			];
 
 			const milestoneRecords = [];
@@ -417,7 +454,11 @@ orgProjectsRouter.post(
 					updatedAt: new Date(),
 				});
 
-				milestoneRecords.push({ id: milestoneId, name: s.name, stage: s.stage });
+				milestoneRecords.push({
+					id: milestoneId,
+					name: s.name,
+					stage: s.stage,
+				});
 			}
 
 			// 4. Create Central Approval Request for Project Assignment
@@ -447,13 +488,16 @@ orgProjectsRouter.post(
 				},
 			});
 		} catch (err: any) {
-			logger.error("Create project V2 error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: err.message || "Failed to create project V2" });
+			logger.error(`Create project V2 error: ${err?.message || String(err)}`);
+			res.status(500).json({
+				success: false,
+				error: err.message || "Failed to create project V2",
+			});
 		}
 	},
 );
 
-function extractProjectName(prompt: string): string {
+function _extractProjectName(prompt: string): string {
 	const patterns = [
 		/build\s+(?:the\s+)?([^.by]+?)(?:\s+by|\s+before|\.)/i,
 		/create\s+(?:the\s+)?([^.by]+?)(?:\s+by|\s+before|\.)/i,
@@ -467,14 +511,14 @@ function extractProjectName(prompt: string): string {
 	return prompt.split(".")[0].substring(0, 60).trim();
 }
 
-function extractPriority(prompt: string): string {
+function _extractPriority(prompt: string): string {
 	if (/urgent|asap|immediately|critical/i.test(prompt)) return "Urgent";
 	if (/high priority|important|soon/i.test(prompt)) return "High";
 	if (/low priority|whenever|flexible/i.test(prompt)) return "Low";
 	return "Medium";
 }
 
-function generateMilestones(prompt: string, deadline: Date): any[] {
+function _generateMilestones(_prompt: string, deadline: Date): any[] {
 	const names = [
 		"Requirement Analysis & PRD",
 		"Technical Architecture & TRD",
@@ -529,7 +573,7 @@ orgProjectsRouter.post(
 				tasks: tasksData,
 			} = req.body;
 
-			if (!name || !name.trim())
+			if (!name?.trim())
 				return res
 					.status(400)
 					.json({ success: false, error: "Project name is required" });
@@ -542,13 +586,11 @@ orgProjectsRouter.post(
 				: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
 			if (projEnd.getTime() <= projStart.getTime()) {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error:
-							"Project Start Date must be strictly earlier than Final Deadline",
-					});
+				return res.status(400).json({
+					success: false,
+					error:
+						"Project Start Date must be strictly earlier than Final Deadline",
+				});
 			}
 
 			const projectId = uuidv4();
@@ -711,7 +753,7 @@ orgProjectsRouter.post(
 
 			res.json({ success: true, data: project });
 		} catch (err: any) {
-			logger.error("Create project error: " + (err?.message || String(err)));
+			logger.error(`Create project error: ${err?.message || String(err)}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to create project" });
@@ -730,7 +772,7 @@ orgProjectsRouter.get(
 			const userId = (req as any).user?.id;
 			const membership = (req as any).membership;
 
-			let projectList;
+			let projectList: (typeof projects.$inferSelect)[] = [];
 			if (
 				!membership ||
 				membership.role === "CEO" ||
@@ -791,9 +833,8 @@ orgProjectsRouter.get(
 							.select({ count: sql<number>`count(*)` })
 							.from(milestones)
 							.where(eq(milestones.projectId, p.id));
-						countVal =
-							msCount && msCount[0] ? Number(msCount[0].count) || 0 : 0;
-					} catch (e) {}
+						countVal = msCount?.[0] ? Number(msCount[0].count) || 0 : 0;
+					} catch (_e) {}
 
 					const progress =
 						total > 0 ? Math.round((completed / total) * 100) : p.progress || 0;
@@ -810,13 +851,11 @@ orgProjectsRouter.get(
 
 			res.json({ success: true, data: enriched });
 		} catch (err: any) {
-			logger.error("List projects error: " + (err?.message || String(err)));
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: "Failed to list organization projects",
-				});
+			logger.error(`List projects error: ${err?.message || String(err)}`);
+			res.status(500).json({
+				success: false,
+				error: "Failed to list organization projects",
+			});
 		}
 	},
 );
@@ -850,7 +889,7 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 				.where(eq(milestones.projectId, id))
 				.orderBy(asc(milestones.order));
 		} catch (e: any) {
-			logger.error("Fetch project milestones error: " + e.message);
+			logger.error(`Fetch project milestones error: ${e.message}`);
 		}
 
 		// Tasks for project
@@ -880,7 +919,7 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 				assigneeName: t.assigneeName || t.assigneeEmail || "Unassigned",
 			}));
 		} catch (e: any) {
-			logger.error("Fetch project tasks error: " + e.message);
+			logger.error(`Fetch project tasks error: ${e.message}`);
 		}
 
 		const total = formattedTasks.length;
@@ -904,7 +943,7 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 					ownerName = ownerUser.displayName || ownerUser.name;
 					ownerEmail = ownerUser.email;
 				}
-			} catch (e) {}
+			} catch (_e) {}
 		}
 
 		// Requirements for project
@@ -915,7 +954,7 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 				.from(projectRequirements)
 				.where(eq(projectRequirements.projectId, id));
 		} catch (e: any) {
-			logger.error("Fetch project requirements error: " + e.message);
+			logger.error(`Fetch project requirements error: ${e.message}`);
 		}
 
 		// Documents checklist for project
@@ -926,7 +965,7 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 				.from(projectDocuments)
 				.where(eq(projectDocuments.projectId, id));
 		} catch (e: any) {
-			logger.error("Fetch project documents error: " + e.message);
+			logger.error(`Fetch project documents error: ${e.message}`);
 		}
 
 		// Roadmaps for project
@@ -938,7 +977,7 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 				.where(eq(projectRoadmaps.projectId, id))
 				.orderBy(asc(projectRoadmaps.order));
 		} catch (e: any) {
-			logger.error("Fetch project roadmaps error: " + e.message);
+			logger.error(`Fetch project roadmaps error: ${e.message}`);
 		}
 
 		// Features for project
@@ -949,7 +988,7 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 				.from(projectFeatures)
 				.where(eq(projectFeatures.projectId, id));
 		} catch (e: any) {
-			logger.error("Fetch project features error: " + e.message);
+			logger.error(`Fetch project features error: ${e.message}`);
 		}
 
 		// GitHub for project
@@ -962,7 +1001,7 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 				.limit(1);
 			if (gh) githubData = gh;
 		} catch (e: any) {
-			logger.error("Fetch project github error: " + e.message);
+			logger.error(`Fetch project github error: ${e.message}`);
 		}
 
 		// V2 Milestones for project
@@ -975,7 +1014,7 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 			if (v2Ms && v2Ms.length > 0) {
 				projMilestones = v2Ms;
 			}
-		} catch (e: any) {}
+		} catch (_e: any) {}
 
 		// V2 Documents for project
 		try {
@@ -986,7 +1025,7 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 			if (v2Docs && v2Docs.length > 0) {
 				projDocuments = v2Docs;
 			}
-		} catch (e: any) {}
+		} catch (_e: any) {}
 
 		// Normalize milestones to satisfy unified data contract
 		const normalizedMilestones = (projMilestones || []).map((m: any) => ({
@@ -1012,12 +1051,32 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 				let assigneeUser: any = null;
 				let creatorUser: any = null;
 				if (pa.assignedToUserId) {
-					const [u] = await db.select().from(users).where(eq(users.id, pa.assignedToUserId)).limit(1);
-					if (u) assigneeUser = { id: u.id, name: u.displayName || u.name, email: u.email, role: u.role };
+					const [u] = await db
+						.select()
+						.from(users)
+						.where(eq(users.id, pa.assignedToUserId))
+						.limit(1);
+					if (u)
+						assigneeUser = {
+							id: u.id,
+							name: u.displayName || u.name,
+							email: u.email,
+							role: u.role,
+						};
 				}
 				if (pa.createdByUserId) {
-					const [u] = await db.select().from(users).where(eq(users.id, pa.createdByUserId)).limit(1);
-					if (u) creatorUser = { id: u.id, name: u.displayName || u.name, email: u.email, role: u.role };
+					const [u] = await db
+						.select()
+						.from(users)
+						.where(eq(users.id, pa.createdByUserId))
+						.limit(1);
+					if (u)
+						creatorUser = {
+							id: u.id,
+							name: u.displayName || u.name,
+							email: u.email,
+							role: u.role,
+						};
 				}
 
 				projectAssignmentData = {
@@ -1033,7 +1092,7 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 				};
 			}
 		} catch (e: any) {
-			logger.error("Fetch project assignment error: " + e.message);
+			logger.error(`Fetch project assignment error: ${e.message}`);
 		}
 
 		res.json({
@@ -1092,19 +1151,31 @@ orgProjectsRouter.get(
 				.where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
 				.limit(1);
 
-			if (!project) return res.status(404).json({ success: false, error: "Project not found" });
+			if (!project)
+				return res
+					.status(404)
+					.json({ success: false, error: "Project not found" });
 
 			const [pa] = await db
 				.select()
 				.from(projectAssignments)
-				.where(and(eq(projectAssignments.projectId, id), eq(projectAssignments.workspaceId, workspaceId)))
+				.where(
+					and(
+						eq(projectAssignments.projectId, id),
+						eq(projectAssignments.workspaceId, workspaceId),
+					),
+				)
 				.orderBy(desc(projectAssignments.createdAt))
 				.limit(1);
 
 			let assigneeUser: any = null;
 			if (pa?.assignedToUserId || project.ownerId) {
 				const targetId = pa?.assignedToUserId || project.ownerId;
-				const [u] = await db.select().from(users).where(eq(users.id, targetId!)).limit(1);
+				const [u] = await db
+					.select()
+					.from(users)
+					.where(eq(users.id, targetId!))
+					.limit(1);
 				if (u) {
 					assigneeUser = {
 						id: u.id,
@@ -1119,7 +1190,11 @@ orgProjectsRouter.get(
 			let assignerUser: any = null;
 			const creatorId = pa?.createdByUserId || project.createdBy;
 			if (creatorId) {
-				const [u] = await db.select().from(users).where(eq(users.id, creatorId)).limit(1);
+				const [u] = await db
+					.select()
+					.from(users)
+					.where(eq(users.id, creatorId))
+					.limit(1);
 				if (u) {
 					assignerUser = {
 						id: u.id,
@@ -1135,11 +1210,18 @@ orgProjectsRouter.get(
 			const [currentMs] = await db
 				.select()
 				.from(projectMilestonesV2)
-				.where(and(eq(projectMilestonesV2.projectId, id), ne(projectMilestonesV2.state, "APPROVED")))
+				.where(
+					and(
+						eq(projectMilestonesV2.projectId, id),
+						ne(projectMilestonesV2.state, "APPROVED"),
+					),
+				)
 				.orderBy(asc(projectMilestonesV2.stageNumber))
 				.limit(1);
 
-			const currentStageText = currentMs ? `Stage ${String(currentMs.stageNumber).padStart(2, "0")} / 08 (${currentMs.name})` : "Stage 01 / 08 (Invite & Connect)";
+			const currentStageText = currentMs
+				? `Stage ${String(currentMs.stageNumber).padStart(2, "0")} / 08 (${currentMs.name})`
+				: "Stage 01 / 08 (Invite & Connect)";
 
 			res.json({
 				success: true,
@@ -1153,8 +1235,13 @@ orgProjectsRouter.get(
 				},
 			});
 		} catch (err: any) {
-			logger.error("Get project assignment error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to get project assignment details" });
+			logger.error(
+				`Get project assignment error: ${err?.message || String(err)}`,
+			);
+			res.status(500).json({
+				success: false,
+				error: "Failed to get project assignment details",
+			});
 		}
 	},
 );
@@ -1171,12 +1258,20 @@ const handleAcceptProject = async (req: Request, res: Response) => {
 			.from(projects)
 			.where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
 			.limit(1);
-		if (!existing) return res.status(404).json({ success: false, error: "Project not found" });
+		if (!existing)
+			return res
+				.status(404)
+				.json({ success: false, error: "Project not found" });
 
 		const [pa] = await db
 			.select()
 			.from(projectAssignments)
-			.where(and(eq(projectAssignments.projectId, id), eq(projectAssignments.workspaceId, workspaceId)))
+			.where(
+				and(
+					eq(projectAssignments.projectId, id),
+					eq(projectAssignments.workspaceId, workspaceId),
+				),
+			)
 			.orderBy(desc(projectAssignments.createdAt))
 			.limit(1);
 
@@ -1193,7 +1288,12 @@ const handleAcceptProject = async (req: Request, res: Response) => {
 		await db
 			.update(projectMilestonesV2)
 			.set({ state: "AVAILABLE", updatedAt: now })
-			.where(and(eq(projectMilestonesV2.projectId, id), eq(projectMilestonesV2.stageNumber, 1)));
+			.where(
+				and(
+					eq(projectMilestonesV2.projectId, id),
+					eq(projectMilestonesV2.stageNumber, 1),
+				),
+			);
 
 		const [updated] = await db
 			.update(projects)
@@ -1220,15 +1320,29 @@ const handleAcceptProject = async (req: Request, res: Response) => {
 
 		socketService.emitToWorkspace(workspaceId, "project.updated", updated);
 		socketService.emitToWorkspace(workspaceId, "project.accepted", updated);
-		res.json({ success: true, data: updated, message: "Project assignment accepted successfully" });
+		res.json({
+			success: true,
+			data: updated,
+			message: "Project assignment accepted successfully",
+		});
 	} catch (err: any) {
-		logger.error("Accept project error: " + (err?.message || String(err)));
+		logger.error(`Accept project error: ${err?.message || String(err)}`);
 		res.status(500).json({ success: false, error: "Failed to accept project" });
 	}
 };
 
-orgProjectsRouter.post("/:id/accept", resolveWorkspace, requireMembership, handleAcceptProject);
-orgProjectsRouter.post("/:id/assignment/accept", resolveWorkspace, requireMembership, handleAcceptProject);
+orgProjectsRouter.post(
+	"/:id/accept",
+	resolveWorkspace,
+	requireMembership,
+	handleAcceptProject,
+);
+orgProjectsRouter.post(
+	"/:id/assignment/accept",
+	resolveWorkspace,
+	requireMembership,
+	handleAcceptProject,
+);
 
 // ─── Project Assignment Decline (POST /:id/decline & POST /:id/assignment/decline) ──
 const handleDeclineProject = async (req: Request, res: Response) => {
@@ -1241,7 +1355,8 @@ const handleDeclineProject = async (req: Request, res: Response) => {
 		if (!reason || typeof reason !== "string" || !reason.trim()) {
 			return res.status(400).json({
 				success: false,
-				error: "A valid decline reason is mandatory to decline project assignment",
+				error:
+					"A valid decline reason is mandatory to decline project assignment",
 			});
 		}
 
@@ -1250,12 +1365,20 @@ const handleDeclineProject = async (req: Request, res: Response) => {
 			.from(projects)
 			.where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
 			.limit(1);
-		if (!existing) return res.status(404).json({ success: false, error: "Project not found" });
+		if (!existing)
+			return res
+				.status(404)
+				.json({ success: false, error: "Project not found" });
 
 		const [pa] = await db
 			.select()
 			.from(projectAssignments)
-			.where(and(eq(projectAssignments.projectId, id), eq(projectAssignments.workspaceId, workspaceId)))
+			.where(
+				and(
+					eq(projectAssignments.projectId, id),
+					eq(projectAssignments.workspaceId, workspaceId),
+				),
+			)
 			.orderBy(desc(projectAssignments.createdAt))
 			.limit(1);
 
@@ -1298,15 +1421,31 @@ const handleDeclineProject = async (req: Request, res: Response) => {
 
 		socketService.emitToWorkspace(workspaceId, "project.updated", updated);
 		socketService.emitToWorkspace(workspaceId, "project.declined", updated);
-		res.json({ success: true, data: updated, message: "Project assignment declined successfully" });
+		res.json({
+			success: true,
+			data: updated,
+			message: "Project assignment declined successfully",
+		});
 	} catch (err: any) {
-		logger.error("Decline project error: " + (err?.message || String(err)));
-		res.status(500).json({ success: false, error: "Failed to decline project" });
+		logger.error(`Decline project error: ${err?.message || String(err)}`);
+		res
+			.status(500)
+			.json({ success: false, error: "Failed to decline project" });
 	}
 };
 
-orgProjectsRouter.post("/:id/decline", resolveWorkspace, requireMembership, handleDeclineProject);
-orgProjectsRouter.post("/:id/assignment/decline", resolveWorkspace, requireMembership, handleDeclineProject);
+orgProjectsRouter.post(
+	"/:id/decline",
+	resolveWorkspace,
+	requireMembership,
+	handleDeclineProject,
+);
+orgProjectsRouter.post(
+	"/:id/assignment/decline",
+	resolveWorkspace,
+	requireMembership,
+	handleDeclineProject,
+);
 
 // ─── Project Assignment Request Clarification ──────────────────────────────
 orgProjectsRouter.post(
@@ -1321,12 +1460,10 @@ orgProjectsRouter.post(
 			const { question } = req.body;
 
 			if (!question || typeof question !== "string" || !question.trim()) {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: "Clarification question is required",
-					});
+				return res.status(400).json({
+					success: false,
+					error: "Clarification question is required",
+				});
 			}
 
 			const [existing] = await db
@@ -1349,13 +1486,11 @@ orgProjectsRouter.post(
 			});
 
 			res.json({ success: true, message: "Clarification request sent to CEO" });
-		} catch (err: any) {
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: "Failed to submit clarification request",
-				});
+		} catch (_err: any) {
+			res.status(500).json({
+				success: false,
+				error: "Failed to submit clarification request",
+			});
 		}
 	},
 );
@@ -1374,12 +1509,10 @@ orgProjectsRouter.post(
 			const { startDate, deadline, reason } = req.body;
 
 			if (!reason || typeof reason !== "string" || reason.trim().length < 3) {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: "A valid reason for date modification is required",
-					});
+				return res.status(400).json({
+					success: false,
+					error: "A valid reason for date modification is required",
+				});
 			}
 
 			const [existing] = await db
@@ -1400,12 +1533,10 @@ orgProjectsRouter.post(
 				: existing.deadline || new Date();
 
 			if (newEnd.getTime() <= newStart.getTime()) {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: "Project Start Date must be strictly earlier than Deadline",
-					});
+				return res.status(400).json({
+					success: false,
+					error: "Project Start Date must be strictly earlier than Deadline",
+				});
 			}
 
 			const prevStartStr = existing.startDate
@@ -1447,9 +1578,7 @@ orgProjectsRouter.post(
 
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error(
-				"Project date change error: " + (err?.message || String(err)),
-			);
+			logger.error(`Project date change error: ${err?.message || String(err)}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to update project dates" });
@@ -1520,7 +1649,7 @@ orgProjectsRouter.post(
 				message: "Requirement updated successfully",
 			});
 		} catch (err: any) {
-			logger.error("Verify requirement error: " + err.message);
+			logger.error(`Verify requirement error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to update requirement" });
@@ -1571,13 +1700,11 @@ orgProjectsRouter.patch(
 				: existing.deadline || new Date();
 
 			if (newEnd.getTime() <= newStart.getTime()) {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error:
-							"Project Start Date/Time must be strictly earlier than Deadline",
-					});
+				return res.status(400).json({
+					success: false,
+					error:
+						"Project Start Date/Time must be strictly earlier than Deadline",
+				});
 			}
 
 			const updates: any = { updatedAt: new Date() };
@@ -1605,7 +1732,7 @@ orgProjectsRouter.patch(
 				userId,
 				workspaceId,
 				eventType: "PROJECT_UPDATED",
-				details: `Project "${updated.name}" updated. ${reason ? "Reason: " + reason.trim() : ""}`,
+				details: `Project "${updated.name}" updated. ${reason ? `Reason: ${reason.trim()}` : ""}`,
 			});
 
 			await db.insert(activities).values({
@@ -1620,7 +1747,7 @@ orgProjectsRouter.patch(
 			socketService.emitToWorkspace(workspaceId, "project.updated", updated);
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Update project error: " + (err?.message || String(err)));
+			logger.error(`Update project error: ${err?.message || String(err)}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to update project" });
@@ -1644,7 +1771,7 @@ orgProjectsRouter.get(
 				.where(eq(milestones.projectId, id))
 				.orderBy(asc(milestones.order));
 			res.json({ success: true, data: msList });
-		} catch (err: any) {
+		} catch (_err: any) {
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to fetch milestones" });
@@ -1665,7 +1792,7 @@ orgProjectsRouter.post(
 			const id = req.params.id as string;
 			const { name, description, deadline, status, order } = req.body;
 
-			if (!name || !name.trim())
+			if (!name?.trim())
 				return res
 					.status(400)
 					.json({ success: false, error: "Milestone name is required" });
@@ -1686,13 +1813,11 @@ orgProjectsRouter.post(
 				existingProj.deadline &&
 				msDeadline.getTime() > new Date(existingProj.deadline).getTime()
 			) {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error:
-							"Milestone target date cannot exceed project executive deadline",
-					});
+				return res.status(400).json({
+					success: false,
+					error:
+						"Milestone target date cannot exceed project executive deadline",
+				});
 			}
 
 			const [newMs] = await db
@@ -1727,7 +1852,7 @@ orgProjectsRouter.post(
 
 			res.json({ success: true, data: newMs });
 		} catch (err: any) {
-			logger.error("Create milestone error: " + (err?.message || String(err)));
+			logger.error(`Create milestone error: ${err?.message || String(err)}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to create milestone" });
@@ -1778,7 +1903,7 @@ orgProjectsRouter.patch(
 			});
 
 			res.json({ success: true, data: updated });
-		} catch (err: any) {
+		} catch (_err: any) {
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to update milestone" });
@@ -1816,7 +1941,7 @@ orgProjectsRouter.delete(
 			}
 
 			res.json({ success: true, data: deleted });
-		} catch (err: any) {
+		} catch (_err: any) {
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to delete milestone" });
@@ -1874,30 +1999,26 @@ orgProjectsRouter.patch(
 				.where(eq(projects.id, id))
 				.returning();
 
-			await db
-				.insert(auditLogs)
-				.values({
-					id: uuidv4(),
-					userId,
-					workspaceId,
-					eventType: "PROJECT_UPDATED",
-					details: `Project "${updated.name}" updated`,
-				});
-			await db
-				.insert(activities)
-				.values({
-					id: uuidv4(),
-					workspaceId,
-					projectId: id,
-					userId,
-					action: "Project updated",
-					details: `Updated project "${updated.name}"`,
-				});
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "PROJECT_UPDATED",
+				details: `Project "${updated.name}" updated`,
+			});
+			await db.insert(activities).values({
+				id: uuidv4(),
+				workspaceId,
+				projectId: id,
+				userId,
+				action: "Project updated",
+				details: `Updated project "${updated.name}"`,
+			});
 
 			socketService.emitToWorkspace(workspaceId, "project.updated", updated);
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Update project error: " + err.message);
+			logger.error(`Update project error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -1916,12 +2037,10 @@ orgProjectsRouter.delete(
 			const id = req.params.id as string;
 			const membership = (req as any).membership;
 			if (membership.role !== "CEO" && membership.role !== "CO-CEO") {
-				return res
-					.status(403)
-					.json({
-						success: false,
-						error: "Only CEO or CO-CEO can delete projects",
-					});
+				return res.status(403).json({
+					success: false,
+					error: "Only CEO or CO-CEO can delete projects",
+				});
 			}
 
 			const existing = await db.query.projects.findFirst({
@@ -1933,19 +2052,17 @@ orgProjectsRouter.delete(
 					.json({ success: false, error: "Project not found" });
 
 			await db.delete(projects).where(eq(projects.id, id));
-			await db
-				.insert(auditLogs)
-				.values({
-					id: uuidv4(),
-					userId,
-					workspaceId,
-					eventType: "PROJECT_DELETED",
-					details: `Project "${existing.name}" deleted`,
-				});
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "PROJECT_DELETED",
+				details: `Project "${existing.name}" deleted`,
+			});
 			socketService.emitToWorkspace(workspaceId, "project.deleted", { id });
 			res.json({ success: true, message: "Project deleted" });
 		} catch (err: any) {
-			logger.error("Delete project error: " + err.message);
+			logger.error(`Delete project error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -1973,7 +2090,9 @@ orgProjectsRouter.post(
 				.returning();
 
 			if (!updated) {
-				return res.status(404).json({ success: false, error: "Project not found" });
+				return res
+					.status(404)
+					.json({ success: false, error: "Project not found" });
 			}
 
 			await db.insert(auditLogs).values({
@@ -1987,8 +2106,10 @@ orgProjectsRouter.post(
 			socketService.emitToWorkspace(workspaceId, "project.updated", updated);
 			res.json({ success: true, data: updated, message: "Project archived" });
 		} catch (err: any) {
-			logger.error("Archive project error: " + err.message);
-			res.status(500).json({ success: false, error: "Failed to archive project" });
+			logger.error(`Archive project error: ${err.message}`);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to archive project" });
 		}
 	},
 );
@@ -2033,7 +2154,7 @@ orgProjectsRouter.post(
 			socketService.emitToWorkspace(workspaceId, "milestone.updated", ms);
 			res.json({ success: true, data: ms });
 		} catch (err: any) {
-			logger.error("Create milestone error: " + err.message);
+			logger.error(`Create milestone error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -2069,7 +2190,7 @@ orgProjectsRouter.patch(
 			socketService.emitToWorkspace(workspaceId, "milestone.updated", updated);
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Update milestone error: " + err.message);
+			logger.error(`Update milestone error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -2122,13 +2243,11 @@ orgProjectsRouter.get("/:id/timeline", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: events });
 	} catch (err: any) {
-		logger.error("Get project timeline error: " + err.message);
-		res
-			.status(500)
-			.json({
-				success: false,
-				error: "Failed to load project timeline history",
-			});
+		logger.error(`Get project timeline error: ${err.message}`);
+		res.status(500).json({
+			success: false,
+			error: "Failed to load project timeline history",
+		});
 	}
 });
 

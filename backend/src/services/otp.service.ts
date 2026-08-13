@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import crypto from "node:crypto";
 import { and, eq, gt } from "drizzle-orm";
 import { env } from "../../config/env.config";
 import { db } from "../../database/client";
@@ -6,7 +6,6 @@ import { otpCodes } from "../../database/schema";
 import { emailService } from "./email.service";
 import { logger } from "./logger.service";
 import { NotificationService } from "./notification.service";
-import { queueService } from "./queue.service";
 
 export class OtpService {
 	private static OTP_EXPIRY_MINUTES = 5;
@@ -83,7 +82,9 @@ export class OtpService {
 				actionUrl: `${env.CLIENT_URL}/login`,
 			});
 		} catch (emailErr: any) {
-			logger.warn(`Direct email dispatch notice: ${emailErr?.message || String(emailErr)}`);
+			logger.warn(
+				`Direct email dispatch notice: ${emailErr?.message || String(emailErr)}`,
+			);
 		}
 
 		if (process.env.NODE_ENV !== "production") {

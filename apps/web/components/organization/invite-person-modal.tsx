@@ -70,14 +70,18 @@ export function InvitePersonModal({ isOpen, onClose, onSuccess }: InvitePersonMo
     setError("");
     try {
       const workspaceId = localStorage.getItem("workspaceId");
-      const res = await apiClient.post("/invitations/send", {
-        email: email.trim(),
-        name: name.trim() || undefined,
-        role,
-        managerId: role === "MEMBER" ? managerId : undefined,
-        message: message.trim() || undefined,
-        workspaceId,
-      });
+      const res = await apiClient.post(
+        "/invitations/send",
+        {
+          email: email.trim(),
+          name: name.trim() || undefined,
+          role,
+          managerId: role === "MEMBER" ? managerId : undefined,
+          message: message.trim() || undefined,
+          workspaceId,
+        },
+        { timeout: 8000 }
+      );
 
       if (res.data.success) {
         setEmail("");
@@ -90,7 +94,11 @@ export function InvitePersonModal({ isOpen, onClose, onSuccess }: InvitePersonMo
         setError(res.data.error || "Failed to send invitation.");
       }
     } catch (e: any) {
-      setError(e.response?.data?.error || e.message || "Failed to send invitation.");
+      if (e.code === "ECONNABORTED" || e.message?.includes("timeout")) {
+        setError("Invitation process timed out. The invitation was queued, but email dispatch was slow.");
+      } else {
+        setError(e.response?.data?.error || e.message || "Failed to send invitation.");
+      }
     } finally {
       setSending(false);
     }

@@ -1,7 +1,11 @@
-import { randomUUID } from "crypto";
-import { eq, and } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
 import { db } from "../../database/client";
-import { githubConnections, githubProjectBindings } from "../../database/schema";
+import {
+	githubConnections,
+	githubProjectBindings,
+} from "../../database/schema";
+import { EncryptionService } from "./integrations/EncryptionService";
 
 export interface GitHubRepoInfo {
 	id: string;
@@ -14,6 +18,15 @@ export interface GitHubRepoInfo {
 }
 
 export class GitHubIntegrationService {
+	private static toPublicAccount(
+		account: typeof githubConnections.$inferSelect | null,
+	) {
+		if (!account) return null;
+		const { accessTokenEncrypted: _accessTokenEncrypted, ...publicAccount } =
+			account;
+		return publicAccount;
+	}
+
 	/**
 	 * Connects a GitHub account slot (ACCOUNT_A or ACCOUNT_B) for a user
 	 */
@@ -24,12 +37,17 @@ export class GitHubIntegrationService {
 		username: string,
 		token: string,
 		email?: string,
-		avatarUrl?: string
+		avatarUrl?: string,
 	) {
 		// Remove existing connection on same slot if any
 		await db
 			.delete(githubConnections)
-			.where(and(eq(githubConnections.userId, userId), eq(githubConnections.accountSlot, accountSlot)));
+			.where(
+				and(
+					eq(githubConnections.userId, userId),
+					eq(githubConnections.accountSlot, accountSlot),
+				),
+			);
 
 		const [connection] = await db
 			.insert(githubConnections)
@@ -41,7 +59,7 @@ export class GitHubIntegrationService {
 				username,
 				email: email || null,
 				avatarUrl: avatarUrl || null,
-				accessTokenEncrypted: token, // Production: encrypt with AES-256
+				accessTokenEncrypted: EncryptionService.encrypt(token),
 				connectionStatus: "CONNECTED",
 				lastSyncAt: new Date(),
 				createdAt: new Date(),
@@ -49,16 +67,24 @@ export class GitHubIntegrationService {
 			})
 			.returning();
 
-		return connection;
+		return GitHubIntegrationService.toPublicAccount(connection);
 	}
 
 	/**
 	 * Disconnects a GitHub account slot
 	 */
-	static async disconnectAccount(userId: string, accountSlot: "ACCOUNT_A" | "ACCOUNT_B") {
+	static async disconnectAccount(
+		userId: string,
+		accountSlot: "ACCOUNT_A" | "ACCOUNT_B",
+	) {
 		await db
 			.delete(githubConnections)
-			.where(and(eq(githubConnections.userId, userId), eq(githubConnections.accountSlot, accountSlot)));
+			.where(
+				and(
+					eq(githubConnections.userId, userId),
+					eq(githubConnections.accountSlot, accountSlot),
+				),
+			);
 		return { success: true };
 	}
 
@@ -66,10 +92,17 @@ export class GitHubIntegrationService {
 	 * Gets connected GitHub accounts for a user
 	 */
 	static async getUserAccounts(userId: string) {
-		const accounts = await db.select().from(githubConnections).where(eq(githubConnections.userId, userId));
+		const accounts = await db
+			.select()
+			.from(githubConnections)
+			.where(eq(githubConnections.userId, userId));
 		return {
-			accountA: accounts.find((a) => a.accountSlot === "ACCOUNT_A") || null,
-			accountB: accounts.find((a) => a.accountSlot === "ACCOUNT_B") || null,
+			accountA: GitHubIntegrationService.toPublicAccount(
+				accounts.find((a) => a.accountSlot === "ACCOUNT_A") || null,
+			),
+			accountB: GitHubIntegrationService.toPublicAccount(
+				accounts.find((a) => a.accountSlot === "ACCOUNT_B") || null,
+			),
 		};
 	}
 
@@ -82,10 +115,12 @@ export class GitHubIntegrationService {
 		repositoryId: string,
 		repositoryName: string,
 		repositoryOwner: string,
-		defaultBranch = "main"
+		defaultBranch = "main",
 	) {
 		// Remove existing binding for project
-		await db.delete(githubProjectBindings).where(eq(githubProjectBindings.projectId, projectId));
+		await db
+			.delete(githubProjectBindings)
+			.where(eq(githubProjectBindings.projectId, projectId));
 
 		const [binding] = await db
 			.insert(githubProjectBindings)
@@ -126,7 +161,9 @@ export class GitHubIntegrationService {
 
 		return {
 			binding,
-			connectionStatus: connection ? connection.connectionStatus : "DISCONNECTED",
+			connectionStatus: connection
+				? connection.connectionStatus
+				: "DISCONNECTED",
 			username: connection?.username,
 			accountSlot: connection?.accountSlot,
 		};

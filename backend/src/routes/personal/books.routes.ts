@@ -2,10 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { personalDb } from "../../../database/db";
-import {
-	personalBooks,
-	personalReadingSessions,
-} from "../../../database/schema/personal.schema";
+import { personalBooks } from "../../../database/schema/personal.schema";
 import { getUserId } from "../../middleware/auth";
 import { authenticate } from "../../middleware/auth.middleware";
 import { socketService } from "../../services/socket.service";
@@ -31,7 +28,7 @@ personalBooksRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: books });
 	} catch (error: any) {
-		logger.error("Get Books Error: " + error.message);
+		logger.error(`Get Books Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to fetch books" });
 	}
 });
@@ -77,7 +74,7 @@ personalBooksRouter.post("/", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "book_created", newBook);
 		res.status(201).json({ success: true, data: newBook });
 	} catch (error: any) {
-		logger.error("Create Book Error: " + error.message);
+		logger.error(`Create Book Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to create book" });
 	}
 });
@@ -126,7 +123,7 @@ personalBooksRouter.patch("/:id", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "book_updated", updatedBook);
 		res.json({ success: true, data: updatedBook });
 	} catch (error: any) {
-		logger.error("Update Book Error: " + error.message);
+		logger.error(`Update Book Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to update book" });
 	}
 });
@@ -155,7 +152,7 @@ personalBooksRouter.delete("/:id", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "book_deleted", { id: bookId });
 		res.json({ success: true, data: deletedBook });
 	} catch (error: any) {
-		logger.error("Delete Book Error: " + error.message);
+		logger.error(`Delete Book Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to delete book" });
 	}
 });

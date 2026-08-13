@@ -45,13 +45,11 @@ const verifyWorkspaceAccess = async (
 
 		next();
 	} catch (error) {
-		logger.error("Workspace Verification Error: " + (error as Error).message);
-		res
-			.status(500)
-			.json({
-				success: false,
-				error: "Internal server error during authorization.",
-			});
+		logger.error(`Workspace Verification Error: ${(error as Error).message}`);
+		res.status(500).json({
+			success: false,
+			error: "Internal server error during authorization.",
+		});
 	}
 };
 
@@ -62,7 +60,11 @@ aiRouter.post(
 	async (req: Request, res: Response) => {
 		try {
 			const { workspaceId, content, type } = req.body;
-			const userId = (req as any).user?.id!;
+			const userId = (req as any).user?.id;
+			if (!userId)
+				return res
+					.status(401)
+					.json({ success: false, error: "Authentication required" });
 
 			if (!content || typeof content !== "string") {
 				return res
@@ -71,13 +73,11 @@ aiRouter.post(
 			}
 
 			if (!type || typeof type !== "string") {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error:
-							"Context type is required (e.g., 'document', 'project_brief').",
-					});
+				return res.status(400).json({
+					success: false,
+					error:
+						"Context type is required (e.g., 'document', 'project_brief').",
+				});
 			}
 
 			const newContext = await db
@@ -97,7 +97,7 @@ aiRouter.post(
 				data: newContext[0],
 			});
 		} catch (error: any) {
-			logger.error("AI Context Injection Error: " + (error as Error).message);
+			logger.error(`AI Context Injection Error: ${(error as Error).message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "An internal server error occurred." });
@@ -124,7 +124,7 @@ aiRouter.get(
 				data: contextChunks,
 			});
 		} catch (error: any) {
-			logger.error("AI Context Retrieval Error: " + (error as Error).message);
+			logger.error(`AI Context Retrieval Error: ${(error as Error).message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "An internal server error occurred." });

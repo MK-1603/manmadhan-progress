@@ -1,4 +1,4 @@
-import os from "os";
+import os from "node:os";
 import { env } from "../../config/env.config";
 import { printBanner } from "./banner";
 
@@ -9,10 +9,8 @@ export interface TelemetryData {
 }
 
 export const getTelemetryData = (startTime: number): TelemetryData => {
-	const startupTimeSec =
-		((performance.now() - startTime) / 1000).toFixed(2) + "s";
-	const memoryUsageMb =
-		(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2) + " MB";
+	const startupTimeSec = `${((performance.now() - startTime) / 1000).toFixed(2)}s`;
+	const memoryUsageMb = `${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB`;
 	const cpus = os.cpus();
 	const cpuModel =
 		cpus.length > 0
@@ -22,7 +20,9 @@ export const getTelemetryData = (startTime: number): TelemetryData => {
 	return { startupTimeSec, memoryUsageMb, cpuModel };
 };
 
-const stripAnsi = (str: string): string => str.replace(/\x1b\[[0-9;]*m/g, "");
+const ansiEscape = String.fromCharCode(27);
+const stripAnsi = (str: string): string =>
+	str.replace(new RegExp(`${ansiEscape}\\[[0-9;]*m`, "g"), "");
 const visualLength = (str: string): number => stripAnsi(str).length;
 
 export const printStartupDashboard = (

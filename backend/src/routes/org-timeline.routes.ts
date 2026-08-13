@@ -1,11 +1,9 @@
-import { and, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { db } from "../../database/client";
 import {
-	activities,
 	auditLogs,
 	projects,
-	tasks,
 	users,
 	workspaceMembers,
 } from "../../database/schema";
@@ -213,14 +211,12 @@ orgTimelineRouter.get(
 			});
 		} catch (err: any) {
 			logger.error(
-				"Get timeline error: " + (err?.stack || err?.message || String(err)),
+				`Get timeline error: ${err?.stack || err?.message || String(err)}`,
 			);
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: "Failed to load organization execution timeline",
-				});
+			res.status(500).json({
+				success: false,
+				error: "Failed to load organization execution timeline",
+			});
 		}
 	},
 );

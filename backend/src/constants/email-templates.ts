@@ -1,4 +1,8 @@
 export type NotificationMode = "action" | "alert" | "digest" | "informational";
+export type NotificationData = Record<
+	string,
+	string | number | boolean | null | undefined
+>;
 
 export interface NotificationTemplate {
 	type: string;
@@ -13,11 +17,11 @@ export interface NotificationTemplate {
 		| "credit-card"
 		| "briefcase"
 		| "key";
-	subjectTemplate: (data: any) => string;
-	titleTemplate: (data: any) => string;
-	bodyTemplate: (data: any) => string[];
+	subjectTemplate: (data: NotificationData) => string;
+	titleTemplate: (data: NotificationData) => string;
+	bodyTemplate: (data: NotificationData) => string[];
 	actionText?: string;
-	getDefaultActionUrl?: (data: any, clientUrl: string) => string;
+	getDefaultActionUrl?: (data: NotificationData, clientUrl: string) => string;
 }
 
 export const AppEvents: Record<string, NotificationTemplate> = {
@@ -46,7 +50,7 @@ export const AppEvents: Record<string, NotificationTemplate> = {
 			"If you did not make this change, please contact your Workspace Administrator immediately.",
 		],
 		actionText: "Sign In Now",
-		getDefaultActionUrl: (data, url) => `${url}/login`,
+		getDefaultActionUrl: (_data, url) => `${url}/login`,
 	},
 	OTP_LOGIN: {
 		type: "OTP_LOGIN",
@@ -68,7 +72,7 @@ export const AppEvents: Record<string, NotificationTemplate> = {
 			`We detected a new sign-in to your account from a new device (${data.device || "Unknown"}).`,
 		],
 		actionText: "Review Account Security",
-		getDefaultActionUrl: (data, url) => `${url}/settings/security`,
+		getDefaultActionUrl: (_data, url) => `${url}/settings/security`,
 	},
 	MFA_ENABLED: {
 		type: "MFA_ENABLED",
@@ -92,7 +96,7 @@ export const AppEvents: Record<string, NotificationTemplate> = {
 			"Get started by exploring your new dashboard and setting up your first project.",
 		],
 		actionText: "Go to Dashboard",
-		getDefaultActionUrl: (data, url) => `${url}/login`,
+		getDefaultActionUrl: (_data, url) => `${url}/login`,
 	},
 
 	// --- WORKSPACE & ORG ---
@@ -203,6 +207,6 @@ export const AppEvents: Record<string, NotificationTemplate> = {
 			`Your workspace has used ${data.usedPercentage}% of its allocated storage.`,
 		],
 		actionText: "Upgrade Plan",
-		getDefaultActionUrl: (data, url) => `${url}/settings/billing`,
+		getDefaultActionUrl: (_data, url) => `${url}/settings/billing`,
 	},
 };

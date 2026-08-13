@@ -7,6 +7,7 @@ import {
   LoaderCircle, Send, Plus, Trash2, MessageSquare, ChevronRight,
   Sparkles, X, BookOpen, Copy, Check
 } from "lucide-react";
+import { ModelSelector } from "@/components/ai/model-selector";
 
 interface Message {
   id: string;
@@ -32,6 +33,7 @@ function AIBuilderContent() {
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [selectedModelId, setSelectedModelId] = useState("gpt-5.6");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -108,6 +110,7 @@ function AIBuilderContent() {
       const res = await apiClient.post("/personal/ai/chat", {
         message: userMessage,
         conversationId: activeConvId,
+        modelId: selectedModelId,
       });
       if (res.data.success) {
         const { conversationId, message: assistantMsg } = res.data.data;
@@ -334,9 +337,14 @@ function AIBuilderContent() {
         </div>
 
         {/* Input */}
-        <div className="p-4 border-t border-[#E5E7EB] dark:border-[#242424] bg-white dark:bg-[#111111] shrink-0">
-          <div className="max-w-[720px] mx-auto">
-            <div className="flex items-end gap-2 p-3 rounded-2xl border border-[#E5E7EB] dark:border-[#242424] bg-[#F4F4F5]/50 dark:bg-[#1D1D1D]/50 focus-within:border-[#D99A00]/50 transition-colors">
+        <div className="p-4 border-t border-border bg-card shrink-0">
+          <div className="max-w-[720px] mx-auto space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <ModelSelector compact currentModelId={selectedModelId} onSelectModel={setSelectedModelId} />
+              <span className="text-[11px] text-muted-foreground font-medium">Workspace Context Active</span>
+            </div>
+
+            <div className="flex items-end gap-2 p-3 rounded-2xl border border-border bg-muted/40 focus-within:border-gold/50 transition-colors">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -344,17 +352,17 @@ function AIBuilderContent() {
                 onKeyDown={handleKeyDown}
                 placeholder="Ask about your projects, generate a plan, analyze your work..."
                 rows={1}
-                className="flex-1 bg-transparent resize-none focus:outline-none text-sm text-[#171717] dark:text-[#F5F5F5] placeholder:text-[#A1A1AA] max-h-40"
+                className="flex-1 bg-transparent resize-none focus:outline-none text-sm text-foreground placeholder:text-muted-foreground max-h-40"
               />
               <button
                 onClick={sendMessage}
                 disabled={!input.trim() || sending}
-                className="p-2 rounded-xl bg-[#D99A00] dark:bg-[#F5B800] text-white dark:text-[#080808] hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                className="p-2 rounded-xl bg-gold text-black hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed shrink-0 cursor-pointer"
               >
                 {sending ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </div>
-            <p className="text-xs text-[#A1A1AA] text-center mt-2">
+            <p className="text-xs text-muted-foreground text-center">
               AI Builder uses your real workspace data. Write actions require confirmation.
             </p>
           </div>

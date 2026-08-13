@@ -6,29 +6,37 @@ import {
   CheckSquare, Bell, Megaphone, UserPlus, Activity, ClipboardList, Settings,
   Target, Map, Notebook, BookOpen, Headphones, GraduationCap, Zap, CheckCircle, Files as FilesIcon,
   Building2, UserCircle, ShieldCheck, MonitorSmartphone, Palette, HelpCircle, LogOut, Check,
-  PenSquare, UserPlus2, Focus, Search, Archive, Link as LinkIcon, Terminal, Lightbulb, Clock, Sparkles, History, Moon
+  PenSquare, UserPlus2, Focus, Search, Archive, Link as LinkIcon, Terminal, Lightbulb, Clock, Sparkles, History, Moon, Sun
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useTheme } from "next-themes";
 
 import { useAuth } from "../auth/auth-context";
 import { SinglePromptModal } from "../personal/single-prompt-modal";
 
-export function BottomNav() {
-  const { user } = useAuth();
+type BottomNavProps = {
+  workspace: "personal" | "organization";
+  role?: "CEO" | "CO-CEO" | "MEMBER";
+};
+
+export function BottomNav({ workspace, role }: BottomNavProps) {
+  const { user, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
   const [aiCaptureOpen, setAiCaptureOpen] = useState(false);
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
 
-  // Derive role from pathname first (most reliable), then fall back to user.role
-  const isPersonal = pathname.startsWith("/personal");
-  const isCoCeo = pathname.startsWith("/co-ceo");
-  const isMember = pathname.startsWith("/member");
+  // Workspace is supplied by the route layout. Do not infer it from a URL:
+  // that allowed personal and organization navigation to drift together.
+  const isPersonal = workspace === "personal";
+  const isCoCeo = role === "CO-CEO";
+  const isMember = role === "MEMBER";
 
-  const userRole = isCoCeo ? "CO-CEO" : isMember ? "MEMBER" : ((user?.role || "CEO").toUpperCase());
+  const userRole = isCoCeo ? "CO-CEO" : isMember ? "MEMBER" : role || ((user?.role || "CEO").toUpperCase() as "CEO" | "CO-CEO" | "MEMBER");
 
   const getHref = (page: string) => {
     if (isPersonal) return `/personal/${page}`;
@@ -38,34 +46,38 @@ export function BottomNav() {
   };
 
   const navItemsLeft = isPersonal ? [
-    { name: "Home",  href: "/personal/dashboard", icon: LayoutDashboard },
-    { name: "Focus", href: "/personal/focus",     icon: Focus },
+    { name: "Dashboard", href: "/personal/dashboard", icon: LayoutDashboard },
+    { name: "Focus",     href: "/personal/focus",     icon: Focus },
+    { name: "Tasks",     href: "/personal/tasks",     icon: CheckSquare },
   ] : userRole === "MEMBER" ? [
     { name: "Dashboard", href: "/member/dashboard", icon: LayoutDashboard },
+    { name: "Work",      href: "/member/my-work",   icon: CheckSquare },
     { name: "Focus",     href: "/member/focus",     icon: Focus },
   ] : userRole === "CO-CEO" ? [
     { name: "Dashboard", href: "/co-ceo/dashboard", icon: LayoutDashboard },
-    { name: "Focus",     href: "/co-ceo/focus",     icon: Focus },
+    { name: "Work",      href: "/co-ceo/my-work",   icon: CheckSquare },
+    { name: "Tasks",     href: "/co-ceo/tasks",     icon: ClipboardList },
   ] : [
-    { name: "Dashboard", href: "/ceo/dashboard", icon: LayoutDashboard },
-    { name: "Focus",     href: "/ceo/focus",     icon: Focus },
+    { name: "Dashboard", href: "/ceo/dashboard",    icon: LayoutDashboard },
+    { name: "Projects",  href: "/ceo/projects",     icon: FolderKanban },
+    { name: "Tasks",     href: "/ceo/tasks",        icon: ClipboardList },
   ];
 
   const navItemsRight = isPersonal ? [
-    { name: "Calendar", href: "/personal/calendar", icon: Cal },
+    { name: "Calendar",  href: "/personal/calendar", icon: Cal },
+    { name: "Profile",   href: "/personal/profile",  icon: User },
   ] : userRole === "MEMBER" ? [
-    { name: "My Work", href: "/member/my-work", icon: CheckSquare },
-    { name: "Calendar", href: "/member/calendar", icon: Cal },
+    { name: "Calendar",  href: "/member/calendar",   icon: Cal },
+    { name: "Progress",  href: "/member/progress",   icon: Activity },
   ] : userRole === "CO-CEO" ? [
-    { name: "My Work", href: "/co-ceo/my-work", icon: CheckSquare },
-    { name: "Tasks",   href: "/co-ceo/tasks",   icon: ClipboardList },
+    { name: "Calendar",  href: "/co-ceo/calendar",   icon: Cal },
+    { name: "Members",   href: "/co-ceo/members",    icon: Users },
   ] : [
-    { name: "Projects", href: "/ceo/projects", icon: FolderKanban },
-    { name: "Calendar", href: "/ceo/calendar",  icon: Cal },
+    { name: "Calendar",  href: "/ceo/calendar",     icon: Cal },
+    { name: "Members",   href: "/ceo/members",      icon: Users },
   ];
 
-
-  // More Sheet Navigation Links — role-aware
+  // More Sheet Navigation Links — strictly role-aware & workspace-isolated
   const orgLinksByCeo = [
     { label: "Projects", icon: FolderKanban, href: getHref("projects") },
     { label: "CO-CEOs", icon: UserCheck, href: getHref("co-ceos") },
@@ -113,6 +125,7 @@ export function BottomNav() {
   const orgLinks = userRole === "CO-CEO" ? orgLinksByCoCeo : userRole === "MEMBER" ? orgLinksByMember : orgLinksByCeo;
 
   const personalLinks = [
+    { label: "Automation", href: "/personal/automation", icon: Zap },
     { label: "Projects", href: "/personal/projects", icon: FolderKanban },
     { label: "Tasks", href: "/personal/tasks", icon: CheckSquare },
     { label: "Calendar", href: "/personal/calendar", icon: Cal },
@@ -131,65 +144,57 @@ export function BottomNav() {
 
   const currentLinks = isPersonal ? personalLinks : orgLinks;
 
+  const notificationPath = isPersonal ? "/personal/notifications" : getHref("notifications");
+  const settingsPath = isPersonal ? "/personal/settings" : getHref("settings");
+
   return (
     <>
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/90 backdrop-blur-xl border-t border-border pb-[env(safe-area-inset-bottom)]">
-        <div className="flex items-center justify-around h-[64px] px-1">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/95 backdrop-blur-xl border-t border-border pb-[env(safe-area-inset-bottom)] shadow-lg">
+        <div className="flex items-center justify-between h-[60px] px-2 max-w-md mx-auto">
           {navItemsLeft.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
-              <Link key={item.name} href={item.href} className="flex-1 flex flex-col items-center justify-center gap-1 min-w-[44px] min-h-[44px]">
+              <Link key={item.name} href={item.href} className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1 min-w-[40px]">
                 <item.icon className={`w-5 h-5 ${isActive ? "text-gold stroke-[2.5]" : "text-muted-foreground stroke-2"}`} />
-                <span className={`text-[10px] font-medium ${isActive ? "text-gold" : "text-muted-foreground"}`}>{item.name}</span>
+                <span className={`text-[10px] font-semibold tracking-tight ${isActive ? "text-gold" : "text-muted-foreground"}`}>{item.name}</span>
               </Link>
             );
           })}
 
-          {/* Plus Button - AI Capture */}
-          <div className="flex-1 flex justify-center -mt-5">
+          {/* Plus Button - Contextual Quick Action */}
+          <div className="flex-1 flex justify-center -mt-4">
             <button
               onClick={() => setAiCaptureOpen(true)}
-              className="w-[52px] h-[52px] rounded-full bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 flex items-center justify-center transition-transform active:scale-95"
+              aria-label="Quick Action"
+              className="w-[48px] h-[48px] rounded-full bg-gold hover:bg-gold-hover shadow-lg shadow-gold/25 flex items-center justify-center transition-transform active:scale-95 border border-gold/40"
             >
-              <Plus className="w-6 h-6 text-primary-foreground stroke-[2.5]" />
+              <Plus className="w-6 h-6 text-slate-950 stroke-[2.5]" />
             </button>
           </div>
 
           {navItemsRight.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
-              <Link key={item.name} href={item.href} className="flex-1 flex flex-col items-center justify-center gap-1 min-w-[44px] min-h-[44px]">
+              <Link key={item.name} href={item.href} className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1 min-w-[40px]">
                 <item.icon className={`w-5 h-5 ${isActive ? "text-gold stroke-[2.5]" : "text-muted-foreground stroke-2"}`} />
-                <span className={`text-[10px] font-medium ${isActive ? "text-gold" : "text-muted-foreground"}`}>{item.name}</span>
+                <span className={`text-[10px] font-semibold tracking-tight ${isActive ? "text-gold" : "text-muted-foreground"}`}>{item.name}</span>
               </Link>
             );
           })}
 
-          {/* Profile Button (Only for Organization) */}
-          {!isPersonal && (
-            <Link 
-              href={getHref("settings")}
-              className="flex-1 flex flex-col items-center justify-center gap-1 min-w-[44px] min-h-[44px] group"
-            >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm ring-2 transition-all group-active:scale-95 ${userRole === "CO-CEO" ? "bg-purple-600 ring-purple-500/30 group-hover:ring-purple-500/60" : userRole === "MEMBER" ? "bg-emerald-600 ring-emerald-500/30 group-hover:ring-emerald-500/60" : "bg-amber-600 ring-gold/30 group-hover:ring-gold/60"}`}>
-                {user?.name ? user.name.charAt(0).toUpperCase() : user?.email ? user.email.charAt(0).toUpperCase() : "U"}
-              </div>
-              <span className={`text-[10px] font-medium ${pathname.includes("settings") ? "text-gold" : "text-muted-foreground"}`}>Profile</span>
-            </Link>
-          )}
-
           {/* More Button */}
           <button 
             onClick={() => setMoreSheetOpen(true)} 
-            className="flex-1 flex flex-col items-center justify-center gap-1 min-w-[44px] min-h-[44px]"
+            aria-label="Open More Menu"
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-1 min-w-[40px]"
           >
             <Menu className={`w-5 h-5 ${moreSheetOpen ? "text-gold stroke-[2.5]" : "text-muted-foreground stroke-2"}`} />
-            <span className={`text-[10px] font-medium ${moreSheetOpen ? "text-gold" : "text-muted-foreground"}`}>More</span>
+            <span className={`text-[10px] font-semibold tracking-tight ${moreSheetOpen ? "text-gold" : "text-muted-foreground"}`}>More</span>
           </button>
         </div>
       </nav>
 
-      {/* AI Capture Bottom Sheet */}
+      {/* Quick Capture / Action Bottom Sheet */}
       <SinglePromptModal 
         isOpen={aiCaptureOpen} 
         onClose={() => setAiCaptureOpen(false)} 
@@ -211,7 +216,7 @@ export function BottomNav() {
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ type: "spring", stiffness: 350, damping: 30 }}
+              transition={{ type: "spring", stiffness: 380, damping: 32 }}
               drag="y"
               dragConstraints={{ top: 0 }}
               dragElastic={0.2}
@@ -220,43 +225,50 @@ export function BottomNav() {
                   setMoreSheetOpen(false);
                 }
               }}
-              className="fixed bottom-0 left-0 right-0 z-[51] bg-card border-t border-border rounded-t-3xl pb-[env(safe-area-inset-bottom)] md:hidden flex flex-col max-h-[90vh]"
+              className="fixed bottom-0 left-0 right-0 z-[51] bg-card border-t border-border rounded-t-3xl pb-[env(safe-area-inset-bottom)] md:hidden flex flex-col max-h-[85vh]"
             >
               {/* Handle */}
               <div className="w-full flex justify-center pt-3 pb-1 shrink-0">
-                <div className="w-12 h-1.5 rounded-full bg-muted-foreground/20" />
+                <div className="w-12 h-1.5 rounded-full bg-muted-foreground/25" />
               </div>
               
               <div className="p-5 pt-2 overflow-y-auto pb-8 flex flex-col h-full max-h-full">
-                {/* BRANDING & PROFILE */}
-                <div className="flex flex-col mb-6 border-b border-border/50 pb-6 shrink-0">
-                  <div className="flex items-center justify-between mb-6">
+                {/* BRANDING & WORKSPACE SUMMARY */}
+                <div className="flex flex-col mb-5 border-b border-border/50 pb-5 shrink-0">
+                  <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg bg-foreground flex items-center justify-center">
                         <span className="text-xs font-black text-background">MP</span>
                       </div>
-                      <span className="text-sm font-black text-foreground tracking-tight">ManMadhan Progress</span>
+                      <span className="text-sm font-extrabold text-foreground tracking-tight">ManMadhan Progress</span>
                     </div>
-                    <button onClick={() => setMoreSheetOpen(false)} className="p-1.5 rounded-full bg-muted text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                    <button
+                      onClick={() => setMoreSheetOpen(false)}
+                      className="p-1.5 rounded-full bg-muted text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
-                  
+
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-gold to-amber-600 flex items-center justify-center text-slate-950 font-bold text-sm shadow-sm relative">
+                    <div className="w-10 h-10 rounded-full bg-gold/20 border border-gold/40 flex items-center justify-center text-gold font-extrabold text-sm shadow-sm relative">
                       {user?.name?.charAt(0)?.toUpperCase() || "U"}
-                      <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-card" />
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-card" />
                     </div>
                     <div className="flex flex-col flex-1 min-w-0">
-                      <span className="text-sm font-bold text-foreground truncate">{user?.name || "User"}</span>
-                      <span className="text-xs font-semibold text-muted-foreground truncate">{isPersonal ? "Personal Workspace" : "Organization Workspace"}</span>
+                      <span className="text-sm font-bold text-foreground truncate">{user?.name || user?.email || "User"}</span>
+                      <span className="text-xs font-semibold text-gold truncate">
+                        {isPersonal ? "Personal Workspace" : `${userRole} • Organization Workspace`}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* MODULES GRID */}
+                {/* NAVIGATION GRID */}
                 <div className="mb-6 shrink-0">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Navigation</span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3 block">
+                    {isPersonal ? "Personal Hub" : `${userRole} Modules`}
+                  </span>
                   <div className="grid grid-cols-2 gap-2">
                     {currentLinks.map((item) => {
                       const href = (item as any).href || getHref(item.label.toLowerCase().replace(" ", "-"));
@@ -265,10 +277,10 @@ export function BottomNav() {
                           key={item.label}
                           href={href}
                           onClick={() => setMoreSheetOpen(false)}
-                          className="flex items-center gap-2.5 p-3 rounded-xl bg-secondary/30 hover:bg-secondary/60 transition-colors active:scale-[0.98]"
+                          className="flex items-center gap-2.5 p-3 rounded-xl bg-muted/40 hover:bg-muted/80 transition-colors active:scale-[0.98] border border-border/50"
                         >
-                          <item.icon className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-xs font-semibold text-foreground">
+                          <item.icon className="w-4 h-4 text-gold shrink-0" />
+                          <span className="text-xs font-semibold text-foreground truncate">
                             {item.label}
                           </span>
                         </Link>
@@ -277,35 +289,45 @@ export function BottomNav() {
                   </div>
                 </div>
 
-                {/* ACCOUNT & SETTINGS */}
-                <div className="mt-auto pt-6 border-t border-border/50 shrink-0">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Account</span>
+                {/* ACCOUNT & PREFERENCES */}
+                <div className="mt-auto pt-5 border-t border-border/50 shrink-0">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Account & System</span>
                   <div className="flex flex-col gap-1">
-                    <Link href="/personal/notifications" onClick={() => setMoreSheetOpen(false)} className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary/30 transition-colors">
+                    <Link href={notificationPath} onClick={() => setMoreSheetOpen(false)} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex items-center gap-3">
                         <Bell className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm font-medium text-foreground">Notifications</span>
                       </div>
-                      <div className="w-2 h-2 rounded-full bg-amber-500" />
                     </Link>
-                    <Link href="/personal/settings" onClick={() => setMoreSheetOpen(false)} className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary/30 transition-colors">
+
+                    <Link href={settingsPath} onClick={() => setMoreSheetOpen(false)} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex items-center gap-3">
                         <Settings className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm font-medium text-foreground">Settings</span>
                       </div>
                     </Link>
-                    <button onClick={() => {}} className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary/30 transition-colors text-left">
+
+                    <button
+                      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                      className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors text-left"
+                    >
                       <div className="flex items-center gap-3">
-                        <Moon className="w-4 h-4 text-muted-foreground" />
+                        {theme === "dark" ? <Sun className="w-4 h-4 text-gold" /> : <Moon className="w-4 h-4 text-muted-foreground" />}
                         <span className="text-sm font-medium text-foreground">Appearance</span>
                       </div>
-                      <span className="text-xs font-medium text-muted-foreground">Dark</span>
+                      <span className="text-xs font-semibold text-gold capitalize">{theme || "dark"}</span>
                     </button>
                   </div>
                   
-                  <button className="flex items-center gap-3 p-3 mt-2 rounded-lg hover:bg-red-500/10 text-red-500 transition-colors w-full text-left">
+                  <button
+                    onClick={() => {
+                      setMoreSheetOpen(false);
+                      logout();
+                    }}
+                    className="flex items-center gap-3 p-3 mt-3 rounded-lg hover:bg-rose-500/10 text-rose-500 transition-colors w-full text-left font-medium text-sm"
+                  >
                     <LogOut className="w-4 h-4" />
-                    <span className="text-sm font-medium">Log out</span>
+                    <span>Sign Out</span>
                   </button>
                 </div>
               </div>

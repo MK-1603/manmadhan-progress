@@ -17,7 +17,7 @@ export default function PersonalLayout({
         <main data-lenis-prevent className="flex-1 overflow-y-auto overscroll-none pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
           {children}
         </main>
-        <BottomNav />
+        <BottomNav workspace="personal" />
       </div>
     </div>
   );

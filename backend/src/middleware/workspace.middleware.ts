@@ -16,7 +16,7 @@ export const requireWorkspaceMember = async (
 ) => {
 	try {
 		const user = (req as any).user;
-		if (!user || !user.id) {
+		if (!user?.id) {
 			return res
 				.status(401)
 				.json({ success: false, error: "Authentication required" });
@@ -48,21 +48,17 @@ export const requireWorkspaceMember = async (
 				workspaceId = personalWs[0].id;
 			} else {
 				const newWsId = uuidv4();
-				await db
-					.insert(workspaces)
-					.values({
-						id: newWsId,
-						name: "Personal Workspace",
-						type: "personal",
-					});
-				await db
-					.insert(workspaceMembers)
-					.values({
-						id: uuidv4(),
-						workspaceId: newWsId,
-						userId: user.id,
-						role: "OWNER",
-					});
+				await db.insert(workspaces).values({
+					id: newWsId,
+					name: "Personal Workspace",
+					type: "personal",
+				});
+				await db.insert(workspaceMembers).values({
+					id: uuidv4(),
+					workspaceId: newWsId,
+					userId: user.id,
+					role: "OWNER",
+				});
 				workspaceId = newWsId;
 			}
 
@@ -86,12 +82,10 @@ export const requireWorkspaceMember = async (
 			logger.warn(
 				`User ${user.id} attempted to access workspace ${workspaceId} without membership.`,
 			);
-			return res
-				.status(403)
-				.json({
-					success: false,
-					error: "Forbidden: You are not a member of this workspace.",
-				});
+			return res.status(403).json({
+				success: false,
+				error: "Forbidden: You are not a member of this workspace.",
+			});
 		}
 
 		(req as any).membership = membership;
@@ -107,13 +101,11 @@ export const requireWorkspaceMember = async (
 		return next();
 	} catch (error: any) {
 		logger.error(
-			"Error in requireWorkspaceMember middleware: " + error.message,
+			`Error in requireWorkspaceMember middleware: ${error.message}`,
 		);
-		return res
-			.status(500)
-			.json({
-				success: false,
-				error: "Internal server error during authorization.",
-			});
+		return res.status(500).json({
+			success: false,
+			error: "Internal server error during authorization.",
+		});
 	}
 };

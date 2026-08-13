@@ -4,57 +4,66 @@ import { db } from "../database/client";
 import { users, workspaceMembers, workspaces } from "../database/schema";
 import { AuthService } from "../src/services/auth.service";
 
+// ─── CEO Bootstrap Credentials ────────────────────────────────────────────────
+const CEO_EMAIL    = "hemanthmm1107@gmail.com";
+const CEO_NAME     = "MM1107";
+const CEO_PASSWORD = "Welcome@123";
+// ──────────────────────────────────────────────────────────────────────────────
+
 async function seed() {
 	console.log("🌱 Starting database seeding...");
+	console.log(`   CEO Email    : ${CEO_EMAIL}`);
+	console.log(`   CEO Name     : ${CEO_NAME}`);
+	console.log(`   CEO Password : ${CEO_PASSWORD}`);
 
-	const ceoEmail = "saikrishnanmk1603@gmail.com";
-
-	// 1. Check if user already exists
+	// 1. Check if CEO already exists
 	const existingUser = await db
 		.select()
 		.from(users)
-		.where(eq(users.email, ceoEmail))
+		.where(eq(users.email, CEO_EMAIL))
 		.limit(1);
 
 	let userId = "";
 
 	if (existingUser.length > 0) {
-		console.log(`✅ CEO account already exists: ${ceoEmail}`);
+		console.log(`\n✅ CEO account already exists — updating credentials...`);
 		userId = existingUser[0].id;
-		// update it
 		await db
 			.update(users)
 			.set({
-				name: "MM1107",
-				role: "CEO",
-				status: "Seeded",
-				isVerified: true,
-				isOtpEnabled: true,
-				isGoogleEnabled: false, // Prompt says google is disabled until first activation
-				passwordHash: AuthService.hashPassword("welcome@123"),
+				name:          CEO_NAME,
+				displayName:   CEO_NAME,
+				role:          "CEO",
+				status:        "Activated",
+				isVerified:    true,
+				isOtpEnabled:  true,
+				isGoogleEnabled: false,
+				systemOwner:   true,
+				passwordHash:  AuthService.hashPassword(CEO_PASSWORD),
 			})
-			.where(eq(users.email, ceoEmail));
+			.where(eq(users.email, CEO_EMAIL));
+		console.log(`✅ CEO account updated: ${CEO_EMAIL}`);
 	} else {
-		// Create CEO User
+		// Create CEO user from scratch
 		userId = randomUUID();
 		await db.insert(users).values({
-			id: userId,
-			email: ceoEmail,
-			name: "MM1107",
-			role: "CEO",
-			status: "Seeded",
-			isVerified: true,
+			id:              userId,
+			email:           CEO_EMAIL,
+			name:            CEO_NAME,
+			displayName:     CEO_NAME,
+			role:            "CEO",
+			status:          "Activated",
+			isVerified:      true,
 			isGoogleEnabled: false,
-			isOtpEnabled: true,
-			isInvited: false,
-			systemOwner: true,
-			passwordHash: AuthService.hashPassword("welcome@123"),
+			isOtpEnabled:    true,
+			isInvited:       false,
+			systemOwner:     true,
+			passwordHash:    AuthService.hashPassword(CEO_PASSWORD),
 		});
-		console.log(`✅ Created CEO account: ${ceoEmail}`);
+		console.log(`✅ Created CEO account: ${CEO_EMAIL}`);
 	}
 
-	// 2. Create Personal Workspace instead of Org
-	const workspaceName = "Personal Workspace";
+	// 2. Ensure organization workspace exists and CEO is a member
 	const existingWorkspace = await db
 		.select()
 		.from(workspaces)
@@ -66,31 +75,39 @@ async function seed() {
 		.limit(1);
 
 	if (existingWorkspace.length > 0) {
-		console.log(`✅ Workspace already exists.`);
+		console.log(`✅ Workspace already exists — skipping creation.`);
 	} else {
 		const workspaceId = randomUUID();
 		await db.insert(workspaces).values({
-			id: workspaceId,
-			name: workspaceName,
-			type: "personal",
+			id:          workspaceId,
+			name:        "ManMadhan Progress Workspace",
+			shortName:   "ManMadhan",
+			description: "Organization workspace for ManMadhan Progress.",
+			type:        "organization",
 		});
-		console.log(`✅ Created Workspace: ${workspaceName}`);
+		console.log(`✅ Created Organization Workspace.`);
 
 		await db.insert(workspaceMembers).values({
-			id: randomUUID(),
+			id:          randomUUID(),
 			workspaceId,
 			userId,
-			role: "CEO",
+			role:        "CEO",
 		});
-		console.log(`✅ Mapped CEO to workspace ${workspaceName}.`);
+		console.log(`✅ Assigned CEO to workspace.`);
 	}
 
-	console.log("🎉 Seeding complete.");
+	console.log("\n🎉 Seeding complete.");
+	console.log("────────────────────────────────────────");
+	console.log(`   Email    : ${CEO_EMAIL}`);
+	console.log(`   Name     : ${CEO_NAME}`);
+	console.log(`   Password : ${CEO_PASSWORD}`);
+	console.log(`   Role     : CEO`);
+	console.log(`   Status   : Activated`);
+	console.log("────────────────────────────────────────");
 	process.exit(0);
 }
 
 seed().catch((error) => {
-	console.error("❌ Seeding failed:");
-	console.error(error);
+	console.error("❌ Seeding failed:", error);
 	process.exit(1);
 });

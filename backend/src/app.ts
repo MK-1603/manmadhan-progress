@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express, {
@@ -7,11 +9,9 @@ import express, {
 	type Response,
 } from "express";
 import rateLimit from "express-rate-limit";
-import fs from "fs";
 import helmet from "helmet";
 import jwt from "jsonwebtoken";
 import passport from "passport";
-import path from "path";
 import { env } from "../config/env.config";
 import { db } from "../database/client";
 import {
@@ -21,6 +21,7 @@ import {
 	users,
 } from "../database/schema";
 import { cloudinaryService } from "../storage/cloudinary.service";
+import { requireRole, strictAuth } from "./middleware/auth.middleware";
 import { enforceWorkExecutionPolicy } from "./middleware/time.middleware";
 import { aiRouter } from "./routes/ai.routes";
 import { authRouter } from "./routes/auth.routes";
@@ -38,7 +39,6 @@ import { orgReportsRouter } from "./routes/org-reports.routes";
 import { orgTasksRouter } from "./routes/org-tasks.routes";
 import { orgTimelineRouter } from "./routes/org-timeline.routes";
 import { organizationRouter } from "./routes/organization.routes";
-import { requestsRouter } from "./routes/requests.routes";
 import { personalAiChatRouter } from "./routes/personal/ai-chat.routes";
 import { personalBooksRouter } from "./routes/personal/books.routes";
 import { personalCalendarRouter } from "./routes/personal/calendar.routes";
@@ -59,6 +59,7 @@ import { personalTimelineRouter } from "./routes/personal/timeline.routes";
 import { personalRouter } from "./routes/personal.routes";
 import { personalAiRouter } from "./routes/personal-ai.routes";
 import { personalFocusRouter } from "./routes/personal-focus.routes";
+import { requestsRouter } from "./routes/requests.routes";
 import { searchRouter } from "./routes/search.routes";
 import { spacesRouter } from "./routes/spaces.routes";
 import { workspacesRouter } from "./routes/workspaces.routes";
@@ -66,7 +67,6 @@ import { aiService } from "./services/ai.service";
 import { emailService } from "./services/email.service";
 import { firebaseNotificationService } from "./services/firebase.service";
 import { logger } from "./services/logger.service";
-import { OtpService } from "./services/otp.service";
 import { queueService } from "./services/queue.service";
 import "./modules/auth/google-oauth.service";
 import "./modules/auth/github-oauth.service";
@@ -81,12 +81,14 @@ export const createApp = (): Express => {
 	app.use(helmet());
 	app.use(
 		cors({
-			origin: function (origin, callback) {
-				const allowedOrigins = env.CLIENT_URL 
-					? env.CLIENT_URL.split(",").map(url => url.trim().replace(/\/$/, ""))
+			origin: (origin, callback) => {
+				const allowedOrigins = env.CLIENT_URL
+					? env.CLIENT_URL.split(",").map((url) =>
+							url.trim().replace(/\/$/, ""),
+						)
 					: [];
 				if (!origin) return callback(null, true);
-				
+
 				if (
 					allowedOrigins.includes(origin) ||
 					origin.startsWith("http://localhost:") ||
@@ -133,14 +135,14 @@ export const createApp = (): Express => {
 	app.use("/api/", enforceWorkExecutionPolicy);
 
 	// Health Endpoints
-	app.get("/health", (req: Request, res: Response) => {
+	app.get("/health", (_req: Request, res: Response) => {
 		res.status(200).json({
 			success: true,
 			service: "manmadhan-progress-api",
 		});
 	});
 
-	app.get("/health/ready", (req: Request, res: Response) => {
+	app.get("/health/ready", (_req: Request, res: Response) => {
 		res.status(200).json({ status: "ready" });
 	});
 
@@ -205,7 +207,9 @@ export const createApp = (): Express => {
 	// ── Database Records REST API ──
 	app.get(
 		"/api/v1/db/records",
-		async (req: Request, res: Response, next: NextFunction) => {
+		strictAuth,
+		requireRole(["CEO"]),
+		async (_req: Request, res: Response, next: NextFunction) => {
 			try {
 				const [userList, assetList, notificationList, aiList] =
 					await Promise.all([
@@ -249,16 +253,15 @@ export const createApp = (): Express => {
 	// ── BullMQ Background Queue & Auto-Cleanup Endpoints ──
 	app.post(
 		"/api/v1/queue/email-job",
+		strictAuth,
 		async (req: Request, res: Response, next: NextFunction) => {
 			try {
 				const { to, subject, text } = req.body;
 				if (!to || !subject) {
-					return res
-						.status(400)
-						.json({
-							success: false,
-							error: "Missing required fields: to, subject",
-						});
+					return res.status(400).json({
+						success: false,
+						error: "Missing required fields: to, subject",
+					});
 				}
 
 				const result = await queueService.addEmailJob({ to, subject, text });
@@ -271,16 +274,16 @@ export const createApp = (): Express => {
 
 	app.post(
 		"/api/v1/queue/push-job",
+		strictAuth,
+		requireRole(["CEO"]),
 		async (req: Request, res: Response, next: NextFunction) => {
 			try {
 				const { title, body, token } = req.body;
 				if (!title || !body) {
-					return res
-						.status(400)
-						.json({
-							success: false,
-							error: "Missing required fields: title, body",
-						});
+					return res.status(400).json({
+						success: false,
+						error: "Missing required fields: title, body",
+					});
 				}
 
 				const result = await queueService.addPushJob({
@@ -296,24 +299,29 @@ export const createApp = (): Express => {
 		},
 	);
 
-	app.get("/api/v1/queue/stats", async (req: Request, res: Response) => {
-		const stats = await queueService.getQueueStats();
-		return res.status(200).json(stats);
-	});
+	app.get(
+		"/api/v1/queue/stats",
+		strictAuth,
+		requireRole(["CEO"]),
+		async (_req: Request, res: Response) => {
+			const stats = await queueService.getQueueStats();
+			return res.status(200).json(stats);
+		},
+	);
 
 	// REST API Email Route
 	app.post(
 		"/api/v1/email/send",
+		strictAuth,
+		requireRole(["CEO"]),
 		async (req: Request, res: Response, next: NextFunction) => {
 			try {
 				const { to, subject, text, html } = req.body;
 				if (!to || !subject) {
-					return res
-						.status(400)
-						.json({
-							success: false,
-							error: "Missing required fields: to, subject",
-						});
+					return res.status(400).json({
+						success: false,
+						error: "Missing required fields: to, subject",
+					});
 				}
 
 				const result = await emailService.sendEmail({
@@ -332,7 +340,8 @@ export const createApp = (): Express => {
 	// Smart Multi-LLM AI Gateway Endpoint with Auto-Failover
 	app.post(
 		"/api/v1/ai/generate",
-		async (req: Request, res: Response, next: NextFunction) => {
+		strictAuth,
+		async (req: Request, res: Response, _next: NextFunction) => {
 			try {
 				const { prompt, provider } = req.body;
 				if (!prompt) {
@@ -386,23 +395,27 @@ export const createApp = (): Express => {
 	);
 
 	// AI Usage Metrics & Quota Tracker
-	app.get("/api/v1/ai/metrics", (req: Request, res: Response) => {
-		res.status(200).json(aiService.getMetrics());
-	});
+	app.get(
+		"/api/v1/ai/metrics",
+		strictAuth,
+		requireRole(["CEO"]),
+		(_req: Request, res: Response) => {
+			res.status(200).json(aiService.getMetrics());
+		},
+	);
 
 	// Firebase Push Notification Route
 	app.post(
 		"/api/v1/notifications/push",
+		strictAuth,
 		async (req: Request, res: Response, next: NextFunction) => {
 			try {
 				const { token, topic, title, body } = req.body;
 				if (!title || !body) {
-					return res
-						.status(400)
-						.json({
-							success: false,
-							error: "Missing required fields: title, body",
-						});
+					return res.status(400).json({
+						success: false,
+						error: "Missing required fields: title, body",
+					});
 				}
 
 				const result = await firebaseNotificationService.sendPushNotification({
@@ -433,17 +446,16 @@ export const createApp = (): Express => {
 	// Cloudinary Storage Upload Route
 	app.post(
 		"/api/v1/storage/upload",
+		strictAuth,
 		uploadLimiter,
 		async (req: Request, res: Response, next: NextFunction) => {
 			try {
 				const { file, folder } = req.body;
 				if (!file) {
-					return res
-						.status(400)
-						.json({
-							success: false,
-							error: "Missing required base64 file string",
-						});
+					return res.status(400).json({
+						success: false,
+						error: "Missing required base64 file string",
+					});
 				}
 
 				const approximateSizeInBytes = Math.round((file.length * 3) / 4);
@@ -494,6 +506,7 @@ export const createApp = (): Express => {
 	// Cloudinary Storage Delete Asset Route
 	app.delete(
 		"/api/v1/storage/delete",
+		strictAuth,
 		async (req: Request, res: Response, next: NextFunction) => {
 			try {
 				const { publicId } = req.body;
@@ -541,7 +554,7 @@ export const createApp = (): Express => {
 		}),
 		async (req: Request, res: Response) => {
 			const user = req.user as any;
-			if (user && user.email) {
+			if (user?.email) {
 				// Fetch fresh user from DB to check status
 				const { db } = require("../database/client");
 				const { users } = require("../database/schema");
@@ -549,7 +562,7 @@ export const createApp = (): Express => {
 				const { DeviceService } = require("./services/device.service");
 				const { SessionService } = require("./services/session.service");
 				const { AuditService } = require("./services/audit.service");
-				const { randomUUID } = require("crypto");
+				const { randomUUID } = require("node:crypto");
 
 				const userRecords = await db
 					.select()
@@ -559,9 +572,7 @@ export const createApp = (): Express => {
 				const dbUser = userRecords[0];
 
 				if (!dbUser) {
-					return res.redirect(
-						`${env.CLIENT_URL}/account-not-found`,
-					);
+					return res.redirect(`${env.CLIENT_URL}/account-not-found`);
 				}
 
 				if (dbUser.status === "Activated") {
@@ -641,41 +652,97 @@ export const createApp = (): Express => {
 	app.get(
 		"/api/v1/auth/github/callback",
 		passport.authenticate("github", {
-			failureRedirect: `${env.CLIENT_URL}?auth=failed`,
+			failureRedirect: `${env.CLIENT_URL}/login?error=OAuthFailed`,
 			session: false,
 		}),
-		(req: Request, res: Response) => {
+		async (req: Request, res: Response) => {
 			const user = req.user as any;
-			if (user && user.token) {
-				// Auto-Sync user into Drizzle ORM DB
-				db.insert(users)
-					.values({
-						id: user.id,
-						email: user.email,
-						name: user.name,
-						avatar: user.avatar,
-						role: "user",
-					})
-					.catch(() => {});
+			if (user && (user.id || user.email)) {
+				const { db } = require("../database/client");
+				const { users } = require("../database/schema");
+				const { eq } = require("drizzle-orm");
+				const { DeviceService } = require("./services/device.service");
+				const { SessionService } = require("./services/session.service");
+				const { AuditService } = require("./services/audit.service");
+				const { randomUUID } = require("node:crypto");
 
-				res.cookie("auth_token", user.token, {
-					httpOnly: true,
-					secure: true,
-					sameSite: "none",
-					path: "/",
-					maxAge: 7 * 24 * 60 * 60 * 1000,
-				});
+				let dbUser: any = null;
+				if (user.email) {
+					const records = await db
+						.select()
+						.from(users)
+						.where(eq(users.email, user.email.toLowerCase()))
+						.limit(1);
+					dbUser = records[0];
+				}
 
-				return res.redirect(`${env.CLIENT_URL}?auth=success`);
+				if (!dbUser && user.id) {
+					const records = await db
+						.select()
+						.from(users)
+						.where(eq(users.id, user.id))
+						.limit(1);
+					dbUser = records[0];
+				}
+
+				if (!dbUser) {
+					return res.redirect(`${env.CLIENT_URL}/account-not-found`);
+				}
+
+				if (dbUser.status === "Activated") {
+					const deviceId = await DeviceService.registerDevice(dbUser.id, {
+						deviceId: randomUUID(),
+						deviceName: req.headers["user-agent"] || "Unknown",
+						browser: "Unknown",
+						os: "Unknown",
+						ipAddress: req.ip || "0.0.0.0",
+					});
+					SessionService.issueTokens(res, dbUser, deviceId);
+					await AuditService.logEvent(
+						dbUser.id,
+						"LOGIN_SUCCESS",
+						"Logged in via GitHub OAuth",
+						req.ip || "",
+					);
+
+					const r = (dbUser.role || "").toUpperCase();
+					let dashboardPath = "/member/dashboard";
+					if (r === "CEO") dashboardPath = "/ceo/dashboard";
+					else if (r === "CO-CEO") dashboardPath = "/co-ceo/dashboard";
+
+					return res.redirect(`${env.CLIENT_URL}${dashboardPath}`);
+				} else {
+					await AuditService.logEvent(
+						dbUser.id,
+						"LOGIN_ATTEMPT",
+						"Initial GitHub OAuth login, entering setup",
+						req.ip || "",
+					);
+
+					const tempToken = jwt.sign(
+						{
+							id: dbUser.id,
+							email: dbUser.email,
+							intent: "setup",
+							step: "PASSWORD_CREATION",
+						},
+						env.JWT_SECRET,
+						{ expiresIn: "30m" },
+					);
+
+					return res.redirect(
+						`${env.CLIENT_URL}/?auth_step=PASSWORD_CREATION&token=${tempToken}&role=${dbUser.role}`,
+					);
+				}
 			}
-			return res.redirect(`${env.CLIENT_URL}?auth=failed`);
+			return res.redirect(`${env.CLIENT_URL}/login?error=OAuthFailed`);
 		},
 	);
 
 	// (Old auth profile endpoints replaced by authRouter)
 
 	// Global Error Handler
-	app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+	app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 		logger.error({ err, url: req.url }, "Unhandled Application Exception");
 		res.status(500).json({
 			success: false,

@@ -35,14 +35,12 @@ export const requireWorkspaceRole = (allowedRoles: string[]) => {
 			return next();
 		} catch (error: any) {
 			logger.error(
-				"Error in requireWorkspaceRole middleware: " + error.message,
+				`Error in requireWorkspaceRole middleware: ${error.message}`,
 			);
-			return res
-				.status(500)
-				.json({
-					success: false,
-					error: "Internal server error during authorization.",
-				});
+			return res.status(500).json({
+				success: false,
+				error: "Internal server error during authorization.",
+			});
 		}
 	};
 };

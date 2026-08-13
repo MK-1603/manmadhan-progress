@@ -1,15 +1,15 @@
-import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
 import {
 	auditLogs,
 	notifications,
-	projects,
 	projectAssignments,
 	projectMilestonesV2,
-	tasks,
+	projects,
 	taskAssignmentTracker,
+	tasks,
 	users,
 	workspaceMembers,
 } from "../../database/schema";
@@ -35,7 +35,7 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 					.from(workspaceMembers)
 					.where(eq(workspaceMembers.userId, userId))
 					.limit(1);
-				if (m && m.workspaceId) {
+				if (m?.workspaceId) {
 					workspaceId = m.workspaceId;
 					req.body.workspaceId = workspaceId;
 					(req.query as any).workspaceId = workspaceId;
@@ -60,30 +60,9 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 			.limit(1);
 
 		if (!member) {
-			// [AUTH DEBUG] Fallback: check if user has any workspace membership (covers CO-CEO/MEMBER who joined via invitation)
-			const [anyMembership] = await db
-				.select()
-				.from(workspaceMembers)
-				.where(eq(workspaceMembers.userId, userId))
-				.limit(1);
-
-			const tokenRole = String((req as any).user?.role || "").toUpperCase();
-			const isKnownRole = tokenRole === "CEO" || tokenRole === "CO-CEO" || tokenRole === "MEMBER" || tokenRole === "ADMIN";
-
-			if (anyMembership) {
-				logger.info(`[AUTH DEBUG] userId=${userId} not in workspaceId=${workspaceId} but found in workspaceId=${anyMembership.workspaceId} with role=${anyMembership.role} — allowing access`);
-				(req as any).workspaceId = anyMembership.workspaceId;
-				(req as any).membership = anyMembership;
-				return next();
-			} else if (isKnownRole) {
-				// User authenticated with a valid org role via token — allow with token role
-				logger.info(`[AUTH DEBUG] userId=${userId} no workspace membership but tokenRole=${tokenRole} — allowing with token context`);
-				(req as any).workspaceId = workspaceId;
-				(req as any).membership = { role: tokenRole, workspaceId, userId };
-				return next();
-			}
-
-			logger.warn(`[AUTH DEBUG] 403 — userId=${userId} role=${tokenRole} endpoint=my-work workspaceId=${workspaceId} — no membership found`);
+			logger.warn(
+				`[AUTH DEBUG] 403 — userId=${userId} endpoint=my-work workspaceId=${workspaceId} — no exact membership found`,
+			);
 			return res
 				.status(403)
 				.json({ success: false, error: "Access denied to workspace" });
@@ -93,7 +72,7 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 		(req as any).membership = member;
 		next();
 	} catch (err: any) {
-		logger.error("MyWork resolveWorkspace error: " + err.message);
+		logger.error(`MyWork resolveWorkspace error: ${err.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Workspace verification error" });
@@ -136,7 +115,10 @@ orgMyWorkRouter.get(
 				})
 				.from(tasks)
 				.leftJoin(projects, eq(tasks.projectId, projects.id))
-				.leftJoin(projectMilestonesV2, eq(tasks.milestoneId, projectMilestonesV2.id))
+				.leftJoin(
+					projectMilestonesV2,
+					eq(tasks.milestoneId, projectMilestonesV2.id),
+				)
 				.leftJoin(users, eq(tasks.createdBy, users.id))
 				.where(
 					and(eq(tasks.workspaceId, workspaceId), eq(tasks.assigneeId, userId)),
@@ -145,12 +127,17 @@ orgMyWorkRouter.get(
 
 			// 2. Fetch active tracker records for these tasks
 			const taskIds = myTasksList.map((t) => t.task.id);
-			let trackerMap = new Map<string, any>();
+			const trackerMap = new Map<string, any>();
 			if (taskIds.length > 0) {
 				const trackers = await db
 					.select()
 					.from(taskAssignmentTracker)
-					.where(and(eq(taskAssignmentTracker.workspaceId, workspaceId), inArray(taskAssignmentTracker.taskId, taskIds)))
+					.where(
+						and(
+							eq(taskAssignmentTracker.workspaceId, workspaceId),
+							inArray(taskAssignmentTracker.taskId, taskIds),
+						),
+					)
 					.orderBy(desc(taskAssignmentTracker.createdAt));
 
 				for (const tr of trackers) {
@@ -161,28 +148,43 @@ orgMyWorkRouter.get(
 			}
 
 			// Current authenticated user info
-			const currentUserName = (req as any).user?.displayName || (req as any).user?.name || "Me";
-			const currentUserRole = role.includes("CO") ? "CO-CEO" : role === "CEO" ? "CEO" : "MEMBER";
+			const currentUserName =
+				(req as any).user?.displayName || (req as any).user?.name || "Me";
+			const currentUserRole = role.includes("CO")
+				? "CO-CEO"
+				: role === "CEO"
+					? "CEO"
+					: "MEMBER";
 
 			// 3. Construct rich formatted items preserving relationships
 			const formattedTasks = myTasksList.map((r) => {
 				const task = r.task;
 				const tracker = trackerMap.get(task.id);
-				const assignmentStatus = tracker?.status || (task.status === "PENDING_ACCEPTANCE" ? "PENDING_ACCEPTANCE" : task.status);
+				const assignmentStatus =
+					tracker?.status ||
+					(task.status === "PENDING_ACCEPTANCE"
+						? "PENDING_ACCEPTANCE"
+						: task.status);
 
-				const projData = r.project?.id ? {
-					id: r.project.id,
-					name: r.project.name,
-					status: r.project.status || "PLANNING",
-					currentStage: r.milestone?.stageNumber ? `Stage ${String(r.milestone.stageNumber).padStart(2, "0")} / 08` : "Stage 01 / 08",
-				} : null;
+				const projData = r.project?.id
+					? {
+							id: r.project.id,
+							name: r.project.name,
+							status: r.project.status || "PLANNING",
+							currentStage: r.milestone?.stageNumber
+								? `Stage ${String(r.milestone.stageNumber).padStart(2, "0")} / 08`
+								: "Stage 01 / 08",
+						}
+					: null;
 
-				const msData = r.milestone?.id ? {
-					id: r.milestone.id,
-					name: r.milestone.name,
-					stageNumber: r.milestone.stageNumber,
-					state: r.milestone.state || "LOCKED",
-				} : null;
+				const msData = r.milestone?.id
+					? {
+							id: r.milestone.id,
+							name: r.milestone.name,
+							stageNumber: r.milestone.stageNumber,
+							state: r.milestone.state || "LOCKED",
+						}
+					: null;
 
 				const assignerData = {
 					name: r.assigner?.name || "CEO",
@@ -201,7 +203,8 @@ orgMyWorkRouter.get(
 					assignment: {
 						id: tracker?.id || task.id,
 						status: assignmentStatus,
-						declineReason: tracker?.declineReason || task.rejectionFeedback || null,
+						declineReason:
+							tracker?.declineReason || task.rejectionFeedback || null,
 					},
 					assigner: assignerData,
 					assignee: assigneeData,
@@ -264,7 +267,10 @@ orgMyWorkRouter.get(
 				.from(projects)
 				.leftJoin(
 					projectAssignments,
-					and(eq(projects.id, projectAssignments.projectId), eq(projectAssignments.assignedToUserId, userId))
+					and(
+						eq(projects.id, projectAssignments.projectId),
+						eq(projectAssignments.assignedToUserId, userId),
+					),
 				)
 				.leftJoin(users, eq(projects.createdBy, users.id))
 				.where(
@@ -272,15 +278,15 @@ orgMyWorkRouter.get(
 						eq(projects.workspaceId, workspaceId),
 						or(
 							eq(projects.ownerId, userId),
-							eq(projectAssignments.assignedToUserId, userId)
-						)
-					)
+							eq(projectAssignments.assignedToUserId, userId),
+						),
+					),
 				)
 				.orderBy(desc(projects.createdAt));
 
 			// Fetch milestone info for these projects
 			const projectIds = rawProjects.map((p) => p.project.id);
-			let msMap = new Map<string, any>();
+			const msMap = new Map<string, any>();
 			if (projectIds.length > 0) {
 				const allMs = await db
 					.select()
@@ -299,8 +305,12 @@ orgMyWorkRouter.get(
 				const p = r.project;
 				const pa = r.assignment;
 				const currentMs = msMap.get(p.id);
-				const assignmentStatus = pa?.status || (p.ownerId === userId ? "ACCEPTED" : "PENDING_ACCEPTANCE");
-				const currentStageText = currentMs ? `Stage ${String(currentMs.stageNumber).padStart(2, "0")} / 08 (${currentMs.name})` : "Stage 01 / 08";
+				const assignmentStatus =
+					pa?.status ||
+					(p.ownerId === userId ? "ACCEPTED" : "PENDING_ACCEPTANCE");
+				const currentStageText = currentMs
+					? `Stage ${String(currentMs.stageNumber).padStart(2, "0")} / 08 (${currentMs.name})`
+					: "Stage 01 / 08";
 
 				return {
 					...p,
@@ -309,17 +319,23 @@ orgMyWorkRouter.get(
 					assignedByName: r.assigner?.name || "CEO",
 					assignedByRole: r.assigner?.role || "CEO",
 					assigneeRole: role.includes("CO") ? "CO-CEO" : "MEMBER",
-					assignment: pa ? {
-						id: pa.id,
-						status: pa.status,
-						rejectionReason: pa.rejectionReason,
-						acceptedAt: pa.acceptedAt,
-					} : { id: p.id, status: assignmentStatus },
+					assignment: pa
+						? {
+								id: pa.id,
+								status: pa.status,
+								rejectionReason: pa.rejectionReason,
+								acceptedAt: pa.acceptedAt,
+							}
+						: { id: p.id, status: assignmentStatus },
 				};
 			});
 
-			const pendingProjectAssignments = formattedProjects.filter(p => p.assignmentStatus === "PENDING_ACCEPTANCE");
-			const assignedProjects = formattedProjects.filter(p => p.assignmentStatus === "ACCEPTED" || p.ownerId === userId);
+			const pendingProjectAssignments = formattedProjects.filter(
+				(p) => p.assignmentStatus === "PENDING_ACCEPTANCE",
+			);
+			const assignedProjects = formattedProjects.filter(
+				(p) => p.assignmentStatus === "ACCEPTED" || p.ownerId === userId,
+			);
 
 			// 5. For CO-CEO / Leadership, fetch member submissions requiring review
 			let workRequiringReview: any[] = [];
@@ -349,7 +365,8 @@ orgMyWorkRouter.get(
 				success: true,
 				data: {
 					summary: {
-						pendingCount: pendingAcceptance.length + pendingProjectAssignments.length,
+						pendingCount:
+							pendingAcceptance.length + pendingProjectAssignments.length,
 						activeCount: activeWork.length + assignedProjects.length,
 						dueTodayCount: dueToday.length,
 						overdueCount: overdue.length,
@@ -368,10 +385,13 @@ orgMyWorkRouter.get(
 				},
 			});
 		} catch (err: any) {
-			logger.error("Fetch My Work error: " + (err?.stack || err?.message || String(err)));
-			res
-				.status(500)
-				.json({ success: false, error: err.message || "Failed to fetch My Work queue" });
+			logger.error(
+				`Fetch My Work error: ${err?.stack || err?.message || String(err)}`,
+			);
+			res.status(500).json({
+				success: false,
+				error: err.message || "Failed to fetch My Work queue",
+			});
 		}
 	},
 );
@@ -399,12 +419,10 @@ orgMyWorkRouter.post(
 				.limit(1);
 
 			if (!existing) {
-				return res
-					.status(404)
-					.json({
-						success: false,
-						error: "Task assignment not found or access denied",
-					});
+				return res.status(404).json({
+					success: false,
+					error: "Task assignment not found or access denied",
+				});
 			}
 
 			const [updated] = await db
@@ -446,7 +464,7 @@ orgMyWorkRouter.post(
 				message: "Task assignment accepted successfully",
 			});
 		} catch (err: any) {
-			logger.error("Accept task error: " + err.message);
+			logger.error(`Accept task error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to accept task assignment" });
@@ -478,12 +496,10 @@ orgMyWorkRouter.post(
 				.limit(1);
 
 			if (!existing) {
-				return res
-					.status(404)
-					.json({
-						success: false,
-						error: "Task assignment not found or access denied",
-					});
+				return res.status(404).json({
+					success: false,
+					error: "Task assignment not found or access denied",
+				});
 			}
 
 			const [updated] = await db
@@ -511,7 +527,7 @@ orgMyWorkRouter.post(
 				message: "Task assignment declined",
 			});
 		} catch (err: any) {
-			logger.error("Decline task error: " + err.message);
+			logger.error(`Decline task error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to decline task assignment" });
@@ -543,21 +559,17 @@ orgMyWorkRouter.post(
 				.limit(1);
 
 			if (!existing) {
-				return res
-					.status(404)
-					.json({
-						success: false,
-						error: "Task assignment not found or access denied",
-					});
+				return res.status(404).json({
+					success: false,
+					error: "Task assignment not found or access denied",
+				});
 			}
 
 			if (existing.requiresGithub && !githubPrUrl && !existing.githubPrUrl) {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: "GitHub PR URL is required for task submission",
-					});
+				return res.status(400).json({
+					success: false,
+					error: "GitHub PR URL is required for task submission",
+				});
 			}
 
 			const [updated] = await db
@@ -607,7 +619,7 @@ orgMyWorkRouter.post(
 				message: "Work submitted for review successfully",
 			});
 		} catch (err: any) {
-			logger.error("Submit task error: " + err.message);
+			logger.error(`Submit task error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to submit work for review" });

@@ -84,38 +84,43 @@ async function resetDevDatabase() {
 	console.log("\nSeeding Bootstrap CEO Account: hemanthmm1107@gmail.com...");
 	const ceoUserId = uuidv4();
 	const cleanWsId = uuidv4();
-	const passwordHash = AuthService.hashPassword("welcome@1243");
+	const passwordHash = AuthService.hashPassword("Welcome@123");
 
 	await db.insert(users).values({
-		id: ceoUserId,
-		email: "hemanthmm1107@gmail.com",
-		name: "Hemanth MM",
-		displayName: "Hemanth MM (CEO)",
-		role: "CEO",
-		status: "Seeded",
-		isVerified: false,
+		id:              ceoUserId,
+		email:           "hemanthmm1107@gmail.com",
+		name:            "MM1107",
+		displayName:     "MM1107",
+		role:            "CEO",
+		status:          "Activated",
+		isVerified:      true,
+		isOtpEnabled:    true,
+		isGoogleEnabled: false,
+		systemOwner:     true,
 		passwordHash,
 	});
 
 	await db.insert(workspaces).values({
-		id: cleanWsId,
-		name: "ManMadhan Progress Workspace",
-		shortName: "ManMadhan",
+		id:          cleanWsId,
+		name:        "ManMadhan Progress Workspace",
+		shortName:   "ManMadhan",
 		description: "Clean production-ready organization workspace.",
-		type: "organization",
+		type:        "organization",
 	});
 
 	await db.insert(workspaceMembers).values({
-		id: uuidv4(),
+		id:          uuidv4(),
 		workspaceId: cleanWsId,
-		userId: ceoUserId,
-		role: "CEO",
+		userId:      ceoUserId,
+		role:        "CEO",
 	});
 
 	console.log("✅ Created Seeded CEO Account:");
-	console.log("   Email: hemanthmm1107@gmail.com");
-	console.log("   Initial Status: Seeded (Requires OTP Verification & Password/Profile Setup)");
-	console.log("   Initial Password: welcome@1243");
+	console.log("   Email    : hemanthmm1107@gmail.com");
+	console.log("   Name     : MM1107");
+	console.log("   Password : Welcome@123");
+	console.log("   Role     : CEO");
+	console.log("   Status   : Activated");
 	console.log("✅ Created Clean Organization Workspace.");
 
 	// 5. Final Record Count Verification
@@ -145,7 +150,7 @@ async function resetDevDatabase() {
 	console.table(counts);
 
 	if (counts["projects"] === 0 && counts["tasks"] === 0 && counts["organization_prompts"] === 0) {
-		console.log("\n✅ RESET SUCCESSFUL: Database clean & seeded for onboarding with CEO account hemanthmm1107@gmail.com!");
+		console.log("\n✅ RESET SUCCESSFUL: Database clean & seeded for CEO: hemanthmm1107@gmail.com (Password: Welcome@123)");
 	} else {
 		console.warn("\n⚠️ WARNING: Some table counts are non-zero. Check table verification log above.");
 	}

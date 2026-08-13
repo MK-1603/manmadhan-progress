@@ -41,7 +41,7 @@ personalFeaturesRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: features });
 	} catch (err: any) {
-		logger.error("Get features error: " + err.message);
+		logger.error(`Get features error: ${err.message}`);
 		res.status(500).json({ success: false, error: "Failed to fetch features" });
 	}
 });
@@ -85,7 +85,7 @@ personalFeaturesRouter.post("/", async (req: Request, res: Response) => {
 
 		res.status(201).json({ success: true, data: feature });
 	} catch (err: any) {
-		logger.error("Create feature error: " + err.message);
+		logger.error(`Create feature error: ${err.message}`);
 		res.status(500).json({ success: false, error: "Failed to create feature" });
 	}
 });
@@ -135,7 +135,7 @@ personalFeaturesRouter.patch(
 					.json({ success: false, error: "Feature not found" });
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Update feature error: " + err.message);
+			logger.error(`Update feature error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to update feature" });
@@ -175,7 +175,7 @@ personalFeaturesRouter.delete(
 
 			res.json({ success: true, message: "Feature deleted" });
 		} catch (err: any) {
-			logger.error("Delete feature error: " + err.message);
+			logger.error(`Delete feature error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to delete feature" });
@@ -224,7 +224,7 @@ personalFeaturesRouter.post("/bulk", async (req: Request, res: Response) => {
 			.returning();
 		res.status(201).json({ success: true, data: created });
 	} catch (err: any) {
-		logger.error("Bulk create features error: " + err.message);
+		logger.error(`Bulk create features error: ${err.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to create features" });

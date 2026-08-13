@@ -51,7 +51,7 @@ export class RSSProvider implements IIntegrationProvider {
 		};
 	}
 
-	public async sync(integrationAccountId: string, userId: string) {
+	public async sync(integrationAccountId: string, _userId: string) {
 		const [account] = await personalDb
 			.select()
 			.from(integrationAccounts)
@@ -73,7 +73,7 @@ export class RSSProvider implements IIntegrationProvider {
 
 		const existingFeed = existingFeeds.find((f) => f.feedUrl === feedUrl);
 
-		let feedData;
+		let feedData: Awaited<ReturnType<Parser["parseURL"]>>;
 		try {
 			feedData = await this.parser.parseURL(feedUrl);
 		} catch (error: any) {

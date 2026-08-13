@@ -1,7 +1,10 @@
 "use client";
 
-import { PersonalWorkspaceView } from "@/components/personal/personal-workspace-view";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function CEOPersonalPage() {
-	return <PersonalWorkspaceView />;
+  const router = useRouter();
+  useEffect(() => { router.replace("/personal/dashboard"); }, [router]);
+  return null;
 }

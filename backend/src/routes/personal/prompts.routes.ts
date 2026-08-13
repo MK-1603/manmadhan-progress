@@ -1,4 +1,4 @@
-import { and, desc, eq, like, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { personalDb } from "../../../database/client";
@@ -161,7 +161,7 @@ async function seedSystemPrompts(userId: string) {
 				});
 			}
 		}
-	} catch (err) {
+	} catch (_err) {
 		// Non-fatal: system prompts may already exist
 	}
 }
@@ -206,7 +206,7 @@ personalPromptsRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: filtered });
 	} catch (err: any) {
-		logger.error("Get prompts error: " + err.message);
+		logger.error(`Get prompts error: ${err.message}`);
 		res.status(500).json({ success: false, error: "Failed to fetch prompts" });
 	}
 });
@@ -231,7 +231,7 @@ personalPromptsRouter.get("/:id", async (req: Request, res: Response) => {
 				.json({ success: false, error: "Prompt not found" });
 		res.json({ success: true, data: prompt });
 	} catch (err: any) {
-		logger.error("Get prompt error: " + err.message);
+		logger.error(`Get prompt error: ${err.message}`);
 		res.status(500).json({ success: false, error: "Failed to fetch prompt" });
 	}
 });
@@ -272,7 +272,7 @@ personalPromptsRouter.post("/", async (req: Request, res: Response) => {
 
 		res.status(201).json({ success: true, data: prompt });
 	} catch (err: any) {
-		logger.error("Create prompt error: " + err.message);
+		logger.error(`Create prompt error: ${err.message}`);
 		res.status(500).json({ success: false, error: "Failed to create prompt" });
 	}
 });
@@ -295,12 +295,10 @@ personalPromptsRouter.patch("/:id", async (req: Request, res: Response) => {
 				.status(404)
 				.json({ success: false, error: "Prompt not found" });
 		if (existing.isSystem)
-			return res
-				.status(400)
-				.json({
-					success: false,
-					error: "System prompts cannot be edited. Duplicate first.",
-				});
+			return res.status(400).json({
+				success: false,
+				error: "System prompts cannot be edited. Duplicate first.",
+			});
 
 		const { name, description, category, body, variables, tags, isFavorite } =
 			req.body;
@@ -321,7 +319,7 @@ personalPromptsRouter.patch("/:id", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: updated });
 	} catch (err: any) {
-		logger.error("Update prompt error: " + err.message);
+		logger.error(`Update prompt error: ${err.message}`);
 		res.status(500).json({ success: false, error: "Failed to update prompt" });
 	}
 });
@@ -353,7 +351,7 @@ personalPromptsRouter.delete("/:id", async (req: Request, res: Response) => {
 			.where(eq(personalPromptLibrary.id, req.params.id));
 		res.json({ success: true, message: "Prompt deleted" });
 	} catch (err: any) {
-		logger.error("Delete prompt error: " + err.message);
+		logger.error(`Delete prompt error: ${err.message}`);
 		res.status(500).json({ success: false, error: "Failed to delete prompt" });
 	}
 });
@@ -397,7 +395,7 @@ personalPromptsRouter.post(
 
 			res.status(201).json({ success: true, data: copy });
 		} catch (err: any) {
-			logger.error("Duplicate prompt error: " + err.message);
+			logger.error(`Duplicate prompt error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to duplicate prompt" });
@@ -433,7 +431,7 @@ personalPromptsRouter.post("/:id/use", async (req: Request, res: Response) => {
 				.json({ success: false, error: "Prompt not found" });
 		res.json({ success: true, data: updated });
 	} catch (err: any) {
-		logger.error("Use prompt error: " + err.message);
+		logger.error(`Use prompt error: ${err.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to track prompt usage" });

@@ -10,7 +10,6 @@ import {
 	personalTasks,
 } from "../../../database/schema/personal.schema";
 import { authenticate } from "../../middleware/auth.middleware";
-import { aiService } from "../../services/ai.service";
 import { logger } from "../../services/logger.service";
 import { ProjectPromptService } from "../../services/project-prompt.service";
 import { socketService } from "../../services/socket.service";
@@ -80,7 +79,7 @@ personalProjectsRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: aggregatedData });
 	} catch (error: any) {
-		logger.error("Fetch Personal Projects Error: " + error.message);
+		logger.error(`Fetch Personal Projects Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to fetch projects" });
 	}
 });
@@ -138,7 +137,7 @@ personalProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 			data: { ...project, milestones, tasks, features, requirements },
 		});
 	} catch (error: any) {
-		logger.error("Fetch Personal Project Details Error: " + error.message);
+		logger.error(`Fetch Personal Project Details Error: ${error.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to fetch project details" });
@@ -207,7 +206,7 @@ personalProjectsRouter.patch("/:id", async (req: Request, res: Response) => {
 		}
 		res.json({ success: true, data: updated });
 	} catch (error: any) {
-		logger.error("Update Personal Project Error: " + error.message);
+		logger.error(`Update Personal Project Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to update project" });
 	}
 });
@@ -240,7 +239,7 @@ personalProjectsRouter.delete("/:id", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "project_deleted", { id: projectId });
 		res.json({ success: true, message: "Project deleted successfully" });
 	} catch (error: any) {
-		logger.error("Delete Personal Project Error: " + error.message);
+		logger.error(`Delete Personal Project Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to delete project" });
 	}
 });
@@ -277,7 +276,7 @@ personalProjectsRouter.post(
 				await tx.insert(personalProjects).values({
 					id: newProjectId,
 					ownerUserId: userId,
-					name: existing.name + " (Copy)",
+					name: `${existing.name} (Copy)`,
 					description: existing.description,
 					type: existing.type,
 					category: existing.category,
@@ -334,7 +333,7 @@ personalProjectsRouter.post(
 			socketService.emitToUser(userId, "project_created", duplicated);
 			res.json({ success: true, data: duplicated });
 		} catch (error: any) {
-			logger.error("Duplicate Personal Project Error: " + error.message);
+			logger.error(`Duplicate Personal Project Error: ${error.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to duplicate project" });
@@ -365,13 +364,11 @@ personalProjectsRouter.post(
 
 			res.json({ success: true, data: planData });
 		} catch (error: any) {
-			logger.error("Generate Personal Project Plan Error: " + error.message);
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: error.message || "Failed to generate project plan",
-				});
+			logger.error(`Generate Personal Project Plan Error: ${error.message}`);
+			res.status(500).json({
+				success: false,
+				error: error.message || "Failed to generate project plan",
+			});
 		}
 	},
 );
@@ -406,12 +403,10 @@ personalProjectsRouter.post(
 
 			// Date validation
 			if (startDate && deadline && new Date(startDate) >= new Date(deadline)) {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: "Project start date must be earlier than the deadline.",
-					});
+				return res.status(400).json({
+					success: false,
+					error: "Project start date must be earlier than the deadline.",
+				});
 			}
 
 			const newProjectId = uuidv4();
@@ -533,13 +528,11 @@ personalProjectsRouter.post(
 			socketService.emitToUser(userId, "project_created", finalProject);
 			res.json({ success: true, data: finalProject });
 		} catch (error: any) {
-			logger.error("Transactional Create Project Error: " + error.message);
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: "Failed to create project: " + error.message,
-				});
+			logger.error(`Transactional Create Project Error: ${error.message}`);
+			res.status(500).json({
+				success: false,
+				error: `Failed to create project: ${error.message}`,
+			});
 		}
 	},
 );

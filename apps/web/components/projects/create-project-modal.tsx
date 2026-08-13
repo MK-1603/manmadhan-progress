@@ -243,13 +243,63 @@ export function CreateProjectModal({
               )}
 
               {/* Locked pre-selected CO-CEO (from profile page) */}
-              {defaultAssigneeId && (
+              {defaultAssigneeId ? (
                 <div>
                   <label className="block text-[12px] font-semibold text-[#D6D6D6] tracking-[0.06em] uppercase mb-2">
                     ASSIGN TO CO-CEO
                   </label>
                   <div className="w-full h-11 px-3.5 rounded-xl bg-[#111111] border border-[#E3AA18]/40 text-sm text-[#F5F5F5] flex items-center justify-between">
                     <span className="font-semibold">{defaultAssigneeName || "CO-CEO"}</span>
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">CO-CEO</span>
+                  </div>
+                </div>
+              ) : assignmentType === "CEO_TO_CO_CEO" ? (
+                <div>
+                  <label className="block text-[12px] font-semibold text-[#D6D6D6] tracking-[0.06em] uppercase mb-2">
+                    ASSIGN TO CO-CEO *
+                  </label>
+                  <select
+                    value={assignedToUserId}
+                    onChange={(e) => setAssignedToUserId(e.target.value)}
+                    className="w-full h-11 px-3.5 rounded-xl bg-[#111111] border border-[#2A2A2A] text-sm text-[#F5F5F5] focus:outline-none focus:border-[#E3AA18]"
+                  >
+                    <option value="">Select CO-CEO...</option>
+                    {coCeos.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name || c.email} (CO-CEO)</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#D6D6D6] tracking-[0.06em] uppercase mb-2">
+                      RESPONSIBLE CO-CEO *
+                    </label>
+                    <select
+                      value={responsibleCoCeoId}
+                      onChange={(e) => setResponsibleCoCeoId(e.target.value)}
+                      className="w-full h-11 px-3.5 rounded-xl bg-[#111111] border border-[#2A2A2A] text-sm text-[#F5F5F5] focus:outline-none focus:border-[#E3AA18]"
+                    >
+                      <option value="">Select CO-CEO...</option>
+                      {coCeos.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name || c.email}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-semibold text-[#D6D6D6] tracking-[0.06em] uppercase mb-2">
+                      TARGET MEMBER *
+                    </label>
+                    <select
+                      value={assignedToUserId}
+                      onChange={(e) => setAssignedToUserId(e.target.value)}
+                      className="w-full h-11 px-3.5 rounded-xl bg-[#111111] border border-[#2A2A2A] text-sm text-[#F5F5F5] focus:outline-none focus:border-[#E3AA18]"
+                    >
+                      <option value="">Select Member...</option>
+                      {memberUsers.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name || m.email}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               )}
@@ -276,13 +326,24 @@ export function CreateProjectModal({
               <button onClick={onClose} className="px-4 py-2 rounded-xl bg-transparent border border-[#2A2A2A] text-[#BDBDBD] text-xs font-semibold hover:bg-[#1D1D1D] hover:text-[#F5F5F5] transition-colors">
                 Cancel
               </button>
-              <button
-                onClick={handleAnalyze}
-                disabled={isAnalyzing}
-                className="px-5 py-2.5 rounded-xl bg-[#E3AA18] hover:bg-[#F0BC2B] text-[#0A0A0A] text-xs font-semibold transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50"
-              >
-                {isAnalyzing ? "Analyzing Mandate..." : "Analyze Project Mandate"}
-              </button>
+              <div className="flex items-center gap-2">
+                {/* When opened from a CO-CEO profile, allow skipping AI analysis */}
+                {defaultAssigneeId && title.trim() && (
+                  <button
+                    onClick={() => setStep("CONFIRM")}
+                    className="px-4 py-2.5 rounded-xl bg-transparent border border-[#2A2A2A] text-[#BDBDBD] text-xs font-semibold hover:bg-[#1D1D1D] hover:text-[#F5F5F5] transition-colors flex items-center gap-2"
+                  >
+                    Skip Analysis <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button
+                  onClick={handleAnalyze}
+                  disabled={isAnalyzing}
+                  className="px-5 py-2.5 rounded-xl bg-[#E3AA18] hover:bg-[#F0BC2B] text-[#0A0A0A] text-xs font-semibold transition-colors flex items-center gap-2 shadow-sm disabled:opacity-50"
+                >
+                  {isAnalyzing ? "Analyzing Mandate..." : "Analyze Project Mandate"}
+                </button>
+              </div>
             </>
           ) : step === "ANALYSIS" ? (
             <>
@@ -295,7 +356,11 @@ export function CreateProjectModal({
             </>
           ) : (
             <>
-              <button onClick={() => setStep("ANALYSIS")} className="px-4 py-2 rounded-xl bg-transparent border border-[#2A2A2A] text-[#BDBDBD] text-xs font-semibold hover:bg-[#1D1D1D] hover:text-[#F5F5F5] transition-colors">
+              {/* Back to ANALYSIS if we came from it, otherwise back to PROMPT */}
+              <button
+                onClick={() => setStep(analysis ? "ANALYSIS" : "PROMPT")}
+                className="px-4 py-2 rounded-xl bg-transparent border border-[#2A2A2A] text-[#BDBDBD] text-xs font-semibold hover:bg-[#1D1D1D] hover:text-[#F5F5F5] transition-colors"
+              >
                 Back
               </button>
               <button

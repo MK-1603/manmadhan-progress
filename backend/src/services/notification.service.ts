@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import webPush from "web-push";
 import { env } from "../../config/env.config";
@@ -43,7 +43,7 @@ export class NotificationService {
 		const bodyText = template.bodyTemplate(options.data).join(" ");
 
 		// 1. Create In-App Notification Record (if not emailOnly)
-		let notifId;
+		let notifId: string | undefined;
 		if (!options.emailOnly && options.userId) {
 			notifId = randomUUID();
 			await db.insert(notifications).values({

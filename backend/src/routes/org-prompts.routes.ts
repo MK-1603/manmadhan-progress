@@ -1,9 +1,12 @@
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, or } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
 import { organizationPrompts } from "../../database/schema";
-import { resolveWorkspace, requireMembership } from "../middleware/org-workspace.middleware";
+import {
+	requireMembership,
+	resolveWorkspace,
+} from "../middleware/org-workspace.middleware";
 import { logger } from "../services/logger.service";
 
 export const orgPromptsRouter = Router();
@@ -48,12 +51,21 @@ orgPromptsRouter.get(
 				.select()
 				.from(organizationPrompts)
 				.where(and(...conditions))
-				.orderBy(desc(organizationPrompts.isFavorite), desc(organizationPrompts.usageCount), desc(organizationPrompts.createdAt));
+				.orderBy(
+					desc(organizationPrompts.isFavorite),
+					desc(organizationPrompts.usageCount),
+					desc(organizationPrompts.createdAt),
+				);
 
 			res.json({ success: true, data: promptsList });
 		} catch (err: any) {
-			logger.error("List Organization Prompts Error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to fetch organization prompts" });
+			logger.error(
+				`List Organization Prompts Error: ${err?.message || String(err)}`,
+			);
+			res.status(500).json({
+				success: false,
+				error: "Failed to fetch organization prompts",
+			});
 		}
 	},
 );
@@ -73,13 +85,19 @@ orgPromptsRouter.get(
 				.limit(1);
 
 			if (!prompt) {
-				return res.status(404).json({ success: false, error: "Prompt not found" });
+				return res
+					.status(404)
+					.json({ success: false, error: "Prompt not found" });
 			}
 
 			res.json({ success: true, data: prompt });
 		} catch (err: any) {
-			logger.error("Get Organization Prompt Error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to fetch prompt details" });
+			logger.error(
+				`Get Organization Prompt Error: ${err?.message || String(err)}`,
+			);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to fetch prompt details" });
 		}
 	},
 );
@@ -96,10 +114,14 @@ orgPromptsRouter.post(
 			const { title, description, category, content, variables } = req.body;
 
 			if (!title || typeof title !== "string" || !title.trim()) {
-				return res.status(400).json({ success: false, error: "Prompt title is required" });
+				return res
+					.status(400)
+					.json({ success: false, error: "Prompt title is required" });
 			}
 			if (!content || typeof content !== "string" || !content.trim()) {
-				return res.status(400).json({ success: false, error: "Prompt content is required" });
+				return res
+					.status(400)
+					.json({ success: false, error: "Prompt content is required" });
 			}
 
 			const promptId = uuidv4();
@@ -120,10 +142,18 @@ orgPromptsRouter.post(
 				})
 				.returning();
 
-			res.json({ success: true, data: created, message: "Organization prompt created successfully" });
+			res.json({
+				success: true,
+				data: created,
+				message: "Organization prompt created successfully",
+			});
 		} catch (err: any) {
-			logger.error("Create Organization Prompt Error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to create prompt" });
+			logger.error(
+				`Create Organization Prompt Error: ${err?.message || String(err)}`,
+			);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to create prompt" });
 		}
 	},
 );
@@ -145,15 +175,21 @@ orgPromptsRouter.put(
 				.limit(1);
 
 			if (!existing) {
-				return res.status(404).json({ success: false, error: "Prompt not found" });
+				return res
+					.status(404)
+					.json({ success: false, error: "Prompt not found" });
 			}
 
 			const updatePayload: any = { updatedAt: new Date() };
 			if (title !== undefined) updatePayload.title = String(title).trim();
-			if (description !== undefined) updatePayload.description = description ? String(description).trim() : null;
+			if (description !== undefined)
+				updatePayload.description = description
+					? String(description).trim()
+					: null;
 			if (category !== undefined) updatePayload.category = String(category);
 			if (content !== undefined) updatePayload.content = String(content).trim();
-			if (variables !== undefined && Array.isArray(variables)) updatePayload.variables = variables;
+			if (variables !== undefined && Array.isArray(variables))
+				updatePayload.variables = variables;
 
 			const [updated] = await db
 				.update(organizationPrompts)
@@ -161,10 +197,18 @@ orgPromptsRouter.put(
 				.where(eq(organizationPrompts.id, id))
 				.returning();
 
-			res.json({ success: true, data: updated, message: "Prompt updated successfully" });
+			res.json({
+				success: true,
+				data: updated,
+				message: "Prompt updated successfully",
+			});
 		} catch (err: any) {
-			logger.error("Update Organization Prompt Error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to update prompt" });
+			logger.error(
+				`Update Organization Prompt Error: ${err?.message || String(err)}`,
+			);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to update prompt" });
 		}
 	},
 );
@@ -184,7 +228,9 @@ orgPromptsRouter.post(
 				.limit(1);
 
 			if (!existing) {
-				return res.status(404).json({ success: false, error: "Prompt not found" });
+				return res
+					.status(404)
+					.json({ success: false, error: "Prompt not found" });
 			}
 
 			const [updated] = await db
@@ -195,8 +241,10 @@ orgPromptsRouter.post(
 
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Favorite Prompt Error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to update favorite status" });
+			logger.error(`Favorite Prompt Error: ${err?.message || String(err)}`);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to update favorite status" });
 		}
 	},
 );
@@ -224,8 +272,10 @@ orgPromptsRouter.post(
 
 			res.json({ success: true, message: "Prompt usage recorded" });
 		} catch (err: any) {
-			logger.error("Use Prompt Error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to update usage count" });
+			logger.error(`Use Prompt Error: ${err?.message || String(err)}`);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to update usage count" });
 		}
 	},
 );
@@ -245,17 +295,28 @@ orgPromptsRouter.delete(
 				.limit(1);
 
 			if (!existing) {
-				return res.status(404).json({ success: false, error: "Prompt not found" });
+				return res
+					.status(404)
+					.json({ success: false, error: "Prompt not found" });
 			}
 			if (existing.isBuiltin) {
-				return res.status(400).json({ success: false, error: "Built-in prompts cannot be deleted" });
+				return res.status(400).json({
+					success: false,
+					error: "Built-in prompts cannot be deleted",
+				});
 			}
 
-			await db.delete(organizationPrompts).where(eq(organizationPrompts.id, id));
+			await db
+				.delete(organizationPrompts)
+				.where(eq(organizationPrompts.id, id));
 			res.json({ success: true, message: "Prompt deleted successfully" });
 		} catch (err: any) {
-			logger.error("Delete Organization Prompt Error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to delete prompt" });
+			logger.error(
+				`Delete Organization Prompt Error: ${err?.message || String(err)}`,
+			);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to delete prompt" });
 		}
 	},
 );

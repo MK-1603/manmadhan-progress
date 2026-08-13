@@ -1,11 +1,4 @@
-import {
-	integer,
-	jsonb,
-	pgSchema,
-	pgTable,
-	text,
-	timestamp,
-} from "drizzle-orm/pg-core";
+import { integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 
 export const manmadhanSchema = pgSchema("manmadhan");
 

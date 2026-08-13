@@ -22,7 +22,7 @@ export function RecentSessions({ sessions, className = "" }: RecentSessionsProps
         <h2 className="text-[14px] font-semibold text-[#171717] dark:text-[#F5F5F5] uppercase tracking-wider">
           FOCUS HISTORY
         </h2>
-        <Link href="/personal/time-tracking" className="text-[13px] font-medium text-[#52525B] dark:text-[#A1A1AA] hover:text-[#171717] dark:hover:text-[#F5F5F5] transition-colors">
+        <Link href="/personal/reports" className="text-[13px] font-medium text-[#52525B] dark:text-[#A1A1AA] hover:text-[#171717] dark:hover:text-[#F5F5F5] transition-colors">
           View all
         </Link>
       </div>

@@ -1,12 +1,27 @@
-import { randomUUID } from "crypto";
-import { eq, and, desc } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, desc, eq, or } from "drizzle-orm";
 import { db } from "../../database/client";
-import { centralRequests, projectAssignments, projectMilestonesV2, projectDocumentsV2, tasks, projects } from "../../database/schema";
+import {
+	centralRequests,
+	projectAssignments,
+	projectDocumentsV2,
+	projectMilestonesV2,
+	projects,
+	tasks,
+} from "../../database/schema";
 import { NotificationService } from "./notification.service";
 
 export interface CreateRequestOptions {
 	workspaceId?: string;
-	requestType: "PROJECT_ASSIGNMENT" | "PROJECT_CHANGE" | "TASK_APPROVAL" | "TASK_CHANGE" | "DOCUMENT_REVIEW" | "DEADLINE_CHANGE" | "GITHUB_VERIFICATION" | "OTHER";
+	requestType:
+		| "PROJECT_ASSIGNMENT"
+		| "PROJECT_CHANGE"
+		| "TASK_APPROVAL"
+		| "TASK_CHANGE"
+		| "DOCUMENT_REVIEW"
+		| "DEADLINE_CHANGE"
+		| "GITHUB_VERIFICATION"
+		| "OTHER";
 	title: string;
 	description?: string;
 	requesterId: string;
@@ -51,7 +66,8 @@ export class RequestEngineService {
 				clientUrl: process.env.CLIENT_URL || "http://localhost:3000",
 				data: {
 					title: `Action Required: ${options.title}`,
-					requestDetails: options.description || "You have a pending approval request.",
+					requestDetails:
+						options.description || "You have a pending approval request.",
 					actionUrl: `/organization/requests`,
 				},
 			});
@@ -67,15 +83,32 @@ export class RequestEngineService {
 		requestId: string,
 		approverId: string,
 		decision: "APPROVED" | "CHANGES_REQUESTED" | "REJECTED",
-		reason?: string
+		reason?: string,
+		workspaceId?: string,
+		approverRole?: string,
 	) {
-		const [req] = await db.select().from(centralRequests).where(eq(centralRequests.id, requestId));
+		const [req] = await db
+			.select()
+			.from(centralRequests)
+			.where(
+				workspaceId
+					? and(
+							eq(centralRequests.id, requestId),
+							eq(centralRequests.workspaceId, workspaceId),
+						)
+					: eq(centralRequests.id, requestId),
+			);
 		if (!req) {
 			throw new Error("Approval request not found");
 		}
 
 		if (req.status === "APPROVED" || req.status === "REJECTED") {
-			throw new Error(`Request has already been processed with status: ${req.status}`);
+			throw new Error(
+				`Request has already been processed with status: ${req.status}`,
+			);
+		}
+		if (approverRole !== "CEO" && req.approverId !== approverId) {
+			throw new Error("You are not the assigned approver for this request");
 		}
 
 		// Update Request Record
@@ -94,23 +127,52 @@ export class RequestEngineService {
 			await db
 				.update(projectAssignments)
 				.set({
-					status: decision === "APPROVED" ? "ACCEPTED" : decision === "CHANGES_REQUESTED" ? "REVISION_REQUESTED" : "REJECTED",
+					status:
+						decision === "APPROVED"
+							? "ACCEPTED"
+							: decision === "CHANGES_REQUESTED"
+								? "REVISION_REQUESTED"
+								: "REJECTED",
 					rejectionReason: reason || null,
 					acceptedAt: decision === "APPROVED" ? new Date() : null,
 					updatedAt: new Date(),
 				})
-				.where(eq(projectAssignments.projectId, req.entityId));
+				.where(
+					and(
+						eq(projectAssignments.projectId, req.entityId),
+						eq(
+							projectAssignments.workspaceId,
+							req.workspaceId || workspaceId || "",
+						),
+					),
+				);
 
 			// If approved, set project status to Planning / Active and unlock Stage 1 Activation
 			if (decision === "APPROVED") {
-				await db.update(projects).set({ status: "PLANNING" }).where(eq(projects.id, req.entityId));
+				await db
+					.update(projects)
+					.set({ status: "PLANNING" })
+					.where(
+						and(
+							eq(projects.id, req.entityId),
+							eq(projects.workspaceId, req.workspaceId || workspaceId || ""),
+						),
+					);
 				await db
 					.update(projectMilestonesV2)
 					.set({ state: "AVAILABLE" })
-					.where(and(eq(projectMilestonesV2.projectId, req.entityId), eq(projectMilestonesV2.stageNumber, 1)));
+					.where(
+						and(
+							eq(projectMilestonesV2.projectId, req.entityId),
+							eq(projectMilestonesV2.stageNumber, 1),
+						),
+					);
 			}
 		} else if (req.requestType === "DOCUMENT_REVIEW" && req.entityId) {
-			const [doc] = await db.select().from(projectDocumentsV2).where(eq(projectDocumentsV2.id, req.entityId));
+			const [doc] = await db
+				.select()
+				.from(projectDocumentsV2)
+				.where(eq(projectDocumentsV2.id, req.entityId));
 			if (doc) {
 				await db
 					.update(projectDocumentsV2)
@@ -133,7 +195,12 @@ export class RequestEngineService {
 						await db
 							.update(projectMilestonesV2)
 							.set({ state: "AVAILABLE" })
-							.where(and(eq(projectMilestonesV2.projectId, doc.projectId), eq(projectMilestonesV2.stageNumber, nextStage)));
+							.where(
+								and(
+									eq(projectMilestonesV2.projectId, doc.projectId),
+									eq(projectMilestonesV2.stageNumber, nextStage),
+								),
+							);
 					}
 				} else {
 					await db
@@ -150,7 +217,12 @@ export class RequestEngineService {
 					approvedAt: decision === "APPROVED" ? new Date() : null,
 					rejectionFeedback: reason || null,
 				})
-				.where(eq(tasks.id, req.entityId));
+				.where(
+					and(
+						eq(tasks.id, req.entityId),
+						eq(tasks.workspaceId, req.workspaceId || workspaceId || ""),
+					),
+				);
 		}
 
 		// Dispatch notification to original requester
@@ -161,7 +233,9 @@ export class RequestEngineService {
 			clientUrl: process.env.CLIENT_URL || "http://localhost:3000",
 			data: {
 				title: `Request ${decision}: ${req.title}`,
-				requestDetails: reason ? `Feedback: ${reason}` : `Your request has been ${decision.toLowerCase()}.`,
+				requestDetails: reason
+					? `Feedback: ${reason}`
+					: `Your request has been ${decision.toLowerCase()}.`,
 				actionUrl: `/organization/requests`,
 			},
 		});
@@ -172,25 +246,32 @@ export class RequestEngineService {
 	/**
 	 * Lists pending approval requests for a given user & role
 	 */
-	static async getRequestsForUser(userId: string, role: string, workspaceId?: string) {
+	static async getRequestsForUser(
+		userId: string,
+		role: string,
+		workspaceId?: string,
+	) {
 		if (role === "CEO") {
 			// CEO sees all requests in workspace
 			return db
 				.select()
 				.from(centralRequests)
-				.where(workspaceId ? eq(centralRequests.workspaceId, workspaceId) : eq(centralRequests.requesterId, userId))
+				.where(eq(centralRequests.workspaceId, workspaceId || ""))
 				.orderBy(desc(centralRequests.createdAt));
 		}
 
-		// CO-CEO or Member sees requests where they are requester or approver
+		// Non-CEO users see only requests they submitted or are assigned to approve.
 		return db
 			.select()
 			.from(centralRequests)
 			.where(
 				and(
-					workspaceId ? eq(centralRequests.workspaceId, workspaceId) : eq(centralRequests.requesterId, userId),
-					eq(centralRequests.approverId, userId)
-				)
+					eq(centralRequests.workspaceId, workspaceId || ""),
+					or(
+						eq(centralRequests.approverId, userId),
+						eq(centralRequests.requesterId, userId),
+					),
+				),
 			)
 			.orderBy(desc(centralRequests.createdAt));
 	}

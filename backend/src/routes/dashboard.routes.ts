@@ -2,8 +2,6 @@ import { and, desc, eq, gte, inArray, isNull, lte, not, or } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { db, personalDb } from "../../database/client";
 import {
-	auditLogs,
-	goals,
 	notifications,
 	personalActivityLogs,
 	personalBooks,
@@ -11,12 +9,9 @@ import {
 	personalDailyMotivations,
 	personalFocusSessions,
 	personalJournalEntries,
-	personalLearningSessions,
 	personalPodcastEpisodes,
-	personalPodcasts,
 	personalProjects,
 	personalReadingSessions,
-	personalSkills,
 	personalTasks,
 	userSettings,
 	users,
@@ -420,7 +415,7 @@ dashboardRouter.get("/core", async (req: Request, res: Response) => {
 					Math.floor(Math.random() * fallbackMotivations.length)
 				];
 
-			const newId = require("crypto").randomUUID();
+			const newId = require("node:crypto").randomUUID();
 			const [newMotivation] = await personalDb
 				.insert(personalDailyMotivations)
 				.values({
@@ -475,7 +470,7 @@ dashboardRouter.get("/core", async (req: Request, res: Response) => {
 			},
 		});
 	} catch (error: any) {
-		logger.error("Dashboard Core Fetch Error: " + error.message);
+		logger.error(`Dashboard Core Fetch Error: ${error.message}`);
 		return res
 			.status(500)
 			.json({ success: false, error: "Internal server error" });
@@ -595,7 +590,7 @@ dashboardRouter.get("/ai-insight", async (req: Request, res: Response) => {
 			},
 		});
 	} catch (error: any) {
-		logger.error("Dashboard AI Fetch Error: " + error.message);
+		logger.error(`Dashboard AI Fetch Error: ${error.message}`);
 		return res
 			.status(500)
 			.json({ success: false, error: "Internal server error" });
@@ -674,7 +669,7 @@ dashboardRouter.post(
 
 			return res.json({ success: true, data: updated[0] });
 		} catch (error: any) {
-			logger.error("Motivation Action Error: " + error.message);
+			logger.error(`Motivation Action Error: ${error.message}`);
 			return res
 				.status(500)
 				.json({ success: false, error: "Internal server error" });
@@ -883,7 +878,7 @@ dashboardRouter.get(
 				},
 			});
 		} catch (error: any) {
-			logger.error("Execution Analytics Error: " + error.message);
+			logger.error(`Execution Analytics Error: ${error.message}`);
 			return res
 				.status(500)
 				.json({ success: false, error: "Internal server error" });

@@ -1,14 +1,46 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
-import { projectGithub, projects } from "../../database/schema";
+import {
+	projectGithub,
+	projects,
+	workspaceMembers,
+} from "../../database/schema";
 import { authenticate } from "../middleware/auth.middleware";
 
 import { GitHubIntegrationService } from "../services/github-integration.service";
 
 export const githubRouter = Router();
 githubRouter.use(authenticate);
+
+async function requireProjectMembership(req: Request, projectId: string) {
+	const userId = (req as any).user?.id;
+	const [project] = await db
+		.select({ workspaceId: projects.workspaceId })
+		.from(projects)
+		.where(eq(projects.id, projectId))
+		.limit(1);
+	if (!project)
+		return { ok: false as const, status: 404, error: "Project not found" };
+	const [membership] = await db
+		.select({ id: workspaceMembers.id })
+		.from(workspaceMembers)
+		.where(
+			and(
+				eq(workspaceMembers.workspaceId, project.workspaceId),
+				eq(workspaceMembers.userId, userId),
+			),
+		)
+		.limit(1);
+	if (!membership)
+		return {
+			ok: false as const,
+			status: 403,
+			error: "You are not a member of this project workspace",
+		};
+	return { ok: true as const, workspaceId: project.workspaceId };
+}
 
 // ── GET User Dual GitHub Accounts ──────────────────────────────────────────────
 githubRouter.get("/accounts", async (req: Request, res: Response) => {
@@ -17,7 +49,10 @@ githubRouter.get("/accounts", async (req: Request, res: Response) => {
 		const accounts = await GitHubIntegrationService.getUserAccounts(userId);
 		res.json({ success: true, data: accounts });
 	} catch (err: any) {
-		res.status(500).json({ success: false, error: err.message || "Failed to fetch GitHub accounts" });
+		res.status(500).json({
+			success: false,
+			error: err.message || "Failed to fetch GitHub accounts",
+		});
 	}
 });
 
@@ -28,10 +63,16 @@ githubRouter.post("/connect-account", async (req: Request, res: Response) => {
 		const { accountSlot, username, token, email } = req.body;
 
 		if (!accountSlot || !["ACCOUNT_A", "ACCOUNT_B"].includes(accountSlot)) {
-			return res.status(400).json({ success: false, error: "Valid accountSlot required (ACCOUNT_A or ACCOUNT_B)" });
+			return res.status(400).json({
+				success: false,
+				error: "Valid accountSlot required (ACCOUNT_A or ACCOUNT_B)",
+			});
 		}
 		if (!username || !token) {
-			return res.status(400).json({ success: false, error: "GitHub Username and Access Token are required" });
+			return res.status(400).json({
+				success: false,
+				error: "GitHub Username and Access Token are required",
+			});
 		}
 
 		const connected = await GitHubIntegrationService.connectAccount(
@@ -40,44 +81,58 @@ githubRouter.post("/connect-account", async (req: Request, res: Response) => {
 			username,
 			username,
 			token,
-			email
+			email,
 		);
 
 		res.json({ success: true, data: connected });
 	} catch (err: any) {
-		res.status(500).json({ success: false, error: err.message || "Failed to connect GitHub account" });
+		res.status(500).json({
+			success: false,
+			error: err.message || "Failed to connect GitHub account",
+		});
 	}
 });
 
 // ── POST Disconnect Account Slot ─────────────────────────────────────────────
-githubRouter.post("/disconnect-account", async (req: Request, res: Response) => {
-	try {
-		const userId = (req as any).user?.id;
-		const { accountSlot } = req.body;
+githubRouter.post(
+	"/disconnect-account",
+	async (req: Request, res: Response) => {
+		try {
+			const userId = (req as any).user?.id;
+			const { accountSlot } = req.body;
 
-		if (!accountSlot || !["ACCOUNT_A", "ACCOUNT_B"].includes(accountSlot)) {
-			return res.status(400).json({ success: false, error: "Valid accountSlot required" });
+			if (!accountSlot || !["ACCOUNT_A", "ACCOUNT_B"].includes(accountSlot)) {
+				return res
+					.status(400)
+					.json({ success: false, error: "Valid accountSlot required" });
+			}
+
+			await GitHubIntegrationService.disconnectAccount(userId, accountSlot);
+			res.json({ success: true });
+		} catch (err: any) {
+			res.status(500).json({
+				success: false,
+				error: err.message || "Failed to disconnect GitHub account",
+			});
 		}
-
-		await GitHubIntegrationService.disconnectAccount(userId, accountSlot);
-		res.json({ success: true });
-	} catch (err: any) {
-		res.status(500).json({ success: false, error: err.message || "Failed to disconnect GitHub account" });
-	}
-});
+	},
+);
 
 // ── GET GitHub Status for a Project ──────────────────────────────────────────
 githubRouter.get("/status", async (req: Request, res: Response) => {
 	try {
 		const projectId = String(req.query.projectId || "").trim();
 		if (!projectId) {
-			return res
-				.status(400)
-				.json({
-					success: false,
-					error: "projectId query parameter is required",
-				});
+			return res.status(400).json({
+				success: false,
+				error: "projectId query parameter is required",
+			});
 		}
+		const access = await requireProjectMembership(req, projectId);
+		if (!access.ok)
+			return res
+				.status(access.status)
+				.json({ success: false, error: access.error });
 
 		const [record] = await db
 			.select()
@@ -111,12 +166,10 @@ githubRouter.get("/status", async (req: Request, res: Response) => {
 			},
 		});
 	} catch (err: any) {
-		return res
-			.status(500)
-			.json({
-				success: false,
-				error: err.message || "Failed to fetch GitHub status",
-			});
+		return res.status(500).json({
+			success: false,
+			error: err.message || "Failed to fetch GitHub status",
+		});
 	}
 });
 
@@ -127,13 +180,16 @@ githubRouter.post("/connect", async (req: Request, res: Response) => {
 		const { projectId, repositoryUrl, defaultBranch = "main" } = req.body;
 
 		if (!projectId || !repositoryUrl) {
-			return res
-				.status(400)
-				.json({
-					success: false,
-					error: "projectId and repositoryUrl are required",
-				});
+			return res.status(400).json({
+				success: false,
+				error: "projectId and repositoryUrl are required",
+			});
 		}
+		const access = await requireProjectMembership(req, String(projectId));
+		if (!access.ok)
+			return res
+				.status(access.status)
+				.json({ success: false, error: access.error });
 
 		// Extract owner and repoName from URL (e.g., https://github.com/owner/repo)
 		let owner = "";
@@ -156,7 +212,7 @@ githubRouter.post("/connect", async (req: Request, res: Response) => {
 			.where(eq(projectGithub.projectId, projectId))
 			.limit(1);
 
-		let resultRecord;
+		let resultRecord: typeof existing | undefined;
 		if (existing) {
 			const [updated] = await db
 				.update(projectGithub)
@@ -194,12 +250,10 @@ githubRouter.post("/connect", async (req: Request, res: Response) => {
 			message: "GitHub repository connected successfully",
 		});
 	} catch (err: any) {
-		return res
-			.status(500)
-			.json({
-				success: false,
-				error: err.message || "Failed to connect GitHub repository",
-			});
+		return res.status(500).json({
+			success: false,
+			error: err.message || "Failed to connect GitHub repository",
+		});
 	}
 });
 
@@ -240,11 +294,9 @@ githubRouter.post("/verify-pr", async (req: Request, res: Response) => {
 			},
 		});
 	} catch (err: any) {
-		return res
-			.status(500)
-			.json({
-				success: false,
-				error: err.message || "Failed to verify PR URL",
-			});
+		return res.status(500).json({
+			success: false,
+			error: err.message || "Failed to verify PR URL",
+		});
 	}
 });

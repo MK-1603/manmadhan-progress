@@ -31,7 +31,7 @@ personalLearningRouter.get("/skills", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: skills });
 	} catch (error: any) {
-		logger.error("Get Skills Error: " + error.message);
+		logger.error(`Get Skills Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to fetch skills" });
 	}
 });
@@ -77,7 +77,7 @@ personalLearningRouter.post("/skills", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "skill_created", newSkill);
 		res.status(201).json({ success: true, data: newSkill });
 	} catch (error: any) {
-		logger.error("Create Skill Error: " + error.message);
+		logger.error(`Create Skill Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to create skill" });
 	}
 });
@@ -130,7 +130,7 @@ personalLearningRouter.patch(
 			socketService.emitToUser(userId, "skill_updated", updatedSkill);
 			res.json({ success: true, data: updatedSkill });
 		} catch (error: any) {
-			logger.error("Update Skill Error: " + error.message);
+			logger.error(`Update Skill Error: ${error.message}`);
 			res.status(500).json({ success: false, error: "Failed to update skill" });
 		}
 	},
@@ -164,7 +164,7 @@ personalLearningRouter.delete(
 			socketService.emitToUser(userId, "skill_deleted", { id: skillId });
 			res.json({ success: true, data: deletedSkill });
 		} catch (error: any) {
-			logger.error("Delete Skill Error: " + error.message);
+			logger.error(`Delete Skill Error: ${error.message}`);
 			res.status(500).json({ success: false, error: "Failed to delete skill" });
 		}
 	},
@@ -194,7 +194,7 @@ personalLearningRouter.get(
 
 			res.json({ success: true, data: sessions });
 		} catch (error: any) {
-			logger.error("Get Sessions Error: " + error.message);
+			logger.error(`Get Sessions Error: ${error.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to fetch sessions" });
@@ -236,7 +236,7 @@ personalLearningRouter.post(
 			socketService.emitToUser(userId, "learning_session_created", newSession);
 			res.status(201).json({ success: true, data: newSession });
 		} catch (error: any) {
-			logger.error("Create Session Error: " + error.message);
+			logger.error(`Create Session Error: ${error.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to create session" });
@@ -275,7 +275,7 @@ personalLearningRouter.delete(
 			});
 			res.json({ success: true, data: deletedSession });
 		} catch (error: any) {
-			logger.error("Delete Session Error: " + error.message);
+			logger.error(`Delete Session Error: ${error.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to delete session" });

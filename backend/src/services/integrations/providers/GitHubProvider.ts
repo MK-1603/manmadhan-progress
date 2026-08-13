@@ -70,7 +70,7 @@ export class GitHubProvider implements IIntegrationProvider {
 	}
 
 	public async validateOrRefreshToken(
-		integrationAccountId: string,
+		_integrationAccountId: string,
 	): Promise<boolean> {
 		// GitHub classic tokens typically do not expire unless revoked.
 		// Fine-grained PATs or newer user-to-server tokens might.
@@ -78,7 +78,7 @@ export class GitHubProvider implements IIntegrationProvider {
 		return true;
 	}
 
-	public async sync(integrationAccountId: string, userId: string) {
+	public async sync(integrationAccountId: string, _userId: string) {
 		const [account] = await personalDb
 			.select()
 			.from(integrationAccounts)

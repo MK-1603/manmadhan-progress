@@ -28,7 +28,7 @@ workspacesRouter.get("/", async (req: Request, res: Response) => {
 			.where(inArray(workspaces.id, workspaceIds));
 		res.json({ success: true, data: userWorkspaces });
 	} catch (error: any) {
-		logger.error("List User Workspaces Error: " + error.message);
+		logger.error(`List User Workspaces Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });
@@ -71,7 +71,7 @@ workspacesRouter.post("/", async (req: Request, res: Response) => {
 			data: newWorkspace[0],
 		});
 	} catch (error: any) {
-		logger.error("Create Workspace Error: " + (error as Error).message);
+		logger.error(`Create Workspace Error: ${(error as Error).message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });
@@ -97,17 +97,15 @@ const requireLeadership = async (
 			!membership ||
 			(membership.role !== "CEO" && membership.role !== "CO-CEO")
 		) {
-			return res
-				.status(403)
-				.json({
-					success: false,
-					error: "Only CEO or CO-CEO can perform this action.",
-				});
+			return res.status(403).json({
+				success: false,
+				error: "Only CEO or CO-CEO can perform this action.",
+			});
 		}
 
 		next();
 	} catch (error) {
-		logger.error("Leadership Verification Error: " + (error as Error).message);
+		logger.error(`Leadership Verification Error: ${(error as Error).message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 };
@@ -166,7 +164,7 @@ workspacesRouter.post(
 				data: newMember[0],
 			});
 		} catch (error: any) {
-			logger.error("Add Member Error: " + (error as Error).message);
+			logger.error(`Add Member Error: ${(error as Error).message}`);
 			res.status(500).json({ success: false, error: "Internal server error." });
 		}
 	},
@@ -209,7 +207,7 @@ workspacesRouter.put(
 				data: updated[0],
 			});
 		} catch (error: any) {
-			logger.error("Update Member Error: " + (error as Error).message);
+			logger.error(`Update Member Error: ${(error as Error).message}`);
 			res.status(500).json({ success: false, error: "Internal server error." });
 		}
 	},
@@ -226,12 +224,10 @@ workspacesRouter.delete(
 			// Prevent CEO from removing themselves
 			const deleterId = (req as any).user?.id;
 			if (deleterId === userId) {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: "You cannot remove yourself. Transfer ownership first.",
-					});
+				return res.status(400).json({
+					success: false,
+					error: "You cannot remove yourself. Transfer ownership first.",
+				});
 			}
 
 			const removed = await db
@@ -252,7 +248,7 @@ workspacesRouter.delete(
 
 			res.json({ success: true, message: "Member removed." });
 		} catch (error: any) {
-			logger.error("Remove Member Error: " + (error as Error).message);
+			logger.error(`Remove Member Error: ${(error as Error).message}`);
 			res.status(500).json({ success: false, error: "Internal server error." });
 		}
 	},
@@ -269,10 +265,18 @@ workspacesRouter.put(
 
 			const updatePayload: any = {};
 			if (name !== undefined) updatePayload.name = String(name).trim();
-			if (logoUrl !== undefined) updatePayload.logoUrl = logoUrl ? String(logoUrl).trim() : null;
-			if (description !== undefined) updatePayload.description = description ? String(description).trim() : null;
-			if (website !== undefined) updatePayload.website = website ? String(website).trim() : null;
-			if (contactEmail !== undefined) updatePayload.contactEmail = contactEmail ? String(contactEmail).trim() : null;
+			if (logoUrl !== undefined)
+				updatePayload.logoUrl = logoUrl ? String(logoUrl).trim() : null;
+			if (description !== undefined)
+				updatePayload.description = description
+					? String(description).trim()
+					: null;
+			if (website !== undefined)
+				updatePayload.website = website ? String(website).trim() : null;
+			if (contactEmail !== undefined)
+				updatePayload.contactEmail = contactEmail
+					? String(contactEmail).trim()
+					: null;
 
 			const [updated] = await db
 				.update(workspaces)
@@ -281,13 +285,23 @@ workspacesRouter.put(
 				.returning();
 
 			if (!updated) {
-				return res.status(404).json({ success: false, error: "Workspace not found" });
+				return res
+					.status(404)
+					.json({ success: false, error: "Workspace not found" });
 			}
 
-			res.json({ success: true, message: "Organization settings updated successfully", data: updated });
+			res.json({
+				success: true,
+				message: "Organization settings updated successfully",
+				data: updated,
+			});
 		} catch (error: any) {
-			logger.error("Update Workspace Settings Error: " + (error as Error).message);
-			res.status(500).json({ success: false, error: "Failed to update workspace settings" });
+			logger.error(
+				`Update Workspace Settings Error: ${(error as Error).message}`,
+			);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to update workspace settings" });
 		}
 	},
 );

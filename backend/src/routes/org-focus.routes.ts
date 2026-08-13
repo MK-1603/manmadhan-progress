@@ -6,11 +6,10 @@ import {
 	projects,
 	tasks,
 	timeTracking,
-	users,
 	workspaceMembers,
-	workspaces,
 } from "../../database/schema";
 import { authenticate } from "../middleware/auth.middleware";
+import { normalizeRole } from "../middleware/org-rbac.middleware";
 import { AuditService } from "../services/audit.service";
 import { logger } from "../services/logger.service";
 import { socketService } from "../services/socket.service";
@@ -37,12 +36,10 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 	try {
 		const userId = getUserId(req);
 		if (!userId) {
-			return res
-				.status(401)
-				.json({
-					success: false,
-					error: "Authentication required: Invalid user token",
-				});
+			return res.status(401).json({
+				success: false,
+				error: "Authentication required: Invalid user token",
+			});
 		}
 
 		let workspaceId = String(
@@ -59,17 +56,8 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 				.where(eq(workspaceMembers.userId, userId))
 				.limit(1);
 			const m = memberList[0];
-			if (m && m.workspaceId) {
+			if (m?.workspaceId) {
 				workspaceId = m.workspaceId;
-				req.body.workspaceId = workspaceId;
-				(req.query as any).workspaceId = workspaceId;
-			}
-		}
-
-		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
-			const wsList = await db.select().from(workspaces).limit(1);
-			if (wsList.length > 0 && wsList[0].id) {
-				workspaceId = wsList[0].id;
 				req.body.workspaceId = workspaceId;
 				(req.query as any).workspaceId = workspaceId;
 			}
@@ -92,26 +80,7 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 			)
 			.limit(1);
 
-		let member = members[0] || null;
-
-		if (!member) {
-			const userList = await db
-				.select()
-				.from(users)
-				.where(eq(users.id, userId))
-				.limit(1);
-			const user = userList[0];
-			if (user) {
-				member = {
-					id: `mem_${userId}`,
-					workspaceId,
-					userId,
-					role: user.role || "CEO",
-					permissions: [],
-					createdAt: new Date(),
-				} as any;
-			}
-		}
+		const member = members[0] || null;
 
 		if (!member) {
 			return res
@@ -123,16 +92,12 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 		(req as any).memberRole = member.role;
 		next();
 	} catch (err: any) {
-		logger.error(
-			"[OrgFocus] Membership error: " + (err?.message || String(err)),
-		);
-		res
-			.status(500)
-			.json({
-				success: false,
-				error: err?.message || "Failed to resolve workspace membership",
-				details: String(err),
-			});
+		logger.error(`[OrgFocus] Membership error: ${err?.message || String(err)}`);
+		res.status(500).json({
+			success: false,
+			error: err?.message || "Failed to resolve workspace membership",
+			details: String(err),
+		});
 	}
 };
 
@@ -189,7 +154,7 @@ orgFocusRouter.get(
 				const totalDuration =
 					(activeSession.durationSeconds || 0) + sessionDuration;
 
-				const [updated] = await db
+				const [_updated] = await db
 					.update(timeTracking)
 					.set({
 						status: "SYSTEM_STOPPED",
@@ -255,13 +220,11 @@ orgFocusRouter.get(
 				"[OrgFocus] Active session fetch error: " +
 					(err?.message || String(err)),
 			);
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: err?.message || "Failed to fetch active focus session",
-					details: String(err),
-				});
+			res.status(500).json({
+				success: false,
+				error: err?.message || "Failed to fetch active focus session",
+				details: String(err),
+			});
 		}
 	},
 );
@@ -410,16 +373,12 @@ orgFocusRouter.get(
 				},
 			});
 		} catch (err: any) {
-			logger.error(
-				"[OrgFocus] Overview error: " + (err?.message || String(err)),
-			);
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: err?.message || "Failed to load focus overview",
-					details: String(err),
-				});
+			logger.error(`[OrgFocus] Overview error: ${err?.message || String(err)}`);
+			res.status(500).json({
+				success: false,
+				error: err?.message || "Failed to load focus overview",
+				details: String(err),
+			});
 		}
 	},
 );
@@ -431,6 +390,8 @@ orgFocusRouter.get(
 	async (req: Request, res: Response) => {
 		try {
 			const workspaceId = (req as any).workspaceId;
+			const userId = getUserId(req);
+			const memberRole = normalizeRole((req as any).memberRole || "MEMBER");
 
 			if (!workspaceId) {
 				return res.json({
@@ -454,7 +415,15 @@ orgFocusRouter.get(
 					.limit(15),
 			]);
 
-			const activeTasks = allTasks.filter(
+			let visibleTasks = allTasks;
+			if (memberRole === "MEMBER") {
+				visibleTasks = allTasks.filter((task) => task.assigneeId === userId);
+			} else if (memberRole === "CO-CEO") {
+				// Focus is an execution surface: team visibility belongs in Work Queue.
+				visibleTasks = allTasks.filter((task) => task.assigneeId === userId);
+			}
+
+			const activeTasks = visibleTasks.filter(
 				(t) =>
 					t &&
 					(t.status === "In Progress" ||
@@ -462,9 +431,13 @@ orgFocusRouter.get(
 						t.status === "Pending Approval" ||
 						t.status === "Draft"),
 			);
+			const visibleProjectIds = new Set(
+				visibleTasks.map((task) => task.projectId).filter(Boolean),
+			);
 			const activeProjects = allProjects.filter(
 				(p) =>
 					p &&
+					(memberRole === "CEO" || visibleProjectIds.has(p.id)) &&
 					(p.status === "In Progress" || p.status === "Active" || !p.status),
 			);
 
@@ -478,15 +451,13 @@ orgFocusRouter.get(
 			});
 		} catch (err: any) {
 			logger.error(
-				"[OrgFocus] Priorities fetch error: " + (err?.message || String(err)),
+				`[OrgFocus] Priorities fetch error: ${err?.message || String(err)}`,
 			);
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: err?.message || "Failed to load priorities",
-					details: String(err),
-				});
+			res.status(500).json({
+				success: false,
+				error: err?.message || "Failed to load priorities",
+				details: String(err),
+			});
 		}
 	},
 );
@@ -499,7 +470,7 @@ orgFocusRouter.get(
 		try {
 			const workspaceId = (req as any).workspaceId;
 			const userId = getUserId(req);
-			const limit = parseInt(req.query.limit as string) || 20;
+			const limit = parseInt(req.query.limit as string, 10) || 20;
 
 			if (!userId || !workspaceId) {
 				return res.json({ success: true, data: [] });
@@ -569,16 +540,12 @@ orgFocusRouter.get(
 
 			return res.json({ success: true, data: enriched });
 		} catch (err: any) {
-			logger.error(
-				"[OrgFocus] History error: " + (err?.message || String(err)),
-			);
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: err?.message || "Failed to load session history",
-					details: String(err),
-				});
+			logger.error(`[OrgFocus] History error: ${err?.message || String(err)}`);
+			res.status(500).json({
+				success: false,
+				error: err?.message || "Failed to load session history",
+				details: String(err),
+			});
 		}
 	},
 );
@@ -591,7 +558,7 @@ orgFocusRouter.get(
 		try {
 			const workspaceId = (req as any).workspaceId;
 			const userId = getUserId(req);
-			const weekOffset = parseInt(req.query.weekOffset as string) || 0;
+			const weekOffset = parseInt(req.query.weekOffset as string, 10) || 0;
 
 			if (!userId || !workspaceId) {
 				return res.json({
@@ -648,22 +615,20 @@ orgFocusRouter.get(
 					days: days.map((day, idx) => ({
 						day,
 						seconds: dailySeconds[idx],
-						formattedHours: (dailySeconds[idx] / 3600).toFixed(1) + "h",
+						formattedHours: `${(dailySeconds[idx] / 3600).toFixed(1)}h`,
 					})),
 					totalWeeklySeconds: dailySeconds.reduce((a, b) => a + b, 0),
 				},
 			});
 		} catch (err: any) {
 			logger.error(
-				"[OrgFocus] Weekly stats error: " + (err?.message || String(err)),
+				`[OrgFocus] Weekly stats error: ${err?.message || String(err)}`,
 			);
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: err?.message || "Failed to load weekly stats",
-					details: String(err),
-				});
+			res.status(500).json({
+				success: false,
+				error: err?.message || "Failed to load weekly stats",
+				details: String(err),
+			});
 		}
 	},
 );
@@ -736,9 +701,21 @@ orgFocusRouter.post(
 				const tList = await db
 					.select()
 					.from(tasks)
-					.where(eq(tasks.id, taskId))
+					.where(and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId)))
 					.limit(1);
 				const t = tList[0] || null;
+				if (!t) {
+					return res.status(404).json({
+						success: false,
+						error: "Task not found in this workspace",
+					});
+				}
+				if ((req as any).memberRole !== "CEO" && t.assigneeId !== userId) {
+					return res.status(403).json({
+						success: false,
+						error: "You can only start focus on your assigned work",
+					});
+				}
 				if (t) {
 					finalTitle = finalTitle || t.title;
 					targetCategory = targetCategory || "Technical";
@@ -803,15 +780,13 @@ orgFocusRouter.post(
 			res.json({ success: true, data: session });
 		} catch (err: any) {
 			logger.error(
-				"[OrgFocus] Start session error: " + (err?.message || String(err)),
+				`[OrgFocus] Start session error: ${err?.message || String(err)}`,
 			);
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: err?.message || "Failed to start focus session",
-					details: String(err),
-				});
+			res.status(500).json({
+				success: false,
+				error: err?.message || "Failed to start focus session",
+				details: String(err),
+			});
 		}
 	},
 );
@@ -846,12 +821,10 @@ orgFocusRouter.post(
 			const activeSession = activeList[0] || null;
 
 			if (!activeSession) {
-				return res
-					.status(404)
-					.json({
-						success: false,
-						error: "No active focus session found to pause",
-					});
+				return res.status(404).json({
+					success: false,
+					error: "No active focus session found to pause",
+				});
 			}
 
 			const now = new Date();
@@ -885,14 +858,12 @@ orgFocusRouter.post(
 
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("[OrgFocus] Pause error: " + (err?.message || String(err)));
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: err?.message || "Failed to pause focus session",
-					details: String(err),
-				});
+			logger.error(`[OrgFocus] Pause error: ${err?.message || String(err)}`);
+			res.status(500).json({
+				success: false,
+				error: err?.message || "Failed to pause focus session",
+				details: String(err),
+			});
 		}
 	},
 );
@@ -972,14 +943,12 @@ orgFocusRouter.post(
 
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("[OrgFocus] Resume error: " + (err?.message || String(err)));
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: err?.message || "Failed to resume focus session",
-					details: String(err),
-				});
+			logger.error(`[OrgFocus] Resume error: ${err?.message || String(err)}`);
+			res.status(500).json({
+				success: false,
+				error: err?.message || "Failed to resume focus session",
+				details: String(err),
+			});
 		}
 	},
 );
@@ -1020,12 +989,10 @@ orgFocusRouter.post(
 			const session = activeList[0] || null;
 
 			if (!session) {
-				return res
-					.status(404)
-					.json({
-						success: false,
-						error: "No active or paused session found to end",
-					});
+				return res.status(404).json({
+					success: false,
+					error: "No active or paused session found to end",
+				});
 			}
 
 			const now = new Date();
@@ -1079,15 +1046,13 @@ orgFocusRouter.post(
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
 			logger.error(
-				"[OrgFocus] End session error: " + (err?.message || String(err)),
+				`[OrgFocus] End session error: ${err?.message || String(err)}`,
 			);
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: err?.message || "Failed to end focus session",
-					details: String(err),
-				});
+			res.status(500).json({
+				success: false,
+				error: err?.message || "Failed to end focus session",
+				details: String(err),
+			});
 		}
 	},
 );
@@ -1145,15 +1110,13 @@ orgFocusRouter.post(
 			res.json({ success: true, data: newTask });
 		} catch (err: any) {
 			logger.error(
-				"[OrgFocus] Follow-up task error: " + (err?.message || String(err)),
+				`[OrgFocus] Follow-up task error: ${err?.message || String(err)}`,
 			);
-			res
-				.status(500)
-				.json({
-					success: false,
-					error: err?.message || "Failed to create follow-up task",
-					details: String(err),
-				});
+			res.status(500).json({
+				success: false,
+				error: err?.message || "Failed to create follow-up task",
+				details: String(err),
+			});
 		}
 	},
 );

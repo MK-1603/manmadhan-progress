@@ -1,8 +1,7 @@
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import cron from "node-cron";
 import { db, personalDb } from "../../database/client";
 import {
-	personalDailyScores,
 	personalFocusSessions,
 	personalTasks,
 	timeTracking,
@@ -87,7 +86,7 @@ class CronService {
 					);
 				}
 			} catch (error) {
-				logger.error("[Cron] 11 PM Job Error: " + error);
+				logger.error(`[Cron] 11 PM Job Error: ${error}`);
 			}
 		});
 
@@ -96,7 +95,7 @@ class CronService {
 			logger.info("[Cron] Running 4 AM Daily Reset Job...");
 			try {
 				const now = new Date();
-				const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+				const _yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
 				// Find tasks due yesterday that are not completed (Carry Forward)
 				const allTasks = await personalDb
@@ -132,7 +131,7 @@ class CronService {
 					);
 				}
 			} catch (error) {
-				logger.error("[Cron] 4 AM Job Error: " + error);
+				logger.error(`[Cron] 4 AM Job Error: ${error}`);
 			}
 		});
 	}

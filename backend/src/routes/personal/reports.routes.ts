@@ -1,9 +1,8 @@
-import { and, desc, eq, gte, lte, not, or } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { personalDb } from "../../../database/client";
 import {
 	personalFocusSessions,
-	personalMilestones,
 	personalProjects,
 	personalTasks,
 } from "../../../database/schema/personal.schema";
@@ -258,7 +257,7 @@ personalReportsRouter.get("/overview", async (req: Request, res: Response) => {
 			},
 		});
 	} catch (err: any) {
-		logger.error("Personal reports overview error: " + err.message);
+		logger.error(`Personal reports overview error: ${err.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to generate report" });
@@ -347,7 +346,7 @@ personalReportsRouter.get("/focus", async (req: Request, res: Response) => {
 			},
 		});
 	} catch (err: any) {
-		logger.error("Personal focus report error: " + err.message);
+		logger.error(`Personal focus report error: ${err.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to generate focus report" });

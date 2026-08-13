@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Menu, X, Home, Focus, Layers, CheckSquare, Calendar, BookOpen, Mic, PenTool, Database, Activity, Target } from "lucide-react";
+import { Menu, X, Home, Focus, Layers, CheckSquare, Calendar, BookOpen, Mic, PenTool, Database, Activity, Target, Zap, FileText } from "lucide-react";
 import { NotificationDropdown } from "../dashboard/notification-dropdown";
 import { ProfileDropdown } from "../dashboard/profile-dropdown";
 import { WorkspaceSwitcher } from "../dashboard/workspace-switcher";
@@ -15,13 +15,12 @@ function getPageTitle(pathname: string): string {
   if (pathname.includes("/calendar")) return "Calendar";
   if (pathname.includes("/reminders")) return "Reminders";
   if (pathname.includes("/focus")) return "Focus";
+  if (pathname.includes("/automation")) return "Automation";
   if (pathname.includes("/notes")) return "Notes";
   if (pathname.includes("/books")) return "Books";
   if (pathname.includes("/podcasts")) return "Podcasts";
-  if (pathname.includes("/vault")) return "Personal Vault";
+  if (pathname.includes("/documents")) return "Documents";
   if (pathname.includes("/progress")) return "AI Progress";
-  if (pathname.includes("/goals")) return "Goals";
-  if (pathname.includes("/habits")) return "Habits";
   
   const parts = pathname.split("/").filter(Boolean);
   const lastPart = parts[parts.length - 1] || "Workspace";
@@ -31,15 +30,14 @@ function getPageTitle(pathname: string): string {
 const NAV_LINKS = [
   { href: "/personal/dashboard", label: "Dashboard", icon: <Home className="h-4 w-4" /> },
   { href: "/personal/focus", label: "Focus", icon: <Focus className="h-4 w-4" /> },
+  { href: "/personal/automation", label: "Automation", icon: <Zap className="h-4 w-4" /> },
   { href: "/personal/projects", label: "Projects", icon: <Layers className="h-4 w-4" /> },
   { href: "/personal/tasks", label: "Tasks", icon: <CheckSquare className="h-4 w-4" /> },
   { href: "/personal/calendar", label: "Calendar", icon: <Calendar className="h-4 w-4" /> },
-  { href: "/personal/goals", label: "Goals", icon: <Target className="h-4 w-4" /> },
-  { href: "/personal/habits", label: "Habits", icon: <Activity className="h-4 w-4" /> },
   { href: "/personal/notes", label: "Notes", icon: <PenTool className="h-4 w-4" /> },
   { href: "/personal/books", label: "Books", icon: <BookOpen className="h-4 w-4" /> },
   { href: "/personal/podcasts", label: "Podcasts", icon: <Mic className="h-4 w-4" /> },
-  { href: "/personal/vault", label: "Personal Vault", icon: <Database className="h-4 w-4" /> },
+  { href: "/personal/documents", label: "Documents", icon: <FileText className="h-4 w-4" /> },
 ];
 
 export function PersonalMobileHeader() {

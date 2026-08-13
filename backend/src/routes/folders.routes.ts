@@ -39,7 +39,7 @@ const verifyWorkspaceAccess = async (
 
 		next();
 	} catch (error) {
-		logger.error("Workspace Verification Error: " + (error as Error).message);
+		logger.error(`Workspace Verification Error: ${(error as Error).message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 };
@@ -60,7 +60,7 @@ foldersRouter.get(
 
 			res.json({ success: true, data: allFolders });
 		} catch (error: any) {
-			logger.error("List Folders Error: " + (error as Error).message);
+			logger.error(`List Folders Error: ${(error as Error).message}`);
 			res.status(500).json({ success: false, error: "Internal server error." });
 		}
 	},
@@ -96,7 +96,7 @@ foldersRouter.post(
 				data: newFolder[0],
 			});
 		} catch (error: any) {
-			logger.error("Create Folder Error: " + (error as Error).message);
+			logger.error(`Create Folder Error: ${(error as Error).message}`);
 			res.status(500).json({ success: false, error: "Internal server error." });
 		}
 	},
@@ -156,7 +156,7 @@ foldersRouter.post("/:folderId/files", async (req: Request, res: Response) => {
 			data: newFile[0],
 		});
 	} catch (error: any) {
-		logger.error("Add File Error: " + (error as Error).message);
+		logger.error(`Add File Error: ${(error as Error).message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
 });

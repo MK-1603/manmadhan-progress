@@ -207,7 +207,7 @@ export const aiService = {
 
 		for (const provider of order) {
 			const entry = providerMap[provider];
-			if (!entry || !entry.hasClient) continue;
+			if (!entry?.hasClient) continue;
 
 			if (!isProviderAvailable(provider)) {
 				const h = providerHealth[provider];

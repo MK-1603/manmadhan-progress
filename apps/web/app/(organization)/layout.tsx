@@ -38,7 +38,7 @@ export default function OrganizationLayout({ children }: { children: React.React
         <main data-lenis-prevent className="flex-1 overflow-y-auto overscroll-none pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
           {children}
         </main>
-        <BottomNav />
+        <BottomNav workspace="organization" role={role} />
       </div>
     </div>
   );

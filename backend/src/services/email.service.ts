@@ -1,5 +1,4 @@
 import nodemailer from "nodemailer";
-import path from "path";
 import { env } from "../../config/env.config";
 import { maskEmail } from "../utils/string.utils";
 import {
@@ -34,6 +33,9 @@ class EmailService {
 					user: env.MAIL_USER,
 					pass: env.MAIL_PASS,
 				},
+				connectionTimeout: 5000,
+				greetingTimeout: 5000,
+				socketTimeout: 8000,
 			});
 		}
 
@@ -45,6 +47,9 @@ class EmailService {
 				user: env.SMTP_USER,
 				pass: env.SMTP_PASS,
 			},
+			connectionTimeout: 5000,
+			greetingTimeout: 5000,
+			socketTimeout: 8000,
 			tls: {
 				rejectUnauthorized: false,
 			},
@@ -53,7 +58,15 @@ class EmailService {
 
 	public async verifyConnection(): Promise<boolean> {
 		try {
-			await this.transporter.verify();
+			const _result = await Promise.race([
+				this.transporter.verify(),
+				new Promise((_, reject) =>
+					setTimeout(
+						() => reject(new Error("Connection verification timeout")),
+						4000,
+					),
+				),
+			]);
 			logger.trace("Mail Transport connection verified successfully");
 			return true;
 		} catch (error: any) {
@@ -96,13 +109,22 @@ class EmailService {
 						actionText: options.actionText,
 					});
 
-			const info = await this.transporter.sendMail({
+			const sendPromise = this.transporter.sendMail({
 				from: `"${fromName}" <${fromAddress}>`,
 				to: options.to,
 				subject: cleanSubject,
 				text: options.text,
 				html: finalHtml,
 			});
+
+			const timeoutPromise = new Promise((_, reject) =>
+				setTimeout(
+					() => reject(new Error("Email dispatch timed out after 6000ms")),
+					6000,
+				),
+			);
+
+			const info: any = await Promise.race([sendPromise, timeoutPromise]);
 
 			logger.info(
 				{ messageId: info.messageId, to: maskEmail(options.to) },
@@ -161,8 +183,12 @@ class EmailService {
 	}): Promise<boolean> {
 		const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
 		const actionUrl = `${clientUrl}/ceo/my-work?taskId=${options.taskId}`;
-		const projectText = options.projectName ? options.projectName : "Standalone Task";
-		const milestoneText = options.milestoneName ? options.milestoneName : "No Milestone";
+		const projectText = options.projectName
+			? options.projectName
+			: "Standalone Task";
+		const milestoneText = options.milestoneName
+			? options.milestoneName
+			: "No Milestone";
 
 		const html = `
 			<p style="margin:0 0 16px 0; font-size:15px; color:#3F3F46;">You have been assigned a new task by <strong>${options.assignerName}</strong> (Role: <strong>${options.role}</strong>).</p>

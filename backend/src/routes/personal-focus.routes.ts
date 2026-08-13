@@ -1,7 +1,7 @@
-import crypto from "crypto";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import crypto from "node:crypto";
+import { and, eq, inArray } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
-import { db, personalDb } from "../../database/client";
+import { personalDb } from "../../database/client";
 import { personalFocusSessions, personalTasks } from "../../database/schema";
 import { authenticate } from "../middleware/auth.middleware";
 import { logger } from "../services/logger.service";
@@ -74,7 +74,7 @@ personalFocusRouter.post("/start", async (req: Request, res: Response) => {
 
 		return res.json({ success: true, data: newSession });
 	} catch (error: any) {
-		logger.error("Focus Start Error: " + error.message);
+		logger.error(`Focus Start Error: ${error.message}`);
 		return res
 			.status(500)
 			.json({ success: false, error: "Internal server error" });
@@ -121,7 +121,7 @@ personalFocusRouter.post("/pause", async (req: Request, res: Response) => {
 		}
 		return res.json({ success: true, data: session[0] });
 	} catch (error: any) {
-		logger.error("Focus Pause Error: " + error.message);
+		logger.error(`Focus Pause Error: ${error.message}`);
 		return res
 			.status(500)
 			.json({ success: false, error: "Internal server error" });
@@ -175,7 +175,7 @@ personalFocusRouter.post("/resume", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "focus_updated", updated);
 		return res.json({ success: true, data: updated });
 	} catch (error: any) {
-		logger.error("Focus Resume Error: " + error.message);
+		logger.error(`Focus Resume Error: ${error.message}`);
 		return res
 			.status(500)
 			.json({ success: false, error: "Internal server error" });
@@ -232,7 +232,7 @@ personalFocusRouter.post("/complete", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "focus_updated", updated);
 		return res.json({ success: true, data: updated });
 	} catch (error: any) {
-		logger.error("Focus Complete Error: " + error.message);
+		logger.error(`Focus Complete Error: ${error.message}`);
 		return res
 			.status(500)
 			.json({ success: false, error: "Internal server error" });
@@ -291,7 +291,7 @@ personalFocusRouter.get("/history", async (req: Request, res: Response) => {
 
 		return res.json({ success: true, data });
 	} catch (error: any) {
-		logger.error("Focus History Error: " + error.message);
+		logger.error(`Focus History Error: ${error.message}`);
 		return res
 			.status(500)
 			.json({ success: false, error: "Internal server error" });

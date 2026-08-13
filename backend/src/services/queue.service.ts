@@ -31,7 +31,7 @@ redisConnection.on("connect", async () => {
 	// Auto-Clear memory eviction policy check on startup (BullMQ requires noeviction)
 	try {
 		await redisConnection.config("SET", "maxmemory-policy", "noeviction");
-	} catch (e) {
+	} catch (_e) {
 		// Memory policy managed by host
 	}
 });
@@ -108,7 +108,7 @@ const initWorkers = () => {
 
 		emailWorker.on("error", () => {});
 		pushWorker.on("error", () => {});
-	} catch (e) {}
+	} catch (_e) {}
 };
 
 redisConnection.on("connect", () => {
@@ -173,7 +173,7 @@ export const queueService = {
 					jobId: job.id,
 					message: "Job queued cleanly with auto-cleanup enabled",
 				};
-			} catch (e) {}
+			} catch (_e) {}
 		}
 		// Graceful in-memory fallback if Redis is offline
 		if (process.env.MOCK_EMAILS === "true") {
@@ -207,7 +207,7 @@ export const queueService = {
 					jobId: job.id,
 					message: "Push job queued cleanly with auto-cleanup enabled",
 				};
-			} catch (e) {}
+			} catch (_e) {}
 		}
 		setImmediate(() =>
 			firebaseNotificationService.sendPushNotification(payload),
@@ -245,7 +245,7 @@ export const queueService = {
 				failedJobs: emailFailed,
 				waitingJobs: emailWaiting,
 			};
-		} catch (e) {
+		} catch (_e) {
 			return {
 				redisStatus: "Offline (In-Memory Fallback Active)",
 				autoCleanup: "Auto-Purge Active",

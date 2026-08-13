@@ -14,7 +14,10 @@ const isGithubConfigured =
 if (isGithubConfigured) {
 	const callbackURL =
 		process.env.GITHUB_AUTH_CALLBACK_URL ||
-		`http://localhost:${env.PORT || 4100}/api/v1/auth/github/callback`;
+		process.env.GITHUB_CALLBACK_URL ||
+		(process.env.SERVER_URL
+			? `${process.env.SERVER_URL.replace(/\/$/, "")}/api/v1/auth/github/callback`
+			: `http://localhost:${env.PORT || 4100}/api/v1/auth/github/callback`);
 
 	passport.use(
 		new GitHubStrategy(
@@ -25,8 +28,8 @@ if (isGithubConfigured) {
 				scope: ["user:email"],
 			},
 			(
-				accessToken: string,
-				refreshToken: string,
+				_accessToken: string,
+				_refreshToken: string,
 				profile: Profile,
 				done: (err: any, user?: any) => void,
 			) => {

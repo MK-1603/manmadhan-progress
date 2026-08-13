@@ -40,7 +40,7 @@ personalRequirementsRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: requirements });
 	} catch (err: any) {
-		logger.error("Get requirements error: " + err.message);
+		logger.error(`Get requirements error: ${err.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to fetch requirements" });
@@ -86,7 +86,7 @@ personalRequirementsRouter.post("/", async (req: Request, res: Response) => {
 
 		res.status(201).json({ success: true, data: req_ });
 	} catch (err: any) {
-		logger.error("Create requirement error: " + err.message);
+		logger.error(`Create requirement error: ${err.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to create requirement" });
@@ -138,7 +138,7 @@ personalRequirementsRouter.patch(
 					.json({ success: false, error: "Requirement not found" });
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Update requirement error: " + err.message);
+			logger.error(`Update requirement error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to update requirement" });
@@ -178,7 +178,7 @@ personalRequirementsRouter.delete(
 
 			res.json({ success: true, message: "Requirement deleted" });
 		} catch (err: any) {
-			logger.error("Delete requirement error: " + err.message);
+			logger.error(`Delete requirement error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to delete requirement" });
@@ -229,7 +229,7 @@ personalRequirementsRouter.post(
 				.returning();
 			res.status(201).json({ success: true, data: created });
 		} catch (err: any) {
-			logger.error("Bulk create requirements error: " + err.message);
+			logger.error(`Bulk create requirements error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to create requirements" });

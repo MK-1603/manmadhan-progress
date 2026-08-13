@@ -21,10 +21,14 @@ const getUserId = (req: Request) => (req as any).user?.id;
 // Build workspace context for AI
 async function buildPersonalContext(
 	userId: string,
-	projectId?: string | null,
+	_projectId?: string | null,
 ): Promise<string> {
 	const now = new Date();
-	const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	const _todayStart = new Date(
+		now.getFullYear(),
+		now.getMonth(),
+		now.getDate(),
+	);
 
 	// Get projects summary
 	const projects = await personalDb
@@ -138,7 +142,7 @@ personalAiChatRouter.get(
 
 			res.json({ success: true, data: convs });
 		} catch (err: any) {
-			logger.error("Get conversations error: " + err.message);
+			logger.error(`Get conversations error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to fetch conversations" });
@@ -167,7 +171,7 @@ personalAiChatRouter.post(
 
 			res.status(201).json({ success: true, data: conv });
 		} catch (err: any) {
-			logger.error("Create conversation error: " + err.message);
+			logger.error(`Create conversation error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to create conversation" });
@@ -202,7 +206,7 @@ personalAiChatRouter.get(
 
 			res.json({ success: true, data: messages });
 		} catch (err: any) {
-			logger.error("Get messages error: " + err.message);
+			logger.error(`Get messages error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to fetch messages" });
@@ -217,7 +221,8 @@ personalAiChatRouter.post("/chat", async (req: Request, res: Response) => {
 		if (!userId)
 			return res.status(401).json({ success: false, error: "Unauthorized" });
 
-		const { message, conversationId, projectId, promptBody } = req.body;
+		const { message, conversationId, projectId, promptBody, modelId } =
+			req.body;
 
 		if (!message?.trim() && !promptBody?.trim()) {
 			return res
@@ -232,7 +237,7 @@ personalAiChatRouter.post("/chat", async (req: Request, res: Response) => {
 		if (!convId) {
 			const title =
 				userMessage.length > 50
-					? userMessage.substring(0, 47) + "..."
+					? `${userMessage.substring(0, 47)}...`
 					: userMessage;
 			const [newConv] = await personalDb
 				.insert(assistantConversations)
@@ -307,9 +312,16 @@ Keep responses focused and actionable. Avoid lengthy preambles.`;
 		// Call AI
 		const fullPrompt = `${systemPrompt}\n\nConversation history:\n${aiMessages.map((m) => `${m.role}: ${m.content}`).join("\n")}\n\nUser: ${userMessage}\n\nAssistant:`;
 
+		const preferredProvider =
+			modelId === "gemini-1.5-pro"
+				? "gemini"
+				: modelId === "claude-3.5-sonnet"
+					? "groq"
+					: "groq";
+
 		const aiResponse = await aiService.generateWithSmartFailover(
 			fullPrompt,
-			"groq",
+			preferredProvider,
 		);
 		const assistantContent =
 			aiResponse.text || "I couldn't generate a response. Please try again.";
@@ -329,7 +341,7 @@ Keep responses focused and actionable. Avoid lengthy preambles.`;
 		if (history.length <= 1) {
 			const title =
 				userMessage.length > 50
-					? userMessage.substring(0, 47) + "..."
+					? `${userMessage.substring(0, 47)}...`
 					: userMessage;
 			await personalDb
 				.update(assistantConversations)
@@ -359,13 +371,11 @@ Keep responses focused and actionable. Avoid lengthy preambles.`;
 			},
 		});
 	} catch (err: any) {
-		logger.error("AI chat error: " + err.message);
-		res
-			.status(500)
-			.json({
-				success: false,
-				error: "Failed to generate AI response: " + err.message,
-			});
+		logger.error(`AI chat error: ${err.message}`);
+		res.status(500).json({
+			success: false,
+			error: `Failed to generate AI response: ${err.message}`,
+		});
 	}
 });
 
@@ -394,7 +404,7 @@ personalAiChatRouter.delete(
 				.where(eq(assistantConversations.id, req.params.id));
 			res.json({ success: true, message: "Conversation deleted" });
 		} catch (err: any) {
-			logger.error("Delete conversation error: " + err.message);
+			logger.error(`Delete conversation error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to delete conversation" });

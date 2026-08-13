@@ -18,6 +18,7 @@ export function WorkspaceSwitcher({ isCollapsed, isMobile }: WorkspaceSwitcherPr
 
   const handleWorkspaceSwitch = (mode: "org" | "personal") => {
     setIsOpen(false);
+    document.cookie = `last_workspace=${mode === "personal" ? "personal" : "organization"}; path=/; max-age=31536000; samesite=lax`;
     if (mode === "org") {
       // Check localStorage for cached role or use pathname
       const isCurrentlyCoCeo = pathname.startsWith("/co-ceo");

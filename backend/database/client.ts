@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { env } from "../config/env.config";
 import { logger } from "../src/services/logger.service";
 import * as schema from "./schema";
@@ -33,7 +33,9 @@ personalPool.on("error", (err) => {
 	logger.error(err, "Unexpected error on idle personal database client");
 });
 
-export const personalDb = drizzle(personalPool, { schema: personalSchemaModule });
+export const personalDb = drizzle(personalPool, {
+	schema: personalSchemaModule,
+});
 
 // --- ManMadhan DB Pool ---
 export const manmadhanPool = new Pool({
@@ -47,7 +49,9 @@ manmadhanPool.on("error", (err) => {
 export const manmadhanDb = drizzle(manmadhanPool, { schema: manmadhanSchema });
 
 export const checkDatabaseConnection = async (): Promise<boolean> => {
-	let authClient, personalClient, manmadhanClient;
+	let authClient: PoolClient | undefined;
+	let personalClient: PoolClient | undefined;
+	let manmadhanClient: PoolClient | undefined;
 	try {
 		authClient = await authPool.connect();
 		authClient.release();
@@ -65,8 +69,11 @@ export const checkDatabaseConnection = async (): Promise<boolean> => {
 			"All PostgreSQL connections verified (Auth, Personal, ManMadhan).",
 		);
 		return true;
-	} catch (error: any) {
-		const errorCode = error.code || error.errno || "ETIMEDOUT";
+	} catch (error: unknown) {
+		const errorCode =
+			error && typeof error === "object" && "code" in error
+				? String(error.code)
+				: "ETIMEDOUT";
 		logger.debug(`PostgreSQL connection check pending (${errorCode})`);
 		return false;
 	} finally {

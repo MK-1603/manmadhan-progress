@@ -28,7 +28,7 @@ function getPageTitle(pathname: string): { title: string; subtitle: string } {
   if (pathname.includes("/invitations")) return { title: "Invitations", subtitle: "Manage Invitations" };
   if (pathname.match(/\/co-ceo\/my-work/)) return { title: "My Work", subtitle: "Tasks Assigned to You" };
   if (pathname.match(/\/co-ceo\/submissions/)) return { title: "Submissions", subtitle: "Review Member Work" };
-  if (pathname.match(/\/co-ceo\/automation/)) return { title: "Automation", subtitle: "Workflow Rules & Events" };
+  if (pathname.match(/\/(ceo|co-ceo|member)\/automation/)) return { title: "Automation", subtitle: "Workflow Rules & Governance" };
   if (pathname.match(/\/member\/my-work/)) return { title: "My Work", subtitle: "Your Assigned Tasks" };
   if (pathname.match(/\/member\/progress/)) return { title: "My Progress", subtitle: "Personal Execution Summary" };
   if (pathname.match(/\/(ceo|co-ceo|member)\/reports/)) return { title: "Reports", subtitle: "Performance Metrics" };
@@ -44,6 +44,7 @@ function getPageTitle(pathname: string): { title: string; subtitle: string } {
   // Personal routes
   if (pathname.includes("/personal/dashboard")) return { title: "Dashboard", subtitle: "Personal Overview" };
   if (pathname.includes("/personal/focus")) return { title: "Focus", subtitle: "Deep Work Sessions" };
+  if (pathname.includes("/personal/automation")) return { title: "Automation", subtitle: "Personal Workflow Rules" };
   if (pathname.includes("/personal/projects")) return { title: "Projects", subtitle: "Personal Projects" };
   if (pathname.includes("/personal/tasks")) return { title: "Tasks", subtitle: "Personal Tasks" };
   if (pathname.includes("/personal/calendar")) return { title: "Calendar", subtitle: "Personal Schedule" };
@@ -109,6 +110,7 @@ export function Header() {
 
   const handleSwitch = (mode: "personal" | "org") => {
     setIsSwitcherOpen(false);
+    document.cookie = `last_workspace=${mode}; path=/; max-age=31536000; samesite=lax`;
     if (mode === "personal") {
       window.location.href = "/personal/dashboard";
     } else {

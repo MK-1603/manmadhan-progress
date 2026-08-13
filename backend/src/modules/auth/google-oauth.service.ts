@@ -1,4 +1,3 @@
-import jwt from "jsonwebtoken";
 import passport from "passport";
 import {
 	Strategy as GoogleStrategy,
@@ -11,7 +10,10 @@ import { authLogger } from "../../services/logger.service";
 if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 	const callbackURL =
 		process.env.GOOGLE_AUTH_CALLBACK_URL ||
-		`http://localhost:${env.PORT || 4100}/api/v1/auth/google/callback`;
+		process.env.GOOGLE_CALLBACK_URL ||
+		(process.env.SERVER_URL
+			? `${process.env.SERVER_URL.replace(/\/$/, "")}/api/v1/auth/google/callback`
+			: `http://localhost:${env.PORT || 4100}/api/v1/auth/google/callback`);
 
 	passport.use(
 		new GoogleStrategy(
@@ -21,8 +23,8 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 				callbackURL,
 			},
 			async (
-				accessToken: string,
-				refreshToken: string,
+				_accessToken: string,
+				_refreshToken: string,
 				profile: Profile,
 				done: VerifyCallback,
 			) => {
@@ -41,7 +43,7 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 					const { db } = require("../../../database/client");
 					const { users } = require("../../../database/schema");
 					const { eq } = require("drizzle-orm");
-					const crypto = require("crypto");
+					const _crypto = require("node:crypto");
 
 					const userRecords = await db
 						.select()
@@ -49,7 +51,7 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 						.where(eq(users.email, normalizedEmail))
 						.limit(1);
 
-					let existingUser = userRecords.length > 0 ? userRecords[0] : null;
+					const existingUser = userRecords.length > 0 ? userRecords[0] : null;
 
 					if (!existingUser) {
 						authLogger.warn(

@@ -1,10 +1,14 @@
 import { and, eq } from "drizzle-orm";
 import type { NextFunction, Request, Response } from "express";
 import { db } from "../../database/client";
-import { projects, workspaceMembers, workspaces } from "../../database/schema";
+import { workspaceMembers } from "../../database/schema";
 import { logger } from "../services/logger.service";
 
-export const resolveWorkspace = async (req: Request, res: Response, next: NextFunction) => {
+export const resolveWorkspace = async (
+	req: Request,
+	res: Response,
+	next: NextFunction,
+) => {
 	try {
 		const userId = (req as any).user?.id;
 		let workspaceId = String(
@@ -18,20 +22,11 @@ export const resolveWorkspace = async (req: Request, res: Response, next: NextFu
 					.from(workspaceMembers)
 					.where(eq(workspaceMembers.userId, userId))
 					.limit(1);
-				if (m && m.workspaceId) {
+				if (m?.workspaceId) {
 					workspaceId = m.workspaceId;
 					req.body.workspaceId = workspaceId;
 					(req.query as any).workspaceId = workspaceId;
 				}
-			}
-		}
-
-		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
-			const [firstWs] = await db.select().from(workspaces).limit(1);
-			if (firstWs && firstWs.id) {
-				workspaceId = firstWs.id;
-				req.body.workspaceId = workspaceId;
-				(req.query as any).workspaceId = workspaceId;
 			}
 		}
 
@@ -45,7 +40,7 @@ export const resolveWorkspace = async (req: Request, res: Response, next: NextFu
 		next();
 	} catch (err: any) {
 		logger.error(
-			"resolveWorkspace error: " + (err?.stack || err?.message || String(err)),
+			`resolveWorkspace error: ${err?.stack || err?.message || String(err)}`,
 		);
 		return res
 			.status(500)
@@ -53,7 +48,11 @@ export const resolveWorkspace = async (req: Request, res: Response, next: NextFu
 	}
 };
 
-export const requireMembership = async (req: Request, res: Response, next: NextFunction) => {
+export const requireMembership = async (
+	req: Request,
+	res: Response,
+	next: NextFunction,
+) => {
 	try {
 		const userId = (req as any).user?.id;
 		const workspaceId = (req as any).workspaceId;
@@ -76,18 +75,6 @@ export const requireMembership = async (req: Request, res: Response, next: NextF
 			.limit(1);
 
 		if (!m) {
-			// Fallback: Check if user is a member of any workspace or CEO
-			const [anyMembership] = await db
-				.select()
-				.from(workspaceMembers)
-				.where(eq(workspaceMembers.userId, userId))
-				.limit(1);
-
-			if (anyMembership) {
-				(req as any).membership = anyMembership;
-				return next();
-			}
-
 			return res
 				.status(403)
 				.json({ success: false, error: "Not a member of this workspace" });
@@ -97,7 +84,7 @@ export const requireMembership = async (req: Request, res: Response, next: NextF
 		next();
 	} catch (err: any) {
 		logger.error(
-			"requireMembership error: " + (err?.stack || err?.message || String(err)),
+			`requireMembership error: ${err?.stack || err?.message || String(err)}`,
 		);
 		return res
 			.status(500)

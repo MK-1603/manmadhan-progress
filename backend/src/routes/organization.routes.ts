@@ -1,12 +1,10 @@
 import { and, desc, eq, gte, ilike, lte, ne, or, sql } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
-import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
 import {
 	auditLogs,
 	departments,
 	invitations,
-	leaderboardCache,
 	projects,
 	tasks,
 	timeTracking,
@@ -101,7 +99,7 @@ organizationRouter.get("/profile", async (req: Request, res: Response) => {
 			data: serializeOrganization(workspace, members, owner),
 		});
 	} catch (error: any) {
-		logger.error("Organization Profile Error: " + error.message);
+		logger.error(`Organization Profile Error: ${error.message}`);
 		return res
 			.status(500)
 			.json({ success: false, error: "Unable to load organization profile." });
@@ -112,23 +110,19 @@ organizationRouter.get("/profile", async (req: Request, res: Response) => {
 organizationRouter.patch("/profile", async (req: Request, res: Response) => {
 	try {
 		const { userId, membership } = await getOrganizationMembership(req);
-		if (!membership || membership.role !== "CEO")
-			return res
-				.status(403)
-				.json({
-					success: false,
-					error: "Only the CEO can update organization identity.",
-				});
+		if (membership?.role !== "CEO")
+			return res.status(403).json({
+				success: false,
+				error: "Only the CEO can update organization identity.",
+			});
 		const { name, shortName, description, website, contactEmail, logoUrl } =
 			req.body || {};
 		const cleanName = typeof name === "string" ? name.trim() : "";
 		if (cleanName.length < 2 || cleanName.length > 120)
-			return res
-				.status(400)
-				.json({
-					success: false,
-					error: "Organization name must be between 2 and 120 characters.",
-				});
+			return res.status(400).json({
+				success: false,
+				error: "Organization name must be between 2 and 120 characters.",
+			});
 		if (description != null && String(description).trim().length > 1000)
 			return res
 				.status(400)
@@ -173,7 +167,7 @@ organizationRouter.patch("/profile", async (req: Request, res: Response) => {
 		socketService.emitToWorkspace(updated.id, "organization.updated", data);
 		return res.json({ success: true, data });
 	} catch (error: any) {
-		logger.error("Organization Profile Update Error: " + error.message);
+		logger.error(`Organization Profile Update Error: ${error.message}`);
 		return res
 			.status(500)
 			.json({ success: false, error: "Unable to save organization profile." });
@@ -217,31 +211,12 @@ const requireLeadership = async (req: Request, res: Response, next: any) => {
 			workspaceId === "null" ||
 			workspaceId === ""
 		) {
-			const [firstWs] = await db.select().from(workspaces).limit(1);
-			if (firstWs) {
-				workspaceId = firstWs.id;
-				(req.query as any).workspaceId = workspaceId;
-				req.body.workspaceId = workspaceId;
-			}
+			return res
+				.status(400)
+				.json({ success: false, error: "workspaceId is required" });
 		}
 
 		(req as any).workspaceId = workspaceId;
-
-		const [u] = await db
-			.select()
-			.from(users)
-			.where(eq(users.id, userId))
-			.limit(1);
-		if (
-			u &&
-			(u.role === "CEO" ||
-				u.role === "admin" ||
-				u.systemOwner ||
-				u.role === "CO-CEO")
-		) {
-			(req as any).membership = { role: u.role || "CEO", workspaceId, userId };
-			return next();
-		}
 
 		const [membership] = await db
 			.select()
@@ -262,11 +237,12 @@ const requireLeadership = async (req: Request, res: Response, next: any) => {
 			return next();
 		}
 
-		(req as any).membership = { role: "CEO", workspaceId, userId };
-		next();
+		return res
+			.status(403)
+			.json({ success: false, error: "Leadership authorization required" });
 	} catch (err: any) {
 		logger.error(
-			"requireLeadership error: " + (err?.stack || err?.message || String(err)),
+			`requireLeadership error: ${err?.stack || err?.message || String(err)}`,
 		);
 		return res
 			.status(500)
@@ -362,10 +338,7 @@ organizationRouter.get(
 				.select({ count: sql<number>`count(*)` })
 				.from(tasks)
 				.where(
-					and(
-						eq(tasks.workspaceId, workspaceId),
-						eq(tasks.status, "Blocked"),
-					),
+					and(eq(tasks.workspaceId, workspaceId), eq(tasks.status, "Blocked")),
 				);
 
 			// Pending Approvals (tasks in Review status)
@@ -373,10 +346,7 @@ organizationRouter.get(
 				.select({ count: sql<number>`count(*)` })
 				.from(tasks)
 				.where(
-					and(
-						eq(tasks.workspaceId, workspaceId),
-						eq(tasks.status, "Review"),
-					),
+					and(eq(tasks.workspaceId, workspaceId), eq(tasks.status, "Review")),
 				);
 
 			// Total organization projects
@@ -418,7 +388,7 @@ organizationRouter.get(
 				},
 			});
 		} catch (error: any) {
-			logger.error("Org Stats Error: " + error.message);
+			logger.error(`Org Stats Error: ${error.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -590,7 +560,7 @@ organizationRouter.get(
 
 			res.json({ success: true, data: enrichedMembers, summary });
 		} catch (error: any) {
-			logger.error("Org Members Error: " + error.message);
+			logger.error(`Org Members Error: ${error.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -611,7 +581,7 @@ organizationRouter.post(
 
 			res.json({ success: true, message: "Member reassigned successfully" });
 		} catch (error: any) {
-			logger.error("Org Reassign Error: " + error.message);
+			logger.error(`Org Reassign Error: ${error.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -937,7 +907,7 @@ organizationRouter.get(
 				},
 			});
 		} catch (err: any) {
-			logger.error("Get Person Summary Error: " + err.message);
+			logger.error(`Get Person Summary Error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to load person details" });
@@ -1083,7 +1053,7 @@ organizationRouter.get(
 
 			res.json({ success: true, data: hierarchy });
 		} catch (error: any) {
-			logger.error("Org Hierarchy Error: " + error.message);
+			logger.error(`Org Hierarchy Error: ${error.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -1103,7 +1073,7 @@ organizationRouter.get("/graph", async (req: Request, res: Response) => {
 				.from(workspaceMembers)
 				.where(eq(workspaceMembers.userId, userId))
 				.limit(1);
-			if (m && m.workspaceId) workspaceId = m.workspaceId;
+			if (m?.workspaceId) workspaceId = m.workspaceId;
 		}
 
 		const now = new Date();
@@ -1127,7 +1097,7 @@ organizationRouter.get("/graph", async (req: Request, res: Response) => {
 		const userRole = (currentUserMember?.role || "CEO").toUpperCase();
 
 		// CO-CEO invitations
-		const coCeoInvites = workspaceId
+		const _coCeoInvites = workspaceId
 			? await db
 					.select({
 						id: invitations.id,
@@ -1279,7 +1249,7 @@ organizationRouter.get("/graph", async (req: Request, res: Response) => {
 			},
 		});
 	} catch (error: any) {
-		logger.error("Org Graph Error: " + error.message);
+		logger.error(`Org Graph Error: ${error.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to fetch organization graph" });
@@ -1728,7 +1698,7 @@ organizationRouter.get(
 				},
 			});
 		} catch (error: any) {
-			logger.error("Org Dashboard Error: " + error.message);
+			logger.error(`Org Dashboard Error: ${error.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -1745,7 +1715,11 @@ organizationRouter.get(
 			let workspaceId = String(
 				req.query.workspaceId || req.body?.workspaceId || "",
 			).trim();
-			if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
+			if (
+				!workspaceId ||
+				workspaceId === "undefined" ||
+				workspaceId === "null"
+			) {
 				const m = await db.query.workspaceMembers.findFirst({
 					where: eq(workspaceMembers.userId, userId),
 				});
@@ -1760,7 +1734,9 @@ organizationRouter.get(
 			});
 
 			if (!invitation) {
-				return res.status(404).json({ success: false, error: "Invitation not found" });
+				return res
+					.status(404)
+					.json({ success: false, error: "Invitation not found" });
 			}
 
 			// Get inviter name
@@ -1782,12 +1758,15 @@ organizationRouter.get(
 					passwordCreatedAt: invitation.passwordCreatedAt,
 					workspaceAssignedAt: invitation.workspaceAssignedAt,
 					invitedBy: inviter
-						? { name: inviter.displayName || inviter.name, email: inviter.email }
+						? {
+								name: inviter.displayName || inviter.name,
+								email: inviter.email,
+							}
 						: null,
 				},
 			});
 		} catch (error: any) {
-			logger.error("Invitation Detail Error: " + error.message);
+			logger.error(`Invitation Detail Error: ${error.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},

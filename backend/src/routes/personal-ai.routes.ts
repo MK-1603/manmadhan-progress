@@ -53,7 +53,7 @@ The JSON schema must strictly follow this structure:
 personalAiRouter.post("/plan", async (req: Request, res: Response) => {
 	try {
 		const { prompt } = req.body;
-		const userId = (req as any).user?.id;
+		const _userId = (req as any).user?.id;
 
 		if (!prompt) {
 			return res
@@ -85,12 +85,12 @@ ${urlContext}
 
 		// 1. Call AI Service
 		const aiResponse = await aiService.generateWithSmartFailover(
-			PLAN_SYSTEM_PROMPT + "\n\n" + contextPrompt,
+			`${PLAN_SYSTEM_PROMPT}\n\n${contextPrompt}`,
 			"groq", // Use fast model
 		);
 
 		// 2. Parse JSON
-		let planData;
+		let planData: Record<string, unknown> = {};
 		try {
 			// Remove any potential markdown block backticks just in case
 			const cleanedText = aiResponse.text
@@ -98,14 +98,12 @@ ${urlContext}
 				.replace(/```/g, "")
 				.trim();
 			planData = JSON.parse(cleanedText);
-		} catch (parseError) {
-			logger.error("AI returned invalid JSON: " + aiResponse.text);
-			return res
-				.status(500)
-				.json({
-					success: false,
-					error: "AI failed to generate a valid structured plan.",
-				});
+		} catch (_parseError) {
+			logger.error(`AI returned invalid JSON: ${aiResponse.text}`);
+			return res.status(500).json({
+				success: false,
+				error: "AI failed to generate a valid structured plan.",
+			});
 		}
 
 		res.json({
@@ -114,13 +112,11 @@ ${urlContext}
 			provider: aiResponse.provider,
 		});
 	} catch (error: any) {
-		logger.error("AI Plan Error: " + error.message);
-		res
-			.status(500)
-			.json({
-				success: false,
-				error: "Failed to generate plan: " + error.message,
-			});
+		logger.error(`AI Plan Error: ${error.message}`);
+		res.status(500).json({
+			success: false,
+			error: `Failed to generate plan: ${error.message}`,
+		});
 	}
 });
 
@@ -249,12 +245,10 @@ personalAiRouter.post("/execute", async (req: Request, res: Response) => {
 			data: results,
 		});
 	} catch (error: any) {
-		logger.error("AI Execute Error: " + error.message);
-		res
-			.status(500)
-			.json({
-				success: false,
-				error: "Failed to execute plan: " + error.message,
-			});
+		logger.error(`AI Execute Error: ${error.message}`);
+		res.status(500).json({
+			success: false,
+			error: `Failed to execute plan: ${error.message}`,
+		});
 	}
 });

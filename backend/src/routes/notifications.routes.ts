@@ -24,7 +24,7 @@ notificationsRouter.get("/", async (req: Request, res: Response) => {
 			.limit(50);
 		return res.json({ success: true, data });
 	} catch (error: any) {
-		logger.error("GET /notifications Error: " + error.message);
+		logger.error(`GET /notifications Error: ${error.message}`);
 		return res
 			.status(500)
 			.json({ success: false, error: "Internal server error" });
@@ -74,7 +74,7 @@ notificationsRouter.patch("/:id/read", async (req: Request, res: Response) => {
 });
 
 // GET /api/v1/notifications/vapid-public-key
-notificationsRouter.get("/vapid-public-key", (req: Request, res: Response) => {
+notificationsRouter.get("/vapid-public-key", (_req: Request, res: Response) => {
 	return res.json({ success: true, publicKey: env.VAPID_PUBLIC_KEY });
 });
 
@@ -84,7 +84,7 @@ notificationsRouter.post("/subscribe", async (req: Request, res: Response) => {
 		const user = (req as any).user;
 		const { endpoint, keys } = req.body;
 
-		if (!endpoint || !keys || !keys.p256dh || !keys.auth) {
+		if (!endpoint || !keys?.p256dh || !keys.auth) {
 			return res
 				.status(400)
 				.json({ success: false, error: "Invalid subscription object" });

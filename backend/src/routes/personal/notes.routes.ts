@@ -26,7 +26,7 @@ personalNotesRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: notes });
 	} catch (error: any) {
-		logger.error("Get Notes Error: " + error.message);
+		logger.error(`Get Notes Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to fetch notes" });
 	}
 });
@@ -51,7 +51,7 @@ personalNotesRouter.get("/:id", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: note });
 	} catch (error: any) {
-		logger.error("Get Note Error: " + error.message);
+		logger.error(`Get Note Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to fetch note" });
 	}
 });
@@ -89,7 +89,7 @@ personalNotesRouter.post("/", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "note_created", newNote);
 		res.status(201).json({ success: true, data: newNote });
 	} catch (error: any) {
-		logger.error("Create Note Error: " + error.message);
+		logger.error(`Create Note Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to create note" });
 	}
 });
@@ -132,7 +132,7 @@ personalNotesRouter.patch("/:id", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "note_updated", updatedNote);
 		res.json({ success: true, data: updatedNote });
 	} catch (error: any) {
-		logger.error("Update Note Error: " + error.message);
+		logger.error(`Update Note Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to update note" });
 	}
 });
@@ -162,7 +162,7 @@ personalNotesRouter.delete("/:id", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "note_deleted", { id: noteId });
 		res.json({ success: true, data: deletedNote });
 	} catch (error: any) {
-		logger.error("Delete Note Error: " + error.message);
+		logger.error(`Delete Note Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to delete note" });
 	}
 });

@@ -1,88 +1,179 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { 
-  Zap, FolderKanban, CheckSquare, Megaphone, UserPlus, 
-  FileText, Calendar, CreditCard, PlayCircle, Settings
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import {
+  Zap, FolderKanban, CheckSquare, UserPlus,
+  FileText, History, Bell, BarChart3, Users,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
+import { CreateProjectModal } from "@/components/projects/create-project-modal";
+import { CreateTaskModal } from "@/components/tasks/create-task-modal";
 
-const quickActions = [
+const ACTIONS = [
   {
     category: "Execution",
     items: [
-      { name: "New Project", description: "Initialize a new enterprise project.", icon: FolderKanban, color: "text-blue-500", bg: "bg-blue-500/10", border: "border-blue-500/20" },
-      { name: "Create Task", description: "Assign a task to a team member.", icon: CheckSquare, color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-      { name: "Progress Update", description: "Submit your daily status update.", icon: PlayCircle, color: "text-purple-500", bg: "bg-purple-500/10", border: "border-purple-500/20" },
-    ]
+      {
+        id: "new-project",
+        name: "New Project",
+        description: "Create and assign an organization project.",
+        icon: FolderKanban,
+        color: "text-blue-500",
+        bg: "bg-blue-500/10",
+        border: "border-blue-500/20",
+        action: "modal-project",
+      },
+      {
+        id: "new-task",
+        name: "Assign Task",
+        description: "Create and assign a task to a team member.",
+        icon: CheckSquare,
+        color: "text-emerald-500",
+        bg: "bg-emerald-500/10",
+        border: "border-emerald-500/20",
+        action: "modal-task",
+      },
+      {
+        id: "timeline",
+        name: "View Timeline",
+        description: "Review organization execution history.",
+        icon: History,
+        color: "text-purple-500",
+        bg: "bg-purple-500/10",
+        border: "border-purple-500/20",
+        href: "/ceo/timeline",
+      },
+    ],
   },
   {
-    category: "People & HR",
+    category: "People",
     items: [
-      { name: "Invite Member", description: "Send an email invitation to join.", icon: UserPlus, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" },
-      { name: "Request Leave", description: "Submit PTO or sick leave request.", icon: Calendar, color: "text-pink-500", bg: "bg-pink-500/10", border: "border-pink-500/20" },
-      { name: "Run Payroll", description: "Initiate monthly payroll processing.", icon: CreditCard, color: "text-rose-500", bg: "bg-rose-500/10", border: "border-rose-500/20" },
-    ]
+      {
+        id: "invite",
+        name: "Invite Member",
+        description: "Send an email invitation to join the org.",
+        icon: UserPlus,
+        color: "text-amber-500",
+        bg: "bg-amber-500/10",
+        border: "border-amber-500/20",
+        href: "/ceo/invitations",
+      },
+      {
+        id: "members",
+        name: "View Members",
+        description: "See all team members and their status.",
+        icon: Users,
+        color: "text-indigo-500",
+        bg: "bg-indigo-500/10",
+        border: "border-indigo-500/20",
+        href: "/ceo/members",
+      },
+      {
+        id: "co-ceos",
+        name: "View CO-CEOs",
+        description: "Manage CO-CEO assignments and profiles.",
+        icon: Users,
+        color: "text-rose-500",
+        bg: "bg-rose-500/10",
+        border: "border-rose-500/20",
+        href: "/ceo/co-ceos",
+      },
+    ],
   },
   {
-    category: "Communication",
+    category: "Analytics",
     items: [
-      { name: "Company Broadcast", description: "Send a global announcement.", icon: Megaphone, color: "text-gold", bg: "bg-gold/10", border: "border-gold/20" },
-      { name: "New Document", description: "Create a wiki or knowledge base doc.", icon: FileText, color: "text-indigo-500", bg: "bg-indigo-500/10", border: "border-indigo-500/20" },
-      { name: "System Config", description: "Modify global application settings.", icon: Settings, color: "text-slate-400", bg: "bg-slate-500/10", border: "border-slate-500/20" },
-    ]
-  }
+      {
+        id: "reports",
+        name: "Reports",
+        description: "Organization-wide execution analytics.",
+        icon: BarChart3,
+        color: "text-gold",
+        bg: "bg-gold/10",
+        border: "border-gold/20",
+        href: "/ceo/reports",
+      },
+      {
+        id: "notifications",
+        name: "Notifications",
+        description: "Review all organization notifications.",
+        icon: Bell,
+        color: "text-cyan-500",
+        bg: "bg-cyan-500/10",
+        border: "border-cyan-500/20",
+        href: "/ceo/notifications",
+      },
+      {
+        id: "documents",
+        name: "Documents",
+        description: "Access organization documents and files.",
+        icon: FileText,
+        color: "text-slate-400",
+        bg: "bg-slate-500/10",
+        border: "border-slate-500/20",
+        href: "/ceo/documents",
+      },
+    ],
+  },
 ];
 
 export default function QuickActionsPage() {
+  const router = useRouter();
+  const [showProject, setShowProject] = useState(false);
+  const [showTask, setShowTask]       = useState(false);
+
+  const handleAction = (item: any) => {
+    if (item.href)              router.push(item.href);
+    if (item.action === "modal-project") setShowProject(true);
+    if (item.action === "modal-task")    setShowTask(true);
+  };
+
   return (
     <div className="flex flex-col h-full bg-background overflow-hidden">
-      
+
       {/* Header */}
       <div className="shrink-0 px-6 py-6 border-b border-border bg-card/50 backdrop-blur-xl sticky top-0 z-10">
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <Zap className="w-6 h-6 text-gold fill-gold/20" />
-          Quick Actions
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">Rapidly execute common tasks and system functions.</p>
+        <div className="flex items-center gap-2 mb-0.5">
+          <Zap className="w-5 h-5 text-gold fill-gold/20" />
+          <h1 className="text-[22px] font-bold text-foreground tracking-tight">Quick Actions</h1>
+        </div>
+        <p className="text-[12px] text-muted-foreground">Jump to common workflows without navigating the sidebar.</p>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-6 md:p-10 bg-muted/5">
-        <div className="max-w-6xl mx-auto space-y-12">
-          {quickActions.map((group, groupIdx) => (
+      {/* Grid */}
+      <div className="flex-1 overflow-auto p-5 md:p-8">
+        <div className="max-w-5xl mx-auto space-y-8">
+          {ACTIONS.map(group => (
             <div key={group.category}>
-              <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-6">
+              <p className="text-[10.5px] font-semibold text-muted-foreground uppercase tracking-widest mb-4">
                 {group.category}
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {group.items.map((action, idx) => {
-                  const Icon = action.icon;
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {group.items.map(item => {
+                  const Icon = item.icon;
                   return (
-                    <motion.div
-                      key={action.name}
-                      initial={{ opacity: 0, y: 15 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: (groupIdx * 0.1) + (idx * 0.05), duration: 0.3 }}
+                    <button
+                      key={item.id}
+                      onClick={() => handleAction(item)}
+                      className="group text-left bg-card border border-border p-5 rounded-2xl hover:border-gold/40 hover:shadow-sm transition-all flex flex-col gap-3"
                     >
-                      <button className="w-full text-left group bg-card border border-border p-5 rounded-2xl shadow-sm hover:border-gold/50 hover:shadow-md transition-all h-full flex flex-col items-start relative overflow-hidden">
-                        
-                        {/* Hover Gradient Background */}
-                        <div className="absolute inset-0 bg-gradient-to-br from-gold/0 via-gold/0 to-gold/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                        
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 border ${action.bg} ${action.border} ${action.color} group-hover:scale-110 transition-transform duration-300`}>
-                          <Icon className="w-6 h-6" />
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${item.bg} ${item.border} group-hover:scale-105 transition-transform`}>
+                        <Icon className={`w-5 h-5 ${item.color}`} />
+                      </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-[14px] font-bold text-foreground group-hover:text-gold transition-colors">
+                            {item.name}
+                          </p>
+                          <p className="text-[12px] text-muted-foreground mt-0.5 leading-relaxed">
+                            {item.description}
+                          </p>
                         </div>
-                        
-                        <h3 className="text-lg font-bold text-foreground mb-1 group-hover:text-gold transition-colors relative z-10">
-                          {action.name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground relative z-10 leading-relaxed">
-                          {action.description}
-                        </p>
-                        
-                      </button>
-                    </motion.div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0 mt-0.5 group-hover:text-gold transition-colors" />
+                      </div>
+                    </button>
                   );
                 })}
               </div>
@@ -90,6 +181,22 @@ export default function QuickActionsPage() {
           ))}
         </div>
       </div>
+
+      {/* Modals */}
+      {showProject && (
+        <CreateProjectModal
+          isOpen={showProject}
+          onClose={() => setShowProject(false)}
+          onSuccess={() => { setShowProject(false); router.push("/ceo/projects"); }}
+        />
+      )}
+      {showTask && (
+        <CreateTaskModal
+          isOpen={showTask}
+          onClose={() => setShowTask(false)}
+          onSuccess={() => { setShowTask(false); router.push("/ceo/tasks"); }}
+        />
+      )}
     </div>
   );
 }

@@ -49,16 +49,14 @@ export const strictAuth = (req: Request, res: Response, next: NextFunction) => {
 export const requireRole = (allowedRoles: string[]) => {
 	return (req: Request, res: Response, next: NextFunction) => {
 		const user = (req as any).user;
-		if (!user || !user.role) {
+		if (!user?.role) {
 			return res.status(401).json({ success: false, error: "Unauthorized" });
 		}
 		if (!allowedRoles.includes(user.role)) {
-			return res
-				.status(403)
-				.json({
-					success: false,
-					error: "Forbidden: Insufficient role permissions",
-				});
+			return res.status(403).json({
+				success: false,
+				error: "Forbidden: Insufficient role permissions",
+			});
 		}
 		next();
 	};

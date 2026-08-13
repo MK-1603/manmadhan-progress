@@ -62,6 +62,7 @@ const CEO_NAV: NavGroup[] = [
   {
     id: "administration", label: "ADMINISTRATION", roles: ["CEO"],
     items: [
+      { name: "Automation",   href: "/ceo/automation",   icon: Zap },
       { name: "Organization", href: "/ceo/organization", icon: Building },
       { name: "Settings",     href: "/ceo/settings",     icon: Settings },
     ],
@@ -80,11 +81,12 @@ const COCEO_NAV: NavGroup[] = [
   {
     id: "work", label: "WORK", roles: ["CO-CEO"],
     items: [
-      { name: "My Work",     href: "/co-ceo/my-work",  icon: CheckSquare },
-      { name: "My Projects", href: "/co-ceo/projects", icon: FolderKanban },
-      { name: "Tasks",       href: "/co-ceo/tasks",    icon: ClipboardCheck },
-      { name: "Calendar",    href: "/co-ceo/calendar", icon: Calendar },
-      { name: "Timeline",    href: "/co-ceo/timeline", icon: History },
+      { name: "My Work",     href: "/co-ceo/my-work",     icon: CheckSquare },
+      { name: "My Projects", href: "/co-ceo/projects",    icon: FolderKanban },
+      { name: "Tasks",       href: "/co-ceo/tasks",       icon: ClipboardCheck },
+      { name: "Automation",  href: "/co-ceo/automation",  icon: Zap },
+      { name: "Calendar",    href: "/co-ceo/calendar",    icon: Calendar },
+      { name: "Timeline",    href: "/co-ceo/timeline",    icon: History },
     ],
   },
   {
@@ -123,11 +125,12 @@ const MEMBER_NAV: NavGroup[] = [
   {
     id: "work", label: "WORK", roles: ["MEMBER"],
     items: [
-      { name: "My Work",     href: "/member/my-work",  icon: CheckSquare },
-      { name: "My Projects", href: "/member/projects", icon: FolderKanban },
-      { name: "Tasks",       href: "/member/tasks",    icon: ClipboardCheck },
-      { name: "Calendar",    href: "/member/calendar", icon: Calendar },
-      { name: "Timeline",    href: "/member/timeline", icon: History },
+      { name: "My Work",     href: "/member/my-work",    icon: CheckSquare },
+      { name: "My Projects", href: "/member/projects",   icon: FolderKanban },
+      { name: "Tasks",       href: "/member/tasks",      icon: ClipboardCheck },
+      { name: "Automation",  href: "/member/automation", icon: Zap },
+      { name: "Calendar",    href: "/member/calendar",   icon: Calendar },
+      { name: "Timeline",    href: "/member/timeline",   icon: History },
     ],
   },
   {

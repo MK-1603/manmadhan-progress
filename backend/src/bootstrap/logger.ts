@@ -88,8 +88,8 @@ export const formatDevLog = (
 						? "\x1b[36m"
 						: "\x1b[34m";
 
-	const catPadded = (category + "     ").slice(0, 5);
-	const methodPadded = (method + "      ").slice(0, 6);
+	const catPadded = `${category}     `.slice(0, 5);
+	const methodPadded = `${method}      `.slice(0, 6);
 
 	let statusStr = "   ";
 	if (statusCode !== undefined) {
@@ -106,7 +106,7 @@ export const formatDevLog = (
 
 	const durationStr =
 		durationMs !== undefined ? `\x1b[90m${durationMs}ms\x1b[0m` : "";
-	const pathPadded = (path + "                                        ").slice(
+	const pathPadded = `${path}                                        `.slice(
 		0,
 		36,
 	);

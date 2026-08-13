@@ -35,7 +35,7 @@ personalIntegrationsRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: sanitized });
 	} catch (err: any) {
-		logger.error("Get integrations error: " + err.message);
+		logger.error(`Get integrations error: ${err.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to fetch integrations" });
@@ -66,7 +66,7 @@ personalIntegrationsRouter.delete(
 				.where(eq(integrationAccounts.id, req.params.id));
 			res.json({ success: true, message: "Integration disconnected" });
 		} catch (err: any) {
-			logger.error("Delete integration error: " + err.message);
+			logger.error(`Delete integration error: ${err.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to disconnect integration" });

@@ -26,7 +26,7 @@ personalJournalRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: entries });
 	} catch (error: any) {
-		logger.error("Get Journal Entries Error: " + error.message);
+		logger.error(`Get Journal Entries Error: ${error.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to fetch journal entries" });
@@ -55,7 +55,7 @@ personalJournalRouter.get("/:id", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: entry });
 	} catch (error: any) {
-		logger.error("Get Journal Entry Error: " + error.message);
+		logger.error(`Get Journal Entry Error: ${error.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to fetch journal entry" });
@@ -97,7 +97,7 @@ personalJournalRouter.post("/", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "journal_created", newEntry);
 		res.status(201).json({ success: true, data: newEntry });
 	} catch (error: any) {
-		logger.error("Create Journal Entry Error: " + error.message);
+		logger.error(`Create Journal Entry Error: ${error.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to create journal entry" });
@@ -145,7 +145,7 @@ personalJournalRouter.patch("/:id", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "journal_updated", updatedEntry);
 		res.json({ success: true, data: updatedEntry });
 	} catch (error: any) {
-		logger.error("Update Journal Entry Error: " + error.message);
+		logger.error(`Update Journal Entry Error: ${error.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to update journal entry" });
@@ -179,7 +179,7 @@ personalJournalRouter.delete("/:id", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "journal_deleted", { id: entryId });
 		res.json({ success: true, data: deletedEntry });
 	} catch (error: any) {
-		logger.error("Delete Journal Entry Error: " + error.message);
+		logger.error(`Delete Journal Entry Error: ${error.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to delete journal entry" });

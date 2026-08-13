@@ -1,10 +1,9 @@
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { personalDb } from "../../../database/client";
 import {
 	personalActivityLogs,
-	personalMilestones,
 	personalProjects,
 	personalTasks,
 } from "../../../database/schema/personal.schema";
@@ -39,7 +38,7 @@ export async function writeTimelineEvent(
 		});
 	} catch (err) {
 		// Non-fatal: don't crash the main operation if timeline write fails
-		logger.warn("Timeline write failed: " + String(err));
+		logger.warn(`Timeline write failed: ${String(err)}`);
 	}
 }
 
@@ -52,8 +51,8 @@ personalTimelineRouter.get("/", async (req: Request, res: Response) => {
 
 		const { filter, limit = "50", offset = "0" } = req.query;
 
-		const limitNum = Math.min(parseInt(limit as string) || 50, 100);
-		const offsetNum = parseInt(offset as string) || 0;
+		const limitNum = Math.min(parseInt(limit as string, 10) || 50, 100);
+		const offsetNum = parseInt(offset as string, 10) || 0;
 
 		// Fetch all activity logs for this user
 		const allLogs = await personalDb
@@ -156,7 +155,7 @@ personalTimelineRouter.get("/", async (req: Request, res: Response) => {
 			},
 		});
 	} catch (err: any) {
-		logger.error("Personal timeline error: " + err.message);
+		logger.error(`Personal timeline error: ${err.message}`);
 		res.status(500).json({ success: false, error: "Failed to fetch timeline" });
 	}
 });

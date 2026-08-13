@@ -112,7 +112,7 @@ personalCalendarRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: events });
 	} catch (error: any) {
-		logger.error("Fetch Personal Calendar Error: " + error.message);
+		logger.error(`Fetch Personal Calendar Error: ${error.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to fetch calendar events" });

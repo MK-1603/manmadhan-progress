@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import {
   ArrowLeft, UserCheck, Briefcase, CheckSquare,
   Users, AlertCircle, Loader2, Trophy, ChevronRight,
-  PlusCircle, CheckCircle2, FolderKanban,
+  CheckCircle2, FolderKanban,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";

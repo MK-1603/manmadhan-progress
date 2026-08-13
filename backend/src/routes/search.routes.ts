@@ -20,12 +20,10 @@ searchRouter.get("/", async (req: Request, res: Response) => {
 		const { q, workspaceId } = req.query;
 
 		if (!q || typeof q !== "string") {
-			return res
-				.status(400)
-				.json({
-					success: false,
-					error: "Missing or invalid search query 'q'.",
-				});
+			return res.status(400).json({
+				success: false,
+				error: "Missing or invalid search query 'q'.",
+			});
 		}
 
 		const userId = (req as any).user?.id || (req as any).user?.userId;
@@ -54,12 +52,10 @@ searchRouter.get("/", async (req: Request, res: Response) => {
 		}
 
 		if (!targetWsId || targetWsId === "undefined" || targetWsId === "null") {
-			return res
-				.status(400)
-				.json({
-					success: false,
-					error: "Missing workspaceId. Search must be isolated to a workspace.",
-				});
+			return res.status(400).json({
+				success: false,
+				error: "Missing workspaceId. Search must be isolated to a workspace.",
+			});
 		}
 
 		// Verify workspace membership (System Isolation) using db.select()

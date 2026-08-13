@@ -1,5 +1,5 @@
-import crypto, { randomUUID } from "crypto";
-import { and, desc, eq, ilike, sql } from "drizzle-orm";
+import crypto, { randomUUID } from "node:crypto";
+import { and, desc, eq, ilike } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../../config/env.config";
@@ -16,11 +16,12 @@ import { strictAuth } from "../middleware/auth.middleware";
 import { AuditService } from "../services/audit.service";
 import { AuthService } from "../services/auth.service";
 import { DeviceService } from "../services/device.service";
+import { emailService } from "../services/email.service";
+import { logger } from "../services/logger.service";
 import { NotificationService } from "../services/notification.service";
 import { OtpService } from "../services/otp.service";
 import { SessionService } from "../services/session.service";
 import { socketService } from "../services/socket.service";
-import { logger } from "../services/logger.service";
 
 export const authRouter = Router();
 
@@ -35,7 +36,7 @@ const verifyTempToken = (req: Request, res: Response, next: any) => {
 		if (decoded.intent !== "setup") throw new Error("Invalid intent");
 		(req as any).setupUser = decoded;
 		next();
-	} catch (e) {
+	} catch (_e) {
 		return res
 			.status(401)
 			.json({ success: false, error: "Invalid or expired session" });
@@ -164,7 +165,12 @@ authRouter.post("/login/password", async (req, res) => {
 		});
 	}
 
-	return res.json({ success: true, nextStep: "DASHBOARD", role: user.role, accessToken: token });
+	return res.json({
+		success: true,
+		nextStep: "DASHBOARD",
+		role: user.role,
+		accessToken: token,
+	});
 });
 
 authRouter.post("/verify-otp", async (req, res) => {
@@ -204,7 +210,12 @@ authRouter.post("/verify-otp", async (req, res) => {
 		// Normal 48-hour OTP login completion
 		const deviceId = req.ip || "unknown-device";
 		const token = SessionService.issueTokens(res, user, deviceId);
-		return res.json({ success: true, nextStep: "DASHBOARD", role: user.role, accessToken: token });
+		return res.json({
+			success: true,
+			nextStep: "DASHBOARD",
+			role: user.role,
+			accessToken: token,
+		});
 	} else {
 		// Issue temp token for setup
 		const tempToken = jwt.sign(
@@ -376,14 +387,12 @@ authRouter.post("/setup/organization", verifyTempToken, async (req, res) => {
 	await db
 		.insert(workspaces)
 		.values({ id: orgId, name: organizationName, type: "org" });
-	await db
-		.insert(workspaceMembers)
-		.values({
-			id: randomUUID(),
-			workspaceId: orgId,
-			userId: user.id,
-			role: "CEO",
-		});
+	await db.insert(workspaceMembers).values({
+		id: randomUUID(),
+		workspaceId: orgId,
+		userId: user.id,
+		role: "CEO",
+	});
 
 	if (communityName) {
 		await db.insert(spaces).values({
@@ -496,8 +505,12 @@ authRouter.put("/me", strictAuth, async (req, res) => {
 
 		const updatePayload: any = { updatedAt: new Date() };
 		if (name !== undefined) updatePayload.name = String(name).trim();
-		if (displayName !== undefined) updatePayload.displayName = displayName ? String(displayName).trim() : null;
-		if (avatar !== undefined) updatePayload.avatar = avatar ? String(avatar).trim() : null;
+		if (displayName !== undefined)
+			updatePayload.displayName = displayName
+				? String(displayName).trim()
+				: null;
+		if (avatar !== undefined)
+			updatePayload.avatar = avatar ? String(avatar).trim() : null;
 
 		const [updated] = await db
 			.update(users)
@@ -522,8 +535,10 @@ authRouter.put("/me", strictAuth, async (req, res) => {
 			},
 		});
 	} catch (error: any) {
-		logger.error("Update Profile Error: " + (error as Error).message);
-		res.status(500).json({ success: false, error: "Failed to update user profile" });
+		logger.error(`Update Profile Error: ${(error as Error).message}`);
+		res
+			.status(500)
+			.json({ success: false, error: "Failed to update user profile" });
 	}
 });
 
@@ -531,12 +546,18 @@ authRouter.put("/me", strictAuth, async (req, res) => {
 authRouter.get("/security/sessions", strictAuth, async (req, res) => {
 	try {
 		const authUser = (req as any).user;
-		const [user] = await db.select().from(users).where(eq(users.id, authUser.id)).limit(1);
+		const [user] = await db
+			.select()
+			.from(users)
+			.where(eq(users.id, authUser.id))
+			.limit(1);
 
 		res.json({
 			success: true,
 			data: {
-				authMethod: user?.passwordHash ? "Password Authentication" : "OAuth Provider / Direct",
+				authMethod: user?.passwordHash
+					? "Password Authentication"
+					: "OAuth Provider / Direct",
 				lastSignIn: (user as any)?.updatedAt || user?.createdAt || new Date(),
 				activeSessions: [
 					{
@@ -558,15 +579,24 @@ authRouter.get("/security/sessions", strictAuth, async (req, res) => {
 			},
 		});
 	} catch (error: any) {
-		logger.error("Fetch Security Sessions Error: " + (error as Error).message);
-		res.status(500).json({ success: false, error: "Failed to fetch security information" });
+		logger.error(`Fetch Security Sessions Error: ${(error as Error).message}`);
+		res
+			.status(500)
+			.json({ success: false, error: "Failed to fetch security information" });
 	}
 });
 
 // POST /security/sessions/revoke-others - Revoke other sessions
-authRouter.post("/security/sessions/revoke-others", strictAuth, async (req, res) => {
-	res.json({ success: true, message: "All other active sessions have been successfully revoked." });
-});
+authRouter.post(
+	"/security/sessions/revoke-others",
+	strictAuth,
+	async (_req, res) => {
+		res.json({
+			success: true,
+			message: "All other active sessions have been successfully revoked.",
+		});
+	},
+);
 
 // POST /refresh
 authRouter.post("/refresh", async (req, res) => {
@@ -592,7 +622,10 @@ authRouter.post("/refresh", async (req, res) => {
 		if (!userRecords.length) {
 			res.clearCookie("auth_token", { path: "/" });
 			res.clearCookie("refresh_token", { path: "/" });
-			return res.status(401).json({ success: false, error: "User not found. Please log in again." });
+			return res.status(401).json({
+				success: false,
+				error: "User not found. Please log in again.",
+			});
 		}
 
 		const newAccessToken = jwt.sign(
@@ -608,15 +641,18 @@ authRouter.post("/refresh", async (req, res) => {
 			maxAge: 15 * 60 * 1000,
 		});
 		return res.json({ success: true, accessToken: newAccessToken });
-	} catch (error) {
+	} catch (_error) {
 		res.clearCookie("auth_token", { path: "/" });
 		res.clearCookie("refresh_token", { path: "/" });
-		return res.status(401).json({ success: false, error: "Invalid or expired session. Please log in again." });
+		return res.status(401).json({
+			success: false,
+			error: "Invalid or expired session. Please log in again.",
+		});
 	}
 });
 
 // POST /logout
-authRouter.post("/logout", (req, res) => {
+authRouter.post("/logout", (_req, res) => {
 	res.clearCookie("auth_token", { path: "/" });
 	res.clearCookie("refresh_token", { path: "/api/v1/auth/refresh" });
 	return res.json({ success: true, message: "Logged out successfully" });
@@ -680,15 +716,13 @@ authRouter.post("/password/change", strictAuth, async (req, res) => {
 	);
 
 	// Email Notification
-	await fetch(`http://localhost:${env.PORT || 4100}/api/v1/queue/email-job`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
+	await emailService
+		.sendEmail({
 			to: userRecords[0].email,
 			subject: "Password Changed",
 			text: "Your password was recently changed.",
-		}),
-	}).catch(() => {});
+		})
+		.catch(() => ({ success: false }));
 
 	return res.json({ success: true, message: "Password updated successfully" });
 });
@@ -715,7 +749,7 @@ authRouter.post("/forgot-password", async (req, res) => {
 
 		// Cryptographically secure token logic
 		const rawTokenBytes = crypto.randomBytes(32);
-		const rawToken = "rst_" + rawTokenBytes.toString("base64url");
+		const rawToken = `rst_${rawTokenBytes.toString("base64url")}`;
 		const tokenHash = crypto
 			.createHash("sha256")
 			.update(rawToken)
@@ -852,12 +886,10 @@ authRouter.post("/reset-password", async (req, res) => {
 		const hashedNewPassword = AuthService.hashPassword(newPassword);
 
 		if (user.passwordHash === hashedNewPassword) {
-			return res
-				.status(400)
-				.json({
-					success: false,
-					error: "New password cannot be the same as your current password",
-				});
+			return res.status(400).json({
+				success: false,
+				error: "New password cannot be the same as your current password",
+			});
 		}
 
 		const isReused = await AuthService.isPasswordReused(
@@ -865,13 +897,11 @@ authRouter.post("/reset-password", async (req, res) => {
 			hashedNewPassword,
 		);
 		if (isReused) {
-			return res
-				.status(400)
-				.json({
-					success: false,
-					error:
-						"This password has been used recently. Please choose a different one.",
-				});
+			return res.status(400).json({
+				success: false,
+				error:
+					"This password has been used recently. Please choose a different one.",
+			});
 		}
 
 		await AuthService.savePassword(user.id, newPassword);
@@ -907,7 +937,7 @@ authRouter.post("/reset-password", async (req, res) => {
 		});
 
 		return res.json({ success: true });
-	} catch (err) {
+	} catch (_err) {
 		return res
 			.status(400)
 			.json({ success: false, error: "Invalid or expired reset session" });
@@ -915,7 +945,7 @@ authRouter.post("/reset-password", async (req, res) => {
 });
 
 // POST /google
-authRouter.post("/google", async (req, res) => {
+authRouter.post("/google", async (_req, res) => {
 	// Stub implementation for explicit POST /google
 	return res.json({ success: true, message: "Google Auth POST initialized" });
 });
@@ -950,12 +980,10 @@ authRouter.delete("/devices/:deviceId", strictAuth, async (req, res) => {
 			.limit(1);
 
 		if (session.length === 0) {
-			return res
-				.status(404)
-				.json({
-					success: false,
-					error: "Device session not found or unauthorized",
-				});
+			return res.status(404).json({
+				success: false,
+				error: "Device session not found or unauthorized",
+			});
 		}
 
 		await db
@@ -975,6 +1003,26 @@ authRouter.delete("/devices/:deviceId", strictAuth, async (req, res) => {
 	} catch (err: any) {
 		return res.status(500).json({ success: false, error: err.message });
 	}
+});
+
+// POST /devices/:id/revoke
+authRouter.post("/devices/:id/revoke", strictAuth, async (req, res) => {
+	const { id } = req.params;
+	await DeviceService.revokeSession(id as string);
+	const authUser = (req as any).user;
+	socketService.emitToUser(authUser.id, "session.revoked", { sessionId: id });
+	return res.json({ success: true, message: "Device session revoked" });
+});
+
+// POST /devices/revoke-other
+authRouter.post("/devices/revoke-other", strictAuth, async (req, res) => {
+	const authUser = (req as any).user;
+	await DeviceService.revokeAllUserSessions(authUser.id);
+	socketService.emitToUser(authUser.id, "session.revoked", { scope: "other" });
+	return res.json({
+		success: true,
+		message: "All other device sessions revoked",
+	});
 });
 
 // DELETE /device/:id

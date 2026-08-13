@@ -96,7 +96,7 @@ export const enforceWorkExecutionPolicy = async (
 			message: `Outside permitted working hours (${String(startHour).padStart(2, "0")}:00 - ${String(endHour).padStart(2, "0")}:00).`,
 		});
 	} catch (err: any) {
-		logger.error("Work Execution Policy Error: " + err.message);
+		logger.error(`Work Execution Policy Error: ${err.message}`);
 		return next();
 	}
 };

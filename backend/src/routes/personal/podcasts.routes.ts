@@ -2,10 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { personalDb } from "../../../database/db";
-import {
-	personalPodcastEpisodes,
-	personalPodcasts,
-} from "../../../database/schema/personal.schema";
+import { personalPodcasts } from "../../../database/schema/personal.schema";
 import { getUserId } from "../../middleware/auth";
 import { authenticate } from "../../middleware/auth.middleware";
 import { socketService } from "../../services/socket.service";
@@ -31,7 +28,7 @@ personalPodcastsRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: podcasts });
 	} catch (error: any) {
-		logger.error("Get Podcasts Error: " + error.message);
+		logger.error(`Get Podcasts Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to fetch podcasts" });
 	}
 });
@@ -68,7 +65,7 @@ personalPodcastsRouter.post("/", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "podcast_created", newPodcast);
 		res.status(201).json({ success: true, data: newPodcast });
 	} catch (error: any) {
-		logger.error("Create Podcast Error: " + error.message);
+		logger.error(`Create Podcast Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to create podcast" });
 	}
 });
@@ -110,7 +107,7 @@ personalPodcastsRouter.patch("/:id", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "podcast_updated", updatedPodcast);
 		res.json({ success: true, data: updatedPodcast });
 	} catch (error: any) {
-		logger.error("Update Podcast Error: " + error.message);
+		logger.error(`Update Podcast Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to update podcast" });
 	}
 });
@@ -141,7 +138,7 @@ personalPodcastsRouter.delete("/:id", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "podcast_deleted", { id: podcastId });
 		res.json({ success: true, data: deletedPodcast });
 	} catch (error: any) {
-		logger.error("Delete Podcast Error: " + error.message);
+		logger.error(`Delete Podcast Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to delete podcast" });
 	}
 });

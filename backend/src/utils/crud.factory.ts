@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import type { Request, Response } from "express";
@@ -10,7 +10,7 @@ export class CrudFactory<T extends PgTable<any>> {
 		private idField: any,
 	) {}
 
-	getAll = async (req: Request, res: Response) => {
+	getAll = async (_req: Request, res: Response) => {
 		try {
 			const records = await db.select().from(this.table as any);
 			return res.json({ success: true, data: records });

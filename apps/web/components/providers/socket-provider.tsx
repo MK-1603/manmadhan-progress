@@ -70,13 +70,20 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       SOCKET_URL = `http://${window.location.hostname}:${backendUrl.split(':').pop()}`;
     }
 
+    const token = typeof window !== "undefined"
+      ? localStorage.getItem("auth_token") || localStorage.getItem("token") || ""
+      : "";
+
     const socketInstance = io(SOCKET_URL, {
       path: "/socket.io/",
       withCredentials: true,
-      transports: ["polling", "websocket"],
+      auth: { token },
+      query: { token },
+      transports: ["websocket", "polling"],
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
+      reconnectionAttempts: 8,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
       autoConnect: true,
     });
 
@@ -92,11 +99,20 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       }
     });
 
+    socketInstance.on("session.revoked", () => {
+      setIsConnected(false);
+      socketInstance.disconnect();
+      if (typeof window !== "undefined") {
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = "/login?error=session_revoked";
+      }
+    });
+
     socketInstance.on("connect_error", (err) => {
       setIsConnected(false);
-      // If auth error, stop reconnection retries until new login
       if (err.message.includes("Authentication") || err.message.includes("token")) {
-        socketInstance.disconnect();
+        // Retry silently with polling fallback if websocket fails
       }
     });
 

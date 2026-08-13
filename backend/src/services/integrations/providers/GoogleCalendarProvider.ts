@@ -65,7 +65,7 @@ export class GoogleCalendarProvider implements IIntegrationProvider {
 			.from(integrationAccounts)
 			.where(eq(integrationAccounts.id, integrationAccountId));
 
-		if (!account || !account.accessToken) return false;
+		if (!account?.accessToken) return false;
 
 		const oauth2Client = this.getOAuthClient();
 		oauth2Client.setCredentials({
@@ -111,7 +111,7 @@ export class GoogleCalendarProvider implements IIntegrationProvider {
 		return true;
 	}
 
-	public async sync(integrationAccountId: string, userId: string) {
+	public async sync(integrationAccountId: string, _userId: string) {
 		const [account] = await personalDb
 			.select()
 			.from(integrationAccounts)
@@ -171,14 +171,14 @@ export class GoogleCalendarProvider implements IIntegrationProvider {
 					summary: cal.summary || "Unnamed Calendar",
 					timeZone: cal.timeZone,
 					backgroundColor: cal.backgroundColor,
-					isSelected: cal.primary ? true : false, // select primary by default
+					isSelected: !!cal.primary, // select primary by default
 					lastSyncAt: new Date(),
 				});
 			}
 
 			// Check if calendar is selected for sync
 			const currentCal = existingCal || {
-				isSelected: cal.primary ? true : false,
+				isSelected: !!cal.primary,
 			};
 
 			if (!currentCal.isSelected) {

@@ -61,7 +61,7 @@ export default function NotificationsPage() {
 
   const markAll = async () => {
     try {
-      await apiClient.patch("/notifications/read-all");
+		await apiClient.post("/notifications/read-all");
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     } catch {}
   };

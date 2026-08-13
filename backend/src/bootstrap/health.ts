@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 
 export const registerHealthEndpoints = (app: Express): void => {
-	app.get("/health", (req: Request, res: Response) => {
+	app.get("/health", (_req: Request, res: Response) => {
 		res.status(200).json({
 			status: "ok",
 			timestamp: new Date().toISOString(),
@@ -11,14 +11,14 @@ export const registerHealthEndpoints = (app: Express): void => {
 		});
 	});
 
-	app.get("/health/ready", (req: Request, res: Response) => {
+	app.get("/health/ready", (_req: Request, res: Response) => {
 		res.status(200).json({
 			status: "ready",
 			database: "connected",
 		});
 	});
 
-	app.get("/health/live", (req: Request, res: Response) => {
+	app.get("/health/live", (_req: Request, res: Response) => {
 		res.status(200).json({ status: "live" });
 	});
 };

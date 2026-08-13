@@ -127,7 +127,7 @@ export class TaskAutomationService {
 			return createdTasks;
 		} catch (err: any) {
 			logger.error(
-				"Foundation task automation error: " + (err?.message || String(err)),
+				`Foundation task automation error: ${err?.message || String(err)}`,
 			);
 			return [];
 		}
@@ -188,7 +188,7 @@ export class TaskAutomationService {
 			return [msTask];
 		} catch (err: any) {
 			logger.error(
-				"Milestone task automation error: " + (err?.message || String(err)),
+				`Milestone task automation error: ${err?.message || String(err)}`,
 			);
 			return [];
 		}

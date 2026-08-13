@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
@@ -7,12 +7,12 @@ import {
 	auditLogs,
 	deadlineExtensions,
 	milestones,
-	projectMilestonesV2,
 	notifications,
+	projectMilestonesV2,
 	projects,
 	scoreLedger,
-	tasks,
 	taskAssignmentTracker,
+	tasks,
 	timeTracking,
 	users,
 	workspaceMembers,
@@ -41,20 +41,11 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 					.from(workspaceMembers)
 					.where(eq(workspaceMembers.userId, userId))
 					.limit(1);
-				if (m && m.workspaceId) {
+				if (m?.workspaceId) {
 					workspaceId = m.workspaceId;
 					req.body.workspaceId = workspaceId;
 					(req.query as any).workspaceId = workspaceId;
 				}
-			}
-		}
-
-		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
-			const [firstWs] = await db.select().from(tasks).limit(1);
-			if (firstWs && firstWs.workspaceId) {
-				workspaceId = firstWs.workspaceId;
-				req.body.workspaceId = workspaceId;
-				(req.query as any).workspaceId = workspaceId;
 			}
 		}
 
@@ -100,35 +91,9 @@ const requireMembership = async (req: Request, res: Response, next: any) => {
 			.limit(1);
 
 		if (!m) {
-			// Fallback 1: check any workspace membership (covers multi-workspace & invitation flows)
-			const [anyMembership] = await db
-				.select()
-				.from(workspaceMembers)
-				.where(eq(workspaceMembers.userId, userId))
-				.limit(1);
-
-			if (anyMembership) {
-				logger.info(`[AUTH DEBUG] org-tasks: userId=${userId} using fallback workspaceId=${anyMembership.workspaceId} role=${anyMembership.role}`);
-				(req as any).workspaceId = anyMembership.workspaceId;
-				(req as any).membership = anyMembership;
-				return next();
-			}
-
-			// Fallback 2: user table role
-			const [u] = await db
-				.select()
-				.from(users)
-				.where(eq(users.id, userId))
-				.limit(1);
-
-			const dbRole = (u?.role || (req as any).user?.role || "MEMBER").toUpperCase();
-			const normalizedRole = dbRole === "CEO" || (u?.systemOwner) ? "CEO"
-				: dbRole === "CO-CEO" || dbRole === "CO_CEO" ? "CO-CEO"
-				: "MEMBER";
-
-			logger.info(`[AUTH DEBUG] org-tasks: userId=${userId} no workspace record — using DB role=${normalizedRole}`);
-			(req as any).membership = { role: normalizedRole, workspaceId, userId };
-			return next();
+			return res
+				.status(403)
+				.json({ success: false, error: "Not a member of this workspace" });
 		}
 
 		(req as any).membership = m;
@@ -155,12 +120,10 @@ orgTasksRouter.post(
 			const { prompt, projectId, milestoneId } = req.body;
 
 			if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: "Prompt is required to generate task plan",
-					});
+				return res.status(400).json({
+					success: false,
+					error: "Prompt is required to generate task plan",
+				});
 			}
 
 			// Get workspace members for intelligent assignment lookup
@@ -268,7 +231,7 @@ orgTasksRouter.post(
 				taskTitles.forEach((title, idx) => {
 					generatedTasks.push({
 						tempId: uuidv4(),
-						title: title.length > 80 ? title.substring(0, 77) + "..." : title,
+						title: title.length > 80 ? `${title.substring(0, 77)}...` : title,
 						description: `Generated from prompt: "${promptText}"`,
 						type:
 							idx === 0
@@ -297,9 +260,7 @@ orgTasksRouter.post(
 				},
 			});
 		} catch (err: any) {
-			logger.error(
-				"Generate task plan error: " + (err?.message || String(err)),
-			);
+			logger.error(`Generate task plan error: ${err?.message || String(err)}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to generate task plan" });
@@ -319,12 +280,10 @@ orgTasksRouter.post(
 			const { tasks: planTasks, projectId, milestoneId } = req.body;
 
 			if (!Array.isArray(planTasks) || planTasks.length === 0) {
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: "No tasks provided in confirmed plan",
-					});
+				return res.status(400).json({
+					success: false,
+					error: "No tasks provided in confirmed plan",
+				});
 			}
 
 			const cleanProjectId =
@@ -383,7 +342,7 @@ orgTasksRouter.post(
 							sourceType: "PROMPT_AUTOMATION",
 							estimatedMinutes: Number(t.estimatedMinutes) || 120,
 							deadline:
-								t.deadline && !isNaN(new Date(t.deadline).getTime())
+								t.deadline && !Number.isNaN(new Date(t.deadline).getTime())
 									? new Date(t.deadline)
 									: new Date(Date.now() + 7 * 24 * 3600 * 1000),
 						})
@@ -423,14 +382,12 @@ orgTasksRouter.post(
 				"Create tasks from plan error: " +
 					(err?.stack || err?.message || String(err)),
 			);
-			res
-				.status(500)
-				.json({
-					success: false,
-					error:
-						"Failed to create tasks from plan: " +
-						(err?.message || "Internal server error"),
-				});
+			res.status(500).json({
+				success: false,
+				error:
+					"Failed to create tasks from plan: " +
+					(err?.message || "Internal server error"),
+			});
 		}
 	},
 );
@@ -521,7 +478,7 @@ orgTasksRouter.get(
 			});
 		} catch (err: any) {
 			logger.error(
-				"List tasks error: " + (err?.stack || err?.message || String(err)),
+				`List tasks error: ${err?.stack || err?.message || String(err)}`,
 			);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
@@ -668,7 +625,7 @@ orgTasksRouter.get(
 				},
 			});
 		} catch (err: any) {
-			logger.error("Current tasks error: " + err.message);
+			logger.error(`Current tasks error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -705,13 +662,15 @@ orgTasksRouter.post(
 				estimatedMinutes,
 				type,
 			} = req.body;
-			if (!title || !title.trim())
+			if (!title?.trim())
 				return res
 					.status(400)
 					.json({ success: false, error: "Task title is required" });
 
-			const cleanProjectId = projectId && projectId !== "NONE" ? projectId : null;
-			const cleanMilestoneId = cleanProjectId && milestoneId ? milestoneId : null;
+			const cleanProjectId =
+				projectId && projectId !== "NONE" ? projectId : null;
+			const cleanMilestoneId =
+				cleanProjectId && milestoneId ? milestoneId : null;
 
 			// Validate milestone cross-project linking rule
 			if (cleanMilestoneId && cleanProjectId) {
@@ -720,11 +679,13 @@ orgTasksRouter.post(
 					.from(milestones)
 					.where(eq(milestones.id, cleanMilestoneId))
 					.limit(1);
-				const [msV2] = ms ? [] : await db
-					.select()
-					.from(projectMilestonesV2)
-					.where(eq(projectMilestonesV2.id, cleanMilestoneId))
-					.limit(1);
+				const [msV2] = ms
+					? []
+					: await db
+							.select()
+							.from(projectMilestonesV2)
+							.where(eq(projectMilestonesV2.id, cleanMilestoneId))
+							.limit(1);
 
 				const foundMs = ms || msV2;
 				if (foundMs && foundMs.projectId !== cleanProjectId) {
@@ -738,11 +699,13 @@ orgTasksRouter.post(
 			const parseDateSafely = (val: any) => {
 				if (!val) return null;
 				const d = new Date(val);
-				if (!isNaN(d.getTime())) return d;
+				if (!Number.isNaN(d.getTime())) return d;
 				if (typeof val === "string" && /^\d{1,2}:\d{2}/.test(val)) {
 					const todayStr = new Date().toISOString().split("T")[0];
-					const d2 = new Date(`${todayStr}T${val.length === 5 ? val : `0${val}`}:00`);
-					if (!isNaN(d2.getTime())) return d2;
+					const d2 = new Date(
+						`${todayStr}T${val.length === 5 ? val : `0${val}`}:00`,
+					);
+					if (!Number.isNaN(d2.getTime())) return d2;
 				}
 				return null;
 			};
@@ -766,7 +729,11 @@ orgTasksRouter.post(
 					)
 					.limit(1);
 
-				targetRole = (assigneeUser?.role || assigneeMember?.role || "MEMBER").toUpperCase();
+				targetRole = (
+					assigneeUser?.role ||
+					assigneeMember?.role ||
+					"MEMBER"
+				).toUpperCase();
 				if (targetRole.includes("CO")) targetRole = "CO-CEO";
 				else if (targetRole !== "CEO") targetRole = "MEMBER";
 			}
@@ -814,28 +781,24 @@ orgTasksRouter.post(
 				});
 			}
 
-			await db
-				.insert(auditLogs)
-				.values({
-					id: uuidv4(),
-					userId,
-					workspaceId,
-					eventType: "TASK_CREATED",
-					details: `Task "${title}" created (Status: ${assigneeId ? "PENDING_ACCEPTANCE" : "Draft"})`,
-				});
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "TASK_CREATED",
+				details: `Task "${title}" created (Status: ${assigneeId ? "PENDING_ACCEPTANCE" : "Draft"})`,
+			});
 
 			if (projectId) {
-				await db
-					.insert(activities)
-					.values({
-						id: uuidv4(),
-						workspaceId,
-						projectId,
-						taskId: task.id,
-						userId,
-						action: "Task created",
-						details: `Created task "${title}" (Assigned: ${assigneeId ? targetRole : "None"})`,
-					});
+				await db.insert(activities).values({
+					id: uuidv4(),
+					workspaceId,
+					projectId,
+					taskId: task.id,
+					userId,
+					action: "Task created",
+					details: `Created task "${title}" (Assigned: ${assigneeId ? targetRole : "None"})`,
+				});
 			}
 
 			// Notify assignee via AssignmentDeliveryService
@@ -875,39 +838,64 @@ orgTasksRouter.post(
 
 				// Dispatch real email notification asynchronously
 				try {
-					const [assigneeUser] = await db.select().from(users).where(eq(users.id, assigneeId)).limit(1);
-					const [creatorUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+					const [assigneeUser] = await db
+						.select()
+						.from(users)
+						.where(eq(users.id, assigneeId))
+						.limit(1);
+					const [creatorUser] = await db
+						.select()
+						.from(users)
+						.where(eq(users.id, userId))
+						.limit(1);
 					let pName: string | null = null;
 					let msName: string | null = null;
 					if (cleanProjectId) {
-						const [p] = await db.select().from(projects).where(eq(projects.id, cleanProjectId)).limit(1);
+						const [p] = await db
+							.select()
+							.from(projects)
+							.where(eq(projects.id, cleanProjectId))
+							.limit(1);
 						if (p) pName = p.name;
 					}
 					if (cleanMilestoneId) {
-						const [ms] = await db.select().from(projectMilestonesV2).where(eq(projectMilestonesV2.id, cleanMilestoneId)).limit(1);
+						const [ms] = await db
+							.select()
+							.from(projectMilestonesV2)
+							.where(eq(projectMilestonesV2.id, cleanMilestoneId))
+							.limit(1);
 						if (ms) msName = ms.name;
 					}
 					if (assigneeUser?.email) {
-						emailService.sendTaskAssignmentEmail({
-							to: assigneeUser.email,
-							taskTitle: title.trim(),
-							projectName: pName,
-							milestoneName: msName,
-							assignerName: creatorUser?.displayName || creatorUser?.name || "CEO",
-							role: targetRole,
-							deadline: deadline ? new Date(deadline).toISOString().split("T")[0] : null,
-							taskId: task.id,
-						}).catch((e) => logger.error("Async assignment email error: " + e.message));
+						emailService
+							.sendTaskAssignmentEmail({
+								to: assigneeUser.email,
+								taskTitle: title.trim(),
+								projectName: pName,
+								milestoneName: msName,
+								assignerName:
+									creatorUser?.displayName || creatorUser?.name || "CEO",
+								role: targetRole,
+								deadline: deadline
+									? new Date(deadline).toISOString().split("T")[0]
+									: null,
+								taskId: task.id,
+							})
+							.catch((e) =>
+								logger.error(`Async assignment email error: ${e.message}`),
+							);
 					}
 				} catch (emailErr: any) {
-					logger.error("Failed to trigger assignment email: " + emailErr.message);
+					logger.error(
+						`Failed to trigger assignment email: ${emailErr.message}`,
+					);
 				}
 			}
 
 			socketService.emitToWorkspace(workspaceId, "task.created", task);
 			res.json({ success: true, data: task });
 		} catch (err: any) {
-			logger.error("Create task error: " + (err.stack || err.message));
+			logger.error(`Create task error: ${err.stack || err.message}`);
 			res.status(500).json({ success: false, error: err.stack || err.message });
 		}
 	},
@@ -972,7 +960,7 @@ orgTasksRouter.get(
 				},
 			});
 		} catch (err: any) {
-			logger.error("Get task error: " + err.message);
+			logger.error(`Get task error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -1006,12 +994,10 @@ orgTasksRouter.patch(
 						.json({ success: false, error: "Access denied" });
 				const allowed = ["Accepted", "In Progress", "Blocked", "Review"];
 				if (req.body.status && !allowed.includes(req.body.status))
-					return res
-						.status(403)
-						.json({
-							success: false,
-							error: `Status "${req.body.status}" not allowed for members`,
-						});
+					return res.status(403).json({
+						success: false,
+						error: `Status "${req.body.status}" not allowed for members`,
+					});
 				// Members cannot reassign
 				delete req.body.assigneeId;
 				delete req.body.deadline;
@@ -1063,17 +1049,15 @@ orgTasksRouter.patch(
 			});
 
 			if (existing.projectId)
-				await db
-					.insert(activities)
-					.values({
-						id: uuidv4(),
-						workspaceId,
-						projectId: existing.projectId,
-						taskId: id,
-						userId,
-						action: `Task ${status || "updated"}`,
-						details: `Task "${updated.title}" ${status ? `moved to ${status}` : "updated"}`,
-					});
+				await db.insert(activities).values({
+					id: uuidv4(),
+					workspaceId,
+					projectId: existing.projectId,
+					taskId: id,
+					userId,
+					action: `Task ${status || "updated"}`,
+					details: `Task "${updated.title}" ${status ? `moved to ${status}` : "updated"}`,
+				});
 
 			// Notify new assignee
 			if (updates.assigneeId && updates.assigneeId !== existing.assigneeId) {
@@ -1136,7 +1120,7 @@ orgTasksRouter.patch(
 			socketService.emitToWorkspace(workspaceId, "task.updated", updated);
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Update task error: " + err.message);
+			logger.error(`Update task error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -1167,22 +1151,20 @@ orgTasksRouter.delete(
 					.json({ success: false, error: "Task not found" });
 
 			await db.delete(tasks).where(eq(tasks.id, id));
-			await db
-				.insert(auditLogs)
-				.values({
-					id: uuidv4(),
-					userId,
-					workspaceId,
-					eventType: "TASK_DELETED",
-					details: `Task "${existing.title}" deleted`,
-				});
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "TASK_DELETED",
+				details: `Task "${existing.title}" deleted`,
+			});
 			socketService.emitToWorkspace(workspaceId, "task.updated", {
 				id,
 				deleted: true,
 			});
 			res.json({ success: true, message: "Task deleted" });
 		} catch (err: any) {
-			logger.error("Delete task error: " + err.message);
+			logger.error(`Delete task error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -1202,13 +1184,10 @@ orgTasksRouter.post(
 			// Check working hours (04:00–23:00)
 			const hour = new Date().getHours();
 			if (hour < 4 || hour >= 23) {
-				return res
-					.status(403)
-					.json({
-						success: false,
-						error:
-							"Focus is not available outside working hours (04:00 – 23:00)",
-					});
+				return res.status(403).json({
+					success: false,
+					error: "Focus is not available outside working hours (04:00 – 23:00)",
+				});
 			}
 
 			// End any active sessions first
@@ -1259,7 +1238,7 @@ orgTasksRouter.post(
 			});
 			res.json({ success: true, data: session });
 		} catch (err: any) {
-			logger.error("Focus start error: " + err.message);
+			logger.error(`Focus start error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -1288,8 +1267,7 @@ orgTasksRouter.post(
 					.json({ success: false, error: "No active focus session found" });
 
 			const durationSeconds = Math.floor(
-				(new Date().getTime() - new Date(activeSession.startTime).getTime()) /
-					1000,
+				(Date.now() - new Date(activeSession.startTime).getTime()) / 1000,
 			);
 			const [updated] = await db
 				.update(timeTracking)
@@ -1303,7 +1281,7 @@ orgTasksRouter.post(
 			});
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Focus pause error: " + err.message);
+			logger.error(`Focus pause error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -1321,13 +1299,10 @@ orgTasksRouter.post(
 
 			const hour = new Date().getHours();
 			if (hour < 4 || hour >= 23) {
-				return res
-					.status(403)
-					.json({
-						success: false,
-						error:
-							"Focus is not available outside working hours (04:00 – 23:00)",
-					});
+				return res.status(403).json({
+					success: false,
+					error: "Focus is not available outside working hours (04:00 – 23:00)",
+				});
 			}
 
 			const pausedSession = await db.query.timeTracking.findFirst({
@@ -1354,7 +1329,7 @@ orgTasksRouter.post(
 			});
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Focus resume error: " + err.message);
+			logger.error(`Focus resume error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -1411,7 +1386,7 @@ orgTasksRouter.post(
 			});
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
-			logger.error("Focus stop error: " + err.message);
+			logger.error(`Focus stop error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -1429,12 +1404,10 @@ orgTasksRouter.post(
 			const id = req.params.id as string;
 			const { reason, proposedDeadline } = req.body;
 			if (!reason || !proposedDeadline)
-				return res
-					.status(400)
-					.json({
-						success: false,
-						error: "Reason and proposed deadline are required",
-					});
+				return res.status(400).json({
+					success: false,
+					error: "Reason and proposed deadline are required",
+				});
 
 			const task = await db.query.tasks.findFirst({
 				where: and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)),
@@ -1483,7 +1456,7 @@ orgTasksRouter.post(
 			socketService.emitToWorkspace(workspaceId, "request.created", ext);
 			res.json({ success: true, data: ext });
 		} catch (err: any) {
-			logger.error("Deadline extension error: " + err.message);
+			logger.error(`Deadline extension error: ${err.message}`);
 			res.status(500).json({ success: false, error: "Internal server error" });
 		}
 	},
@@ -1528,7 +1501,7 @@ orgTasksRouter.delete(
 				message: "Task deleted successfully",
 			});
 		} catch (err: any) {
-			logger.error("Delete task error: " + (err?.message || String(err)));
+			logger.error(`Delete task error: ${err?.message || String(err)}`);
 			res.status(500).json({ success: false, error: "Failed to delete task" });
 		}
 	},
@@ -1550,20 +1523,32 @@ orgTasksRouter.get(
 				.where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
 				.limit(1);
 
-			if (!task) return res.status(404).json({ success: false, error: "Task not found" });
+			if (!task)
+				return res
+					.status(404)
+					.json({ success: false, error: "Task not found" });
 
 			// Fetch latest assignment tracker record
 			const [tracker] = await db
 				.select()
 				.from(taskAssignmentTracker)
-				.where(and(eq(taskAssignmentTracker.taskId, id), eq(taskAssignmentTracker.workspaceId, workspaceId)))
+				.where(
+					and(
+						eq(taskAssignmentTracker.taskId, id),
+						eq(taskAssignmentTracker.workspaceId, workspaceId),
+					),
+				)
 				.orderBy(desc(taskAssignmentTracker.createdAt))
 				.limit(1);
 
 			// Fetch Assignee User Details
 			let assigneeUser: any = null;
 			if (task.assigneeId) {
-				const [u] = await db.select().from(users).where(eq(users.id, task.assigneeId)).limit(1);
+				const [u] = await db
+					.select()
+					.from(users)
+					.where(eq(users.id, task.assigneeId))
+					.limit(1);
 				if (u) {
 					assigneeUser = {
 						id: u.id,
@@ -1579,7 +1564,11 @@ orgTasksRouter.get(
 			let assignerUser: any = null;
 			const assignerId = tracker?.assignedById || task.createdBy;
 			if (assignerId) {
-				const [u] = await db.select().from(users).where(eq(users.id, assignerId)).limit(1);
+				const [u] = await db
+					.select()
+					.from(users)
+					.where(eq(users.id, assignerId))
+					.limit(1);
 				if (u) {
 					assignerUser = {
 						id: u.id,
@@ -1594,14 +1583,22 @@ orgTasksRouter.get(
 			// Fetch Project Name if project-linked
 			let projectName: string | null = null;
 			if (task.projectId) {
-				const [p] = await db.select().from(projects).where(eq(projects.id, task.projectId)).limit(1);
+				const [p] = await db
+					.select()
+					.from(projects)
+					.where(eq(projects.id, task.projectId))
+					.limit(1);
 				if (p) projectName = p.name;
 			}
 
 			// Fetch Milestone Name if milestone-linked
 			let milestoneName: string | null = null;
 			if (task.milestoneId) {
-				const [ms] = await db.select().from(projectMilestonesV2).where(eq(projectMilestonesV2.id, task.milestoneId)).limit(1);
+				const [ms] = await db
+					.select()
+					.from(projectMilestonesV2)
+					.where(eq(projectMilestonesV2.id, task.milestoneId))
+					.limit(1);
 				if (ms) milestoneName = ms.name;
 			}
 
@@ -1614,12 +1611,19 @@ orgTasksRouter.get(
 					assigner: assignerUser,
 					projectName,
 					milestoneName,
-					assignmentStatus: tracker?.status || (task.status === "PENDING_ACCEPTANCE" ? "PENDING_ACCEPTANCE" : task.status),
+					assignmentStatus:
+						tracker?.status ||
+						(task.status === "PENDING_ACCEPTANCE"
+							? "PENDING_ACCEPTANCE"
+							: task.status),
 				},
 			});
 		} catch (err: any) {
-			logger.error("Get task assignment error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to get task assignment details" });
+			logger.error(`Get task assignment error: ${err?.message || String(err)}`);
+			res.status(500).json({
+				success: false,
+				error: "Failed to get task assignment details",
+			});
 		}
 	},
 );
@@ -1641,19 +1645,27 @@ orgTasksRouter.post(
 				.where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
 				.limit(1);
 
-			if (!task) return res.status(404).json({ success: false, error: "Task not found" });
+			if (!task)
+				return res
+					.status(404)
+					.json({ success: false, error: "Task not found" });
 
 			// Security Authorization Verification: Must be the target assignee
 			if (task.assigneeId && task.assigneeId !== userId) {
 				return res.status(403).json({
 					success: false,
-					error: "Unauthorized. Only the assigned user can accept this task assignment.",
+					error:
+						"Unauthorized. Only the assigned user can accept this task assignment.",
 				});
 			}
 
 			// Idempotent Check
 			if (task.status === "ACCEPTED" || task.status === "In Progress") {
-				return res.json({ success: true, data: task, message: "Task assignment already accepted" });
+				return res.json({
+					success: true,
+					data: task,
+					message: "Task assignment already accepted",
+				});
 			}
 
 			if (task.status !== "PENDING_ACCEPTANCE" && task.status !== "Assigned") {
@@ -1676,7 +1688,12 @@ orgTasksRouter.post(
 			const [activeTracker] = await db
 				.select()
 				.from(taskAssignmentTracker)
-				.where(and(eq(taskAssignmentTracker.taskId, id), eq(taskAssignmentTracker.workspaceId, workspaceId)))
+				.where(
+					and(
+						eq(taskAssignmentTracker.taskId, id),
+						eq(taskAssignmentTracker.workspaceId, workspaceId),
+					),
+				)
 				.orderBy(desc(taskAssignmentTracker.createdAt))
 				.limit(1);
 
@@ -1688,8 +1705,13 @@ orgTasksRouter.post(
 			}
 
 			// Insert Activity Log
-			const [assigneeUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-			const assigneeName = assigneeUser?.displayName || assigneeUser?.name || "Assignee";
+			const [assigneeUser] = await db
+				.select()
+				.from(users)
+				.where(eq(users.id, userId))
+				.limit(1);
+			const assigneeName =
+				assigneeUser?.displayName || assigneeUser?.name || "Assignee";
 
 			if (task.projectId) {
 				await db.insert(activities).values({
@@ -1734,10 +1756,18 @@ orgTasksRouter.post(
 			}
 
 			socketService.emitToWorkspace(workspaceId, "task.updated", updatedTask);
-			res.json({ success: true, data: updatedTask, message: "Task assignment accepted successfully" });
+			res.json({
+				success: true,
+				data: updatedTask,
+				message: "Task assignment accepted successfully",
+			});
 		} catch (err: any) {
-			logger.error("Accept task assignment error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to accept task assignment" });
+			logger.error(
+				`Accept task assignment error: ${err?.message || String(err)}`,
+			);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to accept task assignment" });
 		}
 	},
 );
@@ -1757,7 +1787,8 @@ orgTasksRouter.post(
 			if (!reason || typeof reason !== "string" || !reason.trim()) {
 				return res.status(400).json({
 					success: false,
-					error: "A valid decline reason is mandatory to decline task assignment",
+					error:
+						"A valid decline reason is mandatory to decline task assignment",
 				});
 			}
 
@@ -1767,13 +1798,17 @@ orgTasksRouter.post(
 				.where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
 				.limit(1);
 
-			if (!task) return res.status(404).json({ success: false, error: "Task not found" });
+			if (!task)
+				return res
+					.status(404)
+					.json({ success: false, error: "Task not found" });
 
 			// Security Authorization Verification: Must be target assignee
 			if (task.assigneeId && task.assigneeId !== userId) {
 				return res.status(403).json({
 					success: false,
-					error: "Unauthorized. Only the assigned user can decline this task assignment.",
+					error:
+						"Unauthorized. Only the assigned user can decline this task assignment.",
 				});
 			}
 
@@ -1790,7 +1825,12 @@ orgTasksRouter.post(
 			const [activeTracker] = await db
 				.select()
 				.from(taskAssignmentTracker)
-				.where(and(eq(taskAssignmentTracker.taskId, id), eq(taskAssignmentTracker.workspaceId, workspaceId)))
+				.where(
+					and(
+						eq(taskAssignmentTracker.taskId, id),
+						eq(taskAssignmentTracker.workspaceId, workspaceId),
+					),
+				)
 				.orderBy(desc(taskAssignmentTracker.createdAt))
 				.limit(1);
 
@@ -1807,8 +1847,13 @@ orgTasksRouter.post(
 			}
 
 			// Insert Activity Log
-			const [assigneeUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-			const assigneeName = assigneeUser?.displayName || assigneeUser?.name || "Assignee";
+			const [assigneeUser] = await db
+				.select()
+				.from(users)
+				.where(eq(users.id, userId))
+				.limit(1);
+			const assigneeName =
+				assigneeUser?.displayName || assigneeUser?.name || "Assignee";
 
 			if (task.projectId) {
 				await db.insert(activities).values({
@@ -1854,10 +1899,18 @@ orgTasksRouter.post(
 			}
 
 			socketService.emitToWorkspace(workspaceId, "task.updated", updatedTask);
-			res.json({ success: true, data: updatedTask, message: "Task assignment declined successfully" });
+			res.json({
+				success: true,
+				data: updatedTask,
+				message: "Task assignment declined successfully",
+			});
 		} catch (err: any) {
-			logger.error("Decline task assignment error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to decline task assignment" });
+			logger.error(
+				`Decline task assignment error: ${err?.message || String(err)}`,
+			);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to decline task assignment" });
 		}
 	},
 );
@@ -1875,7 +1928,10 @@ orgTasksRouter.post(
 			const { newAssigneeId } = req.body;
 
 			if (!newAssigneeId) {
-				return res.status(400).json({ success: false, error: "Target new assignee ID is required" });
+				return res.status(400).json({
+					success: false,
+					error: "Target new assignee ID is required",
+				});
 			}
 
 			const [task] = await db
@@ -1884,21 +1940,40 @@ orgTasksRouter.post(
 				.where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
 				.limit(1);
 
-			if (!task) return res.status(404).json({ success: false, error: "Task not found" });
+			if (!task)
+				return res
+					.status(404)
+					.json({ success: false, error: "Task not found" });
 
 			// Resolve new assignee role
-			const [newAssigneeUser] = await db.select().from(users).where(eq(users.id, newAssigneeId)).limit(1);
+			const [newAssigneeUser] = await db
+				.select()
+				.from(users)
+				.where(eq(users.id, newAssigneeId))
+				.limit(1);
 			const [newAssigneeMember] = await db
 				.select()
 				.from(workspaceMembers)
-				.where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, newAssigneeId)))
+				.where(
+					and(
+						eq(workspaceMembers.workspaceId, workspaceId),
+						eq(workspaceMembers.userId, newAssigneeId),
+					),
+				)
 				.limit(1);
 
 			if (!newAssigneeUser && !newAssigneeMember) {
-				return res.status(404).json({ success: false, error: "Target assignee user not found in organization" });
+				return res.status(404).json({
+					success: false,
+					error: "Target assignee user not found in organization",
+				});
 			}
 
-			let targetRole = (newAssigneeUser?.role || newAssigneeMember?.role || "MEMBER").toUpperCase();
+			let targetRole = (
+				newAssigneeUser?.role ||
+				newAssigneeMember?.role ||
+				"MEMBER"
+			).toUpperCase();
 			if (targetRole.includes("CO")) targetRole = "CO-CEO";
 			else if (targetRole !== "CEO") targetRole = "MEMBER";
 
@@ -1908,7 +1983,12 @@ orgTasksRouter.post(
 			await db
 				.update(taskAssignmentTracker)
 				.set({ status: "REASSIGNED", reassignedAt: now, updatedAt: now })
-				.where(and(eq(taskAssignmentTracker.taskId, id), eq(taskAssignmentTracker.status, "PENDING_ACCEPTANCE")));
+				.where(
+					and(
+						eq(taskAssignmentTracker.taskId, id),
+						eq(taskAssignmentTracker.status, "PENDING_ACCEPTANCE"),
+					),
+				);
 
 			// Insert NEW Task Assignment Tracker entry
 			const newAssignmentId = uuidv4();
@@ -1962,10 +2042,16 @@ orgTasksRouter.post(
 			});
 
 			socketService.emitToWorkspace(workspaceId, "task.updated", updatedTask);
-			res.json({ success: true, data: updatedTask, message: "Task reassigned successfully" });
+			res.json({
+				success: true,
+				data: updatedTask,
+				message: "Task reassigned successfully",
+			});
 		} catch (err: any) {
-			logger.error("Reassign task error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to reassign task" });
+			logger.error(`Reassign task error: ${err?.message || String(err)}`);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to reassign task" });
 		}
 	},
 );
@@ -1987,7 +2073,10 @@ orgTasksRouter.post(
 				.where(and(eq(tasks.id, id), eq(tasks.workspaceId, workspaceId)))
 				.limit(1);
 
-			if (!task) return res.status(404).json({ success: false, error: "Task not found" });
+			if (!task)
+				return res
+					.status(404)
+					.json({ success: false, error: "Task not found" });
 
 			const [updatedTask] = await db
 				.update(tasks)
@@ -2005,10 +2094,16 @@ orgTasksRouter.post(
 			});
 
 			socketService.emitToWorkspace(workspaceId, "task.updated", updatedTask);
-			res.json({ success: true, data: updatedTask, message: "Work session started" });
+			res.json({
+				success: true,
+				data: updatedTask,
+				message: "Work session started",
+			});
 		} catch (err: any) {
-			logger.error("Start work error: " + (err?.message || String(err)));
-			res.status(500).json({ success: false, error: "Failed to start work session" });
+			logger.error(`Start work error: ${err?.message || String(err)}`);
+			res
+				.status(500)
+				.json({ success: false, error: "Failed to start work session" });
 		}
 	},
 );

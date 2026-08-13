@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { GoogleButton } from "./google-button";
+import { GithubButton } from "./github-button";
 import {
   ShieldCheck,
   Loader2,
@@ -674,21 +675,38 @@ export function AuthForm({
                 type="hidden"
                 value="something_to_defeat_chrome_autofill"
               />
-              <GoogleButton 
-                isMobile={isMobile} 
-                disabled={loadingState !== ""} 
-                onClick={() => {
-                  setTransitionMessage("Redirecting to Google...");
-                  setIsTransitioning(true);
-                  setTimeout(() => {
-                    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100/api/v1";
-                    const googleAuthUrl = apiBase.endsWith("/api/v1") 
-                      ? `${apiBase}/auth/google` 
-                      : `${apiBase}/api/v1/auth/google`;
-                    window.location.href = googleAuthUrl;
-                  }, 600);
-                }} 
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <GoogleButton
+                  isMobile={isMobile}
+                  disabled={loadingState !== ""}
+                  onClick={() => {
+                    setTransitionMessage("Redirecting to Google...");
+                    setIsTransitioning(true);
+                    setTimeout(() => {
+                      const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+                      const googleAuthUrl = apiBase.endsWith("/api/v1")
+                        ? `${apiBase}/auth/google`
+                        : `${apiBase}/api/v1/auth/google`;
+                      window.location.href = googleAuthUrl;
+                    }, 600);
+                  }}
+                />
+                <GithubButton
+                  isMobile={isMobile}
+                  disabled={loadingState !== ""}
+                  onClick={() => {
+                    setTransitionMessage("Redirecting to GitHub...");
+                    setIsTransitioning(true);
+                    setTimeout(() => {
+                      const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+                      const githubAuthUrl = apiBase.endsWith("/api/v1")
+                        ? `${apiBase}/auth/github`
+                        : `${apiBase}/api/v1/auth/github`;
+                      window.location.href = githubAuthUrl;
+                    }, 600);
+                  }}
+                />
+              </div>
               
               <div className="flex items-center my-4 sm:my-6 text-[10px] uppercase font-bold text-muted-foreground tracking-widest opacity-60">
                 <div className="flex-1 h-px bg-border"></div>

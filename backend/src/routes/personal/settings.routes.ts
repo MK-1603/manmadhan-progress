@@ -46,7 +46,7 @@ personalSettingsRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: settings });
 	} catch (err: any) {
-		logger.error("Get settings error: " + err.message);
+		logger.error(`Get settings error: ${err.message}`);
 		res.status(500).json({ success: false, error: "Failed to fetch settings" });
 	}
 });
@@ -90,7 +90,7 @@ personalSettingsRouter.patch("/", async (req: Request, res: Response) => {
 			return res.json({ success: true, data: created });
 		}
 	} catch (err: any) {
-		logger.error("Update settings error: " + err.message);
+		logger.error(`Update settings error: ${err.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to update settings" });

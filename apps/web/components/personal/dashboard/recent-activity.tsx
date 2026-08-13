@@ -50,7 +50,7 @@ export function RecentActivity({ activities = [], className = "" }: RecentActivi
         <span className="text-[10.5px] font-semibold text-muted-foreground uppercase tracking-widest">
           Recent Activity
         </span>
-        <Link href="/personal/activity" className="text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+        <Link href="/personal/timeline" className="text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors">
           View all
         </Link>
       </div>

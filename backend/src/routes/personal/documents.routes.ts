@@ -1,14 +1,11 @@
+import fs from "node:fs";
+import path from "node:path";
 import { and, desc, eq } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
-import fs from "fs";
 import multer from "multer";
-import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import { personalDb } from "../../../database/db";
-import {
-	personalDocuments,
-	personalDocumentVersions,
-} from "../../../database/schema/personal.schema";
+import { personalDocuments } from "../../../database/schema/personal.schema";
 import { getUserId } from "../../middleware/auth";
 import { authenticate } from "../../middleware/auth.middleware";
 import { socketService } from "../../services/socket.service";
@@ -16,14 +13,14 @@ import logger from "../../utils/logger";
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
-	destination: (req, file, cb) => {
+	destination: (_req, _file, cb) => {
 		const uploadDir = path.join(process.cwd(), "uploads");
 		if (!fs.existsSync(uploadDir)) {
 			fs.mkdirSync(uploadDir, { recursive: true });
 		}
 		cb(null, uploadDir);
 	},
-	filename: (req, file, cb) => {
+	filename: (_req, file, cb) => {
 		const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(file.originalname)}`;
 		cb(null, uniqueName);
 	},
@@ -54,7 +51,7 @@ personalDocumentsRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: documents });
 	} catch (error: any) {
-		logger.error("Get Documents Error: " + error.message);
+		logger.error(`Get Documents Error: ${error.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to fetch documents" });
@@ -76,7 +73,7 @@ personalDocumentsRouter.post(
 			} else if (err) {
 				return res
 					.status(500)
-					.json({ success: false, error: "Upload error: " + err.message });
+					.json({ success: false, error: `Upload error: ${err.message}` });
 			}
 			next();
 		});
@@ -123,7 +120,7 @@ personalDocumentsRouter.post(
 			socketService.emitToUser(userId, "document_created", newDoc);
 			res.status(201).json({ success: true, data: newDoc });
 		} catch (error: any) {
-			logger.error("Create Document Error: " + error.message);
+			logger.error(`Create Document Error: ${error.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to create document" });
@@ -166,7 +163,7 @@ personalDocumentsRouter.patch("/:id", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "document_updated", updatedDoc);
 		res.json({ success: true, data: updatedDoc });
 	} catch (error: any) {
-		logger.error("Update Document Error: " + error.message);
+		logger.error(`Update Document Error: ${error.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to update document" });
@@ -197,7 +194,7 @@ personalDocumentsRouter.delete("/:id", async (req: Request, res: Response) => {
 				.json({ success: false, error: "Document not found" });
 
 		// Physical deletion of file if it exists
-		if (deletedDoc.url && deletedDoc.url.startsWith("/uploads/")) {
+		if (deletedDoc.url?.startsWith("/uploads/")) {
 			const filePath = path.join(process.cwd(), deletedDoc.url);
 			if (fs.existsSync(filePath)) {
 				fs.unlinkSync(filePath);
@@ -207,7 +204,7 @@ personalDocumentsRouter.delete("/:id", async (req: Request, res: Response) => {
 		socketService.emitToUser(userId, "document_deleted", { id: docId });
 		res.json({ success: true, data: deletedDoc });
 	} catch (error: any) {
-		logger.error("Delete Document Error: " + error.message);
+		logger.error(`Delete Document Error: ${error.message}`);
 		res
 			.status(500)
 			.json({ success: false, error: "Failed to delete document" });

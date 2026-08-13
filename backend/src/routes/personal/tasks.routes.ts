@@ -1,8 +1,8 @@
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { personalDb } from "../../../database/client";
-import { personalProjects, personalTasks } from "../../../database/schema";
+import { personalTasks } from "../../../database/schema";
 import { authenticate } from "../../middleware/auth.middleware";
 import { logger } from "../../services/logger.service";
 import { socketService } from "../../services/socket.service";
@@ -38,7 +38,7 @@ personalTasksRouter.get("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: tasks });
 	} catch (error: any) {
-		logger.error("Fetch Personal Tasks Error: " + error.message);
+		logger.error(`Fetch Personal Tasks Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to fetch tasks" });
 	}
 });
@@ -93,7 +93,7 @@ personalTasksRouter.post("/", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: task });
 	} catch (error: any) {
-		logger.error("Create Personal Task Error: " + error.message);
+		logger.error(`Create Personal Task Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to create task" });
 	}
 });
@@ -189,7 +189,7 @@ personalTasksRouter.patch("/:id", async (req: Request, res: Response) => {
 
 		res.json({ success: true, data: updated });
 	} catch (error: any) {
-		logger.error("Update Personal Task Error: " + error.message);
+		logger.error(`Update Personal Task Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to update task" });
 	}
 });
@@ -221,7 +221,7 @@ personalTasksRouter.delete("/:id", async (req: Request, res: Response) => {
 
 		res.json({ success: true, message: "Task deleted successfully" });
 	} catch (error: any) {
-		logger.error("Delete Personal Task Error: " + error.message);
+		logger.error(`Delete Personal Task Error: ${error.message}`);
 		res.status(500).json({ success: false, error: "Failed to delete task" });
 	}
 });
@@ -276,7 +276,7 @@ User prompt: "${prompt}"`;
 					.trim();
 				const plan = JSON.parse(cleanedText);
 				res.json({ success: true, data: plan });
-			} catch (aiErr: any) {
+			} catch (_aiErr: any) {
 				const tomorrow = new Date();
 				tomorrow.setDate(tomorrow.getDate() + 1);
 				tomorrow.setHours(9, 0, 0, 0);
@@ -286,7 +286,7 @@ User prompt: "${prompt}"`;
 					success: true,
 					data: {
 						title:
-							prompt.length > 60 ? prompt.substring(0, 57) + "..." : prompt,
+							prompt.length > 60 ? `${prompt.substring(0, 57)}...` : prompt,
 						description: prompt,
 						type: "Task",
 						priority: "Medium",
@@ -300,7 +300,7 @@ User prompt: "${prompt}"`;
 				});
 			}
 		} catch (error: any) {
-			logger.error("Generate Task Plan Error: " + error.message);
+			logger.error(`Generate Task Plan Error: ${error.message}`);
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to generate task plan" });
