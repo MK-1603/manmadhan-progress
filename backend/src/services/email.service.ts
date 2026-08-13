@@ -80,6 +80,7 @@ class EmailService {
 	public async verifyConnection(): Promise<boolean> {
 		if (this.resend) {
 			logger.trace("EmailService: Resend active — primary provider ready");
+			return true;
 		}
 		try {
 			if (this.nodemailerTransport) {
