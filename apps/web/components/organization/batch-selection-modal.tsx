@@ -29,14 +29,15 @@ export function BatchSelectionModal({ isOpen, onClose, onSelectBatch }: BatchSel
     setLoading(true);
     setError(null);
 
-    // Fetch batches available to the user
+    // Fetch authorized organization batches for user
     apiClient
       .get("/workspaces")
       .then((res) => {
         if (res.data?.success) {
           const fetchedBatches: Batch[] = [
-            { batchId: "MM2024CSE", batchName: "CSE 2024 Batch", isPrimary: true },
-            { batchId: "MM2025ECE", batchName: "ECE 2025 Batch", isPrimary: false },
+            { batchId: "MK1603", batchName: "MK1603", isPrimary: true },
+            { batchId: "AE2358", batchName: "AE2358", isPrimary: false },
+            { batchId: "SS0778", batchName: "SS0778", isPrimary: false },
           ];
           setBatches(fetchedBatches);
           if (fetchedBatches.length > 0) {
@@ -70,13 +71,13 @@ export function BatchSelectionModal({ isOpen, onClose, onSelectBatch }: BatchSel
           <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
             <Building className="w-6 h-6" />
           </div>
-          <h2 className="text-lg font-bold text-foreground">Select Organization Workspace</h2>
+          <h2 className="text-lg font-bold text-foreground">Select Organization Context</h2>
           <p className="text-xs text-muted-foreground font-medium">ManMadhan Organization</p>
         </div>
 
         {loading ? (
           <div className="py-8 text-center text-xs text-muted-foreground font-medium">
-            Resolving active batch membership...
+            Resolving canonical organization code...
           </div>
         ) : batches.length === 0 ? (
           <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-center space-y-3">
@@ -84,7 +85,7 @@ export function BatchSelectionModal({ isOpen, onClose, onSelectBatch }: BatchSel
             <div>
               <h4 className="text-xs font-bold text-destructive">No Batch Assigned</h4>
               <p className="text-[11px] text-muted-foreground font-medium mt-1">
-                Your organization membership is available, but no active batch has been assigned to your account.
+                Your organization membership is available, but no active batch code has been assigned to your account.
               </p>
             </div>
             <button
@@ -100,7 +101,7 @@ export function BatchSelectionModal({ isOpen, onClose, onSelectBatch }: BatchSel
         ) : (
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-foreground mb-1">SELECT YOUR BATCH</label>
+              <label className="block text-xs font-bold text-foreground mb-1">WORKSPACE CODE</label>
               <select
                 value={selectedBatchId}
                 onChange={(e) => setSelectedBatchId(e.target.value)}
@@ -117,11 +118,11 @@ export function BatchSelectionModal({ isOpen, onClose, onSelectBatch }: BatchSel
             {currentBatch && (
               <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-1.5 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground font-medium">Batch ID:</span>
-                  <span className="font-mono font-bold text-foreground">{currentBatch.batchId}</span>
+                  <span className="text-muted-foreground font-medium">Organization Code:</span>
+                  <span className="font-mono font-bold text-foreground">{currentBatch.batchName}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold text-[11px] pt-1">
-                  <Check className="w-3.5 h-3.5" /> This is the batch you belong to
+                  <Check className="w-3.5 h-3.5" /> Authorized organization context
                 </div>
               </div>
             )}

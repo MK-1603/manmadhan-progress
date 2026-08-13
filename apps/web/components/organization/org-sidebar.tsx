@@ -274,10 +274,10 @@ function SidebarWorkspaceSwitcher({
       {(!isCollapsed || isMobile) && (
         <div className="flex-1 min-w-0 text-left">
           <p className="text-[14px] font-semibold text-foreground leading-tight truncate">
-            {user?.batchNumber ? `${user.batchNumber} Batch` : "CSE 2024 Batch"}
+            {user?.batchNumber || "MK1603"}
           </p>
           <p className="text-[11px] text-muted-foreground leading-tight truncate mt-0.5">
-            ManMadhan Organization
+            Organization Workspace
           </p>
         </div>
       )}
