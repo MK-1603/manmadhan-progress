@@ -73,8 +73,9 @@ export function CEOProfileTab({ user, workspace, onUpdated }: CEOProfileTabProps
 		setSuccess("");
 
 		try {
-			const res = await apiClient.post("/auth/setup/profile", {
+			const res = await apiClient.put("/auth/me", {
 				displayName,
+				name: displayName,
 				avatar,
 			});
 

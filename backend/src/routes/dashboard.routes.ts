@@ -450,6 +450,7 @@ dashboardRouter.get("/core", async (req: Request, res: Response) => {
 				tasksToday: tasksToday,
 				activeFocus,
 				projects: projectPulses,
+				projectPulses,         // alias for frontend compatibility
 				learning: {
 					activeBook,
 					activePodcast: activePodcasts[0] || null,
@@ -457,6 +458,7 @@ dashboardRouter.get("/core", async (req: Request, res: Response) => {
 				},
 				upcoming: upcomingEvents,
 				recentActivity: recentActivityList,
+				recentActivityList,    // alias for frontend compatibility
 				workGraph: dailyGraphData,
 				dailyMotivation,
 				unreadNotificationsCount: unreadNotificationsList.length,

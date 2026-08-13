@@ -61,10 +61,7 @@ personalRouter.post("/reminders", async (req: Request, res: Response) => {
 			return res.status(401).json({ success: false, error: "Unauthorized" });
 
 		const workspaceId = await resolveWorkspaceId(req);
-		if (!workspaceId)
-			return res
-				.status(400)
-				.json({ success: false, error: "Workspace not found" });
+		// resolveWorkspaceId now always returns a value ("personal" for personal-only users)
 
 		const { title, remindAt, taskId } = req.body;
 		if (!title?.trim())
@@ -81,7 +78,7 @@ personalRouter.post("/reminders", async (req: Request, res: Response) => {
 			.values({
 				id: uuidv4(),
 				userId,
-				workspaceId,
+				workspaceId: workspaceId || "personal",
 				title: title.trim(),
 				remindAt: new Date(remindAt),
 				taskId: taskId || null,

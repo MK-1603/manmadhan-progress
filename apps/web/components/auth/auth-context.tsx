@@ -194,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 2. We're not currently navigating away (which would temporarily set user=null on next mount)
     // 3. The user is genuinely not authenticated
     if (hasInitialised.current && !isLoading && !user && isProtected && !isNavigatingRef.current) {
-      router.push("/login?error=Unauthorized");
+      router.push("/login");
     }
   }, [isLoading, user, isProtected, router]);
 

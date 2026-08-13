@@ -163,6 +163,7 @@ export const createApp = (): Express => {
 	app.use("/api/v1/dashboard", dashboardRouter);
 	app.use("/api/v1/personal", personalRouter);
 	app.use("/api/v1/personal/ai", personalAiRouter);
+	app.use("/api/v1/personal/ai", personalAiChatRouter);
 	app.use("/api/v1/personal/focus", personalFocusRouter);
 	app.use("/api/v1/personal/projects", personalProjectsRouter);
 	app.use("/api/v1/personal/tasks", personalTasksRouter);
@@ -176,7 +177,6 @@ export const createApp = (): Express => {
 	app.use("/api/v1/personal/reports", personalReportsRouter);
 	app.use("/api/v1/personal/prompts", personalPromptsRouter);
 	app.use("/api/v1/personal/timeline", personalTimelineRouter);
-	app.use("/api/v1/personal/ai", personalAiChatRouter);
 	app.use("/api/v1/personal/settings", personalSettingsRouter);
 	app.use("/api/v1/personal/integrations", personalIntegrationsRouter);
 	app.use(

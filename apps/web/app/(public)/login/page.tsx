@@ -24,7 +24,7 @@ function LoginContent() {
   const rawError = searchParams.get("error") || "";
   const initialError =
     rawError === "Unauthorized"
-      ? "Please sign in to access your workspace."
+      ? ""
       : rawError === "SessionExpired"
       ? "Your session has expired. Please sign in again."
       : rawError;
