@@ -10,7 +10,9 @@ const POOL_CONFIG = {
 	ssl: { rejectUnauthorized: false },
 	max: 10,
 	idleTimeoutMillis: 30000,
-	connectionTimeoutMillis: 5000,
+	connectionTimeoutMillis: 15000,
+	keepAlive: true,
+	keepAliveInitialDelayMillis: 10000,
 };
 
 // --- Shared/Auth DB Pool ---
@@ -25,26 +27,42 @@ authPool.on("error", (err) => {
 export const db = drizzle(authPool, { schema }); // Legacy export for auth routes
 
 // --- Personal DB Pool ---
-export const personalPool = new Pool({
-	connectionString: env.PERSONAL_DATABASE_URL,
-	...POOL_CONFIG,
-});
-personalPool.on("error", (err) => {
-	logger.error(err, "Unexpected error on idle personal database client");
-});
+const isPersonalSameUrl =
+	!env.PERSONAL_DATABASE_URL ||
+	env.PERSONAL_DATABASE_URL === env.DATABASE_URL;
+export const personalPool = isPersonalSameUrl
+	? authPool
+	: new Pool({
+			connectionString: env.PERSONAL_DATABASE_URL,
+			...POOL_CONFIG,
+		});
+
+if (!isPersonalSameUrl) {
+	personalPool.on("error", (err) => {
+		logger.error(err, "Unexpected error on idle personal database client");
+	});
+}
 
 export const personalDb = drizzle(personalPool, {
 	schema: personalSchemaModule,
 });
 
 // --- ManMadhan DB Pool ---
-export const manmadhanPool = new Pool({
-	connectionString: env.MANMADHAN_DATABASE_URL,
-	...POOL_CONFIG,
-});
-manmadhanPool.on("error", (err) => {
-	logger.error(err, "Unexpected error on idle manmadhan database client");
-});
+const isManmadhanSameUrl =
+	!env.MANMADHAN_DATABASE_URL ||
+	env.MANMADHAN_DATABASE_URL === env.DATABASE_URL;
+export const manmadhanPool = isManmadhanSameUrl
+	? authPool
+	: new Pool({
+			connectionString: env.MANMADHAN_DATABASE_URL,
+			...POOL_CONFIG,
+		});
+
+if (!isManmadhanSameUrl) {
+	manmadhanPool.on("error", (err) => {
+		logger.error(err, "Unexpected error on idle manmadhan database client");
+	});
+}
 
 export const manmadhanDb = drizzle(manmadhanPool, { schema: manmadhanSchema });
 
@@ -54,16 +72,23 @@ export const checkDatabaseConnection = async (): Promise<boolean> => {
 	let manmadhanClient: PoolClient | undefined;
 	try {
 		authClient = await authPool.connect();
+		await authClient.query("SELECT 1");
 		authClient.release();
 		authClient = undefined;
 
-		personalClient = await personalPool.connect();
-		personalClient.release();
-		personalClient = undefined;
+		if (!isPersonalSameUrl) {
+			personalClient = await personalPool.connect();
+			await personalClient.query("SELECT 1");
+			personalClient.release();
+			personalClient = undefined;
+		}
 
-		manmadhanClient = await manmadhanPool.connect();
-		manmadhanClient.release();
-		manmadhanClient = undefined;
+		if (!isManmadhanSameUrl) {
+			manmadhanClient = await manmadhanPool.connect();
+			await manmadhanClient.query("SELECT 1");
+			manmadhanClient.release();
+			manmadhanClient = undefined;
+		}
 
 		logger.trace(
 			"All PostgreSQL connections verified (Auth, Personal, ManMadhan).",
@@ -73,8 +98,10 @@ export const checkDatabaseConnection = async (): Promise<boolean> => {
 		const errorCode =
 			error && typeof error === "object" && "code" in error
 				? String(error.code)
-				: "ETIMEDOUT";
-		logger.debug(`PostgreSQL connection check pending (${errorCode})`);
+				: error instanceof Error
+					? error.message
+					: "ETIMEDOUT";
+		logger.warn(`PostgreSQL connection check failed: ${errorCode}`);
 		return false;
 	} finally {
 		if (authClient) authClient.release();

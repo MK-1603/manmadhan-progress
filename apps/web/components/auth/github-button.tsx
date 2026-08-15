@@ -4,8 +4,6 @@ import { motion } from "framer-motion";
 import { Github } from "lucide-react";
 
 export function GithubButton({ onClick, isMobile = false, disabled = false }: { onClick?: () => void, isMobile?: boolean, disabled?: boolean }) {
-  const hClass = isMobile ? "h-[52px] rounded-[14px]" : "h-14 rounded-2xl";
-  
   return (
     <motion.button
       type="button"
@@ -14,10 +12,13 @@ export function GithubButton({ onClick, isMobile = false, disabled = false }: { 
         e.preventDefault();
         if (onClick && !disabled) onClick();
       }}
-      whileTap={disabled ? {} : { scale: isMobile ? 0.98 : 0.99 }}
-      className={`flex ${hClass} w-full items-center justify-center gap-3 border border-border bg-card hover:bg-muted/40 text-[15px] font-semibold text-foreground transition-all focus:outline-none focus:ring-0 outline-none ${disabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}
+      whileTap={disabled ? {} : { scale: 0.99 }}
+      className={`flex h-[54px] w-full items-center justify-center gap-3 rounded-[14px] border border-border dark:border-[#2A303A] bg-card dark:bg-[#151920] hover:bg-accent dark:hover:bg-[#181C23] hover:border-border-hover dark:hover:border-[#3A4250] text-sm font-semibold text-foreground dark:text-[#F5F5F2] transition-all duration-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37] ${
+        disabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer shadow-xs'
+      }`}
+      aria-label="Continue with GitHub authentication"
     >
-      <Github className="h-5 w-5 text-foreground" />
+      <Github className="w-5 h-5 shrink-0 text-foreground dark:text-[#F5F5F2]" />
       <span>GitHub</span>
     </motion.button>
   );

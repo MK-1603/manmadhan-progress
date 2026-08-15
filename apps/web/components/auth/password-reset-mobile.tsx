@@ -65,7 +65,7 @@ export function PasswordResetMobile({ error }: { error: string | null }) {
 
         <div className="flex-1 overflow-y-auto px-6 pb-12 pt-4">
           <div className="flex items-center gap-3 mb-6">
-            <img src="https://res.cloudinary.com/fmiadecb/image/upload/v1785998285/ic_launcher-web_qmyip9.png" alt="Logo" className="w-8 h-8 rounded-md shadow-sm border border-zinc-200/50" />
+            <img src="https://res.cloudinary.com/fmiadecb/image/upload/v1786817328/ic_launcher-web_bq8zjj.png" alt="ManMadhan Progress Logo" className="w-8 h-8 rounded-md shadow-sm border border-zinc-200/50 object-cover" />
             <div>
               <h1 className="font-extrabold tracking-tight text-[15px] leading-tight text-zinc-900">ManMadhan Progress</h1>
               <p className="text-[11px] font-semibold tracking-wider uppercase text-zinc-500">Secure Account Recovery</p>

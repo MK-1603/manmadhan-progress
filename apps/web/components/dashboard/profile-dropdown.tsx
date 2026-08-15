@@ -2,41 +2,54 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import {
-  User as UserIcon, Settings, Building2, Shield,
-  LogOut, Check, Sun, Moon, Monitor, Bell, Layout, ChevronLeft
-} from "lucide-react";
-import { motion } from "framer-motion";
+import { User as UserIcon, Settings, Building, LogOut, Sun, Moon, Monitor, Check } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ResponsivePopover } from "../ui/responsive-popover";
 import { useAuth } from "../auth/auth-context";
 import apiClient from "@/lib/api-client";
 
-export function ProfileDropdown() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [workspaces, setWorkspaces] = useState<any[]>([]);
-  const [showWorkspaces, setShowWorkspaces] = useState(false);
+export function ProfileDropdown({
+  activePopover,
+  setActivePopover,
+}: {
+  activePopover?: "none" | "search" | "notifications" | "profile" | "switcher";
+  setActivePopover?: (val: "none" | "search" | "notifications" | "profile" | "switcher") => void;
+}) {
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+
+  const isOpen = activePopover !== undefined ? activePopover === "profile" : internalIsOpen;
+  const setIsOpen = (open: boolean) => {
+    if (setActivePopover) {
+      setActivePopover(open ? "profile" : "none");
+    } else {
+      setInternalIsOpen(open);
+    }
+  };
 
   const router = useRouter();
   const pathname = usePathname();
-  const { logout, user, isLoading } = useAuth();
+  const { logout, user } = useAuth();
   const { theme, setTheme } = useTheme();
+
+  const [mounted, setMounted] = useState(false);
+  const [orgWorkspace, setOrgWorkspace] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
-    if (isLoading || !user) return;
-    const fetch = async () => {
-      try {
-        const res = await apiClient.get("/workspaces");
-        if (res.data.success) setWorkspaces(res.data.data || []);
-      } catch (e) { console.error("Failed to fetch workspaces:", e); }
-    };
-    fetch();
-  }, [user, isLoading]);
+    apiClient
+      .get("/workspaces")
+      .then((res) => {
+        if (res.data.success && Array.isArray(res.data.data)) {
+          const org = res.data.data.find(
+            (w: any) => w.type !== "personal" && w.name !== "Personal Workspace"
+          );
+          if (org) setOrgWorkspace(org);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const isPersonal = pathname?.startsWith("/personal");
-  const activeWorkspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
   const userRole = (user?.role || "CEO").toUpperCase();
 
   const getInitials = (u: any) => {
@@ -49,62 +62,40 @@ export function ProfileDropdown() {
   };
 
   const userInitials = getInitials(user);
-  const userName = user?.displayName || user?.name || (user?.email ? user.email.split("@")[0] : "Sai Krishnan S");
+  const userName = user?.displayName || user?.name || "Sai Krishnan S";
+  const userEmail = user?.email || "saikrishnanmk1603@gmail.com";
+  const cleanOrgName = orgWorkspace?.name && orgWorkspace.name !== "Personal Workspace" ? orgWorkspace.name : "MANMADHAN";
 
-  const getActiveWorkspaceName = () => {
-    if (isPersonal) return "Personal Workspace";
-    const current = workspaces.find(w => w.id === activeWorkspaceId);
-    return current ? current.name : "ManMadhan Progress Workspace";
-  };
-
-  const handleWorkspaceSwitch = (type: "personal" | "org", wsId?: string) => {
+  const handleSwitchWorkspace = (target: "personal" | "org") => {
     setIsOpen(false);
-    if (type === "personal") {
+    if (target === "personal") {
       window.location.href = "/personal/dashboard";
-    } else if (wsId) {
-      localStorage.setItem("workspaceId", wsId);
-      let path = "/ceo/dashboard";
-      if (userRole === "CO-CEO") path = "/co-ceo/dashboard";
-      else if (userRole === "MEMBER") path = "/member/dashboard";
-      window.location.href = path;
+    } else {
+      if (orgWorkspace?.id) {
+        localStorage.setItem("workspaceId", orgWorkspace.id);
+      }
+      const targetDash =
+        userRole === "CO-CEO"
+          ? "/co-ceo/dashboard"
+          : userRole === "MEMBER"
+          ? "/member/dashboard"
+          : "/ceo/dashboard";
+      window.location.href = targetDash;
     }
-  };
-
-  const handleMenuClick = (action: "profile" | "security" | "workspace" | "notifications" | "settings") => {
-    if (action === "workspace") {
-      setShowWorkspaces(true);
-      return;
-    }
-
-    setIsOpen(false);
-    setShowWorkspaces(false);
-    
-    let base = "/personal";
-    if (!isPersonal) {
-      if (userRole === "CO-CEO") base = "/co-ceo";
-      else if (userRole === "MEMBER") base = "/member";
-      else base = "/ceo";
-    }
-    
-    if (action === "profile") router.push(`${base}/profile`);
-    else if (action === "security") router.push(`${base}/security`);
-    else if (action === "notifications") router.push(`${base}/notifications`);
-    else router.push(`${base}/settings`);
   };
 
   const trigger = (
-    <motion.button
+    <button
+      type="button"
       onClick={() => setIsOpen(!isOpen)}
-      className="relative w-9 h-9 rounded-full flex items-center justify-center text-[#0B0B0C] font-bold text-xs shrink-0 cursor-pointer focus:outline-none bg-gold select-none transition-colors hover:brightness-[1.05]"
+      aria-label="Open profile menu"
       title="User Profile"
+      className="w-10 h-10 rounded-full flex items-center justify-center bg-[#B28D18]/15 dark:bg-[#D4B12F]/15 border border-[#B28D18]/25 dark:border-[#D4B12F]/25 text-[#B28D18] dark:text-[#D4B12F] font-bold text-xs font-mono shrink-0 cursor-pointer focus:outline-none transition-colors hover:brightness-105"
     >
       {userInitials}
-    </motion.button>
+    </button>
   );
 
-  /* ─────────────────────────────────────────────────
-     DESKTOP: 328px compact / MOBILE: full-width sheet
-  ───────────────────────────────────────────────── */
   return (
     <ResponsivePopover
       trigger={trigger}
@@ -112,255 +103,177 @@ export function ProfileDropdown() {
       setIsOpen={setIsOpen}
       align="right"
       offsetY={6}
-      desktopClassName="w-[296px] rounded-[12px] border dark:border-[rgba(255,255,255,0.07)] bg-card dark:bg-[#141416] shadow-[0_10px_24px_rgba(0,0,0,0.32)] overflow-hidden flex flex-col"
-      mobileClassName="fixed inset-x-0 bottom-0 z-[10001] bg-card dark:bg-[#141416] rounded-t-3xl border-t dark:border-[rgba(255,255,255,0.07)] shadow-2xl flex flex-col overflow-y-auto overscroll-contain max-h-[85vh] pb-[env(safe-area-inset-bottom)]"
+      desktopClassName="w-[270px] rounded-xl border border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#15181D] shadow-2xl overflow-hidden flex flex-col p-2.5 z-50 text-xs"
+      mobileClassName="fixed inset-x-0 bottom-0 z-[10001] bg-[#FFFFFF] dark:bg-[#15181D] rounded-t-[24px] border-t border-[#E5E7EB] dark:border-[#24282E] shadow-2xl flex flex-col overflow-y-auto overscroll-contain max-h-[92vh] pb-[max(16px,env(safe-area-inset-bottom))] p-4 select-none"
     >
-      {/* ── DESKTOP inner wrapper (compact 12px padding) ── */}
-      <div className="hidden md:flex flex-col gap-0 p-[10px] select-none">
-
-        {/* 1. IDENTITY */}
-        <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b dark:border-[rgba(255,255,255,0.06)]">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-[#0B0B0C] font-extrabold text-[10px] shrink-0 bg-gold">
+      <div className="flex flex-col space-y-3 text-xs">
+        {/* 1. IDENTITY HEADER */}
+        <div className="flex items-center gap-3 pb-3 border-b border-[#E5E7EB] dark:border-[#24282E]">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#B28D18]/15 dark:bg-[#D4B12F]/15 border border-[#B28D18]/25 dark:border-[#D4B12F]/25 text-[#B28D18] dark:text-[#D4B12F] font-bold text-xs font-mono shrink-0">
             {userInitials}
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="text-[13px] font-semibold text-foreground dark:text-[#F5F5F4] truncate leading-snug">{userName}</span>
-            <span className="text-[11px] text-muted-foreground dark:text-[#A1A1AA] truncate leading-tight font-normal">{getActiveWorkspaceName()}</span>
-            <span className="text-[10px] text-emerald-500 font-medium flex items-center gap-1.5 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Available
+            <span className="font-semibold text-sm text-[#17202A] dark:text-[#F2F3F5] truncate leading-tight">
+              {userName}
+            </span>
+            <span className="text-xs text-[#667085] dark:text-[#8B94A3] truncate leading-tight mt-0.5">
+              {isPersonal ? "Personal" : userRole}
             </span>
           </div>
         </div>
 
-        {/* 2. ACCOUNT ROWS */}
-        {showWorkspaces ? (
-          <div className="flex flex-col gap-px mb-2.5 pb-2.5 border-b dark:border-[rgba(255,255,255,0.06)]">
-            <button
-              onClick={() => setShowWorkspaces(false)}
-              className="w-full h-[32px] px-1.5 rounded-md flex items-center gap-2 text-left hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)] focus:outline-none group cursor-pointer mb-1"
-            >
-              <div className="w-4 h-4 flex items-center justify-center shrink-0">
-                <ChevronLeft className="w-[15px] h-[15px] text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground stroke-[2]" />
-              </div>
-              <span className="text-[12.5px] font-medium text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground">Back</span>
-            </button>
-            <button
-              onClick={() => handleWorkspaceSwitch("personal")}
-              className={`w-full h-[32px] px-1.5 rounded-md flex items-center gap-2 text-left focus:outline-none group cursor-pointer ${isPersonal ? "bg-accent/40 dark:bg-[rgba(255,255,255,0.04)]" : "bg-transparent hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)]"}`}
-            >
-              <div className="w-4 h-4 flex items-center justify-center shrink-0">
-                {isPersonal && <Check className="w-[14px] h-[14px] text-gold dark:text-[#D8A52B] stroke-[3]" />}
-              </div>
-              <span className={`text-[12.5px] font-medium ${isPersonal ? "text-foreground dark:text-[#E4E4E7]" : "text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground"}`}>Personal Workspace</span>
-            </button>
-            
-            <button
-              onClick={() => {
-                const orgWs = workspaces.find(w => w.type !== "personal") || workspaces[0];
-                handleWorkspaceSwitch("org", orgWs?.id);
-              }}
-              className={`w-full h-[32px] px-1.5 rounded-md flex items-center gap-2 text-left focus:outline-none group cursor-pointer ${!isPersonal ? "bg-accent/40 dark:bg-[rgba(255,255,255,0.04)]" : "bg-transparent hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)]"}`}
-            >
-              <div className="w-4 h-4 flex items-center justify-center shrink-0">
-                {!isPersonal && <Check className="w-[14px] h-[14px] text-gold dark:text-[#D8A52B] stroke-[3]" />}
-              </div>
-              <span className={`text-[12.5px] font-medium ${!isPersonal ? "text-foreground dark:text-[#E4E4E7]" : "text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground"}`}>Organization Workspace</span>
-            </button>
+        {/* 2. WORKSPACE SWITCHER SECTION */}
+        <div className="flex flex-col space-y-1 py-1">
+          <div className="px-1 text-[10px] font-mono font-medium tracking-[0.1em] text-[#667085] dark:text-[#8B94A3] uppercase">
+            WORKSPACE
           </div>
-        ) : (
-          <div className="flex flex-col gap-px mb-2.5 pb-2.5 border-b dark:border-[rgba(255,255,255,0.06)]">
-            {[
-              { label: "Profile", icon: UserIcon, action: "profile" as const },
-              { label: "Security", icon: Shield, action: "security" as const },
-              { label: "Workspace", icon: Layout, action: "workspace" as const },
-              { label: "Notifications", icon: Bell, action: "notifications" as const },
-              { label: "Organization Settings", icon: Settings, action: "settings" as const },
-            ].map(({ label, icon: Icon, action }) => (
-              <button
-                key={action}
-                onClick={() => handleMenuClick(action)}
-                className="w-full h-[32px] px-1.5 rounded-md flex items-center gap-2 text-left hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)] focus:outline-none group cursor-pointer"
-              >
-                <div className="w-4 h-4 flex items-center justify-center shrink-0">
-                  <Icon className="w-[15px] h-[15px] text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground stroke-[1.7]" />
-                </div>
-                <span className="text-[12.5px] font-medium text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground">{label}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-
-
-        {/* 4. APPEARANCE */}
-        {mounted && (
-          <div className="mb-2">
-            <div className="text-[9px] font-semibold tracking-[0.06em] uppercase text-muted-foreground dark:text-[#85858F] mb-1 px-0.5">Appearance</div>
-            <div className="h-[30px] rounded-[7px] dark:bg-[rgba(255,255,255,0.025)] bg-muted/40 dark:border dark:border-[rgba(255,255,255,0.06)] border border-border/60 grid grid-cols-3 items-center p-0.5 gap-0.5">
-              {[
-                { value: "light", label: "Light", Icon: Sun },
-                { value: "dark", label: "Dark", Icon: Moon },
-                { value: "system", label: "System", Icon: Monitor },
-              ].map(({ value, label, Icon }) => {
-                const isActive = theme === value;
-                return (
-                  <button
-                    key={value}
-                    onClick={() => setTheme(value)}
-                    className={`h-full rounded-[5px] flex items-center justify-center gap-1 text-[10px] font-medium transition-all focus:outline-none ${
-                      isActive
-                        ? value === "dark"
-                          ? "dark:bg-[rgba(216,165,43,0.09)] text-gold dark:text-[#D8A52B] bg-card"
-                          : "bg-card text-gold shadow-xs"
-                        : "text-muted-foreground dark:text-[#A1A1AA] hover:text-foreground dark:hover:text-[#F5F5F4]"
-                    }`}
-                  >
-                    <Icon className={`w-3 h-3 ${isActive ? "text-gold dark:text-[#D8A52B]" : "text-muted-foreground dark:text-[#8B8B94]"}`} />
-                    <span>{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* 5. SIGN OUT */}
-        <div className="pt-1.5 mt-1.5 border-t dark:border-[rgba(255,255,255,0.06)] border-border/60">
           <button
-            onClick={() => { setIsOpen(false); logout(); }}
-            className="w-full h-[32px] px-1.5 rounded-md flex items-center gap-2 text-left hover:bg-rose-500/10 dark:hover:bg-[rgba(239,107,107,0.07)] focus:outline-none cursor-pointer"
+            type="button"
+            onClick={() => handleSwitchWorkspace("personal")}
+            className={`w-full p-2.5 rounded-xl flex items-center justify-between text-left transition-colors cursor-pointer ${
+              isPersonal
+                ? "bg-[#FFF8E7] dark:bg-[#1A1913] text-[#17202A] dark:text-[#F2F3F5]"
+                : "hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-[#667085] dark:text-[#8B94A3]"
+            }`}
           >
-            <div className="w-4 h-4 flex items-center justify-center shrink-0">
-              <LogOut className="w-[15px] h-[15px] text-[#EF6B6B] stroke-[1.7]" />
+            <div className="flex items-center gap-2.5 min-w-0">
+              <UserIcon className={`w-4 h-4 shrink-0 ${isPersonal ? "text-[#B28D18] dark:text-[#D4B12F]" : ""}`} />
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-semibold truncate leading-tight">Personal Workspace</span>
+                <span className="text-[10.5px] text-[#667085] dark:text-[#8B94A3] leading-tight">Private workspace</span>
+              </div>
             </div>
-            <span className="text-[12.5px] font-medium text-[#EF6B6B]">Sign out</span>
+            {isPersonal && <Check className="w-4 h-4 text-[#B28D18] dark:text-[#D4B12F] shrink-0" />}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSwitchWorkspace("org")}
+            className={`w-full p-2.5 rounded-xl flex items-center justify-between text-left transition-colors cursor-pointer ${
+              !isPersonal
+                ? "bg-[#FFF8E7] dark:bg-[#1A1913] text-[#17202A] dark:text-[#F2F3F5]"
+                : "hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-[#667085] dark:text-[#8B94A3]"
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Building className={`w-4 h-4 shrink-0 ${!isPersonal ? "text-[#B28D18] dark:text-[#D4B12F]" : ""}`} />
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-semibold truncate leading-tight uppercase">{cleanOrgName}</span>
+                <span className="text-[10.5px] text-[#667085] dark:text-[#8B94A3] leading-tight">Organization Workspace</span>
+              </div>
+            </div>
+            {!isPersonal && <Check className="w-4 h-4 text-[#B28D18] dark:text-[#D4B12F] shrink-0" />}
           </button>
         </div>
-      </div>
 
-      {/* ── MOBILE inner wrapper (touch-friendly 16px padding) ── */}
-      <div className="flex md:hidden flex-col gap-0 px-4 pt-3 pb-2 select-none">
+        <div className="h-px bg-[#E5E7EB] dark:bg-[#24282E]" />
 
-        {/* Drag handle */}
-        <div className="w-10 h-1 rounded-full bg-border/60 dark:bg-[rgba(255,255,255,0.12)] mx-auto mb-3" />
-
-        {/* 1. IDENTITY */}
-        <div className="flex items-center gap-3 pb-4 mb-4 border-b dark:border-[rgba(255,255,255,0.06)]">
-          <div className="w-11 h-11 rounded-full flex items-center justify-center text-[#0B0B0C] font-extrabold text-[12px] shrink-0 bg-gold">
-            {userInitials}
+        {/* 3. ACCOUNT LINKS */}
+        <div className="flex flex-col space-y-1">
+          <div className="px-1 text-[10px] font-mono font-medium tracking-[0.1em] text-[#667085] dark:text-[#8B94A3] uppercase">
+            ACCOUNT
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-[16px] font-semibold text-foreground dark:text-[#F5F5F4] truncate leading-snug">{userName}</span>
-            <span className="text-[13px] text-muted-foreground dark:text-[#A1A1AA] truncate leading-tight font-normal">{getActiveWorkspaceName()}</span>
-            <span className="text-[12px] text-emerald-500 font-medium flex items-center gap-1.5 mt-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Available
-            </span>
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              const targetProfile = isPersonal
+                ? "/personal/profile"
+                : userRole === "CO-CEO"
+                ? "/co-ceo/profile"
+                : userRole === "MEMBER"
+                ? "/member/profile"
+                : "/ceo/profile";
+              router.push(targetProfile);
+            }}
+            className="flex items-center gap-2.5 px-2.5 h-[38px] rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-[#17202A] dark:text-[#F2F3F5] transition-colors cursor-pointer text-left font-medium text-xs"
+          >
+            <UserIcon className="w-4 h-4 text-[#667085] dark:text-[#8B94A3] shrink-0" />
+            <span>Profile</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              const targetSettings = isPersonal
+                ? "/personal/settings"
+                : userRole === "CO-CEO"
+                ? "/co-ceo/settings"
+                : userRole === "MEMBER"
+                ? "/member/settings"
+                : "/ceo/settings";
+              router.push(targetSettings);
+            }}
+            className="flex items-center gap-2.5 px-2.5 h-[38px] rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-[#17202A] dark:text-[#F2F3F5] transition-colors cursor-pointer text-left font-medium text-xs"
+          >
+            <Settings className="w-4 h-4 text-[#667085] dark:text-[#8B94A3] shrink-0" />
+            <span>Settings</span>
+          </button>
+
+          {!isPersonal && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                router.push("/ceo/organization");
+              }}
+              className="flex items-center gap-2.5 px-2.5 h-[38px] rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-[#17202A] dark:text-[#F2F3F5] transition-colors cursor-pointer text-left font-medium"
+            >
+              <Building className="w-4 h-4 text-[#667085] dark:text-[#8B94A3] shrink-0" />
+              <span>Organization Settings</span>
+            </button>
+          )}
+        </div>
+
+        <div className="h-px bg-[#E5E7EB] dark:bg-[#24282E]" />
+
+        {/* 4. APPEARANCE SEGMENTED CONTROL */}
+        <div className="space-y-1.5">
+          <div className="px-1 text-[10px] font-mono font-medium tracking-[0.1em] text-[#667085] dark:text-[#8B94A3] uppercase">
+            APPEARANCE
+          </div>
+          <div className="h-[38px] rounded-xl bg-[#F3F4F6] dark:bg-[#111419] border border-[#E5E7EB] dark:border-[#24282E] grid grid-cols-3 items-center p-0.5 gap-0.5 select-none">
+            {[
+              { value: "light", label: "Light", Icon: Sun },
+              { value: "dark", label: "Dark", Icon: Moon },
+              { value: "system", label: "System", Icon: Monitor },
+            ].map(({ value, label, Icon }) => {
+              const isActive = mounted && theme === value;
+
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTheme(value)}
+                  className={`h-full rounded-lg flex items-center justify-center gap-1.5 text-xs font-medium transition-all cursor-pointer focus:outline-none ${
+                    isActive
+                      ? "bg-[#FFFFFF] dark:bg-[#1C2027] text-[#B28D18] dark:text-[#D4B12F] shadow-2xs font-semibold"
+                      : "text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5]"
+                  }`}
+                >
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? "text-[#B28D18] dark:text-[#D4B12F]" : "text-[#667085] dark:text-[#8B94A3]"}`} />
+                  <span>{label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* 2. ACCOUNT ROWS */}
-        {showWorkspaces ? (
-          <div className="flex flex-col gap-px mb-4 pb-4 border-b dark:border-[rgba(255,255,255,0.06)]">
-            <button
-              onClick={() => setShowWorkspaces(false)}
-              className="w-full h-12 px-2 rounded-xl flex items-center gap-3 text-left hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)] focus:outline-none group cursor-pointer mb-2"
-            >
-              <div className="w-6 h-6 flex items-center justify-center shrink-0">
-                <ChevronLeft className="w-5 h-5 text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground stroke-[2]" />
-              </div>
-              <span className="text-[15px] font-medium text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground">Back</span>
-            </button>
-            <button
-              onClick={() => handleWorkspaceSwitch("personal")}
-              className={`w-full h-12 px-2 rounded-xl flex items-center gap-3 text-left focus:outline-none group cursor-pointer ${isPersonal ? "bg-accent/40 dark:bg-[rgba(255,255,255,0.04)]" : "bg-transparent hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)]"}`}
-            >
-              <div className="w-6 h-6 flex items-center justify-center shrink-0">
-                {isPersonal && <Check className="w-5 h-5 text-gold dark:text-[#D8A52B] stroke-[3]" />}
-              </div>
-              <span className={`text-[15px] font-medium ${isPersonal ? "text-foreground dark:text-[#E4E4E7]" : "text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground"}`}>Personal Workspace</span>
-            </button>
-            
-            <button
-              onClick={() => {
-                const orgWs = workspaces.find(w => w.type !== "personal") || workspaces[0];
-                handleWorkspaceSwitch("org", orgWs?.id);
-              }}
-              className={`w-full h-12 px-2 rounded-xl flex items-center gap-3 text-left focus:outline-none group cursor-pointer ${!isPersonal ? "bg-accent/40 dark:bg-[rgba(255,255,255,0.04)]" : "bg-transparent hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)]"}`}
-            >
-              <div className="w-6 h-6 flex items-center justify-center shrink-0">
-                {!isPersonal && <Check className="w-5 h-5 text-gold dark:text-[#D8A52B] stroke-[3]" />}
-              </div>
-              <span className={`text-[15px] font-medium ${!isPersonal ? "text-foreground dark:text-[#E4E4E7]" : "text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground"}`}>Organization Workspace</span>
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-px mb-4 pb-4 border-b dark:border-[rgba(255,255,255,0.06)]">
-            {[
-              { label: "Profile", icon: UserIcon, action: "profile" as const },
-              { label: "Workspace", icon: Layout, action: "workspace" as const },
-              { label: "Notifications", icon: Bell, action: "notifications" as const },
-              { label: "Account Settings", icon: Settings, action: "settings" as const },
-            ].map(({ label, icon: Icon, action }) => (
-              <button
-                key={action}
-                onClick={() => handleMenuClick(action)}
-                className="w-full h-12 px-2 rounded-xl flex items-center gap-3 text-left hover:bg-accent/50 dark:hover:bg-[rgba(255,255,255,0.04)] focus:outline-none group cursor-pointer"
-              >
-                <div className="w-6 h-6 flex items-center justify-center shrink-0">
-                  <Icon className="w-5 h-5 text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground stroke-[1.7]" />
-                </div>
-                <span className="text-[15px] font-medium text-muted-foreground dark:text-[#8B8B94] group-hover:text-foreground">{label}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-
-
-        {/* 4. APPEARANCE */}
-        {mounted && (
-          <div className="mb-4">
-            <div className="text-[11px] font-semibold tracking-[0.05em] uppercase text-muted-foreground dark:text-[#85858F] mb-2 px-1">Appearance</div>
-            <div className="h-11 rounded-xl dark:bg-[rgba(255,255,255,0.025)] bg-muted/40 dark:border dark:border-[rgba(255,255,255,0.06)] border border-border/60 grid grid-cols-3 items-center p-0.5 gap-0.5">
-              {[
-                { value: "light", label: "Light", Icon: Sun },
-                { value: "dark", label: "Dark", Icon: Moon },
-                { value: "system", label: "System", Icon: Monitor },
-              ].map(({ value, label, Icon }) => {
-                const isActive = theme === value;
-                return (
-                  <button
-                    key={value}
-                    onClick={() => setTheme(value)}
-                    className={`h-full rounded-lg flex items-center justify-center gap-1.5 text-[12px] font-medium transition-all focus:outline-none ${
-                      isActive
-                        ? value === "dark"
-                          ? "dark:bg-[rgba(216,165,43,0.09)] text-gold dark:text-[#D8A52B] bg-card"
-                          : "bg-card text-gold shadow-xs"
-                        : "text-muted-foreground dark:text-[#A1A1AA] hover:text-foreground dark:hover:text-[#F5F5F4]"
-                    }`}
-                  >
-                    <Icon className={`w-4 h-4 ${isActive ? "text-gold dark:text-[#D8A52B]" : "text-muted-foreground dark:text-[#8B8B94]"}`} />
-                    <span>{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <div className="h-px bg-[#E5E7EB] dark:bg-[#24282E]" />
 
         {/* 5. SIGN OUT */}
-        <div className="pt-3 border-t dark:border-[rgba(255,255,255,0.06)] border-border/60 mb-2">
-          <button
-            onClick={() => { setIsOpen(false); logout(); }}
-            className="w-full h-12 px-2 rounded-xl flex items-center gap-3 text-left hover:bg-rose-500/10 dark:hover:bg-[rgba(239,107,107,0.07)] focus:outline-none cursor-pointer"
-          >
-            <div className="w-6 h-6 flex items-center justify-center shrink-0">
-              <LogOut className="w-5 h-5 text-[#EF6B6B] stroke-[1.7]" />
-            </div>
-            <span className="text-[15px] font-medium text-[#EF6B6B]">Sign out</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setIsOpen(false);
+            logout();
+          }}
+          className="flex items-center gap-2.5 px-2.5 h-[40px] rounded-xl hover:bg-red-500/10 text-red-600 dark:text-red-400 transition-colors cursor-pointer text-left font-semibold"
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          <span>Sign out</span>
+        </button>
       </div>
     </ResponsivePopover>
   );

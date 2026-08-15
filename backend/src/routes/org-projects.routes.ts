@@ -355,96 +355,92 @@ orgProjectsRouter.post(
 				);
 			}
 
-			// 3. Generate 8 Mandatory Organization Milestones
-			const STAGES = [
+			// 3. Generate 6 Major Project Milestone Phases
+			const MILESTONE_PHASES = [
 				{
 					stage: 1,
-					code: "STAGE_01_ACTIVATION",
-					name: "01 — Project Invite & Connect",
-					desc: "Prepare project assignment, invitation & repository binding",
-					folder: "01-Project-Invite-Connect",
+					code: "MILESTONE_01_FOUNDATION",
+					name: "M1 — Foundation Complete",
+					desc: "Project charter, assignment validation & initial workspace setup",
 				},
 				{
 					stage: 2,
-					code: "STAGE_02_PRD",
-					name: "02 — PRD",
-					desc: "Product Requirements Document",
-					folder: "02-PRD",
+					code: "MILESTONE_02_REQUIREMENTS",
+					name: "M2 — Requirements Complete",
+					desc: "PRD, TRD, and application user workflow specifications approved",
 				},
 				{
 					stage: 3,
-					code: "STAGE_03_TRD",
-					name: "03 — TRD",
-					desc: "Technical Requirements Document",
-					folder: "03-TRD",
+					code: "MILESTONE_03_ARCHITECTURE",
+					name: "M3 — Architecture Complete",
+					desc: "System architecture, database schema, and UI/UX design complete",
 				},
 				{
 					stage: 4,
-					code: "STAGE_04_WORKFLOW",
-					name: "04 — Application Workflow",
-					desc: "Application Workflow & Visual Journeys",
-					folder: "04-App-Workflow",
+					code: "MILESTONE_04_IMPLEMENTATION",
+					name: "M4 — Implementation Complete",
+					desc: "Core application development and work package implementation",
 				},
 				{
 					stage: 5,
-					code: "STAGE_05_UIUX",
-					name: "05 — UI/UX Brief",
-					desc: "UI/UX Design Brief & Screen Inventory",
-					folder: "05-UI-UX",
+					code: "MILESTONE_05_TESTING",
+					name: "M5 — Testing Complete",
+					desc: "Testing, security acceptance, and bug verification passed",
 				},
 				{
 					stage: 6,
-					code: "STAGE_06_DATABASE",
-					name: "06 — Database Plan",
-					desc: "Backend Schema & Database Plan",
-					folder: "06-Database",
-				},
-				{
-					stage: 7,
-					code: "STAGE_07_IMPLEMENTATION",
-					name: "07 — Implementation Plan",
-					desc: "Implementation Plan & Task Breakdown",
-					folder: "07-Implementation",
-				},
-				{
-					stage: 8,
-					code: "STAGE_08_FINAL_VERIFICATION",
-					name: "08 — Implementation & Final Verification",
-					desc: "Implementation Execution, Code Verification & Final Review",
-					folder: "08-Implementation-Final",
+					code: "MILESTONE_06_FINAL_SUBMISSION",
+					name: "M6 — Final Submission",
+					desc: "Final deliverable review, repository connection & deployment",
 				},
 			];
 
 			const milestoneRecords = [];
-			for (const s of STAGES) {
+			for (const m of MILESTONE_PHASES) {
 				const milestoneId = uuidv4();
-				const docId = uuidv4();
-
-				// Create Milestone (Stage 1 is AVAILABLE immediately, Stages 2-8 are LOCKED)
 				await db.insert(projectMilestonesV2).values({
 					id: milestoneId,
 					projectId,
-					stageNumber: s.stage,
-					milestoneCode: s.code,
-					name: s.name,
-					description: s.desc,
-					state: s.stage === 1 ? "AVAILABLE" : "LOCKED",
+					stageNumber: m.stage,
+					milestoneCode: m.code,
+					name: m.name,
+					description: m.desc,
+					state: m.stage === 1 ? "AVAILABLE" : "LOCKED",
 					ownerUserId: assignedToUserId,
 					reviewerUserId: userId,
-					dependencies: s.stage > 1 ? [s.stage - 1] : [],
+					dependencies: m.stage > 1 ? [m.stage - 1] : [],
 					createdAt: new Date(),
 					updatedAt: new Date(),
 				});
+				milestoneRecords.push({ id: milestoneId, name: m.name, stage: m.stage });
+			}
 
-				// Create Automatic Project Document Registry Record
-				const folderPath = `Documents/Organization/Projects/${title.trim().replace(/\s+/g, "-")}/${s.folder}`;
+			// 4. Generate 11 Standardized Project Document Registry Folders
+			const DOCUMENT_FOLDERS = [
+				"0. Project Foundation",
+				"1. Product Requirements",
+				"2. Technical Requirements",
+				"3. Application Workflow",
+				"4. System Architecture",
+				"5. Database + API",
+				"6. UI/UX Design",
+				"7. Security + Permissions",
+				"8. AI Specification",
+				"9. Testing + Acceptance",
+				"10. Development Plan",
+			];
+
+			for (let idx = 0; idx < DOCUMENT_FOLDERS.length; idx++) {
+				const folderName = DOCUMENT_FOLDERS[idx];
+				const docId = uuidv4();
+				const folderPath = `Documents/Organization/Projects/${title.trim().replace(/\s+/g, "-")}/${folderName}`;
 				await db.insert(projectDocumentsV2).values({
 					id: docId,
 					projectId,
-					milestoneId,
-					stageNumber: s.stage,
-					documentType: s.code.replace("STAGE_0", "").replace("STAGE_", ""),
-					title: `${s.name} Specification`,
+					milestoneId: milestoneRecords[0]?.id || null,
+					stageNumber: idx,
+					documentType: folderName.toUpperCase().replace(/[^A-Z0-9]/g, "_"),
+					title: folderName,
 					currentVersion: 1,
 					status: "DRAFT",
 					wordCount: 0,
@@ -453,13 +449,28 @@ orgProjectsRouter.post(
 					createdAt: new Date(),
 					updatedAt: new Date(),
 				});
-
-				milestoneRecords.push({
-					id: milestoneId,
-					name: s.name,
-					stage: s.stage,
-				});
 			}
+
+			// 5. Record Real Initial Timeline Activity Events
+			await db.insert(activities).values({
+				id: uuidv4(),
+				workspaceId,
+				projectId,
+				userId,
+				action: "PROJECT_CREATED",
+				details: JSON.stringify({ message: `Project created by CEO: "${title.trim()}"` }),
+				createdAt: new Date(),
+			});
+
+			await db.insert(activities).values({
+				id: uuidv4(),
+				workspaceId,
+				projectId,
+				userId: assignedToUserId,
+				action: "PROJECT_ASSIGNED",
+				details: JSON.stringify({ message: `Project assigned to ${assignedToUserId}` }),
+				createdAt: new Date(),
+			});
 
 			// 4. Create Central Approval Request for Project Assignment
 			await RequestEngineService.createRequest({

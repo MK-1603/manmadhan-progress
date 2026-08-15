@@ -4,12 +4,14 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { GoogleButton } from "./google-button";
-import { GithubButton } from "./github-button";
+import { Otp3DObject } from "./otp-3d-object";
 import {
   ShieldCheck,
   Loader2,
   CheckCircle2,
   Check,
+  ChevronDown,
+  Search,
   Terminal,
   ArrowRight,
   ArrowLeft,
@@ -21,7 +23,8 @@ import {
   UploadCloud,
   AlertTriangle,
   Eye,
-  EyeOff
+  EyeOff,
+  UserIcon
 } from "lucide-react";
 import apiClient from "../../lib/api-client";
 import { useAuth } from "./auth-context";
@@ -43,13 +46,17 @@ const timezones = [
 
 export type AuthState =
   | "EMAIL_ENTRY"
+  | "ACCOUNT_NOT_FOUND"
   | "OTP_VERIFICATION"
   | "PASSWORD_CREATION"
   | "PASSWORD"
   | "FORGOT_PASSWORD"
   | "RESET_PASSWORD"
+  | "RESET_SENT"
   | "PROFILE_SETUP"
   | "ORGANIZATION_SETUP"
+  | "REVIEW_SETUP"
+  | "SETUP_COMPLETE"
   | "SUCCESS"
   | "ERROR";
 
@@ -60,30 +67,193 @@ const fadeSlideProps = {
   transition: { type: "spring" as const, stiffness: 300, damping: 30 }
 };
 
-const ParticleBurst = () => {
-  const particles = Array.from({ length: 32 });
+const ParticleBurst = () => null;
+
+function CustomTimeZoneCombobox({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (tz: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("keydown", handleKeyDown);
+    }
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    } else {
+      setSearch("");
+    }
+  }, [isOpen]);
+
+  const filteredTzs = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return null;
+    return timezones.filter((tz) => tz.toLowerCase().includes(query));
+  }, [search]);
+
+  const groups = useMemo(() => {
+    const recent = [value, "Asia/Kolkata", "UTC"].filter(
+      (tz, idx, self) => self.indexOf(tz) === idx
+    );
+
+    const india = ["Asia/Kolkata"];
+    const asia = timezones.filter((tz) => tz.startsWith("Asia/") && tz !== "Asia/Kolkata");
+    const europe = timezones.filter((tz) => tz.startsWith("Europe/"));
+    const northAmerica = timezones.filter(
+      (tz) => tz.startsWith("America/") && !tz.includes("Sao_Paulo") && !tz.includes("Caracas")
+    );
+    const southAmerica = timezones.filter(
+      (tz) => tz.includes("Sao_Paulo") || tz.includes("Caracas") || tz.includes("Buenos_Aires")
+    );
+    const africa = timezones.filter((tz) => tz.startsWith("Africa/"));
+    const pacific = timezones.filter(
+      (tz) => tz.startsWith("Pacific/") || tz.startsWith("Australia/")
+    );
+
+    return [
+      { name: "Recent", items: recent },
+      { name: "India", items: india },
+      { name: "Asia", items: asia.slice(0, 15) },
+      { name: "Europe", items: europe.slice(0, 15) },
+      { name: "North America", items: northAmerica.slice(0, 15) },
+      { name: "South America", items: southAmerica.slice(0, 10) },
+      { name: "Africa", items: africa.slice(0, 10) },
+      { name: "Pacific", items: pacific.slice(0, 10) },
+    ];
+  }, [value]);
+
   return (
-    <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-50">
-      {particles.map((_, i) => {
-        const angle = (i * 360) / particles.length;
-        const radius = 80 + Math.random() * 60;
-        const x = Math.cos((angle * Math.PI) / 180) * radius;
-        const y = Math.sin((angle * Math.PI) / 180) * radius;
-        const delay = Math.random() * 0.2 + 0.3; // start after morph
-        
-        return (
+    <div className="relative w-full" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-full h-[52px] rounded-xl bg-[#111419] border ${
+          isOpen ? "border-[#D7B33A]" : "border-[#282E36]"
+        } px-4 text-xs font-medium text-[#F3F4F6] flex items-center justify-between outline-none transition-all cursor-pointer shadow-inner`}
+      >
+        <span className="truncate">{value || "Asia/Kolkata"}</span>
+        <ChevronDown
+          className={`w-4 h-4 text-[#8B93A0] transition-transform duration-200 ${
+            isOpen ? "rotate-180 text-[#D7B33A]" : ""
+          }`}
+        />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
           <motion.div
-            key={i}
-            initial={{ x: 0, y: 0, scale: 0, opacity: 1 }}
-            animate={{ x, y, scale: Math.random() * 0.8 + 0.2, opacity: 0 }}
-            transition={{ duration: 1, delay, ease: "easeOut" }}
-            className={`absolute w-2 h-2 rounded-full ${i % 2 === 0 ? "bg-gold" : "bg-green-400"} shadow-lg`}
-          />
-        );
-      })}
+            initial={{ opacity: 0, y: 4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.98 }}
+            transition={{ duration: 0.15 }}
+            className="absolute left-0 right-0 top-[58px] z-50 bg-[#12161C] border border-[#282E36] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[260px] sm:max-h-[300px]"
+          >
+            <div className="p-2 border-b border-[#282E36] bg-[#111419] flex items-center gap-2">
+              <Search className="w-3.5 h-3.5 text-[#8B93A0] ml-2 shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search time zone..."
+                className="w-full bg-transparent text-xs text-[#F3F4F6] placeholder-[#8B93A0] outline-none py-1.5 px-1"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            <div className="overflow-y-auto p-1.5 scrollbar-thin space-y-3">
+              {filteredTzs ? (
+                <div className="space-y-0.5">
+                  {filteredTzs.length === 0 ? (
+                    <p className="text-xs text-[#8B93A0] p-3 text-center">No timezones found</p>
+                  ) : (
+                    filteredTzs.map((tz) => {
+                      const isSelected = tz === value;
+                      return (
+                        <button
+                          key={tz}
+                          type="button"
+                          onClick={() => {
+                            onChange(tz);
+                            setIsOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs rounded-lg flex items-center justify-between transition-colors ${
+                            isSelected
+                              ? "bg-[#D7B33A]/15 text-[#D7B33A] font-semibold"
+                              : "text-[#F3F4F6] hover:bg-[#1C222B]"
+                          }`}
+                        >
+                          <span className="truncate">{tz}</span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[#D7B33A] shrink-0 ml-2" />}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              ) : (
+                groups.map((group) => (
+                  <div key={group.name} className="space-y-1">
+                    <p className="text-[10px] font-mono font-bold tracking-widest text-[#767E8C] uppercase px-3 pt-1">
+                      {group.name}
+                    </p>
+                    <div className="space-y-0.5">
+                      {group.items.map((tz) => {
+                        const isSelected = tz === value;
+                        return (
+                          <button
+                            key={tz}
+                            type="button"
+                            onClick={() => {
+                              onChange(tz);
+                              setIsOpen(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs rounded-lg flex items-center justify-between transition-colors ${
+                              isSelected
+                                ? "bg-[#D7B33A]/15 text-[#D7B33A] font-semibold"
+                                : "text-[#F3F4F6] hover:bg-[#1C222B]"
+                            }`}
+                          >
+                            <span className="truncate">{tz}</span>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-[#D7B33A] shrink-0 ml-2" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
-};
+}
 
 export function AuthForm({ 
   onComplete, 
@@ -126,7 +296,15 @@ export function AuthForm({
   const otpAutoSubmitRef = React.useRef(false); // tracks whether this 6-digit OTP has already been auto-submitted
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [profile, setProfile] = useState({ displayName: "", timezone: "Asia/Kolkata", batchNumber: "", language: "English" });
+  const [profile, setProfile] = useState({
+    displayName: "",
+    personalWorkspaceName: "Personal Workspace",
+    timezone: "Asia/Kolkata",
+    batchNumber: "",
+    language: "English",
+    dateFormat: "DD MMM YYYY",
+    timeFormat: "12-hour",
+  });
   const [profileStep, setProfileStep] = useState(1);
   const [orgName, setOrgName] = useState("");
   const [workspaceId, setWorkspaceId] = useState("");
@@ -154,6 +332,60 @@ export function AuthForm({
     });
   };
   
+  const [isGoogleAllowed, setIsGoogleAllowed] = useState(true);
+  const [googleSubtext, setGoogleSubtext] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    // Only check Google availability on primary login screens, never while typing in Forgot Password
+    if (state !== "EMAIL_ENTRY" && state !== "PASSWORD") {
+      return;
+    }
+
+    if (!email || !email.includes("@") || !email.includes(".")) {
+      setIsGoogleAllowed(true);
+      setGoogleSubtext(undefined);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+        const url = `${apiBase.endsWith("/api/v1") ? apiBase : apiBase + "/api/v1"}/auth/check-google-availability?email=${encodeURIComponent(email)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.allowed === false) {
+          setIsGoogleAllowed(false);
+          setGoogleSubtext("Google login available after first login");
+        } else {
+          setIsGoogleAllowed(true);
+          setGoogleSubtext(undefined);
+        }
+      } catch (err) {
+        setIsGoogleAllowed(true);
+        setGoogleSubtext(undefined);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [email, state]);
+
+  useEffect(() => {
+    if (authData?.error) {
+      if (authData.error === "google_cancelled") {
+        setError("Google sign-in was cancelled.");
+      } else if (authData.error === "first_login_required") {
+        setError("Complete your first login with email and password. Google sign-in will be available afterward.");
+      } else if (authData.error === "account_not_found") {
+        setState("ACCOUNT_NOT_FOUND");
+        setError("");
+      } else if (authData.error === "google_failed") {
+        setError("Unable to sign in with Google. Please try again.");
+      } else {
+        setError(authData.error);
+      }
+    }
+  }, [authData]);
+
   useEffect(() => {
     setAuthState(state);
     setAuthData({ step: state, token: tempToken, role: userRole });
@@ -249,7 +481,18 @@ export function AuthForm({
   };
 
   const handleError = (err: any) => {
-    setError(err?.response?.data?.error || err.message || "An unknown error occurred.");
+    const errCode = err?.response?.data?.code;
+    const errStatus = err?.response?.status;
+    const errMsg = err?.response?.data?.error || err?.message;
+
+    if (errCode === "ACCOUNT_NOT_FOUND" || errStatus === 404) {
+      setState("ACCOUNT_NOT_FOUND");
+      setError("");
+      setLoading(false);
+      return;
+    }
+
+    setError(errMsg || "An unknown error occurred.");
     setLoading(false);
   };
 
@@ -305,12 +548,39 @@ export function AuthForm({
     }
   }, [otp, state, loading]);
 
+  const [resetSentCountdown, setResetSentCountdown] = useState(3);
+
   useEffect(() => {
     setPassword("");
     setConfirmPassword("");
     setOtp("");
     setError("");
     otpAutoSubmitRef.current = false; // reset auto-submit guard on state transition
+  }, [state]);
+
+  useEffect(() => {
+    if (state !== "RESET_SENT") {
+      setResetSentCountdown(3);
+      return;
+    }
+
+    setResetSentCountdown(3);
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("authData");
+    }
+
+    const interval = setInterval(() => {
+      setResetSentCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setState("EMAIL_ENTRY");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
   }, [state]);
 
 
@@ -324,8 +594,14 @@ export function AuthForm({
         const res = await apiClient.post("/auth/setup/password", { password }, {
           headers: { Authorization: `Bearer ${tempToken}` }
         });
-        setTempToken(res.data.tempToken);
-        setState(res.data.nextStep as AuthState);
+        if (res.data.success) {
+          setLoading(false);
+          setTempToken(res.data.tempToken);
+          setState("PROFILE_SETUP");
+          setProfileStep(1);
+        } else {
+          handleError({ response: { data: res.data } });
+        }
       } else {
         // Normal password login flow
         const res = await apiClient.post("/auth/login/password", { email, password });
@@ -373,15 +649,16 @@ export function AuthForm({
 
   const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email) return;
     setLoading(true);
     setError("");
     try {
       await apiClient.post("/auth/forgot-password", { email });
       setLoadingState("SENT");
       setTimeout(() => {
-        setState("EMAIL_ENTRY");
+        setState("RESET_SENT");
         setLoadingState("");
-      }, 3000);
+      }, 600);
     } catch (err: any) {
       handleError(err);
     } finally {
@@ -502,20 +779,8 @@ export function AuthForm({
           localStorage.setItem("orgLogo", orgLogo);
           window.dispatchEvent(new Event("orgLogoUpdated"));
         }
-        setLoading(false);
-        setState("SUCCESS");
-        setTimeout(async () => {
-          onComplete?.();
-          setTransitionMessage("Preparing Dashboard...");
-          setIsTransitioning(true);
-          await checkSession();
-          if (typeof window !== "undefined") {
-            setTimeout(() => {
-              router.push("/ceo/dashboard");
-              setTimeout(() => setIsTransitioning(false), 500);
-            }, 800);
-          }
-        }, 1200);
+        setTempToken(res.data.tempToken);
+        setState((res.data.nextStep as AuthState) || "REVIEW_SETUP");
       } else {
         handleError({ response: { data: res.data } });
       }
@@ -559,95 +824,65 @@ export function AuthForm({
     }
   }, [state, userRole, onComplete]);
 
-  const hClass = isMobile ? "h-[52px] rounded-[14px]" : "h-14 rounded-2xl";
+  const hClass = "h-[50px] rounded-xl";
   const spaceClass = isMobile ? "space-y-3" : "space-y-4";
   const labelClass = isMobile ? "text-xs" : "text-[13px]";
 
   return (
     <div className={`w-full relative z-10 flex flex-col items-center ${isMobile ? "" : ""}`}>
       
-      {/* Mobile Title Block */}
-      {isMobile && state !== "PROFILE_SETUP" && state !== "ORGANIZATION_SETUP" && state !== "SUCCESS" && (
-        <div className="w-full max-w-[440px] text-center mx-auto mb-4 space-y-1">
-          <h2 className="text-xl font-bold tracking-tight text-foreground">
-            {state === "OTP_VERIFICATION" 
-              ? "Verify your identity" 
-              : state === "RESET_PASSWORD" 
-              ? "Create Master Password" 
+      {/* Mobile Contextual Auth Heading Area */}
+      {isMobile && (state === "EMAIL_ENTRY" || state === "FORGOT_PASSWORD" || state === "RESET_PASSWORD" || state === "RESET_SENT") && (
+        <div className="w-full max-w-[440px] text-left mx-auto mb-6 space-y-1">
+          <h2 className="text-2xl font-bold tracking-tight text-foreground dark:text-[#F5F5F2]">
+            {state === "EMAIL_ENTRY" 
+              ? "Welcome back." 
               : state === "FORGOT_PASSWORD" 
-              ? "Reset Your Password" 
-              : state === "PASSWORD" 
-              ? "Enter Master Password" 
-              : state === "PASSWORD_CREATION" 
-              ? "Set Master Password" 
-              : "Welcome back"}
+              ? "Forgot your password?" 
+              : state === "RESET_PASSWORD" 
+              ? "Create a new password." 
+              : state === "RESET_SENT" 
+              ? "Check your inbox." 
+              : "Welcome back."}
           </h2>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {state === "OTP_VERIFICATION" ? (
-              <span>Enter the 6-digit code sent to <strong className="text-foreground">{obfuscatedEmail}</strong></span>
-            ) : state === "RESET_PASSWORD" ? (
-              "Please establish a new secure master password for your account."
+          <p className="text-sm text-muted-foreground dark:text-[#9299A8] leading-relaxed">
+            {state === "EMAIL_ENTRY" ? (
+              "Sign in to continue your progress."
             ) : state === "FORGOT_PASSWORD" ? (
-              "Enter your email address to receive account recovery instructions."
-            ) : state === "PASSWORD" ? (
-              "Enter your master password to access your workspace."
-            ) : state === "PASSWORD_CREATION" ? (
-              "Create a strong password for your new workspace account."
+              "No worries. Enter your email and we'll help you reset it."
+            ) : state === "RESET_PASSWORD" ? (
+              "Choose a strong password to secure your account."
+            ) : state === "RESET_SENT" ? (
+              `We've sent a verification link to ${email || "your email address"}.`
             ) : (
-              "Sign in to continue to your secure workspace."
+              "Sign in to continue your progress."
             )}
           </p>
         </div>
       )}
 
-      {/* Dynamic Header Section - Hidden on Mobile since the Sheet provides its own compact header */}
-      {!isMobile && state !== "PROFILE_SETUP" && state !== "ORGANIZATION_SETUP" && (
-        <div className="mb-5 text-center space-y-2 flex flex-col items-center max-w-[440px] mx-auto">
-          <AnimatePresence mode="wait">
-            {state === "OTP_VERIFICATION" ? (
-              <motion.div
-                key="otp-badge"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.3 }}
-                className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-muted border border-border mb-3"
-              >
-                <ShieldCheck className="w-6 h-6 text-foreground" strokeWidth={1.5} />
-              </motion.div>
-            ) : (
-              <motion.div 
-                key="default-badge"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.3 }}
-                className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-muted border border-border mb-3"
-              >
-                <ShieldCheck className="w-6 h-6 text-foreground" strokeWidth={1.5} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-          
-          <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-muted-foreground mb-1">
-            {state === "OTP_VERIFICATION" ? "SECURE VERIFICATION" : state === "RESET_PASSWORD" || state === "FORGOT_PASSWORD" ? "ACCOUNT RECOVERY" : state === "ERROR" ? "SECURITY ALERT" : state === "PASSWORD_CREATION" ? "ACCOUNT SETUP" : "AUTHENTICATION"}
+      {/* Dynamic Header Section for sub-steps (Forgot Password, Reset Password, Reset Sent) */}
+      {!isMobile && (state === "FORGOT_PASSWORD" || state === "RESET_PASSWORD" || state === "RESET_SENT") && (
+        <div className="mb-5 text-center space-y-1 flex flex-col items-center max-w-[440px] mx-auto">
+          <p className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-muted-foreground dark:text-[#697180] mb-0.5">
+            ACCOUNT RECOVERY
           </p>
-          <h2 className="text-2xl sm:text-[28px] font-extrabold tracking-tight text-foreground leading-tight">
-            {state === "OTP_VERIFICATION" ? "Verify your identity" : state === "RESET_PASSWORD" ? "Secure Password Reset" : state === "FORGOT_PASSWORD" ? "Reset Your Password" : state === "ERROR" ? "Action Blocked" : state === "PASSWORD_CREATION" ? "Set Master Password" : "Welcome back"}
+          <h2 className="text-xl font-bold tracking-tight text-foreground dark:text-[#F5F5F2]">
+            {state === "RESET_PASSWORD" 
+              ? "Secure Password Reset" 
+              : state === "FORGOT_PASSWORD" 
+              ? "Reset your password" 
+              : "Check your inbox"}
           </h2>
-          <p className="mt-1 text-[13px] text-muted-foreground font-medium">
-            {state === "OTP_VERIFICATION" ? (
-              <span>We've sent a 6-digit verification code to <br className="hidden sm:block" /> <strong className="text-foreground tracking-wide font-semibold">{obfuscatedEmail}</strong></span>
-            ) : state === "RESET_PASSWORD" ? (
+          <p className="mt-1 text-xs text-muted-foreground dark:text-[#9299A8]">
+            {state === "RESET_PASSWORD" ? (
               "Please establish a new secure master password below."
             ) : state === "FORGOT_PASSWORD" ? (
-              "Enter your email to receive a secure recovery link."
-            ) : state === "ERROR" ? (
-              "We could not process your secure request."
-            ) : state === "PASSWORD_CREATION" ? (
-              "Create a strong password for your new workspace account."
+              "Enter your email address and we'll send you a secure link to create a new password."
+            ) : state === "RESET_SENT" ? (
+              "Check your email for reset instructions."
             ) : (
-              "Sign in to continue to your secure workspace."
+              "Create a strong password for your new workspace account."
             )}
           </p>
         </div>
@@ -666,21 +901,28 @@ export function AuthForm({
         )}
       </AnimatePresence>
 
-      <div className="w-full max-w-[440px] relative overflow-hidden pb-4">
+      <div className="w-full max-w-[440px] relative pb-4">
         <AnimatePresence mode="wait" initial={false}>
           
           {state === "EMAIL_ENTRY" && (
-            <motion.form key="email" {...fadeSlideProps} onSubmit={handlePasswordSubmit} className={spaceClass} autoComplete="off">
+            <motion.form key="email" {...fadeSlideProps} onSubmit={handlePasswordSubmit} className="w-full flex flex-col" autoComplete="off">
               <input
                 type="hidden"
                 value="something_to_defeat_chrome_autofill"
               />
-              <div className="grid grid-cols-2 gap-3">
+              
+              {/* 1. Full-Width Google Social Login Button (20px bottom gap) */}
+              <div className="w-full mb-[20px]">
                 <GoogleButton
                   isMobile={isMobile}
-                  disabled={loadingState !== ""}
+                  disabled={loadingState !== "" || !isGoogleAllowed}
+                  subtext={googleSubtext}
                   onClick={() => {
-                    setTransitionMessage("Redirecting to Google...");
+                    if (!isGoogleAllowed) {
+                      setError("Complete your first login with email and password. Google sign-in will be available afterward.");
+                      return;
+                    }
+                    setTransitionMessage("Connecting to Google...");
                     setIsTransitioning(true);
                     setTimeout(() => {
                       const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
@@ -688,51 +930,44 @@ export function AuthForm({
                         ? `${apiBase}/auth/google`
                         : `${apiBase}/api/v1/auth/google`;
                       window.location.href = googleAuthUrl;
-                    }, 600);
-                  }}
-                />
-                <GithubButton
-                  isMobile={isMobile}
-                  disabled={loadingState !== ""}
-                  onClick={() => {
-                    setTransitionMessage("Redirecting to GitHub...");
-                    setIsTransitioning(true);
-                    setTimeout(() => {
-                      const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
-                      const githubAuthUrl = apiBase.endsWith("/api/v1")
-                        ? `${apiBase}/auth/github`
-                        : `${apiBase}/api/v1/auth/github`;
-                      window.location.href = githubAuthUrl;
-                    }, 600);
+                    }, 200);
                   }}
                 />
               </div>
               
-              <div className="flex items-center my-4 sm:my-6 text-[10px] uppercase font-bold text-muted-foreground tracking-widest opacity-60">
-                <div className="flex-1 h-px bg-border"></div>
-                <span className="px-4">Or continue with email</span>
-                <div className="flex-1 h-px bg-border"></div>
+              {/* 2. Refined Divider (24px bottom gap) */}
+              <div className="flex items-center mb-[24px]">
+                <div className="flex-1 h-px bg-border dark:bg-[#282E38]"></div>
+                <span className="px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground dark:text-[#697180]">
+                  OR CONTINUE WITH EMAIL
+                </span>
+                <div className="flex-1 h-px bg-border dark:bg-[#282E38]"></div>
               </div>
 
-              <div className="relative group space-y-3">
-                <input
-                  type="email"
-                  required
-                  disabled={loadingState !== ""}
-                  placeholder="Work email"
-                  className={`w-full ${hClass} bg-background/50 backdrop-blur-sm border border-border px-5 text-sm outline-none focus:outline-none focus:ring-0 focus:border-border/80 transition-colors shadow-sm peer disabled:opacity-50 disabled:cursor-not-allowed`}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="off"
-                  name="email-auth-field"
-                />
-                <div className="relative">
+              {/* 3. Input Fields (14px spacing, 56px height, 14px radius, #151920 surface) */}
+              <div className="space-y-[14px]">
+                <div className="relative group">
+                  <input
+                    type="email"
+                    required
+                    disabled={loadingState !== ""}
+                    placeholder="Work email"
+                    enterKeyHint="next"
+                    className="w-full h-[56px] rounded-[14px] bg-background/60 dark:bg-[#151920] border border-border dark:border-[#282E38] px-4 text-sm text-foreground dark:text-[#F5F5F2] placeholder:text-muted-foreground dark:placeholder:text-[#7F8796] outline-none focus:outline-none focus:ring-0 focus:border-border-focus dark:focus:border-[#D4AF37] transition-all duration-200 shadow-xs peer disabled:opacity-50 disabled:cursor-not-allowed"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="off"
+                    name="email-auth-field"
+                  />
+                </div>
+                <div className="relative group">
                   <input
                     type={showPassword ? "text" : "password"}
                     required
                     disabled={loadingState !== ""}
                     placeholder="Password"
-                    className={`w-full ${hClass} bg-background/50 backdrop-blur-sm border border-border px-5 pr-12 text-sm outline-none focus:outline-none focus:ring-0 focus:border-border/80 transition-colors shadow-sm peer disabled:opacity-50 disabled:cursor-not-allowed`}
+                    enterKeyHint="go"
+                    className="w-full h-[56px] rounded-[14px] bg-background/60 dark:bg-[#151920] border border-border dark:border-[#282E38] px-4 pr-12 text-sm text-foreground dark:text-[#F5F5F2] placeholder:text-muted-foreground dark:placeholder:text-[#7F8796] outline-none focus:outline-none focus:ring-0 focus:border-border-focus dark:focus:border-[#D4AF37] transition-all duration-200 shadow-xs peer disabled:opacity-50 disabled:cursor-not-allowed"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="new-password"
@@ -740,235 +975,428 @@ export function AuthForm({
                   />
                   <button
                     type="button"
+                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground cursor-pointer focus:outline-none select-none flex items-center justify-center"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground dark:text-[#697180] hover:text-foreground dark:hover:text-[#9299A8] active:text-[#D4AF37] dark:active:text-[#D4AF37] cursor-pointer rounded-md p-1 outline-none select-none flex items-center justify-center transition-colors"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <div className="flex justify-end px-1">
-                  <button
-                    type="button"
-                    onClick={() => setState("FORGOT_PASSWORD")}
-                    className="text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors hover:underline decoration-border underline-offset-4"
-                  >
-                    Forgot Password?
+                    {showPassword ? <EyeOff className="w-4 h-4 text-[#D4AF37]" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
+
+              {/* 4. Forgot Password (10px top gap, 20px bottom gap) */}
+              <div className="flex justify-end pt-[10px] mb-[20px] px-0.5">
+                <button
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => setState("FORGOT_PASSWORD")}
+                  className="text-xs font-semibold text-muted-foreground dark:text-[#9299A8] hover:text-foreground dark:hover:text-[#D4AF37] transition-colors hover:underline decoration-border dark:decoration-[#282E38] underline-offset-4 cursor-pointer"
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              {/* 5. Primary Sign In Button */}
               <motion.button
-                whileHover={{ scale: 1.01, y: -1 }}
-                whileTap={{ scale: 0.98 }}
-                disabled={loadingState !== "" || !email || !password}
-                className={`w-full ${hClass} bg-gradient-to-b from-zinc-800 to-black dark:from-white dark:to-zinc-200 text-white dark:text-black font-semibold text-[15px] flex items-center justify-center transition-all disabled:opacity-50 shadow-md group relative overflow-hidden mt-4`}
+                onPointerDown={(e) => e.stopPropagation()}
+                whileHover={loading ? {} : { scale: 1.005 }}
+                whileTap={loading ? {} : { scale: 0.99 }}
+                disabled={loading}
+                className="w-full h-[56px] rounded-[14px] bg-[#D4AF37] hover:bg-[#E5C158] active:bg-[#C49F2B] text-[#0B0D11] font-bold text-sm flex items-center justify-center transition-all duration-200 disabled:bg-[#1C212B] disabled:text-[#697180] disabled:cursor-not-allowed shadow-sm group cursor-pointer"
               >
-                {loadingState === "PREPARING" ? (
+                {loading ? (
                   <>
-                    <Loader2 className="animate-spin h-5 w-5 mr-2" />
-                    <span>Preparing verification...</span>
+                    <Loader2 className="animate-spin h-5 w-5 mr-2 text-[#0B0D11]" />
+                    <span>Signing in...</span>
                   </>
                 ) : loadingState === "SENT" ? (
                   <>
-                    <CheckCircle2 className="h-5 w-5 mr-2" />
+                    <CheckCircle2 className="h-5 w-5 mr-2 text-[#0B0D11]" />
                     <span>Code sent successfully</span>
                   </>
                 ) : (
                   <>
                     <span className="mr-2">Sign In</span>
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 text-[#0B0D11]" />
                   </>
                 )}
               </motion.button>
             </motion.form>
           )}
 
-          {state === "OTP_VERIFICATION" && (
-            <motion.form key="otp" {...fadeSlideProps} onSubmit={handleOtpVerify} className="space-y-6 text-center">
-              <div className="mb-8 flex flex-col items-center">
-                <p className="text-[11px] text-muted-foreground font-medium mb-3 uppercase tracking-wider">Secure verification code sent to</p>
-                <div className="flex items-center gap-3 bg-muted/30 border border-border pl-4 pr-1.5 py-1.5 rounded-full shadow-sm hover:border-gold/50 transition-colors group">
-                  <strong className="text-foreground tracking-wide text-xs">
-                    {email}
-                  </strong>
-                  <button 
-                    type="button" 
-                    onClick={() => { setState("EMAIL_ENTRY"); setOtp(""); }}
-                    className="flex items-center justify-center w-6 h-6 rounded-full bg-background hover:bg-muted text-muted-foreground hover:text-foreground transition-all border border-border group-hover:border-gold/50"
-                    title="Edit Email"
-                  >
-                    <Edit2 className="w-3 h-3" />
-                  </button>
+          {state === "ACCOUNT_NOT_FOUND" && (
+            <motion.div
+              key="account_not_found"
+              {...fadeSlideProps}
+              className="w-full max-w-[440px] sm:max-w-[480px] mx-auto text-left flex flex-col justify-between py-2 space-y-5"
+            >
+              <div className="space-y-4">
+                {/* Quiet Step Header */}
+                <div>
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase pb-1">
+                    <span>ACCOUNT</span>
+                  </div>
+                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
                 </div>
-              </div>
-              
-              <div className="flex justify-between sm:justify-center gap-1.5 sm:gap-3 w-full max-w-xs mx-auto">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <motion.div 
-                    key={i} 
-                    animate={error ? { x: [0, -5, 5, -5, 5, 0], transition: { duration: 0.4 } } : {}}
-                    className="relative group flex-shrink-0"
-                  >
-                    <input
-                      ref={(el) => { inputRefs.current[i] = el; }}
-                      type="text"
-                      maxLength={6} // allow pasting up to 6
-                      className="w-[calc(16.66%-4px)] min-w-[38px] max-w-[46px] h-12 sm:w-[46px] sm:h-[56px] bg-background/60 backdrop-blur-md border border-border/80 rounded-xl sm:rounded-[16px] text-center text-lg sm:text-xl font-bold font-mono outline-none focus:outline-none focus:ring-0 focus:border-border transition-colors shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] hover:bg-muted/30"
-                      value={otp.split("")[i] || ""}
-                      onChange={(e) => handleOtpChange(i, e.target.value)}
-                      onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                      autoFocus={i === 0}
-                      disabled={loading}
-                    />
-                    <AnimatePresence>
-                      {otp.split("")[i] && (
-                        <motion.div
-                          initial={{ scale: 0.5, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          className="absolute inset-0 pointer-events-none rounded-[16px] border border-gold/30 opacity-50"
-                        />
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                ))}
+
+                {/* Heading & Subtitle */}
+                <div className="space-y-1">
+                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                    Account not found
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0] leading-relaxed">
+                    We couldn't find an authorized account for this email.
+                  </p>
+                </div>
+
+                {/* Masked Email Badge */}
+                <div className="p-3.5 rounded-xl bg-[#F1F2F4] dark:bg-[#171B21] border border-[#D9DDE3] dark:border-[#282E36] flex items-center justify-between shadow-xs">
+                  <span className="text-xs font-mono font-semibold text-[#171A1F] dark:text-[#F3F4F6]">{obfuscatedEmail || email}</span>
+                  <span className="px-2 py-0.5 rounded bg-[#E5E7EB] dark:bg-[#282E36] text-[10px] font-mono font-semibold text-[#69717D] dark:text-[#767E8C] uppercase">Unregistered</span>
+                </div>
+
+                <p className="text-xs text-[#69717D] dark:text-[#767E8C]">
+                  This account isn't ready for ManMadhan Progress yet.
+                </p>
               </div>
 
-              <div className="flex flex-col items-center gap-4 mt-6">
-                <motion.button
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.98 }}
-                  disabled={loading || otp.length < 6}
-                  className={`w-full ${hClass} bg-gradient-to-b from-zinc-800 to-black dark:from-white dark:to-zinc-200 text-white dark:text-black font-semibold text-[15px] flex items-center justify-center transition-all disabled:opacity-50 shadow-md group overflow-hidden relative`}
+              {/* Actions */}
+              <div className="pt-4 space-y-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail("");
+                    setPassword("");
+                    setError("");
+                    setState("EMAIL_ENTRY");
+                    if (typeof window !== "undefined") {
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete("auth_step");
+                      url.searchParams.delete("token");
+                      url.searchParams.delete("error");
+                      window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+                    }
+                  }}
+                  className="w-full h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all shadow-sm rounded-xl cursor-pointer group"
                 >
-                  {loading ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="animate-spin h-5 w-5" />
-                      Verifying Secure Code...
-                    </span>
-                  ) : (
-                    <>Verify Identity <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" /></>
-                  )}
-                </motion.button>
+                  Try another account <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" />
+                </button>
                 
-                <div className="flex items-center justify-center h-8">
-                  {countdown > 0 ? (
-                    <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground/80">
-                      <svg className="w-4 h-4 transform -rotate-90">
-                        <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="2" fill="transparent" className="opacity-20" />
-                        <motion.circle 
-                          cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="2" fill="transparent" 
-                          className="text-gold"
-                          strokeDasharray={43.98}
-                          animate={{ strokeDashoffset: 43.98 - (countdown / 59) * 43.98 }}
-                          transition={{ duration: 1, ease: "linear" }}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPassword("");
+                    setError("");
+                    setState("EMAIL_ENTRY");
+                    if (typeof window !== "undefined") {
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete("auth_step");
+                      url.searchParams.delete("token");
+                      url.searchParams.delete("error");
+                      window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+                    }
+                  }}
+                  className="w-full text-center text-xs font-semibold text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-colors py-1 cursor-pointer"
+                >
+                  Back to sign in
+                </button>
+              </div>
+            </motion.div>
+          )}          {state === "OTP_VERIFICATION" && (
+            <motion.form
+              key="otp"
+              onSubmit={handleOtpVerify}
+              className="w-full max-w-[440px] sm:max-w-[520px] mx-auto relative pb-2 text-left flex flex-col justify-between space-y-4 sm:space-y-5"
+            >
+              <div className="space-y-3 sm:space-y-4">
+                {/* Step Indicator */}
+                <div>
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase mb-1">
+                    <span>VERIFY IDENTITY</span>
+                    <span>02 / 07</span>
+                  </div>
+                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
+                </div>
+
+                {/* Heading */}
+                <div className="space-y-1 pt-1">
+                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                    Verify your identity
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0]">
+                    We've sent a 6-digit verification code to
+                  </p>
+                </div>
+
+                {/* Email Pill */}
+                <div className="p-2.5 sm:p-3 rounded-xl bg-[#F1F2F4] dark:bg-[#171B21] border border-[#D9DDE3] dark:border-[#282E36] flex items-center justify-between">
+                  <span className="text-xs font-mono text-[#171A1F] dark:text-[#F3F4F6] font-semibold truncate pr-2">
+                    {obfuscatedEmail || email}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { setState("EMAIL_ENTRY"); setOtp(""); }}
+                    className="w-8 h-8 rounded-lg bg-[#FFFFFF] dark:bg-[#1F2530] hover:bg-[#E5E7EB] dark:hover:bg-[#28303F] text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-all border border-[#D9DDE3] dark:border-[#2D3544] flex items-center justify-center cursor-pointer shrink-0"
+                    title="Edit Email"
+                  >
+                    <Edit2 className="w-3.5 h-3.5 text-[#B99625] dark:text-[#D7B33A]" />
+                  </button>
+                </div>
+
+                {/* OTP Input Slots */}
+                <div className="flex justify-between sm:justify-center gap-1.5 sm:gap-2.5 w-full max-w-xs mx-auto pt-2">
+                  {Array.from({ length: 6 }).map((_, i) => {
+                    const digit = otp.split("")[i] || "";
+                    return (
+                      <motion.div
+                        key={i}
+                        animate={error ? { x: [0, -4, 4, -4, 4, 0] } : {}}
+                        className="relative flex-shrink-0"
+                      >
+                        <input
+                          ref={(el) => { inputRefs.current[i] = el; }}
+                          type="text"
+                          maxLength={6}
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          className="w-[42px] h-[48px] sm:w-[48px] sm:h-[54px] rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] focus:border-[#B99625] dark:focus:border-[#D7B33A] focus:bg-[#FFFDF5] dark:focus:bg-[#15191F] text-center text-lg sm:text-xl font-bold font-mono text-[#171A1F] dark:text-[#F3F4F6] outline-none transition-all duration-150 shadow-xs"
+                          value={digit}
+                          onChange={(e) => handleOtpChange(i, e.target.value)}
+                          onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                          autoFocus={i === 0}
+                          disabled={loading || countdown === 0}
                         />
-                      </svg>
-                      00:{countdown.toString().padStart(2, '0')}
-                    </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+
+                {/* Timer & Resend */}
+                <div className="text-center pt-1">
+                  {countdown > 0 ? (
+                    <p className="text-xs text-[#69717D] dark:text-[#8B93A0]">
+                      Resend available in <span className="font-mono font-semibold text-[#171A1F] dark:text-[#F3F4F6]">00:{countdown.toString().padStart(2, '0')}</span>
+                    </p>
                   ) : (
                     <button
                       type="button"
                       onClick={handleResend}
-                      className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 hover:underline decoration-border underline-offset-4"
+                      className="text-xs font-semibold text-[#B99625] dark:text-[#D7B33A] hover:underline flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
                     >
-                      <RefreshCw className="w-3.5 h-3.5" /> Resend Code
+                      <RefreshCw className="w-3.5 h-3.5" /> Resend code
                     </button>
                   )}
                 </div>
               </div>
+
+              {/* Verify Button (Mobile-First Full Width, Anchored) */}
+              <div className="pt-4 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setState("EMAIL_ENTRY")}
+                  className="text-xs font-semibold text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-colors px-1 py-2 cursor-pointer"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || otp.length < 6 || countdown === 0}
+                  className="flex-1 sm:flex-initial sm:w-[160px] h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all disabled:bg-[#E5E1D2] dark:disabled:bg-[#332F24] disabled:text-[#92908A] dark:disabled:text-[#77736A] shadow-sm rounded-xl cursor-pointer group"
+                >
+                  {loading ? (
+                    <Loader2 className="animate-spin h-4 w-4 text-current" />
+                  ) : (
+                    <>Verify <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" /></>
+                  )}
+                </button>
+              </div>
             </motion.form>
-          )}
+          )}          {state === "PASSWORD_CREATION" && (
+            <motion.form
+              key="password"
+              onSubmit={handlePasswordSubmit}
+              className="w-full max-w-[440px] sm:max-w-[520px] mx-auto relative pb-2 text-left flex flex-col justify-between space-y-4 sm:space-y-5"
+            >
+              <div className="space-y-3 sm:space-y-4">
+                {/* Step Indicator */}
+                <div>
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase mb-1">
+                    <span>CHANGE PASSWORD</span>
+                    <span>03 / 07</span>
+                  </div>
+                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
+                </div>
 
-          {state === "PASSWORD_CREATION" && (
-            <motion.form key="password" {...fadeSlideProps} onSubmit={handlePasswordSubmit} className={spaceClass}>
-              <p className={`${labelClass} text-center text-muted-foreground mb-3`}>
-                Establish a secure master password
-              </p>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  placeholder="Master Password"
-                  className={`w-full ${hClass} bg-background/50 backdrop-blur-sm border border-border px-4 pr-12 text-base outline-none focus:outline-none focus:ring-0 focus:border-border/80 transition-colors shadow-sm tracking-widest placeholder:tracking-normal`}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
-                  name="new-password-setup"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground cursor-pointer focus:outline-none select-none flex items-center justify-center"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+                {/* Heading */}
+                <div className="space-y-1 pt-1">
+                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                    Create your new password
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0]">
+                    Your temporary password has been verified. Choose a new password to secure your account.
+                  </p>
+                </div>
+
+                {/* Form Controls */}
+                <div className="space-y-3 pt-1">
+                  {/* New password */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] block">New password</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        placeholder="Enter new password"
+                        className="w-full h-[50px] sm:h-[52px] rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] focus:border-[#B99625] dark:focus:border-[#D7B33A] focus:bg-[#FFFDF5] dark:focus:bg-[#15191F] px-4 pr-12 text-xs sm:text-sm font-medium text-[#171A1F] dark:text-[#F3F4F6] placeholder-[#9299A4] dark:placeholder-[#69717D] outline-none transition-all shadow-xs"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="new-password"
+                        name="new-password-setup"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] cursor-pointer p-1"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4 text-[#B99625] dark:text-[#D7B33A]" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Confirm password */}
+                  <div className="space-y-1 pt-1">
+                    <label className="text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] block">Confirm password</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        required
+                        placeholder="Confirm your new password"
+                        className="w-full h-[50px] sm:h-[52px] rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] focus:border-[#B99625] dark:focus:border-[#D7B33A] focus:bg-[#FFFDF5] dark:focus:bg-[#15191F] px-4 pr-12 text-xs sm:text-sm font-medium text-[#171A1F] dark:text-[#F3F4F6] placeholder-[#9299A4] dark:placeholder-[#69717D] outline-none transition-all shadow-xs"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        autoComplete="new-password"
+                        name="confirm-password-setup"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] cursor-pointer p-1"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4 text-[#B99625] dark:text-[#D7B33A]" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Compact 2-Column Password Requirements */}
+                  <div className="pt-2 space-y-1.5">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-[#69717D] dark:text-[#767E8C] font-semibold">
+                      Password requirements
+                    </p>
+                    <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-xs">
+                      <div className={`flex items-center gap-1.5 ${password.length >= 8 ? "text-[#2F7D4A] dark:text-[#10B981] font-semibold" : "text-[#69717D] dark:text-[#767E8C]"}`}>
+                        <span>{password.length >= 8 ? "✓" : "○"}</span>
+                        <span>8+ characters</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 ${/[A-Z]/.test(password) ? "text-[#2F7D4A] dark:text-[#10B981] font-semibold" : "text-[#69717D] dark:text-[#767E8C]"}`}>
+                        <span>{/[A-Z]/.test(password) ? "✓" : "○"}</span>
+                        <span>Uppercase</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 ${/[a-z]/.test(password) ? "text-[#2F7D4A] dark:text-[#10B981] font-semibold" : "text-[#69717D] dark:text-[#767E8C]"}`}>
+                        <span>{/[a-z]/.test(password) ? "✓" : "○"}</span>
+                        <span>Lowercase</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 ${/[0-9]/.test(password) ? "text-[#2F7D4A] dark:text-[#10B981] font-semibold" : "text-[#69717D] dark:text-[#767E8C]"}`}>
+                        <span>{/[0-9]/.test(password) ? "✓" : "○"}</span>
+                        <span>Number</span>
+                      </div>
+                      <div className={`flex items-center gap-1.5 col-span-2 ${/[^A-Za-z0-9]/.test(password) ? "text-[#2F7D4A] dark:text-[#10B981] font-semibold" : "text-[#69717D] dark:text-[#767E8C]"}`}>
+                        <span>{/[^A-Za-z0-9]/.test(password) ? "✓" : "○"}</span>
+                        <span>Special character</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="relative mt-2">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  required
-                  placeholder="Confirm Password"
-                  className={`w-full ${hClass} bg-background/50 backdrop-blur-sm border border-border px-4 pr-12 text-base outline-none focus:outline-none focus:ring-0 focus:border-border/80 transition-colors shadow-sm tracking-widest placeholder:tracking-normal`}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                  name="confirm-password-setup"
-                />
+              {/* Anchored Footer Actions */}
+              <div className="pt-4 flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground cursor-pointer focus:outline-none select-none flex items-center justify-center"
+                  onClick={() => setState("OTP_VERIFICATION")}
+                  className="text-xs font-semibold text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-colors px-1 py-2 cursor-pointer"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    loading ||
+                    !password ||
+                    password !== confirmPassword ||
+                    password.length < 8 ||
+                    !/[A-Z]/.test(password) ||
+                    !/[a-z]/.test(password) ||
+                    !/[0-9]/.test(password) ||
+                    !/[^A-Za-z0-9]/.test(password)
+                  }
+                  className="flex-1 sm:flex-initial sm:w-[160px] h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all disabled:bg-[#E5E1D2] dark:disabled:bg-[#332F24] disabled:text-[#92908A] dark:disabled:text-[#77736A] shadow-sm rounded-xl cursor-pointer group"
+                >
+                  {loading ? (
+                    <Loader2 className="animate-spin h-4 w-4 text-current" />
+                  ) : (
+                    <>Continue <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" /></>
+                  )}
                 </button>
               </div>
-              
-              <motion.button
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
-                disabled={loading || !password || password !== confirmPassword}
-                className={`w-full ${hClass} bg-gradient-to-b from-zinc-800 to-black dark:from-white dark:to-zinc-200 text-white dark:text-black font-semibold text-[15px] flex items-center justify-center transition-all disabled:opacity-50 mt-4 shadow-md group`}
-              >
-                {loading ? <Loader2 className="animate-spin h-5 w-5" /> : (
-                   <>Proceed Securely <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" /></>
-                )}
-              </motion.button>
             </motion.form>
           )}
 
           {state === "FORGOT_PASSWORD" && (
-            <motion.form key="forgot-password" {...fadeSlideProps} onSubmit={handleForgotPasswordSubmit} className={spaceClass}>
-              <div className="flex justify-between items-center mb-1.5 px-1">
-                <p className={`${labelClass} text-muted-foreground`}>
-                  Work email
-                </p>
+            <motion.form key="forgot-password" {...fadeSlideProps} onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+              <div className="space-y-1.5 text-left">
+                <label htmlFor="recovery-email-input" className="text-xs font-semibold text-foreground dark:text-[#F5F5F2]">
+                  Email address
+                </label>
+                <input
+                  id="recovery-email-input"
+                  type="email"
+                  required
+                  inputMode="email"
+                  enterKeyHint="send"
+                  disabled={loadingState !== ""}
+                  placeholder="name@company.com"
+                  className="w-full h-[56px] rounded-[14px] bg-background/60 dark:bg-[#151920] border border-border dark:border-[#282E38] px-4 text-sm text-foreground dark:text-[#F5F5F2] placeholder:text-muted-foreground dark:placeholder:text-[#7F8796] outline-none focus:outline-none focus:ring-0 focus:border-border-focus dark:focus:border-[#D4AF37] transition-all duration-200 shadow-xs"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  autoFocus
+                />
               </div>
-              <input
-                type="email"
-                required
-                disabled={loadingState !== ""}
-                placeholder="name@company.com"
-                className={`w-full ${hClass} bg-background/50 backdrop-blur-sm border border-border px-5 text-sm outline-none focus:outline-none focus:ring-0 focus:border-border/80 transition-colors shadow-sm rounded-xl`}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoFocus
-              />
               <motion.button
                 type="submit"
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={loading || !email ? {} : { scale: 1.005 }}
+                whileTap={loading || !email ? {} : { scale: 0.99 }}
                 disabled={loadingState !== "" || !email}
-                className={`w-full ${hClass} bg-gradient-to-b from-zinc-800 to-black dark:from-white dark:to-zinc-200 text-white dark:text-black font-semibold text-[15px] flex items-center justify-center transition-all disabled:opacity-50 shadow-md mt-5 group cursor-pointer`}
+                className="w-full h-[56px] rounded-[14px] bg-[#D4AF37] hover:bg-[#E5C158] active:bg-[#C49F2B] text-[#0B0D11] font-bold text-sm flex items-center justify-center transition-all duration-200 disabled:opacity-50 shadow-sm mt-5 group cursor-pointer"
               >
-                {loadingState === "SENT" ? (
-                  <><CheckCircle2 className="h-4 w-4 mr-2 text-emerald-400" /> Link Sent Successfully</>
-                ) : loading ? (
-                  <Loader2 className="animate-spin h-5 w-5" />
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin h-5 w-5 mr-2 text-[#0B0D11]" />
+                    <span>Sending reset link...</span>
+                  </>
+                ) : loadingState === "SENT" ? (
+                  <>
+                    <CheckCircle2 className="h-5 w-5 mr-2 text-[#0B0D11]" />
+                    <span>Reset link sent</span>
+                  </>
                 ) : (
                   <>
-                    <span className="mr-2">Send Reset Link</span>
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                    <span className="mr-2">Send reset link</span>
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 text-[#0B0D11]" />
                   </>
                 )}
               </motion.button>
@@ -977,23 +1405,52 @@ export function AuthForm({
                 <button
                   type="button"
                   onClick={() => setState("EMAIL_ENTRY")}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors p-1"
+                  className="text-xs font-semibold text-muted-foreground dark:text-[#9299A8] hover:text-foreground dark:hover:text-[#F5F5F2] transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Return to Sign In</span>
+                  <ArrowLeft className="w-3.5 h-3.5" /> Back to sign in
                 </button>
               </div>
             </motion.form>
           )}
 
+          {state === "RESET_SENT" && (
+            <motion.div key="reset-sent" {...fadeSlideProps} className="space-y-4 text-center py-2">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 flex items-center justify-center mx-auto mb-2">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-emerald-500">
+                  CHECK YOUR EMAIL
+                </p>
+                <h3 className="text-xl font-bold text-foreground dark:text-[#F5F5F2] tracking-tight">
+                  Check your inbox
+                </h3>
+                <p className="text-xs text-muted-foreground dark:text-[#9299A8] leading-relaxed max-w-xs mx-auto pt-1">
+                  If an account exists for <strong className="text-foreground dark:text-[#F5F5F2]">{email}</strong>, we've sent a secure password reset link.
+                </p>
+                <p className="text-[11px] font-medium text-muted-foreground/80 dark:text-[#71717A] pt-2">
+                  Returning to sign in in {resetSentCountdown} second{resetSentCountdown === 1 ? "" : "s"}…
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setState("EMAIL_ENTRY")}
+                className="w-full h-[56px] rounded-[14px] bg-[#D4AF37] hover:bg-[#E5C158] active:bg-[#C49F2B] text-[#0B0D11] font-bold text-sm flex items-center justify-center transition-all duration-200 shadow-sm cursor-pointer mt-4"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2 text-[#0B0D11]" />
+                <span>Back to sign in</span>
+              </button>
+            </motion.div>
+          )}
+
           {state === "RESET_PASSWORD" && (
-            <motion.form key="reset-password" {...fadeSlideProps} onSubmit={handleResetPasswordSubmit} className={spaceClass}>
+            <motion.form key="reset-password" {...fadeSlideProps} onSubmit={handleResetPasswordSubmit} className="space-y-4">
               <div className="flex justify-between items-center mb-1.5 px-1">
-                <p className={`${labelClass} text-muted-foreground`}>
+                <p className="text-xs font-semibold text-muted-foreground dark:text-[#9299A8]">
                   New master password
                 </p>
                 {email && (
-                  <span className="text-[10px] font-mono font-bold text-muted-foreground/60 tracking-wider">
+                  <span className="text-[10px] font-mono font-bold text-muted-foreground/60 dark:text-[#697180] tracking-wider">
                     {obfuscatedEmail}
                   </span>
                 )}
@@ -1003,7 +1460,7 @@ export function AuthForm({
                   type={showPassword ? "text" : "password"}
                   required
                   placeholder="••••••••"
-                  className={`w-full ${hClass} bg-background/50 backdrop-blur-sm border border-border px-4 pr-10 text-sm outline-none focus:outline-none focus:ring-0 focus:border-border/80 transition-colors shadow-sm rounded-xl tracking-widest placeholder:tracking-normal`}
+                  className="w-full h-[56px] rounded-[14px] bg-background/60 dark:bg-[#151920] border border-border dark:border-[#282E38] px-4 pr-12 text-sm text-foreground dark:text-[#F5F5F2] placeholder:text-muted-foreground dark:placeholder:text-[#7F8796] outline-none focus:outline-none focus:ring-0 focus:border-border-focus dark:focus:border-[#D4AF37] transition-all duration-200 shadow-xs tracking-widest placeholder:tracking-normal"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="new-password"
@@ -1013,14 +1470,14 @@ export function AuthForm({
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground cursor-pointer focus:outline-none select-none flex items-center justify-center"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground dark:text-[#697180] hover:text-foreground dark:hover:text-[#9299A8] active:text-[#D4AF37] dark:active:text-[#D4AF37] cursor-pointer focus:outline-none select-none flex items-center justify-center"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-4 h-4 text-[#D4AF37]" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
               
               <div className="flex justify-between items-center mt-3 mb-1.5 px-1">
-                <p className={`${labelClass} text-muted-foreground`}>
+                <p className="text-xs font-semibold text-muted-foreground dark:text-[#9299A8]">
                   Confirm new password
                 </p>
               </div>
@@ -1029,7 +1486,7 @@ export function AuthForm({
                   type={showPassword ? "text" : "password"}
                   required
                   placeholder="••••••••"
-                  className={`w-full ${hClass} bg-background/50 backdrop-blur-sm border border-border px-4 pr-10 text-sm outline-none focus:outline-none focus:ring-0 focus:border-border/80 transition-colors shadow-sm rounded-xl tracking-widest placeholder:tracking-normal`}
+                  className="w-full h-[56px] rounded-[14px] bg-background/60 dark:bg-[#151920] border border-border dark:border-[#282E38] px-4 pr-12 text-sm text-foreground dark:text-[#F5F5F2] placeholder:text-muted-foreground dark:placeholder:text-[#7F8796] outline-none focus:outline-none focus:ring-0 focus:border-border-focus dark:focus:border-[#D4AF37] transition-all duration-200 shadow-xs tracking-widest placeholder:tracking-normal"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   autoComplete="new-password"
@@ -1038,14 +1495,14 @@ export function AuthForm({
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground cursor-pointer focus:outline-none select-none flex items-center justify-center"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground dark:text-[#697180] hover:text-foreground dark:hover:text-[#9299A8] active:text-[#D4AF37] dark:active:text-[#D4AF37] cursor-pointer focus:outline-none select-none flex items-center justify-center"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-4 h-4 text-[#D4AF37]" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
 
               <div className="mt-2.5 px-1">
-                <p className="text-[10.5px] font-medium text-amber-500/90 flex items-center gap-1.5">
+                <p className="text-[10.5px] font-medium text-amber-500/90 dark:text-[#D4AF37] flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                   Note: For security, you cannot reuse your previous password.
                 </p>
@@ -1053,15 +1510,15 @@ export function AuthForm({
 
               <motion.button
                 type="submit"
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={{ scale: 1.005 }}
+                whileTap={{ scale: 0.99 }}
                 disabled={loading || !password || password !== confirmPassword}
-                className={`w-full ${hClass} bg-gradient-to-b from-zinc-800 to-black dark:from-white dark:to-zinc-200 text-white dark:text-black font-semibold text-[15px] flex items-center justify-center transition-all disabled:opacity-50 mt-5 shadow-md group cursor-pointer`}
+                className="w-full h-[56px] rounded-[14px] bg-[#D4AF37] hover:bg-[#E5C158] active:bg-[#C49F2B] text-[#0B0D11] font-bold text-sm flex items-center justify-center transition-all duration-200 disabled:opacity-50 mt-5 shadow-sm group cursor-pointer"
               >
-                {loading ? <Loader2 className="animate-spin h-5 w-5" /> : (
+                {loading ? <Loader2 className="animate-spin h-5 w-5 text-[#0B0D11]" /> : (
                    <>
                      <span className="mr-2">Reset Password Securely</span>
-                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                     <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 text-[#0B0D11]" />
                    </>
                 )}
               </motion.button>
@@ -1070,7 +1527,7 @@ export function AuthForm({
                 <button
                   type="button"
                   onClick={() => setState("EMAIL_ENTRY")}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors p-1"
+                  className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground dark:text-[#9299A8] hover:text-foreground dark:hover:text-[#F5F5F2] transition-colors p-1 cursor-pointer"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Return to Sign In</span>
@@ -1080,395 +1537,436 @@ export function AuthForm({
           )}
 
           {state === "PROFILE_SETUP" && (
-            <div className="w-full max-w-[500px] mx-auto relative pb-4">
-              <AnimatePresence mode="wait">
-                {profileStep === 1 && (
-                  <motion.div
-                    key="step1"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.2 }}
-                    className="w-full space-y-4"
-                  >
-                    <div className="text-center mb-6 flex flex-col items-center">
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-muted border border-border mb-3 shadow-sm"
-                      >
-                        <ShieldCheck className="w-6 h-6 text-foreground" strokeWidth={1.5} />
-                      </motion.div>
-                      <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-gold mb-1">ACCOUNT SETUP</p>
-                      <h3 className="text-xl font-bold text-foreground tracking-tight">Your Details</h3>
-                      <p className="text-[13px] text-muted-foreground mt-1">Let's get to know you better.</p>
-                    </div>
-                    
-                    <div className="space-y-4 text-left">
-                      <div>
-                        <label className="text-xs font-semibold text-muted-foreground ml-1 mb-1.5 block">Display Name</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="John Doe"
-                          className={`w-full ${hClass} bg-background/50 backdrop-blur-sm border border-border px-4 text-sm focus:border-gold outline-none transition-all shadow-sm rounded-xl`}
-                          value={profile.displayName}
-                          onChange={(e) => setProfile({ ...profile, displayName: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-muted-foreground ml-1 mb-1.5 block">Batch / Employee Number</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="EMP-1001"
-                          className={`w-full ${hClass} bg-background/50 backdrop-blur-sm border border-border px-4 text-sm focus:border-gold outline-none transition-all shadow-sm rounded-xl uppercase`}
-                          value={profile.batchNumber}
-                          onChange={(e) => setProfile({ ...profile, batchNumber: e.target.value.toUpperCase() })}
-                        />
-                      </div>
-                    </div>
+            <motion.form
+              key="profile"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError("");
+                try {
+                  const res = await apiClient.post("/auth/setup/profile", {
+                    displayName: profile.displayName,
+                    timezone: profile.timezone || "Asia/Kolkata",
+                    batchNumber: profile.batchNumber,
+                  }, {
+                    headers: { Authorization: `Bearer ${tempToken}` }
+                  });
+                  if (res.data.success) {
+                    setTempToken(res.data.tempToken);
+                    if (res.data.nextStep === "ORGANIZATION_SETUP") {
+                      setState("ORGANIZATION_SETUP");
+                    } else if (res.data.nextStep === "REVIEW_SETUP") {
+                      setState("REVIEW_SETUP");
+                    } else {
+                      setState("ORGANIZATION_SETUP");
+                    }
+                  } else {
+                    handleError({ response: { data: res.data } });
+                  }
+                } catch (err) {
+                  handleError(err);
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              className="w-full max-w-[440px] sm:max-w-[520px] mx-auto relative pb-2 text-left flex flex-col justify-between space-y-4 sm:space-y-5"
+            >
+              <div className="space-y-3 sm:space-y-4">
+                {/* Step Indicator */}
+                <div>
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase mb-1">
+                    <span>PERSONAL PROFILE</span>
+                    <span>{userRole === "CEO" ? "04 / 07" : "04 / 06"}</span>
+                  </div>
+                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
+                </div>
 
-                    <button
-                      type="button"
-                      disabled={!profile.displayName || !profile.batchNumber}
-                      onClick={() => setProfileStep(2)}
-                      className={`w-full ${hClass} bg-gradient-to-b from-zinc-800 to-black dark:from-white dark:to-zinc-200 text-white dark:text-black font-semibold text-[15px] flex items-center justify-center transition-all disabled:opacity-50 shadow-md rounded-xl mt-6 group`}
-                    >
-                      Continue <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </button>
-                  </motion.div>
-                )}
+                {/* Heading & Subtitle */}
+                <div className="space-y-1 pt-1">
+                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                    Set up your profile
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0]">
+                    Choose the name you'll use across ManMadhan Progress.
+                  </p>
+                </div>
 
-                {profileStep === 2 && (
-                  <motion.form
-                    key="step2"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
-                    transition={{ duration: 0.2 }}
-                    onSubmit={handleProfileSubmit}
-                    className="w-full space-y-4"
-                  >
-                    <div className="text-center mb-6 flex flex-col items-center">
-                      <motion.div 
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-muted border border-border mb-3 shadow-sm"
-                      >
-                        <ShieldCheck className="w-6 h-6 text-foreground" strokeWidth={1.5} />
-                      </motion.div>
-                      <p className="text-[10px] font-mono font-bold uppercase tracking-[0.25em] text-gold mb-1">ACCOUNT SETUP</p>
-                      <h3 className="text-xl font-bold text-foreground tracking-tight">Workspace Preferences</h3>
-                      <p className="text-[13px] text-muted-foreground mt-1">Configure your workspace preferences.</p>
-                    </div>
-                    
-                    <div className="space-y-4 text-left">
-                      <div className="relative">
-                        <label className="text-xs font-semibold text-muted-foreground ml-1 mb-1.5 block">Time Zone</label>
-                        <div 
-                          className={`w-full ${hClass} bg-background/50 backdrop-blur-sm border border-border px-4 text-sm flex items-center justify-between shadow-sm rounded-xl cursor-pointer hover:border-gold/50 transition-colors`}
-                          onClick={() => setTzOpen(!tzOpen)}
-                        >
-                          <span className="truncate">{profile.timezone}</span>
-                          <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
-                        </div>
-                        
-                        <AnimatePresence>
-                          {tzOpen && (
-                            <motion.div 
-                              initial={{ opacity: 0, y: -5, scale: 0.98 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: -5, scale: 0.98 }}
-                              className="absolute bottom-14 z-50 w-full mb-2 bg-card border border-border rounded-xl shadow-2xl overflow-hidden"
-                            >
-                              <div className="p-2 border-b border-border bg-muted/20">
-                                <input 
-                                  type="text" 
-                                  placeholder="Search timezones..." 
-                                  className="w-full bg-background border border-border rounded-lg px-3 py-2 text-xs outline-none focus:border-gold transition-colors"
-                                  value={tzSearch}
-                                  onChange={(e) => setTzSearch(e.target.value)}
-                                  onClick={(e) => e.stopPropagation()}
-                                  autoFocus
-                                />
-                              </div>
-                              <div className="max-h-48 overflow-y-auto p-1 scrollbar-thin">
-                                {timezones.filter(tz => tz.toLowerCase().includes(tzSearch.toLowerCase())).slice(0, 50).map(tz => (
-                                  <div 
-                                    key={tz} 
-                                    className={`px-3 py-2 text-xs rounded-md cursor-pointer transition-colors ${profile.timezone === tz ? 'bg-gold/10 text-gold font-medium' : 'hover:bg-muted text-foreground'}`}
-                                    onClick={() => { setProfile({ ...profile, timezone: tz }); setTzOpen(false); setTzSearch(""); }}
-                                  >
-                                    {tz}
-                                  </div>
-                                ))}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
+                {/* Display Name Input */}
+                <div className="space-y-1 pt-1">
+                  <label className="text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] block">Display name</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter your display name"
+                    className="w-full h-[50px] sm:h-[52px] rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] focus:border-[#B99625] dark:focus:border-[#D7B33A] focus:bg-[#FFFDF5] dark:focus:bg-[#15191F] px-4 text-xs sm:text-sm font-medium text-[#171A1F] dark:text-[#F3F4F6] placeholder-[#9299A4] dark:placeholder-[#69717D] outline-none transition-all shadow-xs"
+                    value={profile.displayName}
+                    onChange={(e) => setProfile({ ...profile, displayName: e.target.value })}
+                    autoFocus
+                  />
+                  <p className="text-xs text-[#69717D] dark:text-[#8B93A0] pt-0.5">This is how you'll appear across ManMadhan Progress.</p>
+                </div>
 
-                      <div>
-                        <label className="text-xs font-semibold text-muted-foreground ml-1 mb-1.5 block">Language (Optional)</label>
-                        <input
-                          type="text"
-                          placeholder="English"
-                          className={`w-full ${hClass} bg-background/50 backdrop-blur-sm border border-border px-4 text-sm focus:border-gold focus:ring-1 focus:ring-gold/30 outline-none transition-all shadow-sm rounded-xl`}
-                          value={profile.language}
-                          onChange={(e) => setProfile({ ...profile, language: e.target.value })}
-                        />
-                      </div>
-                    </div>
+                {/* Batch / Employee ID (Read-only Metadata) */}
+                <div className="pt-2">
+                  <p className="text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6]">Batch / Employee ID</p>
+                  <p className="text-xs text-[#69717D] dark:text-[#8B93A0] mt-0.5 font-mono">
+                    MK1603 · <span className="text-[#B99625] dark:text-[#D7B33A] font-semibold">Authorized</span>
+                  </p>
+                </div>
+              </div>
 
-                    <div className="flex gap-2 mt-6 w-full">
-                      <button
-                        type="button"
-                        onClick={() => setProfileStep(1)}
-                        className={`w-1/3 ${hClass} bg-muted text-muted-foreground font-semibold text-[14px] flex items-center justify-center transition-all hover:bg-muted/80 rounded-xl shadow-sm`}
-                      >
-                        Back
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={loading || !profile.timezone}
-                        className={`flex-1 ${hClass} bg-gradient-to-b from-zinc-800 to-black dark:from-white dark:to-zinc-200 text-white dark:text-black font-semibold text-[14px] flex items-center justify-center transition-all disabled:opacity-50 shadow-md rounded-xl group`}
-                      >
-                        {loading ? <Loader2 className="animate-spin h-5 w-5" /> : (
-                          <>Save & Continue <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" /></>
-                        )}
-                      </button>
-                    </div>
-                  </motion.form>
-                )}
-              </AnimatePresence>
-            </div>
+              {/* Anchored Footer Actions */}
+              <div className="pt-4 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setState("PASSWORD_CREATION")}
+                  className="text-xs font-semibold text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-colors px-1 py-2 cursor-pointer"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !profile.displayName.trim() || profile.displayName.trim().length < 2}
+                  className="flex-1 sm:flex-initial sm:w-[160px] h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all disabled:bg-[#E5E1D2] dark:disabled:bg-[#332F24] disabled:text-[#92908A] dark:disabled:text-[#77736A] shadow-sm rounded-xl cursor-pointer group"
+                >
+                  {loading ? (
+                    <Loader2 className="animate-spin h-4 w-4 text-current" />
+                  ) : (
+                    <>Continue <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" /></>
+                  )}
+                </button>
+              </div>
+            </motion.form>
           )}
 
           {state === "ORGANIZATION_SETUP" && (
-            <motion.form key="org" {...fadeSlideProps} onSubmit={handleOrgSubmit} className="flex flex-col gap-4 w-full max-w-[460px] mx-auto p-1">
-              <div className="text-center mb-1 flex flex-col items-center">
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gold/10 border border-gold/20 mb-2 shadow-sm text-gold"
-                >
-                  <ShieldCheck className="w-5 h-5 text-gold dark:text-[#F0BC2B]" strokeWidth={1.8} />
-                </motion.div>
-                <p className="text-[10px] font-bold tracking-widest text-gold uppercase mb-0.5">Authentication</p>
-                <h2 className="text-xl md:text-2xl font-black tracking-tight text-foreground">Create Your Organization</h2>
-                <p className="text-xs text-muted-foreground mt-1 font-medium">Complete your organization setup to access your workspace.</p>
-              </div>
+            <motion.form
+              key="org"
+              onSubmit={handleOrgSubmit}
+              className="w-full max-w-[440px] sm:max-w-[540px] mx-auto relative pb-2 text-left flex flex-col justify-between space-y-4 sm:space-y-5"
+            >
+              <div className="space-y-3 sm:space-y-4">
+                {/* Step Indicator */}
+                <div>
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase mb-1">
+                    <div className="flex items-center gap-2">
+                      <span>ORGANIZATION</span>
+                      <span className="text-[9px] font-bold text-[#B99625] dark:text-[#D7B33A] px-1.5 py-0.5 rounded bg-[#F4E9BC] dark:bg-[#332B12] border border-[#B99625]/20 dark:border-[#D7B33A]/20">CEO SETUP</span>
+                    </div>
+                    <span>05 / 07</span>
+                  </div>
+                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
+                </div>
 
-              {orgStep === 1 && (
-                <motion.div initial={{ opacity: 0, x: -15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 15 }} className="flex flex-col gap-4">
-                  {/* Logo Upload */}
-                  <div className="w-full flex flex-col gap-1.5">
-                    <div 
-                      className={`flex items-center gap-4 p-3.5 rounded-xl border-2 border-dashed transition-all ${isDragging ? 'border-gold bg-gold/5 scale-[1.01]' : 'border-border/80 bg-muted/20 hover:bg-muted/30'} group`}
-                      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                      onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        setIsDragging(false);
-                        handleLogoFile(e.dataTransfer.files?.[0]);
-                      }}
+                {/* Heading & Subtitle */}
+                <div className="space-y-1 pt-1">
+                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                    Set up your organization
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0]">
+                    Configure the organization workspace for your team.
+                  </p>
+                </div>
+
+                {/* Organization Logo (Compact Horizontal Upload Area) */}
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] block">Organization logo</label>
+                  <div className="p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] flex items-center gap-3.5 shadow-xs">
+                    {/* Logo Box */}
+                    <div
+                      onClick={() => logoInputRef.current?.click()}
+                      className="w-14 h-14 rounded-xl border border-[#D9DDE3] dark:border-[#2B313C] bg-[#F1F2F4] dark:bg-[#161B22] flex items-center justify-center overflow-hidden shrink-0 cursor-pointer hover:border-[#B99625] dark:hover:border-[#D7B33A] transition-colors"
                     >
-                      <div className="relative w-14 h-14 rounded-full border border-border/80 bg-background flex items-center justify-center overflow-hidden shrink-0 shadow-sm group-hover:border-gold/50 transition-colors pointer-events-none">
-                        {orgLogo ? (
-                          <img src={orgLogo} alt="Logo preview" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-muted/30 flex items-center justify-center">
-                            <UploadCloud className="w-5 h-5 text-gold" />
-                          </div>
+                      {orgLogo ? (
+                        <img src={orgLogo} alt="Logo preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-sm font-bold text-[#B99625] dark:text-[#D7B33A] font-mono">M</span>
+                      )}
+                    </div>
+
+                    {/* Meta & Actions */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-[#171A1F] dark:text-[#F3F4F6] truncate">
+                        {orgLogo ? "Logo uploaded" : "Upload logo"}
+                      </p>
+                      <p className="text-[11px] text-[#69717D] dark:text-[#767E8C]">PNG, JPG or SVG · Max 2 MB</p>
+
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/svg+xml"
+                        ref={logoInputRef}
+                        className="hidden"
+                        onChange={(e) => handleLogoFile(e.target.files?.[0])}
+                      />
+
+                      <div className="flex items-center gap-3 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => logoInputRef.current?.click()}
+                          className="text-xs font-semibold text-[#B99625] dark:text-[#D7B33A] hover:underline cursor-pointer"
+                        >
+                          {orgLogo ? "Replace logo" : "Choose logo"}
+                        </button>
+                        {orgLogo && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOrgLogo("");
+                              if (logoInputRef.current) logoInputRef.current.value = "";
+                            }}
+                            className="text-xs font-semibold text-red-500 hover:underline cursor-pointer"
+                          >
+                            Remove
+                          </button>
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-foreground mb-0.5">Organization Logo</p>
-                        <p className="text-[11px] text-muted-foreground font-medium mb-2">PNG, JPG or SVG • Max 2 MB</p>
-                        <div className="flex items-center gap-2">
-                          <input 
-                            type="file" 
-                            accept="image/png, image/jpeg, image/svg+xml" 
-                            ref={logoInputRef}
-                            className="hidden" 
-                            onChange={(e) => {
-                              handleLogoFile(e.target.files?.[0]);
-                            }}
-                          />
-                          <button type="button" onClick={() => logoInputRef.current?.click()} className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-foreground text-background hover:bg-foreground/90 transition-colors">
-                            {orgLogo ? "Replace Logo" : "Upload Logo"}
-                          </button>
-                          {orgLogo && (
-                            <button type="button" onClick={() => { setOrgLogo(""); if(logoInputRef.current) logoInputRef.current.value = ""; }} className="text-[11px] font-bold text-red-500 hover:text-red-400 transition-colors">
-                              Remove
-                            </button>
-                          )}
-                        </div>
-                      </div>
                     </div>
                   </div>
+                </div>
 
-                  {/* Organization Name & Live Preview */}
-                  <div className="flex flex-col gap-3">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-foreground ml-0.5">Organization Name</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="ManMadhan Global"
-                        className="w-full h-11 rounded-xl bg-background border border-border px-3.5 text-xs font-medium focus:border-gold outline-none transition-all shadow-sm focus:ring-2 focus:ring-gold/20"
-                        value={orgName}
-                        onChange={(e) => setOrgName(e.target.value)}
-                      />
-                      <p className="text-[11px] text-muted-foreground ml-0.5 font-medium">The name displayed throughout your workspace.</p>
-                    </div>
+                {/* Organization Name Input */}
+                <div className="space-y-1 pt-1">
+                  <label className="text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] block">Organization name</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter organization name"
+                    className="w-full h-[50px] sm:h-[52px] rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] focus:border-[#B99625] dark:focus:border-[#D7B33A] focus:bg-[#FFFDF5] dark:focus:bg-[#15191F] px-4 text-xs sm:text-sm font-medium text-[#171A1F] dark:text-[#F3F4F6] placeholder-[#9299A4] dark:placeholder-[#69717D] outline-none transition-all shadow-xs"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
+                  />
+                  <p className="text-xs text-[#69717D] dark:text-[#8B93A0] pt-0.5">
+                    The name your team will see across ManMadhan Progress.
+                  </p>
+                </div>
+              </div>
 
-                    {/* Live Preview Card */}
-                    {(orgName || workspaceId) && (
-                      <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="w-full rounded-xl border border-border/80 bg-muted/20 p-3 flex items-center gap-3 shadow-sm">
-                        <div className="w-10 h-10 rounded-lg border border-border bg-background flex items-center justify-center overflow-hidden shrink-0">
-                          {orgLogo ? (
-                            <img src={orgLogo} alt="Preview" className="w-full h-full object-cover" />
-                          ) : (
-                            <Building className="w-4 h-4 text-gold" />
-                          )}
-                        </div>
-                        <div className="flex-1 overflow-hidden">
-                          <p className="text-xs font-bold text-foreground truncate">{orgName || "Organization Name"}</p>
-                          <p className="text-[10px] text-muted-foreground font-medium truncate mt-0.5 flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                            {workspaceId || "workspace-id"}
-                          </p>
-                        </div>
-                      </motion.div>
-                    )}
+              {/* Anchored Footer Actions */}
+              <div className="pt-4 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setState("PROFILE_SETUP")}
+                  className="text-xs font-semibold text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-colors px-1 py-2 cursor-pointer"
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !orgName.trim() || orgName.trim().length < 2 || orgLoadingStep > 0}
+                  className="flex-1 sm:flex-initial sm:w-[160px] h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all disabled:bg-[#E5E1D2] dark:disabled:bg-[#332F24] disabled:text-[#92908A] dark:disabled:text-[#77736A] shadow-sm rounded-xl cursor-pointer group"
+                >
+                  {loading || orgLoadingStep > 0 ? (
+                    <Loader2 className="animate-spin h-4 w-4 text-current" />
+                  ) : (
+                    <>Continue <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" /></>
+                  )}
+                </button>
+              </div>
+            </motion.form>
+          )}
+
+          {state === "REVIEW_SETUP" && (
+            <motion.div
+              key="review"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-[440px] sm:max-w-[540px] mx-auto relative pb-2 text-left flex flex-col justify-between space-y-4 sm:space-y-5"
+            >
+              <div className="space-y-3 sm:space-y-4">
+                {/* Step Indicator */}
+                <div>
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase mb-1">
+                    <span>REVIEW</span>
+                    <span>{userRole === "CEO" ? "06 / 07" : "05 / 06"}</span>
                   </div>
+                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
+                </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setOrgStep(2)}
-                    disabled={!orgName || workspaceId.length < 2}
-                    className="w-full h-11 bg-gold hover:bg-[#F0BC2B] text-black font-bold text-xs flex items-center justify-center transition-all disabled:opacity-50 shadow-sm rounded-xl mt-1 cursor-pointer"
-                  >
-                    Continue <ArrowRight className="ml-1.5 w-4 h-4" />
-                  </button>
-                </motion.div>
-              )}
+                {/* Heading */}
+                <div className="space-y-1 pt-1">
+                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                    Review your setup
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0]">
+                    Everything looks ready. Confirm your setup details below.
+                  </p>
+                </div>
 
-              {orgStep === 2 && (
-                <motion.div initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }} className="flex flex-col gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-foreground ml-0.5">Select Community Hubs</label>
-                      <span className="text-[10px] text-gold font-bold">Both Selected by Default</span>
+                {/* Summary Rows */}
+                <div className="space-y-2.5 pt-1">
+                  {/* Profile Section */}
+                  <div className="p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] flex items-center justify-between shadow-xs">
+                    <div>
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-[#69717D] dark:text-[#767E8C] block mb-0.5">PROFILE</span>
+                      <span className="text-xs font-semibold text-[#171A1F] dark:text-[#F3F4F6] block">{profile.displayName || "Sai Krishnan"}</span>
+                      <span className="text-[11px] text-[#69717D] dark:text-[#767E8C]">ID: MK1603 · Authorized</span>
                     </div>
-                    
-                    {/* Two Distinct Interactive Toggleable Community Hubs */}
-                    <div className="grid grid-cols-1 gap-2.5">
-                      {/* Hub 1 */}
-                      <button
-                        type="button"
-                        onClick={() => toggleHub("hub-1")}
-                        className={`p-3.5 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
-                          selectedHubs.includes("hub-1")
-                            ? "border-gold/60 bg-gold/10 shadow-sm"
-                            : "border-border/60 bg-muted/10 opacity-60 hover:opacity-100 hover:bg-muted/20"
-                        }`}
-                      >
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-black text-xs ${
-                          selectedHubs.includes("hub-1") ? "bg-gold/20 text-gold" : "bg-muted border border-border text-muted-foreground"
-                        }`}>
-                          H1
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs font-bold text-foreground">ManMadhan Hub - 1</p>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-gold/20 text-gold border border-gold/30">
-                                Admin Only
-                              </span>
-                              <CheckCircle2 className={`w-4 h-4 transition-colors ${selectedHubs.includes("hub-1") ? "text-gold" : "text-muted-foreground/30"}`} />
-                            </div>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Executive Strategy, High-Level Approvals, 8-Stage Governance & Settings.
-                          </p>
-                        </div>
-                      </button>
-
-                      {/* Hub 2 */}
-                      <button
-                        type="button"
-                        onClick={() => toggleHub("hub-2")}
-                        className={`p-3.5 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
-                          selectedHubs.includes("hub-2")
-                            ? "border-gold/60 bg-gold/10 shadow-sm"
-                            : "border-border/60 bg-muted/10 opacity-60 hover:opacity-100 hover:bg-muted/20"
-                        }`}
-                      >
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-black text-xs ${
-                          selectedHubs.includes("hub-2") ? "bg-gold/20 text-gold" : "bg-muted border border-border text-muted-foreground"
-                        }`}>
-                          H2
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs font-bold text-foreground">ManMadhan Hub - 2</p>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
-                                Admin + Member
-                              </span>
-                              <CheckCircle2 className={`w-4 h-4 transition-colors ${selectedHubs.includes("hub-2") ? "text-gold" : "text-muted-foreground/30"}`} />
-                            </div>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Task Execution, Project Workspaces, Leaderboard & Collaborative Documents.
-                          </p>
-                        </div>
-                      </button>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground ml-0.5 font-medium">
-                      No typing required. CEO can select both Hub-1 (Executive Strategy) and Hub-2 (Operations).
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2 mt-2 w-full">
                     <button
                       type="button"
-                      onClick={() => setOrgStep(1)}
-                      className="w-1/3 h-11 bg-muted hover:bg-muted/80 text-foreground font-bold text-xs flex items-center justify-center transition-all rounded-xl shadow-sm"
+                      onClick={() => setState("PROFILE_SETUP")}
+                      className="text-xs font-semibold text-[#B99625] dark:text-[#D7B33A] hover:underline cursor-pointer"
                     >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading || orgLoadingStep > 0}
-                      className="flex-1 h-11 bg-gold hover:bg-[#F0BC2B] text-black font-bold text-xs flex items-center justify-center transition-all disabled:opacity-50 shadow-sm rounded-xl cursor-pointer px-4"
-                    >
-                      {orgLoadingStep > 0 ? (
-                        <div className="flex items-center justify-center gap-2 whitespace-nowrap overflow-hidden">
-                          <Loader2 className="w-4 h-4 animate-spin shrink-0 text-black" />
-                          <span className="text-xs font-bold text-black truncate">
-                            {orgLoadingStep === 1 ? "Connecting..." :
-                             orgLoadingStep === 2 ? "Creating Organization..." :
-                             orgLoadingStep === 3 ? "Configuring Hubs..." :
-                             orgLoadingStep === 4 ? "Applying Security..." :
-                             orgLoadingStep === 5 ? "Preparing Dashboard..." :
-                             "Organization Ready!"}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                          <span>Complete Setup & Enter Workspace</span>
-                          <ArrowRight className="w-4 h-4 shrink-0" />
-                        </div>
-                      )}
+                      Edit
                     </button>
                   </div>
-                </motion.div>
-              )}
-            </motion.form>
+
+                  {/* Personal Space Section */}
+                  <div className="p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] flex items-center justify-between shadow-xs">
+                    <div>
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-[#69717D] dark:text-[#767E8C] block mb-0.5">PERSONAL SPACE</span>
+                      <span className="text-xs font-semibold text-[#171A1F] dark:text-[#F3F4F6] block">Personal Workspace</span>
+                      <span className="text-[11px] text-[#69717D] dark:text-[#767E8C]">Created automatically · Private to you</span>
+                    </div>
+                  </div>
+
+                  {/* Organization Section (CEO only) */}
+                  {userRole === "CEO" && (
+                    <div className="p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] flex items-center justify-between shadow-xs">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg border border-[#D9DDE3] dark:border-[#2B313C] bg-[#F1F2F4] dark:bg-[#161B22] flex items-center justify-center overflow-hidden shrink-0">
+                          {orgLogo ? (
+                            <img src={orgLogo} alt="Logo" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-bold text-[#B99625] dark:text-[#D7B33A] font-mono">M</span>
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-mono uppercase tracking-widest text-[#69717D] dark:text-[#767E8C] block mb-0.5">ORGANIZATION</span>
+                          <span className="text-xs font-semibold text-[#171A1F] dark:text-[#F3F4F6] block">{orgName || "ManMadhan Workspace"}</span>
+                          <span className="text-[11px] text-[#69717D] dark:text-[#767E8C]">Role: CEO · Full Authority</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setState("ORGANIZATION_SETUP")}
+                        className="text-xs font-semibold text-[#B99625] dark:text-[#D7B33A] hover:underline cursor-pointer"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Account Section */}
+                  <div className="p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] shadow-xs">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-[#69717D] dark:text-[#767E8C] block mb-0.5">ACCOUNT</span>
+                    <span className="text-xs font-semibold text-[#171A1F] dark:text-[#F3F4F6] block font-mono">{email}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Anchored Footer Actions */}
+              <div className="pt-4 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setState(userRole === "CEO" ? "ORGANIZATION_SETUP" : "PROFILE_SETUP")}
+                  className="text-xs font-semibold text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-colors px-1 py-2 cursor-pointer"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setLoading(true);
+                    try {
+                      const res = await apiClient.post("/auth/setup/complete", {}, {
+                        headers: { Authorization: `Bearer ${tempToken}` }
+                      });
+                      if (res.data.success) {
+                        setState("SETUP_COMPLETE");
+                      } else {
+                        handleError({ response: { data: res.data } });
+                      }
+                    } catch (err) {
+                      handleError(err);
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  disabled={loading}
+                  className="flex-1 sm:flex-initial sm:w-[180px] h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all disabled:bg-[#E5E1D2] dark:disabled:bg-[#332F24] disabled:text-[#92908A] dark:disabled:text-[#77736A] shadow-sm rounded-xl cursor-pointer group"
+                >
+                  {loading ? (
+                    <Loader2 className="animate-spin h-4 w-4 text-current" />
+                  ) : (
+                    <>Complete setup <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" /></>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {state === "SETUP_COMPLETE" && (
+            <motion.div
+              key="setup_complete"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+              className="w-full max-w-[440px] sm:max-w-[520px] mx-auto relative pb-2 text-left flex flex-col justify-between space-y-4 sm:space-y-5"
+            >
+              <div className="space-y-3 sm:space-y-4">
+                {/* Step Indicator */}
+                <div>
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase mb-1">
+                    <span>COMPLETE</span>
+                    <span>{userRole === "CEO" ? "07 / 07" : "06 / 06"}</span>
+                  </div>
+                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
+                </div>
+
+                {/* Heading */}
+                <div className="space-y-1 pt-1">
+                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                    You're all set.
+                  </h3>
+                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0]">
+                    Your ManMadhan Progress account is ready. Sign in with your new password to activate your session.
+                  </p>
+                </div>
+
+                {/* Status Items */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center gap-3 text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] shadow-xs">
+                    <CheckCircle2 className="w-4 h-4 text-[#B99625] dark:text-[#D7B33A] shrink-0" />
+                    <span>Profile completed</span>
+                  </div>
+                  {userRole === "CEO" && (
+                    <div className="flex items-center gap-3 text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] shadow-xs">
+                      <CheckCircle2 className="w-4 h-4 text-[#B99625] dark:text-[#D7B33A] shrink-0" />
+                      <span>Organization configured</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3 text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] shadow-xs">
+                    <CheckCircle2 className="w-4 h-4 text-[#B99625] dark:text-[#D7B33A] shrink-0" />
+                    <span>Personal workspace created</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action: Return to Login */}
+              <div className="pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempToken("");
+                    setState("EMAIL_ENTRY");
+                    setPassword("");
+                    setError("");
+                    if (typeof window !== "undefined") {
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete("auth_step");
+                      url.searchParams.delete("token");
+                      url.searchParams.set("activated", "true");
+                      window.history.replaceState({}, '', url.pathname + url.search);
+                    }
+                  }}
+                  className="w-full h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all shadow-sm rounded-xl cursor-pointer group"
+                >
+                  Return to login <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            </motion.div>
           )}
 
           {state === "ERROR" && (
@@ -1637,10 +2135,12 @@ export function AuthForm({
 
 
       {/* Footer Links */}
-      <div className={`flex justify-center ${isMobile ? "gap-4 mt-6 text-[10px]" : "gap-6 mt-10 text-[11px]"} font-medium text-muted-foreground opacity-70`}>
-        <a href="#" className="hover:text-foreground hover:opacity-100 transition-all">Privacy</a>
-        <a href="#" className="hover:text-foreground hover:opacity-100 transition-all">Terms</a>
-        <a href="#" className="hover:text-foreground hover:opacity-100 transition-all">Support</a>
+      <div className={`flex justify-center items-center gap-3 ${isMobile ? "mt-4 text-[11px]" : "mt-8 text-[11px]"} font-medium text-muted-foreground/70 dark:text-[#697180]`}>
+        <a href="/privacy" className="hover:underline hover:text-foreground dark:hover:text-[#F5F5F2] transition-colors">Privacy</a>
+        <span>&middot;</span>
+        <a href="/terms" className="hover:underline hover:text-foreground dark:hover:text-[#F5F5F2] transition-colors">Terms</a>
+        <span>&middot;</span>
+        <a href="/support" className="hover:underline hover:text-foreground dark:hover:text-[#F5F5F2] transition-colors">Support</a>
       </div>
 
     </div>

@@ -28,6 +28,8 @@ export const users = pgTable("users", {
 	status: text("status").default("Created").notNull(), // Created, Invitation Sent, Activated, Suspended, Locked, Disabled, Deleted
 	isVerified: boolean("is_verified").default(false).notNull(),
 	isGoogleEnabled: boolean("is_google_enabled").default(false).notNull(),
+	firstLoginCompleted: boolean("first_login_completed").default(false).notNull(),
+	onboardingStatus: text("onboarding_status").default("FIRST_LOGIN_REQUIRED").notNull(),
 	isOtpEnabled: boolean("is_otp_enabled").default(false).notNull(),
 	isInvited: boolean("is_invited").default(false).notNull(),
 	systemOwner: boolean("system_owner").default(false).notNull(),
@@ -35,6 +37,9 @@ export const users = pgTable("users", {
 	managerId: text("manager_id").references((): any => users.id, {
 		onDelete: "set null",
 	}),
+	lastLoginAt: timestamp("last_login_at"),
+	lastActiveAt: timestamp("last_active_at"),
+	lastInactivityNotificationAt: timestamp("last_inactivity_notification_at"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -1371,4 +1376,92 @@ export const automationLogs = pgTable("automation_logs", {
 	executedAt: timestamp("executed_at").defaultNow().notNull(),
 });
 
+// Command Sessions Table
+export const commandSessions = pgTable("command_sessions", {
+	id: text("id").primaryKey(),
+	workspaceId: text("workspace_id")
+		.notNull()
+		.references(() => workspaces.id, { onDelete: "cascade" }),
+	userId: text("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	title: text("title").notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Command Messages Table
+export const commandMessages = pgTable("command_messages", {
+	id: text("id").primaryKey(),
+	sessionId: text("session_id")
+		.notNull()
+		.references(() => commandSessions.id, { onDelete: "cascade" }),
+	sender: text("sender").notNull(), // user | ai
+	text: text("text").notNull(),
+	previewJson: jsonb("preview_json"),
+	executed: boolean("executed").default(false).notNull(),
+	executedLink: text("executed_link"),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Command Executions Audit Table
+export const commandExecutions = pgTable("command_executions", {
+	id: text("id").primaryKey(),
+	commandId: text("command_id").notNull(),
+	sessionId: text("session_id").references(() => commandSessions.id, { onDelete: "set null" }),
+	workspaceId: text("workspace_id")
+		.notNull()
+		.references(() => workspaces.id, { onDelete: "cascade" }),
+	userId: text("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	actionType: text("action_type").notNull(),
+	entityType: text("entity_type"),
+	entityId: text("entity_id"),
+	status: text("status").default("COMPLETED").notNull(),
+	errorMessage: text("error_message"),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	completedAt: timestamp("completed_at"),
+});
+
+// Project AI Tools Table (Referencing ManMadhan Hub Tools)
+export const projectAiTools = pgTable("project_ai_tools", {
+	id: text("id").primaryKey(),
+	projectId: text("project_id")
+		.notNull()
+		.references(() => projects.id, { onDelete: "cascade" }),
+	hubToolId: text("hub_tool_id").notNull(),
+	toolName: text("tool_name").notNull(),
+	toolCategory: text("tool_category"),
+	toolWebsite: text("tool_website"),
+	purpose: text("purpose").notNull(),
+	notes: text("notes"),
+	addedById: text("added_by_id")
+		.notNull()
+		.references(() => users.id),
+	status: text("status").default("ACTIVE").notNull(), // ACTIVE, ARCHIVED, UNAVAILABLE
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Calendar Events Table
+export const calendarEvents = pgTable("calendar_events", {
+	id: text("id").primaryKey(),
+	workspaceId: text("workspace_id")
+		.notNull()
+		.references(() => workspaces.id, { onDelete: "cascade" }),
+	projectId: text("project_id").references(() => projects.id, { onDelete: "cascade" }),
+	title: text("title").notNull(),
+	description: text("description"),
+	startTime: timestamp("start_time").notNull(),
+	endTime: timestamp("end_time").notNull(),
+	createdById: text("created_by_id")
+		.notNull()
+		.references(() => users.id),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export * from "./schema/personal.schema";
+
+
+

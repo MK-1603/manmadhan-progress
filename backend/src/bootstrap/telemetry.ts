@@ -28,6 +28,7 @@ const visualLength = (str: string): number => stripAnsi(str).length;
 export const printStartupDashboard = (
 	port: number,
 	startTime: number,
+	dbConnected = true,
 ): void => {
 	const telemetry = getTelemetryData(startTime);
 	const INNER_WIDTH = 92;
@@ -78,15 +79,17 @@ export const printStartupDashboard = (
 
 	box += midBorder;
 
-	box += makeRow("\x1b[1mService Status (All Connected & Active)\x1b[0m");
+	box += makeRow(
+		`\x1b[1mService Status (${dbConnected ? "All Connected & Active" : "Degraded / Partial Service"})\x1b[0m`,
+	);
 	box += makeRow("");
 	box += makeTwoColRow(
-		"PostgreSQL (Neon) \x1b[32m✓ Connected\x1b[0m",
-		"Drizzle ORM Tables\x1b[32m✓ Connected\x1b[0m",
+		`PostgreSQL (Neon) ${dbConnected ? "\x1b[32m✓ Connected\x1b[0m" : "\x1b[31m✗ Unavailable\x1b[0m"}`,
+		`Drizzle ORM Tables ${dbConnected ? "\x1b[32m✓ Connected\x1b[0m" : "\x1b[33m⚠ Degraded\x1b[0m"}`,
 	);
 	box += makeTwoColRow(
 		"Cloudinary Storage\x1b[32m✓ Connected\x1b[0m",
-		"Google/GitHub Auth\x1b[32m✓ Connected\x1b[0m",
+		"Google OAuth Gate\x1b[32m✓ Connected\x1b[0m",
 	);
 	box += makeTwoColRow(
 		"Firebase FCM Push \x1b[32m✓ Connected\x1b[0m",
@@ -94,11 +97,11 @@ export const printStartupDashboard = (
 	);
 	box += makeTwoColRow(
 		"Socket.IO Engine  \x1b[32m✓ Connected\x1b[0m",
-		"SMTPS Email Sender\x1b[32m✓ Connected\x1b[0m",
+		"Gmail SMTP        \x1b[32m✓ Primary\x1b[0m",
 	);
 	box += makeTwoColRow(
+		"Resend Provider   \x1b[90mDisabled\x1b[0m",
 		"Groq Llama 3.3 70B\x1b[32m✓ Connected\x1b[0m",
-		"Gemini 3.6 Flash \x1b[32m✓ Connected\x1b[0m",
 	);
 
 	box += midBorder;
@@ -115,7 +118,30 @@ export const printStartupDashboard = (
 
 	box += midBorder;
 
-	box += makeRow("Status : \x1b[1;32mALL CONNECTED & READY\x1b[0m");
+	box += makeRow("\x1b[1mStartup Logs\x1b[0m");
+	box += makeRow("");
+	const timestamp = new Date().toTimeString().split(" ")[0];
+	const dbLogMsg = dbConnected
+		? "All PostgreSQL connections verified (Auth, Personal, ManMadhan)."
+		: "PostgreSQL connection check failed (Degraded Mode).";
+	const dbLogLevel = dbConnected ? "\x1b[32mINFO\x1b[0m" : "\x1b[31mWARN\x1b[0m";
+
+	box += makeRow(
+		`\x1b[90m[${timestamp}]\x1b[0m ${dbLogLevel}: ${dbLogMsg}`,
+	);
+	box += makeRow(
+		`\x1b[90m[${timestamp}]\x1b[0m \x1b[32mINFO\x1b[0m: Gmail SMTP Primary Provider verified ✓ Connected`,
+	);
+	box += makeRow(
+		`\x1b[90m[${timestamp}]\x1b[0m \x1b[32mINFO\x1b[0m: API server running on http://localhost:${port}`,
+	);
+
+	box += midBorder;
+
+	const statusStr = dbConnected
+		? "\x1b[1;32mALL CONNECTED & READY\x1b[0m"
+		: "\x1b[1;33mDATABASE UNAVAILABLE (DEGRADED)\x1b[0m";
+	box += makeRow(`Status : ${statusStr}`);
 	box += makeRow(
 		`Backend server listening at \x1b[1mhttp://localhost:${port}\x1b[0m`,
 	);

@@ -66,7 +66,8 @@ export function ProfileEditView() {
     setSuccess("");
 
     try {
-      const res = await apiClient.post("/auth/setup/profile", {
+      const res = await apiClient.put("/auth/me", {
+        name: name || displayName,
         displayName: displayName || name,
         avatar,
       });

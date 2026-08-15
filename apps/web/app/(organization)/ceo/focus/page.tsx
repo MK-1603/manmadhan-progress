@@ -3,17 +3,17 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Focus as FocusIcon,
-  Folder,
+  Play,
+  Pause,
+  Square,
   Clock,
   BarChart3,
   CheckSquare,
   AlertCircle,
   Loader2,
-  Moon,
-  Info,
+  Folder
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
-import { Stopwatch3D } from "@/components/organization/ceo-focus/3d-stopwatch";
 import { StartFocusModal } from "@/components/organization/ceo-focus/start-focus-modal";
 import { EndFocusModal } from "@/components/organization/ceo-focus/end-focus-modal";
 import { SessionDetailModal } from "@/components/organization/ceo-focus/session-detail-modal";
@@ -21,6 +21,13 @@ import { TaskDetailDrawer } from "@/components/organization/ceo-focus/task-detai
 import { HistoryDrawer } from "@/components/organization/ceo-focus/history-drawer";
 import { StatsDrawer } from "@/components/organization/ceo-focus/stats-drawer";
 import { NextSessionDrawer } from "@/components/organization/ceo-focus/next-session-drawer";
+
+function formatDigitalTimer(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 function formatShortDuration(seconds: number) {
   if (!seconds || seconds <= 0) return "0m";
@@ -102,7 +109,7 @@ export default function CEOFocusPage() {
       }
       if (historyRes?.data?.success) setHistory(historyRes.data.data || []);
       if (weeklyRes?.data?.success) setWeeklyData(weeklyRes.data.data);
-    } catch (err: any) {
+    } catch {
       setError("Failed to load organization focus workspace data");
     } finally {
       setLoading(false);
@@ -205,7 +212,6 @@ export default function CEOFocusPage() {
         setActiveSession(null);
         setElapsed(0);
         await loadWorkspaceData();
-        // Trigger Next Session Flow
         setShowNextSessionDrawer(true);
       } else {
         setError(res.data.error || "Failed to end session");
@@ -231,8 +237,8 @@ export default function CEOFocusPage() {
 
   if (loading) {
     return (
-      <div className="h-[calc(100vh-4rem)] flex justify-center items-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="h-full w-full min-h-[300px] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#C9A52A] dark:text-[#D4B12F]" />
       </div>
     );
   }
@@ -241,199 +247,208 @@ export default function CEOFocusPage() {
   const currentStatus = activeSession?.status || "Idle";
 
   return (
-    <div className="h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)] max-h-screen overflow-hidden flex flex-col justify-between p-3 md:p-6 select-none bg-background">
-      {/* 1. Compact Header Bar */}
-      <div className="flex items-center justify-between border-b border-border pb-2.5 shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 bg-primary/10 rounded-lg text-primary">
-            <FocusIcon className="w-4 h-4" />
-          </div>
-          <div>
-            <h1 className="text-sm md:text-base font-bold text-foreground tracking-tight flex items-center gap-2">
-              Focus
-            </h1>
-            <p className="text-[11px] text-muted-foreground hidden sm:block">
-              Executive deep work and physical timing instrument.
-            </p>
-          </div>
+    <div className="w-full h-full max-h-full flex flex-col justify-between overflow-hidden p-3 sm:p-4 md:p-6 bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] select-none">
+      
+      {/* 1. FOCUS HEADER BAR */}
+      <div className="flex items-center justify-between pb-2.5 border-b border-[#E4E7EC] dark:border-[#272D36] shrink-0">
+        <div className="space-y-0.5">
+          <h1 className="text-[18px] sm:text-[22px] md:text-[24px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
+            Focus
+          </h1>
+          <p className="text-[12px] sm:text-[13px] text-[#667085] dark:text-[#8B95A5]">
+            Deep work session
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span
-            className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
+            className={`text-[10.5px] sm:text-[11px] font-semibold px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full border flex items-center gap-1.5 ${
               systemActive
-                ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
             }`}
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${systemActive ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
-            {systemActive ? "System Active • 04:00–23:00" : "System Off"}
+            <span className={`w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full ${systemActive ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+            {systemActive ? "System Active · 04:00–23:00" : "System Off"}
           </span>
         </div>
       </div>
 
+      {/* Global Error Banner */}
       {error && (
-        <div className="my-1 p-2 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-500 text-xs flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-            <span>{error}</span>
+        <div className="my-1 p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-600 dark:text-rose-400 text-[12px] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span className="truncate">{error}</span>
           </div>
-          <button onClick={() => setError("")} className="font-semibold underline">Dismiss</button>
+          <button onClick={() => setError("")} className="font-semibold underline cursor-pointer shrink-0 ml-2">
+            Dismiss
+          </button>
         </div>
       )}
 
-      {!systemActive && (
-        <div className="my-1 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-amber-500 text-xs flex items-center gap-2 shrink-0">
-          <Moon className="w-3.5 h-3.5 shrink-0" />
-          <span>Focus is unavailable between 23:00 and 04:00. Next activation at 04:00.</span>
-        </div>
-      )}
+      {/* 2. UNIFIED PRIMARY FOCUS AREA (ZERO MAIN PAGE SCROLL) */}
+      <div className="flex-1 flex flex-col items-center justify-center py-2 sm:py-4 my-auto overflow-hidden">
+        <div className="w-full max-w-[440px] md:max-w-[480px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-4 sm:p-6 md:p-8 shadow-xs text-center flex flex-col items-center justify-between space-y-3 sm:space-y-5 my-auto shrink-0">
+          
+          <span className="text-[10.5px] sm:text-[11px] font-bold uppercase tracking-[0.1em] text-[#667085] dark:text-[#8B95A5]">
+            CURRENT SESSION
+          </span>
 
-      {/* 2. Main Focus Viewport (Zero Main Page Scroll) */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 items-center justify-center py-2 overflow-hidden">
-        {/* Left/Center: Physical 3D Stopwatch Instrument */}
-        <div className="lg:col-span-7 flex flex-col items-center justify-center h-full max-h-[440px]">
-          <Stopwatch3D
-            elapsedSeconds={elapsed}
-            status={currentStatus}
-            onStart={() => setShowStartModal(true)}
-            onPause={handlePauseSession}
-            onResume={handleResumeSession}
-            onEnd={() => setShowEndModal(true)}
-            actionLoading={actionLoading}
-            isSystemActive={systemActive}
-          />
-        </div>
+          {/* TIMER HERO DISPLAY */}
+          <div className="space-y-0.5 py-0.5">
+            <div className="text-[48px] sm:text-[64px] md:text-[72px] font-bold font-mono text-[#17202A] dark:text-[#F2F4F7] tracking-tighter leading-none select-all">
+              {formatDigitalTimer(elapsed)}
+            </div>
+            <p className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-wider text-[#C9A52A] dark:text-[#D4B12F] pt-0.5">
+              {currentStatus === "Active" ? "FOCUSING" : currentStatus === "Paused" ? "PAUSED" : "READY TO FOCUS"}
+            </p>
+          </div>
 
-        {/* Right: Native Inspector Context Panel */}
-        <div className="lg:col-span-5 flex flex-col justify-center h-full max-h-[400px] space-y-3">
-          {activeSession ? (
-            <div className="p-4 border border-border rounded-xl bg-card space-y-3 shadow-sm">
-              <div className="flex items-center justify-between border-b border-border pb-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Current Focus
-                </span>
-                <span className="text-xs text-primary font-mono font-bold">
-                  {activeSession.category || activeSession.sourceType}
-                </span>
-              </div>
-
-              <div className="space-y-1">
-                <h2 className="text-sm font-bold text-foreground tracking-tight leading-snug line-clamp-2">
+          {/* SESSION CONTEXT & PRIORITY */}
+          <div className="w-full min-h-[42px] flex flex-col items-center justify-center text-center space-y-0.5 py-1 px-2.5 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px]">
+            {activeSession ? (
+              <>
+                <p className="text-[13px] sm:text-[13.5px] font-semibold text-[#17202A] dark:text-[#F2F4F7] truncate max-w-full">
                   {activeSession.title || activeSession.task?.title || "Executive Focus Session"}
-                </h2>
+                </p>
                 {activeSession.project && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                    <Folder className="w-3.5 h-3.5 text-muted-foreground" /> {activeSession.project.name}
+                  <p className="text-[11px] sm:text-[11.5px] text-[#667085] dark:text-[#8B95A5] flex items-center justify-center gap-1 truncate">
+                    <Folder className="w-3 h-3 text-[#667085] dark:text-[#8B95A5]" />
+                    <span>{activeSession.project.name}</span>
                   </p>
                 )}
-              </div>
-
-              {activeSession.objective && (
-                <div className="p-2 bg-muted/30 border border-border rounded-lg text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                  "{activeSession.objective}"
-                </div>
-              )}
-
-              <div className="pt-2 flex items-center justify-between border-t border-border text-xs">
-                <span className="text-muted-foreground font-mono">
-                  Started: {activeSession.startTime ? new Date(activeSession.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}
-                </span>
-                {activeSession.task && (
-                  <button
-                    onClick={() => setShowTaskDrawer(true)}
-                    className="font-bold text-primary hover:underline flex items-center gap-1"
-                  >
-                    <Info className="w-3.5 h-3.5" /> View Task
-                  </button>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="p-4 border border-border rounded-xl bg-card space-y-3 shadow-sm">
-              <div className="border-b border-border pb-2">
-                <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                  Ready to Focus
-                </h2>
-                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                  Select an organization priority below or start a custom focus activity.
+              </>
+            ) : priorities.length > 0 ? (
+              <>
+                <p className="text-[12.5px] sm:text-[13px] font-medium text-[#17202A] dark:text-[#F2F4F7] truncate max-w-full">
+                  {priorities[0].title}
                 </p>
-              </div>
+                <p className="text-[10.5px] sm:text-[11px] text-[#667085] dark:text-[#8B95A5]">
+                  {priorities[0].priority || "High"} Priority
+                </p>
+              </>
+            ) : (
+              <p className="text-[12.5px] sm:text-[13px] font-normal text-[#667085] dark:text-[#8B95A5]">
+                No priority selected
+              </p>
+            )}
+          </div>
 
-              {priorities.length > 0 && (
-                <div className="space-y-2 pt-1">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
-                    Up Next
-                  </span>
-                  <div className="p-2.5 border border-border rounded-lg bg-muted/10 flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-foreground truncate">
-                        {priorities[0].title}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {priorities[0].priority || "High"} Priority
-                      </p>
-                    </div>
-                    <button
-                      disabled={!systemActive}
-                      onClick={() =>
-                        handleStartSession({
-                          sourceType: "TASK",
-                          taskId: priorities[0].id,
-                          title: priorities[0].title,
-                          priority: priorities[0].priority,
-                          category: "Technical",
-                        })
-                      }
-                      className="px-3 py-1 bg-primary text-primary-foreground text-xs font-bold rounded-md hover:bg-primary/90 disabled:opacity-40 transition-colors shrink-0"
-                    >
-                      Focus
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+          {/* PRIMARY FOCUS CONTROL BUTTONS */}
+          <div className="w-full max-w-[360px] space-y-2">
+            {currentStatus === "Idle" && (
+              <button
+                disabled={!systemActive || actionLoading}
+                onClick={() => {
+                  if (priorities.length > 0) {
+                    handleStartSession({
+                      sourceType: "TASK",
+                      taskId: priorities[0].id,
+                      title: priorities[0].title,
+                      priority: priorities[0].priority,
+                      category: "Technical",
+                    });
+                  } else {
+                    setShowStartModal(true);
+                  }
+                }}
+                className="w-full h-[46px] sm:h-[50px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13.5px] sm:text-[14.5px] font-semibold hover:opacity-90 transition-opacity shadow-xs inline-flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
+              >
+                {actionLoading ? (
+                  <Loader2 className="w-4.5 h-4.5 animate-spin" />
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>START FOCUS</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {currentStatus === "Active" && (
+              <div className="flex items-center gap-2.5 w-full">
+                <button
+                  disabled={actionLoading}
+                  onClick={handlePauseSession}
+                  className="flex-1 h-[46px] sm:h-[50px] rounded-[10px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[13.5px] sm:text-[14px] font-semibold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Pause className="w-4 h-4" />
+                  <span>PAUSE</span>
+                </button>
+                <button
+                  disabled={actionLoading}
+                  onClick={() => setShowEndModal(true)}
+                  className="flex-1 h-[46px] sm:h-[50px] rounded-[10px] bg-red-600 text-white text-[13.5px] sm:text-[14px] font-semibold hover:bg-red-700 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" />
+                  <span>END</span>
+                </button>
+              </div>
+            )}
+
+            {currentStatus === "Paused" && (
+              <div className="flex items-center gap-2.5 w-full">
+                <button
+                  disabled={!systemActive || actionLoading}
+                  onClick={handleResumeSession}
+                  className="flex-1 h-[46px] sm:h-[50px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13.5px] sm:text-[14px] font-semibold hover:opacity-90 transition-opacity inline-flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>RESUME</span>
+                </button>
+                <button
+                  disabled={actionLoading}
+                  onClick={() => setShowEndModal(true)}
+                  className="flex-1 h-[46px] sm:h-[50px] rounded-[10px] bg-red-600 text-white text-[13.5px] sm:text-[14px] font-semibold hover:bg-red-700 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" />
+                  <span>END</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* 3. Bottom Essential Status Bar (Compact Pills + Secondary Triggers) */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="px-2.5 py-1 bg-muted/20 border border-border rounded-lg text-xs font-medium flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-primary" />
-            <span className="text-foreground">Today: {formatShortDuration(overview?.totalFocusedSeconds || 0)}</span>
-          </div>
-
-          <div className="px-2.5 py-1 bg-muted/20 border border-border rounded-lg text-xs font-medium flex items-center gap-1.5">
-            <span className="text-muted-foreground">Sessions:</span>
-            <span className="text-foreground">{overview?.totalSessionsCount || 0}</span>
-          </div>
+      {/* 3. COMPACT TODAY SUMMARY & SECONDARY SURFACES */}
+      <div className="flex items-center justify-between pt-2.5 border-t border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] sm:text-[12px] shrink-0">
+        <div className="flex items-center gap-3 sm:gap-4 text-[#667085] dark:text-[#8B95A5]">
+          <span>
+            Today <strong className="text-[#17202A] dark:text-[#F2F4F7] font-semibold ml-0.5 sm:ml-1">{formatShortDuration(overview?.totalFocusedSeconds || 0)}</strong>
+          </span>
+          <span>·</span>
+          <span>
+            Sessions <strong className="text-[#17202A] dark:text-[#F2F4F7] font-semibold ml-0.5 sm:ml-1">{overview?.totalSessionsCount || 0}</strong>
+          </span>
         </div>
 
-        {/* Secondary Content Triggers */}
-        <div className="flex items-center gap-2">
+        {/* Secondary Triggers (Drawers & Modals) */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {activeSession?.task && (
             <button
               onClick={() => setShowTaskDrawer(true)}
-              className="px-3 py-1 bg-card border border-border text-xs font-medium rounded-lg hover:bg-muted text-foreground transition-colors flex items-center gap-1.5"
+              className="px-2.5 sm:px-3 h-[32px] sm:h-[34px] rounded-lg border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[11.5px] sm:text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] transition-colors flex items-center gap-1.5 cursor-pointer"
             >
-              <CheckSquare className="w-3.5 h-3.5 text-primary" /> Task Details
+              <CheckSquare className="w-3.5 h-3.5 text-[#C9A52A] dark:text-[#D4B12F]" />
+              <span className="hidden sm:inline">Task Details</span>
             </button>
           )}
 
           <button
             onClick={() => setShowHistoryDrawer(true)}
-            className="px-3 py-1 bg-card border border-border text-xs font-medium rounded-lg hover:bg-muted text-foreground transition-colors flex items-center gap-1.5"
+            className="px-2.5 sm:px-3 h-[32px] sm:h-[34px] rounded-lg border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[11.5px] sm:text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] transition-colors flex items-center gap-1.5 cursor-pointer"
           >
-            <Clock className="w-3.5 h-3.5 text-primary" /> History ({history.length})
+            <Clock className="w-3.5 h-3.5 text-[#667085] dark:text-[#8B95A5]" />
+            <span>History ({history.length})</span>
           </button>
 
           <button
             onClick={() => setShowStatsDrawer(true)}
-            className="px-3 py-1 bg-card border border-border text-xs font-medium rounded-lg hover:bg-muted text-foreground transition-colors flex items-center gap-1.5"
+            className="px-2.5 sm:px-3 h-[32px] sm:h-[34px] rounded-lg border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[11.5px] sm:text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] transition-colors flex items-center gap-1.5 cursor-pointer"
           >
-            <BarChart3 className="w-3.5 h-3.5 text-primary" /> Statistics
+            <BarChart3 className="w-3.5 h-3.5 text-[#667085] dark:text-[#8B95A5]" />
+            <span>Statistics</span>
           </button>
         </div>
       </div>

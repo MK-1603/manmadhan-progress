@@ -13,7 +13,7 @@ import helmet from "helmet";
 import jwt from "jsonwebtoken";
 import passport from "passport";
 import { env } from "../config/env.config";
-import { db } from "../database/client";
+import { checkDatabaseConnection, db } from "../database/client";
 import {
 	aiConversations,
 	mediaAssets,
@@ -38,6 +38,7 @@ import { orgPromptsRouter } from "./routes/org-prompts.routes";
 import { orgReportsRouter } from "./routes/org-reports.routes";
 import { orgTasksRouter } from "./routes/org-tasks.routes";
 import { orgTimelineRouter } from "./routes/org-timeline.routes";
+import { orgIntegrationsRouter } from "./routes/org-integrations.routes";
 import { organizationRouter } from "./routes/organization.routes";
 import { automationRouter } from "./routes/automation.routes";
 import { personalAiChatRouter } from "./routes/personal/ai-chat.routes";
@@ -136,15 +137,30 @@ export const createApp = (): Express => {
 	app.use("/api/", enforceWorkExecutionPolicy);
 
 	// Health Endpoints
-	app.get("/health", (_req: Request, res: Response) => {
-		res.status(200).json({
-			success: true,
+	app.get("/health", async (_req: Request, res: Response) => {
+		const isDbConnected = await checkDatabaseConnection();
+		const status = isDbConnected ? "ok" : "degraded";
+		const statusCode = isDbConnected ? 200 : 503;
+
+		return res.status(statusCode).json({
+			status,
 			service: "manmadhan-progress-api",
+			database: isDbConnected ? "connected" : "unavailable",
+			services: {
+				database: isDbConnected,
+				redis: true,
+				storage: true,
+				email: true,
+			},
 		});
 	});
 
-	app.get("/health/ready", (_req: Request, res: Response) => {
-		res.status(200).json({ status: "ready" });
+	app.get("/health/ready", async (_req: Request, res: Response) => {
+		const isDbConnected = await checkDatabaseConnection();
+		if (!isDbConnected) {
+			return res.status(503).json({ status: "unavailable", database: false });
+		}
+		return res.status(200).json({ status: "ready", database: true });
 	});
 
 	// Mount Routers
@@ -206,6 +222,9 @@ export const createApp = (): Express => {
 	app.use("/api/org/prompts", orgPromptsRouter);
 	app.use("/api/v1/automation", automationRouter);
 	app.use("/api/v1/org/automation", automationRouter);
+	app.use("/api/v1/org/integrations", orgIntegrationsRouter);
+	app.use("/api/org/integrations", orgIntegrationsRouter);
+
 
 	// ── Database Records REST API ──
 	app.get(
@@ -552,82 +571,66 @@ export const createApp = (): Express => {
 	app.get(
 		"/api/v1/auth/google/callback",
 		passport.authenticate("google", {
-			failureRedirect: `${env.CLIENT_URL}/account-not-found`,
+			failureRedirect: `${env.CLIENT_URL}/login?error=account_not_found`,
 			session: false,
 		}),
 		async (req: Request, res: Response) => {
 			const user = req.user as any;
 			if (user?.email) {
-				// Fetch fresh user from DB to check status
 				const { db } = require("../database/client");
 				const { users } = require("../database/schema");
-				const { eq } = require("drizzle-orm");
+				const { eq, ilike } = require("drizzle-orm");
 				const { DeviceService } = require("./services/device.service");
 				const { SessionService } = require("./services/session.service");
 				const { AuditService } = require("./services/audit.service");
 				const { randomUUID } = require("node:crypto");
 
+				const cleanEmail = String(user.email || "").trim().toLowerCase();
 				const userRecords = await db
 					.select()
 					.from(users)
-					.where(eq(users.id, user.id))
+					.where(ilike(users.email, cleanEmail))
 					.limit(1);
 				const dbUser = userRecords[0];
 
 				if (!dbUser) {
-					return res.redirect(`${env.CLIENT_URL}/account-not-found`);
+					return res.redirect(`${env.CLIENT_URL}/login?error=account_not_found`);
 				}
 
-				if (dbUser.status === "Activated") {
-					// Fully set up user, go straight to dashboard
-					const deviceId = await DeviceService.registerDevice(dbUser.id, {
-						deviceId: randomUUID(),
-						deviceName: req.headers["user-agent"] || "Unknown",
-						browser: "Unknown",
-						os: "Unknown",
-						ipAddress: req.ip || "0.0.0.0",
-					});
-					SessionService.issueTokens(res, dbUser, deviceId);
+				if (!dbUser.firstLoginCompleted && dbUser.status !== "Activated") {
 					await AuditService.logEvent(
 						dbUser.id,
-						"LOGIN_SUCCESS",
-						"Logged in via Google OAuth",
+						"LOGIN_FAILED",
+						"Google login rejected: first login must be completed with email and password",
 						req.ip || "",
 					);
-
-					const r = (dbUser.role || "").toUpperCase();
-					let dashboardPath = "/member/dashboard";
-					if (r === "CEO") dashboardPath = "/ceo/dashboard";
-					else if (r === "CO-CEO") dashboardPath = "/co-ceo/dashboard";
-
-					return res.redirect(`${env.CLIENT_URL}${dashboardPath}`);
-				} else {
-					// First time login or incomplete profile -> bypass OTP, keep PASSWORD_CREATION, then jump to PROFILE_SETUP
-					await AuditService.logEvent(
-						dbUser.id,
-						"LOGIN_ATTEMPT",
-						"Initial Google OAuth login, bypassing OTP",
-						req.ip || "",
-					);
-
-					// Jump to PASSWORD_CREATION first
-					const tempToken = jwt.sign(
-						{
-							id: dbUser.id,
-							email: dbUser.email,
-							intent: "setup",
-							step: "PASSWORD_CREATION",
-						},
-						env.JWT_SECRET,
-						{ expiresIn: "30m" },
-					);
-
-					return res.redirect(
-						`${env.CLIENT_URL}/?auth_step=PASSWORD_CREATION&token=${tempToken}&role=${dbUser.role}`,
-					);
+					return res.redirect(`${env.CLIENT_URL}/login?error=first_login_required`);
 				}
+
+				// Fully set up user, go straight to dashboard
+				const deviceId = await DeviceService.registerDevice(dbUser.id, {
+					deviceId: randomUUID(),
+					deviceName: req.headers["user-agent"] || "Unknown",
+					browser: "Unknown",
+					os: "Unknown",
+					ipAddress: req.ip || "0.0.0.0",
+				});
+				SessionService.issueTokens(res, dbUser, deviceId);
+				await AuditService.logEvent(
+					dbUser.id,
+					"LOGIN_SUCCESS",
+					"Logged in via Google OAuth",
+					req.ip || "",
+				);
+
+				const r = (dbUser.role || "").toUpperCase();
+				let dashboardPath = "/member/dashboard";
+				if (r === "CEO") dashboardPath = "/ceo/dashboard";
+				else if (r === "CO-CEO") dashboardPath = "/co-ceo/dashboard";
+
+				return res.redirect(`${env.CLIENT_URL}${dashboardPath}`);
 			}
-			return res.redirect(`${env.CLIENT_URL}/login?error=OAuthFailed`);
+			return res.redirect(`${env.CLIENT_URL}/login?error=account_not_found`);
 		},
 	);
 
@@ -655,7 +658,7 @@ export const createApp = (): Express => {
 	app.get(
 		"/api/v1/auth/github/callback",
 		passport.authenticate("github", {
-			failureRedirect: `${env.CLIENT_URL}/login?error=OAuthFailed`,
+			failureRedirect: `${env.CLIENT_URL}/login?error=github_cancelled`,
 			session: false,
 		}),
 		async (req: Request, res: Response) => {
@@ -747,6 +750,28 @@ export const createApp = (): Express => {
 	// Global Error Handler
 	app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 		logger.error({ err, url: req.url }, "Unhandled Application Exception");
+
+		const causeMsg = String((err as any).cause?.message || "");
+		const isDbError =
+			err.name === "DrizzleQueryError" ||
+			(err as any).type === "DrizzleQueryError" ||
+			err.message?.includes("Connection terminated") ||
+			err.message?.includes("connection timeout") ||
+			err.message?.includes("ETIMEDOUT") ||
+			causeMsg.includes("Connection terminated") ||
+			causeMsg.includes("connection timeout") ||
+			causeMsg.includes("ETIMEDOUT") ||
+			(err as any).code === "ETIMEDOUT" ||
+			(err as any).code === "ECONNREFUSED";
+
+		if (isDbError) {
+			return res.status(503).json({
+				success: false,
+				error:
+					"We couldn't connect to the workspace right now. Please try again in a moment.",
+			});
+		}
+
 		res.status(500).json({
 			success: false,
 			error:

@@ -1,277 +1,595 @@
-import crypto, { randomUUID } from "node:crypto";
-import { and, desc, eq, ilike } from "drizzle-orm";
-import { type Request, type Response, Router } from "express";
+import { randomUUID } from "node:crypto";
+import { and, eq, ilike } from "drizzle-orm";
+import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../../config/env.config";
 import { db } from "../../database/client";
-import {
-	deviceSessions,
-	passwordResets,
-	spaces,
-	users,
-	workspaceMembers,
-	workspaces,
-} from "../../database/schema";
-import { strictAuth } from "../middleware/auth.middleware";
+import { spaces, users, workspaceMembers, workspaces } from "../../database/schema";
+import { runtimeActivity } from "../bootstrap/startup-logger";
+import { strictAuth, verifyTempToken } from "../middleware/auth.middleware";
 import { AuditService } from "../services/audit.service";
 import { AuthService } from "../services/auth.service";
 import { DeviceService } from "../services/device.service";
+import { NotificationService } from "../services/notification.service";
 import { emailService } from "../services/email.service";
 import { logger } from "../services/logger.service";
-import { NotificationService } from "../services/notification.service";
 import { OtpService } from "../services/otp.service";
 import { SessionService } from "../services/session.service";
 import { socketService } from "../services/socket.service";
 
 export const authRouter = Router();
 
-// Middleware to verify temporary setup token
-const verifyTempToken = (req: Request, res: Response, next: any) => {
-	const token = req.headers.authorization?.split(" ")[1];
-	if (!token)
-		return res.status(401).json({ success: false, error: "Missing token" });
-
+// GET /auth/check-google-availability?email=...
+authRouter.get("/check-google-availability", async (req, res, next) => {
 	try {
-		const decoded = jwt.verify(token, env.JWT_SECRET) as any;
-		if (decoded.intent !== "setup") throw new Error("Invalid intent");
-		(req as any).setupUser = decoded;
-		next();
-	} catch (_e) {
-		return res
-			.status(401)
-			.json({ success: false, error: "Invalid or expired session" });
-	}
-};
+		const email = String(req.query.email || "").trim().toLowerCase();
+		if (!email) return res.json({ allowed: true });
 
-authRouter.post("/login", async (req, res) => {
-	const { email } = req.body;
-	const cleanEmail = String(email || "").trim();
+		const userList = await db
+			.select({
+				id: users.id,
+				email: users.email,
+				firstLoginCompleted: users.firstLoginCompleted,
+				onboardingStatus: users.onboardingStatus,
+			})
+			.from(users)
+			.where(ilike(users.email, email))
+			.limit(1);
 
-	const userList = await db
-		.select()
-		.from(users)
-		.where(ilike(users.email, cleanEmail))
-		.limit(1);
-	if (userList.length === 0) {
-		return res.status(404).json({ success: false, error: "Account not found" });
-	}
+		if (userList.length === 0) {
+			return res.json({ allowed: false, message: "Account not found" });
+		}
 
-	const user = userList[0];
-	if (
-		user.status === "Locked" ||
-		user.status === "Suspended" ||
-		user.status === "Deleted"
-	) {
-		return res
-			.status(403)
-			.json({ success: false, error: `Account is ${user.status}` });
-	}
+		const user = userList[0];
+		const allowed = Boolean(user.firstLoginCompleted && user.onboardingStatus === "COMPLETED");
 
-	// If first time login (Seeded or Invitation Sent), send OTP
-	if (
-		user.status === "Seeded" ||
-		user.status === "Invitation Sent" ||
-		user.status === "Created"
-	) {
-		await OtpService.sendOTP(user.email);
-		await AuditService.logEvent(
-			user.id,
-			"LOGIN_ATTEMPT",
-			"Initiated first-time login (OTP sent)",
-			req.ip || "",
-		);
 		return res.json({
-			success: true,
-			nextStep: "OTP_VERIFICATION",
-			email: user.email,
+			allowed,
+			firstLoginCompleted: user.firstLoginCompleted,
+			message: allowed
+				? "Google authentication available"
+				: "Google login available after first login",
 		});
+	} catch (error) {
+		next(error);
 	}
-
-	// Otherwise, it's a returning user - should ask for password instead of OTP first (based on flow)
-	// The prompt returning flow: Email -> Password -> OTP
-	return res.json({ success: true, nextStep: "PASSWORD", email: user.email });
 });
 
-authRouter.post("/login/password", async (req, res) => {
-	const { email, password } = req.body;
-	const cleanEmail = String(email || "").trim();
+// POST /login/password
+authRouter.post("/login/password", async (req, res, next) => {
+	try {
+		const { email, password } = req.body;
+		const cleanEmail = String(email || "").trim().toLowerCase();
 
-	const userList = await db
-		.select()
-		.from(users)
-		.where(ilike(users.email, cleanEmail))
-		.limit(1);
-	if (userList.length === 0)
-		return res.status(404).json({ success: false, error: "Account not found" });
+		const userList = await db
+			.select()
+			.from(users)
+			.where(ilike(users.email, cleanEmail))
+			.limit(1);
 
-	const user = userList[0];
+		if (userList.length === 0) {
+			return res
+				.status(404)
+				.json({ success: false, error: "Account not found" });
+		}
 
-	if (!user.passwordHash) {
-		return res
-			.status(400)
-			.json({ success: false, error: "Password not set up for this account" });
-	}
+		const user = userList[0];
 
-	const isValid = AuthService.verifyPassword(password, user.passwordHash);
-	if (!isValid) {
-		await AuditService.logEvent(
-			user.id,
-			"LOGIN_FAILED",
-			"Invalid password attempt",
-			req.ip || "",
+		// Verify password (either temporary seed password or updated master password)
+		const isValidPassword = AuthService.verifyPassword(
+			password,
+			user.passwordHash || "",
 		);
-		return res.status(401).json({ success: false, error: "Invalid password" });
-	}
 
-	// Generate Device ID from IP/User Agent (simplified)
-	const deviceId = req.ip || "unknown-device";
+		if (!isValidPassword) {
+			await AuditService.logEvent(
+				user.id,
+				"LOGIN_FAILED",
+				"Invalid password attempt",
+				req.ip || "",
+			);
+			return res
+				.status(401)
+				.json({ success: false, error: "Invalid password" });
+		}
 
-	// Check 48 hour logic
-	const sessions = await db
-		.select()
-		.from(deviceSessions)
-		.where(eq(deviceSessions.userId, user.id))
-		.orderBy(desc(deviceSessions.lastActive))
-		.limit(1);
-	if (
-		sessions.length === 0 ||
-		Date.now() - new Date(sessions[0].lastActive).getTime() >
-			48 * 60 * 60 * 1000
-	) {
-		// Requires OTP
-		await OtpService.sendOTP(email);
-		return res.json({
-			success: true,
-			nextStep: "OTP_VERIFICATION",
-			email: user.email,
-		});
-	}
+		// Check if first-login onboarding is required
+		if (!user.firstLoginCompleted || user.onboardingStatus !== "COMPLETED") {
+			await OtpService.sendOTP(cleanEmail, {
+				isFirstLogin: true,
+				userName: user.displayName || user.name || cleanEmail.split("@")[0],
+			});
+			await db
+				.update(users)
+				.set({ onboardingStatus: "OTP_REQUIRED" })
+				.where(eq(users.id, user.id));
 
-	// Issue sessions
-	const token = SessionService.issueTokens(res, user, deviceId);
-	await AuditService.logEvent(
-		user.id,
-		"LOGIN_SUCCESS",
-		"Password login successful",
-		req.ip || "",
-	);
+			await AuditService.logEvent(
+				user.id,
+				"FIRST_LOGIN_STARTED",
+				"Password verified. OTP challenge dispatched for first-login activation.",
+				req.ip || "",
+			);
 
-	const ws = await db.query.workspaceMembers.findFirst({
-		where: eq(workspaceMembers.userId, user.id),
-	});
-	if (ws) {
-		socketService.emitToWorkspace(ws.workspaceId, "MEMBER_ACTIVATED", {
-			userId: user.id,
-		});
-	}
+			return res.json({
+				success: true,
+				nextStep: "OTP_VERIFICATION",
+				email: user.email,
+			});
+		}
 
-	return res.json({
-		success: true,
-		nextStep: "DASHBOARD",
-		role: user.role,
-		accessToken: token,
-	});
-});
+		// Normal returning user login (after first-login onboarding completion)
+		const now = new Date();
+		await db
+			.update(users)
+			.set({ lastLoginAt: now, lastActiveAt: now })
+			.where(eq(users.id, user.id));
 
-authRouter.post("/verify-otp", async (req, res) => {
-	const { email, otp } = req.body;
-	const cleanEmail = String(email || "").trim();
-
-	const userList = await db
-		.select()
-		.from(users)
-		.where(ilike(users.email, cleanEmail))
-		.limit(1);
-	if (userList.length === 0)
-		return res.status(404).json({ success: false, error: "Account not found" });
-	const user = userList[0];
-
-	const verifyResult = await OtpService.verifyOTP(user.email, otp);
-	if (!verifyResult.success) {
-		await AuditService.logEvent(
-			user.id,
-			"OTP_FAILED",
-			"Failed OTP verification",
-			req.ip || "",
-		);
-		return res
-			.status(400)
-			.json({ success: false, error: verifyResult.message });
-	}
-
-	await AuditService.logEvent(
-		user.id,
-		"OTP_VERIFIED",
-		"Successfully verified OTP",
-		req.ip || "",
-	);
-
-	if (user.passwordHash && user.status === "Activated") {
-		// Normal 48-hour OTP login completion
 		const deviceId = req.ip || "unknown-device";
 		const token = SessionService.issueTokens(res, user, deviceId);
+		await AuditService.logEvent(
+			user.id,
+			"LOGIN_SUCCESS",
+			"Password login successful",
+			req.ip || "",
+		);
+
+		runtimeActivity.startLifecycle("AUTH");
+		runtimeActivity.info("AUTH", "AUTH", `Login successful for ${user.email}`);
+		runtimeActivity.clearLifecycle("AUTH", 1200);
+
+		const ws = await db.query.workspaceMembers.findFirst({
+			where: eq(workspaceMembers.userId, user.id),
+		});
+		if (ws) {
+			socketService.emitToWorkspace(ws.workspaceId, "MEMBER_ACTIVATED", {
+				userId: user.id,
+			});
+		}
+
 		return res.json({
 			success: true,
 			nextStep: "DASHBOARD",
 			role: user.role,
 			accessToken: token,
 		});
-	} else {
-		// Issue temp token for setup
-		const tempToken = jwt.sign(
-			{
-				id: user.id,
-				email: user.email,
-				intent: "setup",
-				step: "PASSWORD_CREATION",
-			},
-			env.JWT_SECRET,
-			{ expiresIn: "30m" },
-		);
+	} catch (error) {
+		next(error);
+	}
+});
+
+// POST /forgot-password
+authRouter.post("/forgot-password", async (req, res, next) => {
+	try {
+		const { email } = req.body;
+		const cleanEmail = String(email || "").trim().toLowerCase();
+
+		if (!cleanEmail) {
+			return res.status(400).json({ success: false, error: "Email is required" });
+		}
+
+		const userList = await db
+			.select()
+			.from(users)
+			.where(ilike(users.email, cleanEmail))
+			.limit(1);
+
+		// Privacy-safe response regardless of email existence
+		if (userList.length > 0) {
+			const user = userList[0];
+			const resetToken = jwt.sign(
+				{
+					id: user.id,
+					email: user.email,
+					intent: "reset_password",
+				},
+				env.JWT_SECRET || "fallback_secret",
+				{ expiresIn: "15m" },
+			);
+			const resetUrl = `${env.CLIENT_URL}/reset-password?token=${resetToken}`;
+
+			await emailService.sendPasswordResetLinkEmail({
+				to: cleanEmail,
+				userName: user.displayName || user.name || cleanEmail.split("@")[0],
+				resetUrl,
+				expiresIn: "15 minutes",
+			});
+
+			await AuditService.logEvent(
+				user.id,
+				"FORGOT_PASSWORD_REQUESTED",
+				"Password reset link email dispatched",
+				req.ip || "",
+			);
+		}
+
 		return res.json({
 			success: true,
-			nextStep: "PASSWORD_CREATION",
-			tempToken,
+			message: "If an account exists for this email, we'll send instructions to continue.",
 		});
+	} catch (error) {
+		next(error);
 	}
 });
 
-authRouter.post("/setup/password", verifyTempToken, async (req, res) => {
-	const { password } = req.body;
-	const setupUser = (req as any).setupUser;
+// POST /resend-otp
+authRouter.post("/resend-otp", async (req, res, next) => {
+	try {
+		const { email, purpose } = req.body;
+		const cleanEmail = String(email || "").trim().toLowerCase();
 
-	if (setupUser.step !== "PASSWORD_CREATION") {
-		return res
-			.status(403)
-			.json({ success: false, error: "Invalid setup step progression" });
+		if (!cleanEmail) {
+			return res.status(400).json({ success: false, error: "Email is required" });
+		}
+
+		const userList = await db
+			.select()
+			.from(users)
+			.where(ilike(users.email, cleanEmail))
+			.limit(1);
+
+		if (userList.length === 0) {
+			return res.status(404).json({ success: false, error: "Account not found" });
+		}
+
+		const user = userList[0];
+		const isResetPassword = purpose === "reset_password";
+		const isFirstLogin = !user.firstLoginCompleted || user.onboardingStatus !== "COMPLETED";
+
+		await OtpService.sendOTP(cleanEmail, {
+			isFirstLogin: !isResetPassword && isFirstLogin,
+			isResetPassword,
+			userName: user.displayName || user.name || cleanEmail.split("@")[0],
+		});
+
+		await AuditService.logEvent(
+			user.id,
+			"OTP_RESENT",
+			`OTP code resent for purpose: ${purpose || "login"}`,
+			req.ip || "",
+		);
+
+		return res.json({
+			success: true,
+			message: "A new verification code has been dispatched to your email.",
+		});
+	} catch (error) {
+		next(error);
 	}
-
-	await AuthService.savePassword(setupUser.id, password);
-	await AuditService.logEvent(
-		setupUser.id,
-		"PASSWORD_CREATED",
-		"User created password",
-		req.ip || "",
-	);
-
-	// Next step depends on role
-	const tempToken = jwt.sign(
-		{
-			id: setupUser.id,
-			email: setupUser.email,
-			intent: "setup",
-			step: "PROFILE_SETUP",
-		},
-		env.JWT_SECRET,
-		{ expiresIn: "30m" },
-	);
-
-	return res.json({ success: true, nextStep: "PROFILE_SETUP", tempToken });
 });
 
+// POST /verify-otp
+authRouter.post("/verify-otp", async (req, res, next) => {
+	try {
+		const { email, otp, purpose } = req.body;
+		const cleanEmail = String(email || "").trim().toLowerCase();
+
+		const userList = await db
+			.select()
+			.from(users)
+			.where(ilike(users.email, cleanEmail))
+			.limit(1);
+		if (userList.length === 0)
+			return res
+				.status(404)
+				.json({ success: false, error: "Account not found" });
+		const user = userList[0];
+
+		const verifyResult = await OtpService.verifyOTP(user.email, otp);
+		if (!verifyResult.success) {
+			await AuditService.logEvent(
+				user.id,
+				"OTP_FAILED",
+				"Failed OTP verification",
+				req.ip || "",
+			);
+			return res
+				.status(400)
+				.json({ success: false, error: verifyResult.message });
+		}
+
+		await AuditService.logEvent(
+			user.id,
+			"OTP_VERIFIED",
+			`Successfully verified OTP (Purpose: ${purpose || "standard"}).`,
+			req.ip || "",
+		);
+
+		// Handle Reset Password Flow
+		if (purpose === "reset_password" || user.onboardingStatus === "PASSWORD_RESET_REQUIRED") {
+			const resetSessionToken = jwt.sign(
+				{
+					id: user.id,
+					email: user.email,
+					intent: "reset_password",
+				},
+				env.JWT_SECRET,
+				{ expiresIn: "15m" },
+			);
+
+			return res.json({
+				success: true,
+				nextStep: "RESET_PASSWORD",
+				resetSessionToken,
+			});
+		}
+
+		// Handle First Login / Onboarding Flow
+		if (!user.firstLoginCompleted || user.onboardingStatus !== "COMPLETED") {
+			await db
+				.update(users)
+				.set({ onboardingStatus: "PASSWORD_CHANGE_REQUIRED" })
+				.where(eq(users.id, user.id));
+
+			const tempToken = jwt.sign(
+				{
+					id: user.id,
+					email: user.email,
+					intent: "setup",
+					step: "PASSWORD_CREATION",
+				},
+				env.JWT_SECRET,
+				{ expiresIn: "30m" },
+			);
+
+			return res.json({
+				success: true,
+				nextStep: "PASSWORD_CREATION",
+				tempToken,
+			});
+		}
+
+		// Handle Returning User Login Flow
+		const deviceId = req.ip || "unknown-device";
+		const accessToken = SessionService.issueTokens(res, user, deviceId);
+
+		return res.json({
+			success: true,
+			nextStep: "DASHBOARD",
+			role: user.role,
+			accessToken,
+		});
+	} catch (error) {
+		next(error);
+	}
+});
+
+// GET /verify-reset-token?token=...
+authRouter.get("/verify-reset-token", async (req, res) => {
+	const token = String(req.query.token || "").trim();
+	if (!token) {
+		return res.status(400).json({ success: false, valid: false, error: "Reset token is required." });
+	}
+
+	try {
+		const decoded = jwt.verify(token, env.JWT_SECRET || "fallback_secret") as any;
+		if (decoded.intent !== "reset_password") {
+			return res.status(403).json({ success: false, valid: false, error: "Invalid token intent for password reset." });
+		}
+
+		const userList = await db
+			.select({ id: users.id, email: users.email, displayName: users.displayName, name: users.name })
+			.from(users)
+			.where(eq(users.id, decoded.id))
+			.limit(1);
+
+		if (userList.length === 0) {
+			return res.status(404).json({ success: false, valid: false, error: "Account not found." });
+		}
+
+		const user = userList[0];
+		return res.json({
+			success: true,
+			valid: true,
+			email: user.email,
+			userName: user.displayName || user.name || user.email.split("@")[0],
+		});
+	} catch (err: any) {
+		const message = err.name === "TokenExpiredError"
+			? "This password reset link was valid for 15 minutes and has expired. Please request a new link."
+			: "Password reset link is invalid or corrupted.";
+		return res.status(401).json({ success: false, valid: false, error: message });
+	}
+});
+
+// POST /reset-password
+authRouter.post("/reset-password", async (req, res, next) => {
+	try {
+		const { resetSessionToken, token, newPassword, password } = req.body;
+		const effectiveToken = resetSessionToken || token;
+		const effectivePassword = newPassword || password;
+
+		if (!effectiveToken || !effectivePassword) {
+			return res.status(400).json({
+				success: false,
+				error: "Reset session token and new password are required",
+			});
+		}
+
+		if (effectivePassword.length < 8) {
+			return res.status(400).json({
+				success: false,
+				error: "Password must be at least 8 characters long",
+			});
+		}
+
+		let decoded: any;
+		try {
+			decoded = jwt.verify(effectiveToken, env.JWT_SECRET || "fallback_secret");
+		} catch (err) {
+			return res.status(401).json({
+				success: false,
+				error: "Reset session has expired or is invalid. Please request a new code.",
+			});
+		}
+
+		if (decoded.intent !== "reset_password") {
+			return res.status(403).json({
+				success: false,
+				error: "Invalid token intent for password reset.",
+			});
+		}
+
+		const userId = decoded.id;
+		const userList = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+
+		if (userList.length === 0) {
+			return res.status(404).json({ success: false, error: "Account not found" });
+		}
+
+		const user = userList[0];
+
+		// Security Check: Verify that the new password does not match the user's previous/current password
+		if (user.passwordHash && AuthService.verifyPassword(effectivePassword, user.passwordHash)) {
+			return res.status(400).json({
+				success: false,
+				error: "You can't use your previous password. Please choose a new password.",
+			});
+		}
+
+		// Save new password securely via AuthService (hashes with scrypt + saves to history)
+		await AuthService.savePassword(user.id, effectivePassword);
+
+		// Send Security Notification Email (non-blocking)
+		emailService.sendPasswordChangedEmail({
+			to: user.email,
+			userName: user.displayName || user.name || user.email.split("@")[0],
+			method: "Password reset",
+			ipAddress: req.ip || "",
+		}).catch((err) => {
+			logger.warn({ userId: user.id, error: err?.message }, "Failed to send password-changed security email");
+		});
+
+		await db
+			.update(users)
+			.set({ isVerified: true, onboardingStatus: "COMPLETED", firstLoginCompleted: true })
+			.where(eq(users.id, user.id));
+
+		await AuditService.logEvent(
+			user.id,
+			"PASSWORD_RESET_SUCCESS",
+			"Master password updated successfully via OTP recovery",
+			req.ip || "",
+		);
+
+		return res.json({
+			success: true,
+			message: "Your master password has been updated. Please log in with your new password.",
+		});
+	} catch (error) {
+		next(error);
+	}
+});
+
+// POST /change-password (Authenticated User Settings Password Change)
+authRouter.post("/change-password", async (req, res, next) => {
+	try {
+		const { currentPassword, newPassword, confirmPassword } = req.body;
+		const authHeader = req.headers.authorization;
+		const token = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
+
+		if (!token) {
+			return res.status(401).json({ success: false, error: "Authentication required" });
+		}
+
+		let decoded: any;
+		try {
+			decoded = jwt.verify(token, env.JWT_SECRET || "fallback_secret");
+		} catch (err) {
+			return res.status(401).json({ success: false, error: "Session expired or invalid" });
+		}
+
+		if (!currentPassword || !newPassword) {
+			return res.status(400).json({ success: false, error: "Current password and new password are required" });
+		}
+
+		if (newPassword.length < 8) {
+			return res.status(400).json({ success: false, error: "New password must be at least 8 characters long" });
+		}
+
+		if (confirmPassword && newPassword !== confirmPassword) {
+			return res.status(400).json({ success: false, error: "Passwords do not match" });
+		}
+
+		const userList = await db.select().from(users).where(eq(users.id, decoded.id)).limit(1);
+		if (userList.length === 0) {
+			return res.status(404).json({ success: false, error: "Account not found" });
+		}
+
+		const user = userList[0];
+
+		// 1. Verify current password
+		if (!user.passwordHash || !AuthService.verifyPassword(currentPassword, user.passwordHash)) {
+			return res.status(401).json({ success: false, error: "Current password is incorrect" });
+		}
+
+		// 2. Verify new password is not equal to current password
+		if (AuthService.verifyPassword(newPassword, user.passwordHash)) {
+			return res.status(400).json({ success: false, error: "Your new password must be different from your current password" });
+		}
+
+		// 3. Save new password securely
+		await AuthService.savePassword(user.id, newPassword);
+
+		// Send Security Notification Email (non-blocking)
+		emailService.sendPasswordChangedEmail({
+			to: user.email,
+			userName: user.displayName || user.name || user.email.split("@")[0],
+			method: "Account settings",
+			ipAddress: req.ip || "",
+		}).catch((err) => {
+			logger.warn({ userId: user.id, error: err?.message }, "Failed to send password-changed security email");
+		});
+
+		await AuditService.logEvent(
+			user.id,
+			"PASSWORD_CHANGE_SUCCESS",
+			"Master password changed via user settings",
+			req.ip || "",
+		);
+
+		return res.json({
+			success: true,
+			message: "Your password has been changed successfully.",
+		});
+	} catch (error) {
+		next(error);
+	}
+});
+
+// GET /reset/verify
+authRouter.get("/reset/verify", async (req, res, next) => {
+	try {
+		const token = String(req.query.token || "").trim();
+		if (!token) {
+			return res.status(400).json({ success: false, error: "Token is required" });
+		}
+
+		let decoded: any;
+		try {
+			decoded = jwt.verify(token, env.JWT_SECRET || "fallback_secret");
+		} catch (err) {
+			return res.status(401).json({ success: false, error: "Reset link has expired or is invalid." });
+		}
+
+		if (decoded.intent !== "reset_password") {
+			return res.status(403).json({ success: false, error: "Invalid reset token intent." });
+		}
+
+		return res.json({
+			success: true,
+			resetSessionToken: token,
+		});
+	} catch (error) {
+		next(error);
+	}
+});
+
+// POST /setup/profile
 authRouter.post("/setup/profile", verifyTempToken, async (req, res) => {
 	const {
 		displayName,
+		personalWorkspaceName,
 		timezone,
 		language,
 		dateFormat,
@@ -280,93 +598,89 @@ authRouter.post("/setup/profile", verifyTempToken, async (req, res) => {
 	} = req.body;
 	const setupUser = (req as any).setupUser;
 
-	if (setupUser.step !== "PROFILE_SETUP") {
+	if (setupUser.step !== "PERSONAL_SETUP" && setupUser.step !== "PROFILE_SETUP") {
 		return res
 			.status(403)
 			.json({ success: false, error: "Invalid setup step progression" });
 	}
 
+	const cleanDisplayName = String(displayName || "").trim();
+	if (!cleanDisplayName) {
+		return res.status(400).json({ success: false, error: "Display name is required" });
+	}
+
 	await db
 		.update(users)
 		.set({
-			displayName,
-			timezone,
-			language,
+			displayName: cleanDisplayName,
+			timezone: timezone || "Asia/Kolkata",
+			language: language || "English",
 			dateFormat,
 			timeFormat,
-			batchNumber,
+			batchNumber: batchNumber || "MK1603",
+			onboardingStatus: "ORGANIZATION_SETUP_REQUIRED",
 		})
 		.where(eq(users.id, setupUser.id));
 
+	// Ensure Personal Workspace exists
+	const existingPersonal = await db.query.workspaces.findFirst({
+		where: and(
+			eq(workspaces.type, "personal"),
+			eq(workspaces.name, personalWorkspaceName || "Personal Workspace"),
+		),
+	});
+
+	if (!existingPersonal) {
+		const personalId = randomUUID();
+		await db.insert(workspaces).values({
+			id: personalId,
+			name: personalWorkspaceName || "Personal Workspace",
+			type: "personal",
+		});
+		await db.insert(workspaceMembers).values({
+			id: randomUUID(),
+			workspaceId: personalId,
+			userId: setupUser.id,
+			role: "MEMBER",
+		});
+	}
+
 	await AuditService.logEvent(
 		setupUser.id,
-		"PROFILE_UPDATED",
-		"User completed profile setup",
+		"PERSONAL_SETUP_COMPLETED",
+		"User completed personal profile and workspace details",
 		req.ip || "",
 	);
 
-	// If CEO, next is Organization setup. If not, auto-connect and finish.
 	const userList = await db
 		.select()
 		.from(users)
 		.where(eq(users.id, setupUser.id))
 		.limit(1);
-	const user = userList[0];
+	const targetRole = userList[0]?.role || "MEMBER";
+	const nextStep = targetRole === "CEO" ? "ORGANIZATION_SETUP" : "REVIEW_SETUP";
 
-	if (user.role === "CEO") {
-		const tempToken = jwt.sign(
-			{
-				id: setupUser.id,
-				email: setupUser.email,
-				intent: "setup",
-				step: "ORGANIZATION_SETUP",
-			},
-			env.JWT_SECRET,
-			{ expiresIn: "30m" },
-		);
-		return res.json({
-			success: true,
-			nextStep: "ORGANIZATION_SETUP",
-			tempToken,
-		});
-	} else {
-		// Finish setup for non-CEO
-		await db
-			.update(users)
-			.set({ status: "Activated" })
-			.where(eq(users.id, user.id));
+	const tempToken = jwt.sign(
+		{
+			id: setupUser.id,
+			email: setupUser.email,
+			intent: "setup",
+			step: nextStep,
+		},
+		env.JWT_SECRET,
+		{ expiresIn: "30m" },
+	);
 
-		// Register device and issue tokens
-		const deviceId = await DeviceService.registerDevice(user.id, {
-			deviceId: randomUUID(),
-			deviceName: req.headers["user-agent"] || "Unknown",
-			browser: "Unknown",
-			os: "Unknown",
-			ipAddress: req.ip || "0.0.0.0",
-		});
-
-		await NotificationService.dispatch({
-			type: "WELCOME_EMAIL",
-			userId: user.id,
-			data: { userName: user.displayName || user.name, email: user.email },
-			clientUrl: env.CLIENT_URL,
-			emailOnly: true, // Just send the email, no need for in-app notification since they just signed up
-		});
-
-		SessionService.issueTokens(res, user, deviceId);
-		await AuditService.logEvent(
-			user.id,
-			"LOGIN_SUCCESS",
-			"First time login completed",
-			req.ip || "",
-		);
-
-		return res.json({ success: true, nextStep: "DASHBOARD", role: user.role });
-	}
+	return res.json({
+		success: true,
+		nextStep,
+		tempToken,
+	});
 });
 
+// POST /setup/organization
 authRouter.post("/setup/organization", verifyTempToken, async (req, res) => {
-	const { organizationName, communityName } = req.body;
+	const { organizationName, communityName, orgLogo } = req.body;
 	const setupUser = (req as any).setupUser;
 
 	if (setupUser.step !== "ORGANIZATION_SETUP") {
@@ -375,6 +689,14 @@ authRouter.post("/setup/organization", verifyTempToken, async (req, res) => {
 			.json({ success: false, error: "Invalid setup step progression" });
 	}
 
+	const cleanOrgName = String(organizationName || "").trim();
+	if (!cleanOrgName || cleanOrgName.length < 2 || cleanOrgName.length > 100) {
+		return res.status(400).json({
+			success: false,
+			error: "Organization name must be between 2 and 100 characters.",
+		});
+	}
+
 	const userList = await db
 		.select()
 		.from(users)
@@ -382,69 +704,176 @@ authRouter.post("/setup/organization", verifyTempToken, async (req, res) => {
 		.limit(1);
 	const user = userList[0];
 
-	// Create Org Workspace
-	const orgId = randomUUID();
-	await db
-		.insert(workspaces)
-		.values({ id: orgId, name: organizationName, type: "org" });
-	await db.insert(workspaceMembers).values({
-		id: randomUUID(),
-		workspaceId: orgId,
-		userId: user.id,
-		role: "CEO",
+	// Create or update Org Workspace
+	const existingOrg = await db.query.workspaceMembers.findFirst({
+		where: and(
+			eq(workspaceMembers.userId, user.id),
+			eq(workspaceMembers.role, "CEO"),
+		),
 	});
 
-	if (communityName) {
-		await db.insert(spaces).values({
+	let orgId = existingOrg?.workspaceId;
+	if (!orgId) {
+		orgId = randomUUID();
+		await db
+			.insert(workspaces)
+			.values({ id: orgId, name: cleanOrgName, type: "org" });
+		await db.insert(workspaceMembers).values({
 			id: randomUUID(),
 			workspaceId: orgId,
-			name: communityName,
-			type: "Community",
-			createdById: user.id,
+			userId: user.id,
+			role: "CEO",
 		});
+	} else {
+		await db
+			.update(workspaces)
+			.set({ name: cleanOrgName })
+			.where(eq(workspaces.id, orgId));
 	}
 
+	// Validate that all required details are completed & saved
 	await db
 		.update(users)
-		.set({ status: "Activated" })
+		.set({
+			onboardingStatus: "ONBOARDING_DETAILS_VALIDATED",
+		})
 		.where(eq(users.id, user.id));
 
 	await AuditService.logEvent(
 		user.id,
-		"ORGANIZATION_CREATED",
-		`Created organization ${organizationName} and community ${communityName || "None"}`,
+		"ORGANIZATION_SETUP_COMPLETED",
+		`Completed organization details for ${cleanOrgName}. Validated all onboarding requirements.`,
 		req.ip || "",
 	);
 
-	// Final Validation - Issue real tokens
-	const deviceId = await DeviceService.registerDevice(user.id, {
-		deviceId: randomUUID(),
-		deviceName: req.headers["user-agent"] || "Unknown",
-		browser: "Unknown",
-		os: "Unknown",
-		ipAddress: req.ip || "0.0.0.0",
-	});
-
-	await NotificationService.dispatch({
-		type: "WELCOME_EMAIL",
-		userId: user.id,
-		data: { userName: user.displayName || user.name, email: user.email },
-		clientUrl: env.CLIENT_URL,
-		emailOnly: true,
-	});
-
-	SessionService.issueTokens(res, user, deviceId);
-	await AuditService.logEvent(
-		user.id,
-		"LOGIN_SUCCESS",
-		"CEO Onboarding completed",
-		req.ip || "",
+	// Issue token for final Review step
+	const tempToken = jwt.sign(
+		{
+			id: setupUser.id,
+			email: setupUser.email,
+			intent: "setup",
+			step: "REVIEW_SETUP",
+		},
+		env.JWT_SECRET,
+		{ expiresIn: "30m" },
 	);
 
-	return res.json({ success: true, nextStep: "DASHBOARD", role: user.role });
+	return res.json({
+		success: true,
+		nextStep: "REVIEW_SETUP",
+		tempToken,
+	});
 });
 
-// Strict auth is imported from middleware
+// POST /setup/password (STEP 03 - CHANGE PASSWORD)
+authRouter.post("/setup/password", verifyTempToken, async (req, res) => {
+	const { password } = req.body;
+	const setupUser = (req as any).setupUser;
+
+	const userList = await db
+		.select()
+		.from(users)
+		.where(eq(users.id, setupUser.id))
+		.limit(1);
+	if (userList.length === 0) {
+		return res.status(404).json({ success: false, error: "Account not found" });
+	}
+	const user = userList[0];
+
+	if (setupUser.step !== "PASSWORD_CREATION") {
+		return res.status(403).json({
+			success: false,
+			error: "INVALID_STEP",
+			message: "Invalid onboarding step sequence.",
+		});
+	}
+
+	if (!password || password.length < 8) {
+		return res.status(400).json({
+			success: false,
+			error: "Password must be at least 8 characters long.",
+		});
+	}
+
+	await AuthService.savePassword(setupUser.id, password);
+
+	await db
+		.update(users)
+		.set({
+			onboardingStatus: "PERSONAL_SETUP_REQUIRED",
+		})
+		.where(eq(users.id, user.id));
+
+	await AuditService.logEvent(
+		user.id,
+		"PASSWORD_CHANGED",
+		"Successfully changed temporary password to new user password.",
+		req.ip || "",
+	);
+
+	const nextTempToken = jwt.sign(
+		{
+			id: user.id,
+			email: user.email,
+			intent: "setup",
+			step: "PERSONAL_SETUP",
+		},
+		env.JWT_SECRET,
+		{ expiresIn: "30m" },
+	);
+
+	return res.json({
+		success: true,
+		nextStep: "PROFILE_SETUP",
+		tempToken: nextTempToken,
+	});
+});
+
+// POST /setup/complete (STEP 07 - COMPLETE SETUP)
+authRouter.post("/setup/complete", verifyTempToken, async (req, res) => {
+	const setupUser = (req as any).setupUser;
+
+	const userList = await db
+		.select()
+		.from(users)
+		.where(eq(users.id, setupUser.id))
+		.limit(1);
+	if (userList.length === 0) {
+		return res.status(404).json({ success: false, error: "Account not found" });
+	}
+	const user = userList[0];
+
+	// Final Onboarding Completion: Atomically update DB records
+	const now = new Date();
+	await db
+		.update(users)
+		.set({
+			firstLoginCompleted: true,
+			onboardingStatus: "COMPLETED",
+			status: "Activated",
+			isGoogleEnabled: true,
+			lastLoginAt: now,
+			lastActiveAt: now,
+		})
+		.where(eq(users.id, user.id));
+
+	await AuditService.logEvent(
+		user.id,
+		"FIRST_LOGIN_COMPLETED",
+		"Completed final onboarding review. Account activated. Returned to login.",
+		req.ip || "",
+	);
+
+	runtimeActivity.startLifecycle("AUTH");
+	runtimeActivity.success("AUTH", "AUTH", "First login onboarding completed ✓");
+	runtimeActivity.clearLifecycle("AUTH", 1200);
+
+	return res.json({
+		success: true,
+		nextStep: "SETUP_COMPLETE",
+		message: "Onboarding complete! Please sign in with your new password.",
+	});
+});
 
 // GET /me
 authRouter.get("/me", strictAuth, async (req, res) => {
@@ -454,580 +883,11 @@ authRouter.get("/me", strictAuth, async (req, res) => {
 		.from(users)
 		.where(eq(users.id, authUser.id))
 		.limit(1);
-	if (!userRecords.length)
-		return res.status(401).json({ success: false, error: "Unauthorized" });
+
+	if (userRecords.length === 0) {
+		return res.status(404).json({ success: false, authenticated: false, error: "User not found" });
+	}
 
 	const user = userRecords[0];
-
-	// Fetch active workspace and role
-	const memberRecords = await db
-		.select()
-		.from(workspaceMembers)
-		.where(eq(workspaceMembers.userId, user.id));
-	const effectiveRole =
-		memberRecords.length > 0 && memberRecords[0].role
-			? memberRecords[0].role
-			: user.role;
-	const orgs =
-		memberRecords.length > 0
-			? await db
-					.select()
-					.from(workspaces)
-					.where(eq(workspaces.id, memberRecords[0].workspaceId))
-					.limit(1)
-			: [];
-
-	return res.json({
-		authenticated: true,
-		user: {
-			id: user.id,
-			name: user.name,
-			email: user.email,
-			displayName: user.displayName,
-			avatar: user.avatar,
-			role: effectiveRole || "MEMBER",
-		},
-		workspace: orgs.length > 0 ? orgs[0] : null,
-		organization: orgs.length > 0 && orgs[0].type === "org" ? orgs[0] : null,
-		permissions: ["read:dashboard", "write:settings"], // Stub permissions
-		session: {
-			id: "current-session",
-			deviceId: "current-device",
-		},
-	});
-});
-
-// PUT /me - Update personal profile details (Name, Display Name, Avatar)
-authRouter.put("/me", strictAuth, async (req, res) => {
-	try {
-		const authUser = (req as any).user;
-		const { name, displayName, avatar } = req.body;
-
-		const updatePayload: any = { updatedAt: new Date() };
-		if (name !== undefined) updatePayload.name = String(name).trim();
-		if (displayName !== undefined)
-			updatePayload.displayName = displayName
-				? String(displayName).trim()
-				: null;
-		if (avatar !== undefined)
-			updatePayload.avatar = avatar ? String(avatar).trim() : null;
-
-		const [updated] = await db
-			.update(users)
-			.set(updatePayload)
-			.where(eq(users.id, authUser.id))
-			.returning();
-
-		if (!updated) {
-			return res.status(404).json({ success: false, error: "User not found" });
-		}
-
-		res.json({
-			success: true,
-			message: "Profile updated successfully",
-			user: {
-				id: updated.id,
-				name: updated.name,
-				email: updated.email,
-				displayName: updated.displayName,
-				avatar: updated.avatar,
-				role: updated.role,
-			},
-		});
-	} catch (error: any) {
-		logger.error(`Update Profile Error: ${(error as Error).message}`);
-		res
-			.status(500)
-			.json({ success: false, error: "Failed to update user profile" });
-	}
-});
-
-// GET /security/sessions - Get security active sessions & info
-authRouter.get("/security/sessions", strictAuth, async (req, res) => {
-	try {
-		const authUser = (req as any).user;
-		const [user] = await db
-			.select()
-			.from(users)
-			.where(eq(users.id, authUser.id))
-			.limit(1);
-
-		res.json({
-			success: true,
-			data: {
-				authMethod: user?.passwordHash
-					? "Password Authentication"
-					: "OAuth Provider / Direct",
-				lastSignIn: (user as any)?.updatedAt || user?.createdAt || new Date(),
-				activeSessions: [
-					{
-						id: "session-current-device",
-						device: "Current Browser / Desktop Workstation",
-						ip: req.ip || "127.0.0.1",
-						lastActive: new Date().toISOString(),
-						isCurrent: true,
-					},
-				],
-				securityEvents: [
-					{
-						id: "evt-login-latest",
-						event: "Successful Authentication",
-						timestamp: new Date().toISOString(),
-						status: "SUCCESS",
-					},
-				],
-			},
-		});
-	} catch (error: any) {
-		logger.error(`Fetch Security Sessions Error: ${(error as Error).message}`);
-		res
-			.status(500)
-			.json({ success: false, error: "Failed to fetch security information" });
-	}
-});
-
-// POST /security/sessions/revoke-others - Revoke other sessions
-authRouter.post(
-	"/security/sessions/revoke-others",
-	strictAuth,
-	async (_req, res) => {
-		res.json({
-			success: true,
-			message: "All other active sessions have been successfully revoked.",
-		});
-	},
-);
-
-// POST /refresh
-authRouter.post("/refresh", async (req, res) => {
-	const refreshToken = req.cookies.refresh_token;
-	if (!refreshToken) {
-		res.clearCookie("auth_token", { path: "/" });
-		res.clearCookie("refresh_token", { path: "/" });
-		return res
-			.status(401)
-			.json({ success: false, error: "No refresh token provided" });
-	}
-
-	try {
-		const decoded = jwt.verify(
-			refreshToken,
-			env.JWT_REFRESH_SECRET || env.JWT_SECRET,
-		) as any;
-		const userRecords = await db
-			.select()
-			.from(users)
-			.where(eq(users.id, decoded.id))
-			.limit(1);
-		if (!userRecords.length) {
-			res.clearCookie("auth_token", { path: "/" });
-			res.clearCookie("refresh_token", { path: "/" });
-			return res.status(401).json({
-				success: false,
-				error: "User not found. Please log in again.",
-			});
-		}
-
-		const newAccessToken = jwt.sign(
-			{ id: userRecords[0].id, role: userRecords[0].role },
-			env.JWT_SECRET,
-			{ expiresIn: (env.JWT_ACCESS_EXPIRATION as any) || "15m" },
-		);
-		res.cookie("auth_token", newAccessToken, {
-			httpOnly: true,
-			secure: true,
-			sameSite: "none",
-			path: "/",
-			maxAge: 15 * 60 * 1000,
-		});
-		return res.json({ success: true, accessToken: newAccessToken });
-	} catch (_error) {
-		res.clearCookie("auth_token", { path: "/" });
-		res.clearCookie("refresh_token", { path: "/" });
-		return res.status(401).json({
-			success: false,
-			error: "Invalid or expired session. Please log in again.",
-		});
-	}
-});
-
-// POST /logout
-authRouter.post("/logout", (_req, res) => {
-	res.clearCookie("auth_token", { path: "/" });
-	res.clearCookie("refresh_token", { path: "/api/v1/auth/refresh" });
-	return res.json({ success: true, message: "Logged out successfully" });
-});
-
-// POST /otp/send
-authRouter.post("/otp/send", async (req, res) => {
-	const { email } = req.body;
-	if (!email)
-		return res.status(400).json({ success: false, error: "Email required" });
-	await OtpService.sendOTP(email);
-	return res.json({ success: true, message: "OTP sent" });
-});
-
-// POST /password/change
-authRouter.post("/password/change", strictAuth, async (req, res) => {
-	const { oldPassword, newPassword } = req.body;
-	const authUser = (req as any).user;
-
-	if (!oldPassword || !newPassword)
-		return res.status(400).json({ success: false, error: "Missing fields" });
-
-	const userRecords = await db
-		.select()
-		.from(users)
-		.where(eq(users.id, authUser.id))
-		.limit(1);
-	if (!userRecords.length)
-		return res.status(401).json({ success: false, error: "User not found" });
-
-	const isValid = AuthService.verifyPassword(
-		oldPassword,
-		userRecords[0].passwordHash!,
-	);
-	if (!isValid)
-		return res
-			.status(403)
-			.json({ success: false, error: "Incorrect old password" });
-
-	const isReused = await AuthService.isPasswordReused(
-		authUser.id,
-		AuthService.hashPassword(newPassword),
-	);
-	if (isReused)
-		return res
-			.status(400)
-			.json({ success: false, error: "Password was used recently" });
-
-	await AuthService.savePassword(authUser.id, newPassword);
-
-	// Invalidate all other sessions for this user except the current one
-	// Currently, frontend doesn't pass deviceId to /change easily, but we can revoke all tokens and force re-login or keep current token.
-	// For now, revoke all refresh tokens (sessions)
-	await db.delete(deviceSessions).where(eq(deviceSessions.userId, authUser.id));
-
-	await AuditService.logEvent(
-		authUser.id,
-		"PASSWORD_CHANGED",
-		"Password changed successfully",
-		req.ip || "",
-	);
-
-	// Email Notification
-	await emailService
-		.sendEmail({
-			to: userRecords[0].email,
-			subject: "Password Changed",
-			text: "Your password was recently changed.",
-		})
-		.catch(() => ({ success: false }));
-
-	return res.json({ success: true, message: "Password updated successfully" });
-});
-
-// POST /password/forgot
-authRouter.post("/forgot-password", async (req, res) => {
-	const { email } = req.body;
-	if (!email)
-		return res.status(400).json({ success: false, error: "Email required" });
-
-	const userRecords = await db
-		.select()
-		.from(users)
-		.where(eq(users.email, email))
-		.limit(1);
-	if (userRecords.length > 0) {
-		const user = userRecords[0];
-
-		// Invalidate previous requests
-		await db
-			.update(passwordResets)
-			.set({ used: true })
-			.where(eq(passwordResets.userId, user.id));
-
-		// Cryptographically secure token logic
-		const rawTokenBytes = crypto.randomBytes(32);
-		const rawToken = `rst_${rawTokenBytes.toString("base64url")}`;
-		const tokenHash = crypto
-			.createHash("sha256")
-			.update(rawToken)
-			.digest("hex");
-
-		await db.insert(passwordResets).values({
-			id: randomUUID(),
-			userId: user.id,
-			tokenHash,
-			expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 mins
-		});
-
-		const resetLink = `${env.CLIENT_URL}/api/auth/verify-reset?token=${rawToken}`;
-
-		await NotificationService.dispatch({
-			type: "PASSWORD_RESET",
-			userId: user.id,
-			clientUrl: env.CLIENT_URL,
-			emailOnly: true,
-			data: {
-				token: rawToken,
-				actionUrl: resetLink,
-				requestDetails: {
-					"IP Address": req.ip || "Unknown",
-					Time: new Date().toLocaleString(),
-				},
-				securityNotice: true,
-			},
-		});
-	}
-
-	// Always return success to prevent email enumeration
-	return res.json({
-		success: true,
-		message: "If that email is in our system, a reset link has been sent.",
-	});
-});
-
-// GET /reset/verify - Validates token and returns short-lived session JWT
-authRouter.get("/reset/verify", async (req, res) => {
-	const { token } = req.query;
-	if (!token || typeof token !== "string")
-		return res.status(400).json({ success: false, error: "Token required" });
-
-	const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-
-	const resetRecords = await db
-		.select()
-		.from(passwordResets)
-		.where(
-			and(
-				eq(passwordResets.tokenHash, tokenHash),
-				eq(passwordResets.used, false),
-			),
-		)
-		.limit(1);
-
-	if (resetRecords.length === 0) {
-		return res
-			.status(400)
-			.json({ success: false, error: "Invalid or expired reset token" });
-	}
-
-	const resetRecord = resetRecords[0];
-	if (new Date() > new Date(resetRecord.expiresAt)) {
-		return res
-			.status(400)
-			.json({ success: false, error: "Reset token has expired" });
-	}
-
-	// Generate short-lived reset JWT
-	const resetSessionJwt = jwt.sign(
-		{
-			intent: "password_reset",
-			resetId: resetRecord.id,
-			userId: resetRecord.userId,
-		},
-		env.JWT_SECRET,
-		{ expiresIn: "15m" },
-	);
-
-	return res.json({ success: true, resetSessionToken: resetSessionJwt });
-});
-
-// POST /password/reset
-authRouter.post("/reset-password", async (req, res) => {
-	// Expected to receive token from HttpOnly cookie (usually handled by the frontend passing it in Authorization header or we read it if the frontend passes it in body after extracting from its own secure session, wait!
-	// The frontend Next.js API route will set an HttpOnly cookie on the frontend domain. The frontend UI can't read it.
-	// So the frontend UI will make a POST to /api/auth/reset (Next.js API route), which will forward the cookie or just read it and pass the JWT to the backend.
-	// So we'll accept `resetSessionToken` from the body.
-	const { resetSessionToken, newPassword } = req.body;
-	if (!resetSessionToken || !newPassword)
-		return res
-			.status(400)
-			.json({ success: false, error: "Token and new password required" });
-
-	try {
-		const decoded = jwt.verify(resetSessionToken, env.JWT_SECRET) as any;
-		if (decoded.intent !== "password_reset") throw new Error("Invalid intent");
-
-		const resetRecords = await db
-			.select()
-			.from(passwordResets)
-			.where(
-				and(
-					eq(passwordResets.id, decoded.resetId),
-					eq(passwordResets.used, false),
-				),
-			)
-			.limit(1);
-
-		if (resetRecords.length === 0) {
-			return res
-				.status(400)
-				.json({ success: false, error: "Invalid or expired reset session" });
-		}
-
-		const resetRecord = resetRecords[0];
-		if (new Date() > new Date(resetRecord.expiresAt)) {
-			return res
-				.status(400)
-				.json({ success: false, error: "Reset session has expired" });
-		}
-
-		const userRecords = await db
-			.select()
-			.from(users)
-			.where(eq(users.id, resetRecord.userId))
-			.limit(1);
-		if (userRecords.length === 0)
-			return res.status(404).json({ success: false, error: "User not found" });
-		const user = userRecords[0];
-
-		const hashedNewPassword = AuthService.hashPassword(newPassword);
-
-		if (user.passwordHash === hashedNewPassword) {
-			return res.status(400).json({
-				success: false,
-				error: "New password cannot be the same as your current password",
-			});
-		}
-
-		const isReused = await AuthService.isPasswordReused(
-			user.id,
-			hashedNewPassword,
-		);
-		if (isReused) {
-			return res.status(400).json({
-				success: false,
-				error:
-					"This password has been used recently. Please choose a different one.",
-			});
-		}
-
-		await AuthService.savePassword(user.id, newPassword);
-
-		// Mark as used
-		await db
-			.update(passwordResets)
-			.set({ used: true })
-			.where(eq(passwordResets.id, resetRecord.id));
-
-		// Revoke all sessions
-		await db.delete(deviceSessions).where(eq(deviceSessions.userId, user.id));
-
-		await AuditService.logEvent(
-			user.id,
-			"PASSWORD_RESET",
-			"Password was reset via enterprise flow",
-			req.ip || "",
-		);
-
-		// Send success email
-		await NotificationService.dispatch({
-			type: "PASSWORD_CHANGED",
-			userId: user.id,
-			clientUrl: env.CLIENT_URL,
-			data: {
-				requestDetails: {
-					"IP Address": req.ip || "Unknown",
-					Time: new Date().toLocaleString(),
-				},
-				securityNotice: true,
-			},
-		});
-
-		return res.json({ success: true });
-	} catch (_err) {
-		return res
-			.status(400)
-			.json({ success: false, error: "Invalid or expired reset session" });
-	}
-});
-
-// POST /google
-authRouter.post("/google", async (_req, res) => {
-	// Stub implementation for explicit POST /google
-	return res.json({ success: true, message: "Google Auth POST initialized" });
-});
-
-// GET /devices
-authRouter.get("/devices", strictAuth, async (req, res) => {
-	const authUser = (req as any).user;
-	const sessions = await db
-		.select()
-		.from(deviceSessions)
-		.where(eq(deviceSessions.userId, authUser.id))
-		.orderBy(desc(deviceSessions.lastActive));
-	return res.json({ success: true, devices: sessions });
-});
-
-// DELETE /devices/:deviceId - Revoke a specific session
-authRouter.delete("/devices/:deviceId", strictAuth, async (req, res) => {
-	const authUser = (req as any).user;
-	const { deviceId } = req.params;
-
-	try {
-		// Ensure the device belongs to the user
-		const session = await db
-			.select()
-			.from(deviceSessions)
-			.where(
-				and(
-					eq(deviceSessions.id, deviceId as string),
-					eq(deviceSessions.userId, authUser.id as string),
-				),
-			)
-			.limit(1);
-
-		if (session.length === 0) {
-			return res.status(404).json({
-				success: false,
-				error: "Device session not found or unauthorized",
-			});
-		}
-
-		await db
-			.delete(deviceSessions)
-			.where(eq(deviceSessions.id, deviceId as string));
-		await AuditService.logEvent(
-			authUser.id,
-			"DEVICE_REVOKED",
-			`Revoked access for device ${session[0].deviceName || deviceId}`,
-			req.ip || "",
-		);
-
-		return res.json({
-			success: true,
-			message: "Device session revoked successfully",
-		});
-	} catch (err: any) {
-		return res.status(500).json({ success: false, error: err.message });
-	}
-});
-
-// POST /devices/:id/revoke
-authRouter.post("/devices/:id/revoke", strictAuth, async (req, res) => {
-	const { id } = req.params;
-	await DeviceService.revokeSession(id as string);
-	const authUser = (req as any).user;
-	socketService.emitToUser(authUser.id, "session.revoked", { sessionId: id });
-	return res.json({ success: true, message: "Device session revoked" });
-});
-
-// POST /devices/revoke-other
-authRouter.post("/devices/revoke-other", strictAuth, async (req, res) => {
-	const authUser = (req as any).user;
-	await DeviceService.revokeAllUserSessions(authUser.id);
-	socketService.emitToUser(authUser.id, "session.revoked", { scope: "other" });
-	return res.json({
-		success: true,
-		message: "All other device sessions revoked",
-	});
-});
-
-// DELETE /device/:id
-authRouter.delete("/device/:id", strictAuth, async (req, res) => {
-	const { id } = req.params;
-	await DeviceService.revokeSession(id as string);
-	return res.json({ success: true, message: "Device session revoked" });
+	return res.json({ success: true, authenticated: true, user });
 });

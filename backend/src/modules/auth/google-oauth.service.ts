@@ -73,6 +73,17 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 						});
 					}
 
+					// FIRST LOGIN GATE: Google is rejected if first-login onboarding is incomplete
+					if (!existingUser.firstLoginCompleted || existingUser.onboardingStatus !== "COMPLETED") {
+						authLogger.warn(
+							{ email: normalizedEmail },
+							"Google OAuth rejected: Account has not completed first-login onboarding",
+						);
+						return done(null, false, {
+							message: "FIRST_LOGIN_REQUIRED: Complete your first login with your email and password first.",
+						});
+					}
+
 					authLogger.info(
 						{ googleId: profile.id },
 						"Google OAuth strategy authenticated user",

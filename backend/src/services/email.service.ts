@@ -18,6 +18,26 @@ export interface SendEmailOptions {
 	actionUrl?: string;
 	actionText?: string;
 	attachments?: any[];
+	otpCode?: string;
+	userName?: string;
+	isFirstLogin?: boolean;
+	isResetPassword?: boolean;
+	isResetLink?: boolean;
+	isPasswordChanged?: boolean;
+	isNewDevice?: boolean;
+	isCoCEOInvite?: boolean;
+	isMemberInvite?: boolean;
+	isOrgInviteAccepted?: boolean;
+	isProjectAssignment?: boolean;
+	isTaskAssignment?: boolean;
+	isTaskCompleted?: boolean;
+	isCommentMention?: boolean;
+	isMaintenance?: boolean;
+	isStorageWarning?: boolean;
+	expiresIn?: string;
+	securityNotice?: boolean;
+	requestDetails?: Record<string, string>;
+	mode?: "action" | "alert" | "digest" | "informational";
 }
 
 // ── Transport selection ──────────────────────────────────────────────────────
@@ -33,27 +53,32 @@ type SendResult = { success: boolean; messageId?: string; error?: string };
 class EmailService {
 	private resend: Resend | null = null;
 	private nodemailerTransport: nodemailer.Transporter | null = null;
-	private usingResend = false;
+	private provider: "smtp" | "resend" = "smtp";
 
 	constructor() {
-		if (process.env.RESEND_API_KEY) {
+		this.provider = (env.EMAIL_PROVIDER || "smtp").toLowerCase() as "smtp" | "resend";
+		
+		if (this.provider === "resend" && process.env.RESEND_API_KEY) {
 			this.resend = new Resend(process.env.RESEND_API_KEY);
-			logger.info("EmailService: Resend Primary Provider configured");
+			logger.debug("EmailService: Resend Primary Provider configured");
+		} else {
+			this.provider = "smtp";
+			this.nodemailerTransport = this.buildNodemailerTransport();
+			logger.debug("EmailService: Gmail SMTP Primary Provider configured");
 		}
-		this.nodemailerTransport = this.buildNodemailerTransport();
-		logger.info(
-			`EmailService: Nodemailer ${env.MAIL_MODE === "gmail" ? "Gmail" : "SMTP"} Fallback Provider configured`,
-		);
 	}
 
 	// ── Nodemailer transport factory ─────────────────────────────────────────
 	private buildNodemailerTransport(): nodemailer.Transporter {
-		if (env.MAIL_MODE === "gmail") {
+		const user = env.SMTP_USER || env.MAIL_USER;
+		const pass = env.SMTP_PASS || env.MAIL_PASS;
+
+		if (env.MAIL_MODE === "gmail" || env.SMTP_HOST === "smtp.gmail.com") {
 			return nodemailer.createTransport({
 				service: "gmail",
 				auth: {
-					user: env.MAIL_USER,
-					pass: env.MAIL_PASS,
+					user,
+					pass,
 				},
 				connectionTimeout: 8000,
 				greetingTimeout: 8000,
@@ -62,12 +87,12 @@ class EmailService {
 		}
 
 		return nodemailer.createTransport({
-			host: env.SMTP_HOST,
-			port: env.SMTP_PORT,
+			host: env.SMTP_HOST || "smtp.gmail.com",
+			port: env.SMTP_PORT || 465,
 			secure: env.SMTP_SECURE,
 			auth: {
-				user: env.SMTP_USER,
-				pass: env.SMTP_PASS,
+				user,
+				pass,
 			},
 			connectionTimeout: 8000,
 			greetingTimeout: 8000,
@@ -78,24 +103,27 @@ class EmailService {
 
 	// ── Connection verification ──────────────────────────────────────────────
 	public async verifyConnection(): Promise<boolean> {
-		if (this.resend) {
-			logger.trace("EmailService: Resend active — primary provider ready");
+		if (this.provider === "resend") {
+			logger.debug("EmailService: Resend active");
 			return true;
 		}
+
 		try {
-			if (this.nodemailerTransport) {
-				await Promise.race([
-					this.nodemailerTransport.verify(),
-					new Promise<never>((_, reject) =>
-						setTimeout(() => reject(new Error("SMTP verify timeout")), 6000),
-					),
-				]);
-				logger.trace("EmailService: Nodemailer SMTP fallback verified");
+			if (!this.nodemailerTransport) {
+				this.nodemailerTransport = this.buildNodemailerTransport();
 			}
+			await Promise.race([
+				this.nodemailerTransport.verify(),
+				new Promise<never>((_, reject) =>
+					setTimeout(() => reject(new Error("SMTP verification timeout")), 6000),
+				),
+			]);
+			logger.debug("EmailService: Gmail SMTP Primary Provider verified");
 			return true;
 		} catch (err: any) {
-			logger.debug(
-				`EmailService: SMTP connection check pending (${err.code ?? err.message})`,
+			logger.warn(
+				{ error: err?.message || String(err) },
+				"EmailService: Gmail SMTP Primary Provider connection check failed",
 			);
 			return false;
 		}
@@ -109,31 +137,27 @@ class EmailService {
 	// ── Core send method ──────────────────────────────────────────────────────
 	public async sendEmail(options: SendEmailOptions): Promise<SendResult> {
 		const fromName = env.MAIL_FROM_NAME || "ManMadhan Progress";
-		const fromAddress = env.MAIL_FROM_ADDRESS || env.MAIL_USER;
+		const fromUser = env.SMTP_USER || env.MAIL_USER || env.MAIL_FROM_ADDRESS;
+		const fromAddress = `"${fromName}" <${fromUser}>`;
 
 		const cleanSubject = options.subject
 			.replace(/BullMQ/gi, "System")
 			.replace(/Async task with auto-cleanup/gi, "Task Update");
 
-		const bodyText = options.text || options.subject;
-		const formattedBody = options.html
-			? options.html
-			: `<p style="margin:0;">${bodyText.replace(/\n/g, "<br/>")}</p>`;
-
 		const finalHtml = options.html?.includes("<html")
 			? options.html
 			: this.buildTemplate({
+					...options,
 					title: options.title || cleanSubject,
-					descriptions: [formattedBody],
-					actionUrl: options.actionUrl,
-					actionText: options.actionText,
+					descriptions: options.html ? [options.html] : options.text ? [options.text] : [],
 				});
 
-		// ── Step 1: Resend Primary Provider ─────────────────────────────────
-		if (this.resend) {
+		// ── Direct execution for configured provider ──────────────────────────
+		if (this.provider === "resend" && this.resend) {
 			try {
+				logger.info({ to: maskEmail(options.to) }, "[EMAIL] Resend delivery started");
 				const { data, error } = await this.resend.emails.send({
-					from: `${fromName} <${fromAddress}>`,
+					from: fromAddress,
 					to: [options.to],
 					subject: cleanSubject,
 					html: finalHtml,
@@ -143,32 +167,36 @@ class EmailService {
 				if (!error && data?.id) {
 					logger.info(
 						{ messageId: data.id, to: maskEmail(options.to) },
-						"Email dispatched via Resend Primary Provider",
+						"[EMAIL] Resend delivery successful",
 					);
 					return { success: true, messageId: data.id };
 				}
 
-				logger.warn(
+				logger.error(
 					{ error: error?.message, to: maskEmail(options.to) },
-					"Resend Primary Provider failed — attempting Nodemailer SMTP fallback...",
+					"[EMAIL] Resend delivery failed",
 				);
+				return { success: false, error: error?.message || "Resend email delivery failed" };
 			} catch (resendErr: any) {
-				logger.warn(
+				logger.error(
 					{ error: resendErr.message, to: maskEmail(options.to) },
-					"Resend Primary Provider exception — attempting Nodemailer SMTP fallback...",
+					"[EMAIL] Resend delivery exception",
 				);
+				return { success: false, error: resendErr.message };
 			}
 		}
 
-		// ── Step 2: Nodemailer SMTP Fallback Provider ───────────────────────
+		// ── Gmail SMTP Primary Provider Execution ──────────────────────────────
 		try {
+			logger.info({ to: maskEmail(options.to) }, "[EMAIL] Gmail SMTP delivery started");
+
 			if (!this.nodemailerTransport) {
 				this.nodemailerTransport = this.buildNodemailerTransport();
 			}
 
 			const info: any = await Promise.race([
 				this.nodemailerTransport.sendMail({
-					from: `"${fromName}" <${fromAddress}>`,
+					from: fromAddress,
 					to: options.to,
 					subject: cleanSubject,
 					text: options.text,
@@ -176,7 +204,7 @@ class EmailService {
 				}),
 				new Promise<never>((_, reject) =>
 					setTimeout(
-						() => reject(new Error("Email dispatch timed out after 8000ms")),
+						() => reject(new Error("Gmail SMTP dispatch timed out after 8000ms")),
 						8000,
 					),
 				),
@@ -184,16 +212,89 @@ class EmailService {
 
 			logger.info(
 				{ messageId: info.messageId, to: maskEmail(options.to) },
-				"Email dispatched via Nodemailer SMTP Fallback Provider",
+				"[EMAIL] Gmail SMTP delivery successful",
 			);
 			return { success: true, messageId: info.messageId };
 		} catch (err: any) {
 			logger.error(
 				{ error: err.message, to: maskEmail(options.to) },
-				"Both email providers (Resend Primary & Nodemailer Fallback) failed to dispatch email",
+				"[EMAIL] Gmail SMTP delivery error",
 			);
-			return { success: false, error: err.message };
+			return {
+				success: false,
+				error: "We couldn't send the verification code. Please try again.",
+			};
 		}
+	}
+
+	// ── Password Reset Link email ──────────────────────────────────────────────
+	public async sendPasswordResetLinkEmail(options: {
+		to: string;
+		userName?: string;
+		resetUrl: string;
+		expiresIn?: string;
+	}): Promise<boolean> {
+		logger.info(
+			{ to: maskEmail(options.to), resetUrl: options.resetUrl },
+			"[PasswordResetLink] Dispatching password reset link email",
+		);
+
+		const result = await this.sendEmail({
+			to: options.to,
+			subject: "Reset your ManMadhan Progress password",
+			title: "Reset your ManMadhan Progress password",
+			userName: options.userName,
+			isResetLink: true,
+			actionUrl: options.resetUrl,
+			actionText: "Reset Password →",
+			expiresIn: options.expiresIn || "15 minutes",
+			securityNotice: true,
+		});
+
+		return result.success;
+	}
+
+	// ── Password Changed Security Notification Email ──────────────────────────
+	public async sendPasswordChangedEmail(options: {
+		to: string;
+		userName?: string;
+		method?: "Password reset" | "Account settings";
+		ipAddress?: string;
+	}): Promise<boolean> {
+		const maskedEmail = maskEmail(options.to);
+		const formattedDate = new Date().toLocaleDateString("en-US", {
+			month: "short",
+			day: "numeric",
+			year: "numeric",
+		}) + " at " + new Date().toLocaleTimeString("en-US", {
+			hour: "2-digit",
+			minute: "2-digit",
+			timeZoneName: "short",
+		});
+
+		logger.info(
+			{ to: maskedEmail, method: options.method || "Password reset" },
+			"[PasswordChangedEmail] Dispatching post-reset security notification",
+		);
+
+		const result = await this.sendEmail({
+			to: options.to,
+			subject: "Your ManMadhan Progress password was changed",
+			title: "Password Changed",
+			userName: options.userName,
+			isPasswordChanged: true,
+			requestDetails: {
+				"Password Changed": formattedDate,
+				Account: maskedEmail,
+				Method: options.method || "Password reset",
+				...(options.ipAddress ? { "IP Address": options.ipAddress } : {}),
+			},
+			actionUrl: `${env.CLIENT_URL}/login`,
+			actionText: "Secure My Account →",
+			securityNotice: true,
+		});
+
+		return result.success;
 	}
 
 	// ── Invitation email ──────────────────────────────────────────────────────

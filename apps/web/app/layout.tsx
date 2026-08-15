@@ -24,6 +24,8 @@ const inter = Inter({
   display: "swap",
 });
 
+import { OfflineProvider } from "../components/providers/offline-provider";
+
 export const metadata: Metadata = {
   title: "ManMadhan Progress",
   description: "Plan Better. Focus Deeper. Achieve Greater.",
@@ -34,9 +36,9 @@ export const metadata: Metadata = {
     title: "ManMadhan Progress",
   },
   icons: {
-    icon: "/ios/iTunesArtwork@1x.png",
-    shortcut: "/ios/iTunesArtwork@1x.png",
-    apple: "/ios/iTunesArtwork@1x.png",
+    icon: "https://res.cloudinary.com/fmiadecb/image/upload/v1786817328/ic_launcher-web_bq8zjj.png",
+    shortcut: "https://res.cloudinary.com/fmiadecb/image/upload/v1786817328/ic_launcher-web_bq8zjj.png",
+    apple: "https://res.cloudinary.com/fmiadecb/image/upload/v1786817328/ic_launcher-web_bq8zjj.png",
   },
 };
 
@@ -57,21 +59,24 @@ export default function RootLayout({
     <html lang="en" className={`${jakarta.variable} ${inter.variable}`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <link rel="icon" href="/ios/iTunesArtwork@1x.png" />
-        <link rel="apple-touch-icon" href="/ios/iTunesArtwork@1x.png" />
+        <link rel="icon" href="https://res.cloudinary.com/fmiadecb/image/upload/v1786817328/ic_launcher-web_bq8zjj.png" />
+        <link rel="apple-touch-icon" href="https://res.cloudinary.com/fmiadecb/image/upload/v1786817328/ic_launcher-web_bq8zjj.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
-      <body className="min-h-screen bg-background text-foreground antialiased font-sans" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+      <body className="min-h-screen w-full bg-background text-foreground antialiased font-sans" suppressHydrationWarning>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           <AuthProvider>
             <SocketProvider>
-              <ConfirmProvider>
-                <main>{children}</main>
-                <ScrollToTopButton />
-                <AuthModal />
-                <RestModeOverlay />
-              </ConfirmProvider>
+              <OfflineProvider>
+                <ConfirmProvider>
+                  <div className="min-h-screen w-full">{children}</div>
+                  <ScrollToTopButton />
+                  <AuthModal />
+                  <RestModeOverlay />
+                </ConfirmProvider>
+              </OfflineProvider>
             </SocketProvider>
           </AuthProvider>
         </ThemeProvider>

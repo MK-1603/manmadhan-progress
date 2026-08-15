@@ -18,13 +18,10 @@ function DesktopHeader() {
       {/* LEFT: Compact Logo (36px) + Divider + Brand Name + Tagline */}
       <div className="flex items-center gap-4">
         <div className="relative h-[36px] w-[36px] flex-shrink-0 overflow-hidden rounded-lg">
-          <Image
-            src="/ios/iTunesArtwork@1x.png"
+          <img
+            src="https://res.cloudinary.com/fmiadecb/image/upload/v1786817328/ic_launcher-web_bq8zjj.png"
             alt="ManMadhan Progress Desktop Logo"
-            width={36}
-            height={36}
             className="w-full h-full object-cover"
-            priority
           />
         </div>
 
@@ -65,13 +62,10 @@ function TabletHeader() {
       {/* LEFT: Logo (36px) + Divider + Brand Name + Tagline */}
       <div className="flex items-center gap-3.5">
         <div className="relative h-[36px] w-[36px] flex-shrink-0 overflow-hidden rounded-lg">
-          <Image
-            src="/ios/iTunesArtwork@1x.png"
+          <img
+            src="https://res.cloudinary.com/fmiadecb/image/upload/v1786817328/ic_launcher-web_bq8zjj.png"
             alt="ManMadhan Progress Tablet Logo"
-            width={36}
-            height={36}
             className="w-full h-full object-cover"
-            priority
           />
         </div>
 
@@ -112,13 +106,10 @@ function MobileHeader() {
       {/* LEFT: Mobile Logo (32px) + Brand Name + Mobile Tag */}
       <div className="flex items-center gap-2.5">
         <div className="relative h-[32px] w-[32px] flex-shrink-0 overflow-hidden rounded-md">
-          <Image
-            src="/ios/iTunesArtwork@1x.png"
+          <img
+            src="https://res.cloudinary.com/fmiadecb/image/upload/v1786817328/ic_launcher-web_bq8zjj.png"
             alt="ManMadhan Progress Mobile Logo"
-            width={32}
-            height={32}
             className="w-full h-full object-cover"
-            priority
           />
         </div>
 

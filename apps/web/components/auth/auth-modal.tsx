@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "./auth-context";
 import { DesktopAuthModal } from "./desktop-auth-modal";
 import { MobileAuthSheet } from "./mobile-auth-sheet";
@@ -10,9 +10,10 @@ import { AlertTriangle, ArrowRight, CheckCircle2, Layers, XCircle } from "lucide
 export function AuthModal() {
   const { isOpen, close, isDirty, authState } = useAuth();
   const [showConfirm, setShowConfirm] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   const handleClose = () => {
-    if (isDirty) {
+    if (isDirty || authState === "OTP_VERIFICATION") {
       setShowConfirm(true);
     } else {
       close();
@@ -32,31 +33,71 @@ export function AuthModal() {
     if (!isOpen) return;
     const oldOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
+    // Focus management: store previous active element to restore on close
+    const previousActiveElement = document.activeElement as HTMLElement | null;
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") handleClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleClose();
+        return;
+      }
+
+      if (event.key === "Tab") {
+        const modalNode = modalRef.current;
+        if (!modalNode) return;
+
+        const focusables = modalNode.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusables.length === 0) return;
+
+        const firstElement = focusables[0];
+        const lastElement = focusables[focusables.length - 1];
+
+        if (event.shiftKey) {
+          if (document.activeElement === firstElement) {
+            event.preventDefault();
+            lastElement.focus();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            event.preventDefault();
+            firstElement.focus();
+          }
+        }
+      }
     };
+
     window.addEventListener("keydown", onKeyDown);
+
     return () => {
       document.body.style.overflow = oldOverflow;
       window.removeEventListener("keydown", onKeyDown);
+      if (previousActiveElement && typeof previousActiveElement.focus === "function") {
+        previousActiveElement.focus();
+      }
     };
-  }, [isOpen, close, isDirty]);
+  }, [isOpen, close, isDirty, authState]);
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          ref={modalRef}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onMouseDown={handleClose}
-          className="fixed inset-0 z-[95] flex bg-black/65 backdrop-blur-md items-end md:items-center justify-center p-0 md:p-6"
-          role="presentation"
+          className="fixed inset-0 z-[9999] flex bg-black/75 backdrop-blur-md items-end md:items-center justify-center p-0 md:p-6 overflow-hidden"
+          role="dialog"
+          aria-modal="true"
         >
           {/* Mobile Sheet container (Hidden on MD) */}
           <div className="w-full flex flex-col md:hidden relative" onMouseDown={(e) => e.stopPropagation()}>
             <MobileAuthSheet onCancel={handleClose} onComplete={() => close(true)}>
-              {/* Discard Confirmation Mobile Sheet */}
+              {/* Discard / Continue-Abort Confirmation Mobile Sheet */}
               <AnimatePresence>
                 {showConfirm && (
                   <motion.div
@@ -81,7 +122,7 @@ export function AuthModal() {
           {/* Desktop Modal container (Visible on MD) */}
           <div className="hidden w-full max-w-[960px] md:flex relative" onMouseDown={(e) => e.stopPropagation()}>
             <DesktopAuthModal onCancel={handleClose} onComplete={() => close(true)} />
-            {/* Discard Confirmation Overlay for Desktop */}
+            {/* Discard / Continue-Abort Confirmation Overlay for Desktop */}
             <AnimatePresence>
               {showConfirm && (
                 <motion.div
@@ -89,7 +130,7 @@ export function AuthModal() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 rounded-[32px]"
+                  className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 rounded-2xl"
                 >
                   <ConfirmCard 
                     authState={authState} 
@@ -106,7 +147,7 @@ export function AuthModal() {
   );
 }
 
-// Mobile Bottom Sheet for Cancel Confirmation with Real Icons
+// Mobile Bottom Sheet for Cancel Confirmation
 function MobileConfirmSheet({ authState, onCancel, onConfirm }: { authState: string, onCancel: () => void, onConfirm: () => void }) {
   return (
     <motion.div
@@ -114,7 +155,7 @@ function MobileConfirmSheet({ authState, onCancel, onConfirm }: { authState: str
       animate={{ y: 0 }}
       exit={{ y: "100%" }}
       transition={{ type: "spring", stiffness: 350, damping: 32 }}
-      className="w-full bg-card border-t border-border rounded-t-[28px] p-6 flex flex-col items-center text-center relative overflow-hidden shadow-[0_-12px_40px_rgba(0,0,0,0.5)]"
+      className="w-full bg-card border-t border-border rounded-t-[28px] p-6 flex flex-col items-center text-center relative z-20 overflow-hidden shadow-2xl"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Top Drag Handle */}
@@ -122,25 +163,22 @@ function MobileConfirmSheet({ authState, onCancel, onConfirm }: { authState: str
 
       {/* Warning Badge */}
       <div className="relative mb-3">
-        <motion.div 
-          animate={{ scale: [1, 1.05, 1], opacity: [0.5, 0.8, 0.5] }} 
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute inset-0 rounded-full bg-red-500/20 blur-xl"
-        />
-        <div className="w-11 h-11 rounded-full bg-red-500/10 border border-red-500/30 text-red-500 flex items-center justify-center relative z-10 shadow-[0_0_15px_rgba(239,68,68,0.15)]">
+        <div className="w-11 h-11 rounded-full bg-destructive/10 border border-destructive/30 text-destructive flex items-center justify-center relative z-10">
           <AlertTriangle className="w-5 h-5" />
         </div>
       </div>
 
       {/* Text content */}
-      <h3 className="text-xl font-bold text-foreground tracking-tight mb-1.5">Cancel Authentication?</h3>
+      <h3 className="text-xl font-bold text-foreground tracking-tight mb-1.5">
+        {authState === "OTP_VERIFICATION" ? "Leave Verification?" : "Cancel Authentication?"}
+      </h3>
       <p className="text-xs text-muted-foreground font-medium mb-5 leading-relaxed max-w-xs">
         {authState === "OTP_VERIFICATION" 
-          ? "Your verification session is still active. Leaving now will cancel this session."
+          ? "Your authentication is still active. Leaving now will cancel this attempt."
           : "You have not completed your account setup. Leaving now will cancel your session."}
       </p>
 
-      {/* Status indicator with Real Icons */}
+      {/* Status indicator */}
       <div className="w-full bg-muted/40 border border-border/60 rounded-xl p-3.5 flex items-center justify-between mb-6">
         <div className="text-left">
           <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Current Step</p>
@@ -148,37 +186,35 @@ function MobileConfirmSheet({ authState, onCancel, onConfirm }: { authState: str
             <Layers className="w-3.5 h-3.5 text-gold flex-shrink-0" />
             <span>
               {authState === "OTP_VERIFICATION" ? "Identity Verification" :
-               authState === "PASSWORD" ? "Security Setup" :
-               authState === "PROFILE_SETUP" ? "Profile Setup" :
-               authState === "ORGANIZATION_SETUP" ? "Workspace Setup" : "Authentication"}
+               authState === "PASSWORD" ? "Security Setup" : "Authentication"}
             </span>
           </div>
         </div>
         <div className="flex flex-col items-end">
           <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Status</p>
           <div className="flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-            <span className="text-[11px] font-semibold text-green-500">Authenticated</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+            <span className="text-[11px] font-semibold text-emerald-500">Active</span>
           </div>
         </div>
       </div>
 
-      {/* Actions: 2-in-1 Grid Layout with Real Icons */}
+      {/* Actions: Continue Verification vs Abort Authentication */}
       <div className="w-full grid grid-cols-2 gap-3">
         <button
           type="button"
           onClick={onConfirm}
-          className="h-12 border border-border/80 hover:border-red-500/30 bg-muted/20 hover:bg-red-500/10 text-red-500 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          className="h-12 border border-border bg-muted/20 hover:bg-destructive/10 text-destructive font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
         >
           <XCircle className="w-4 h-4 stroke-[2]" />
-          <span>Cancel Session</span>
+          <span>Abort Authentication</span>
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="h-12 bg-gold hover:bg-gold/90 text-gold-foreground font-bold text-xs rounded-xl transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-gold/50 cursor-pointer flex items-center justify-center gap-1.5"
         >
-          <span>Continue Sign In</span>
+          <span>Continue Verification</span>
           <ArrowRight className="w-4 h-4 stroke-[2]" />
         </button>
       </div>
@@ -186,7 +222,7 @@ function MobileConfirmSheet({ authState, onCancel, onConfirm }: { authState: str
   );
 }
 
-// Extracted ConfirmCard for Desktop with Real Icons
+// Extracted ConfirmCard for Desktop
 function ConfirmCard({ authState, onCancel, onConfirm }: { authState: string, onCancel: () => void, onConfirm: () => void }) {
   return (
     <motion.div
@@ -194,30 +230,27 @@ function ConfirmCard({ authState, onCancel, onConfirm }: { authState: string, on
       animate={{ scale: 1, opacity: 1, y: 0 }}
       exit={{ scale: 0.96, opacity: 0, y: 10 }}
       transition={{ type: "spring", damping: 25, stiffness: 300, duration: 0.2 }}
-      className="w-full max-w-[360px] bg-card border border-border/50 rounded-[20px] shadow-2xl p-5 flex flex-col items-center text-center relative overflow-hidden"
+      className="w-full max-w-[360px] bg-card border border-border rounded-2xl shadow-2xl p-5 flex flex-col items-center text-center relative overflow-hidden"
       onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Warning Badge */}
       <div className="relative mb-4">
-        <motion.div 
-          animate={{ scale: [1, 1.05, 1], opacity: [0.5, 0.8, 0.5] }} 
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute inset-0 rounded-full bg-red-500/20 blur-xl"
-        />
-        <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/30 text-red-500 flex items-center justify-center relative z-10 shadow-[0_0_15px_rgba(239,68,68,0.15)]">
+        <div className="w-10 h-10 rounded-full bg-destructive/10 border border-destructive/30 text-destructive flex items-center justify-center relative z-10">
           <AlertTriangle className="w-4 h-4" />
         </div>
       </div>
 
       {/* Text content */}
-      <h3 className="text-lg font-bold text-foreground tracking-tight mb-2">Cancel Authentication?</h3>
+      <h3 className="text-lg font-bold text-foreground tracking-tight mb-2">
+        {authState === "OTP_VERIFICATION" ? "Leave Verification?" : "Cancel Authentication?"}
+      </h3>
       <p className="text-[12px] text-muted-foreground font-medium mb-5 leading-relaxed">
         {authState === "OTP_VERIFICATION" 
-          ? "Your verification session is still active. Leaving now will cancel this session."
+          ? "Your authentication is still active. Leaving now will cancel this attempt."
           : "You have not completed your account setup. Leaving now will cancel your session."}
       </p>
 
-      {/* Status indicator with Real Icons */}
+      {/* Status indicator */}
       <div className="w-full bg-muted/50 border border-border rounded-xl p-3 flex items-center justify-between mb-6">
         <div className="text-left">
           <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Current Step</p>
@@ -225,37 +258,35 @@ function ConfirmCard({ authState, onCancel, onConfirm }: { authState: string, on
             <Layers className="w-3.5 h-3.5 text-gold flex-shrink-0" />
             <span>
               {authState === "OTP_VERIFICATION" ? "Identity Verification" :
-               authState === "PASSWORD" ? "Security Setup" :
-               authState === "PROFILE_SETUP" ? "Profile Setup" :
-               authState === "ORGANIZATION_SETUP" ? "Workspace Setup" : "Authentication"}
+               authState === "PASSWORD" ? "Security Setup" : "Authentication"}
             </span>
           </div>
         </div>
         <div className="flex flex-col items-end">
           <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Status</p>
           <div className="flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-            <span className="text-[10px] font-semibold text-green-500">Authenticated</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+            <span className="text-[10px] font-semibold text-emerald-500">Active</span>
           </div>
         </div>
       </div>
 
-      {/* Actions: 2-in-1 Grid Layout with Real Icons */}
+      {/* Actions */}
       <div className="w-full grid grid-cols-2 gap-2.5">
         <button
           type="button"
           onClick={onConfirm}
-          className="h-10 border border-border/80 hover:border-red-500/30 bg-muted/20 hover:bg-red-500/10 text-red-500 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          className="h-10 border border-border bg-muted/20 hover:bg-destructive/10 text-destructive font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
         >
           <XCircle className="w-3.5 h-3.5 stroke-[2]" />
-          <span>Cancel Session</span>
+          <span>Abort Auth</span>
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="h-10 bg-gold hover:bg-gold/90 text-gold-foreground font-bold text-xs rounded-xl transition-all shadow-md focus:outline-none focus:ring-2 focus:ring-gold/50 cursor-pointer flex items-center justify-center gap-1.5"
         >
-          <span>Continue Sign In</span>
+          <span>Continue</span>
           <ArrowRight className="w-3.5 h-3.5 stroke-[2]" />
         </button>
       </div>

@@ -1,24 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import {
-  User, Mail, Shield, ChevronRight, Settings, Bell,
-  Palette, Sliders, LogOut, Camera, Loader2, AlertCircle
+  User, Shield, ChevronRight, Bell,
+  Palette, Sliders, LogOut, Loader2, AlertCircle, Laptop
 } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
-import { PremiumCard } from "@/components/ui/premium-card";
 import Link from "next/link";
 
 interface ProfileHomeViewProps {
-  basePath: string; // e.g., "/ceo"
+  basePath: string; // e.g., "/ceo", "/personal", "/co-ceo", "/member"
 }
 
 export function ProfileHomeView({ basePath }: ProfileHomeViewProps) {
-  const router = useRouter();
   const { user, logout } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
+
+  const isPersonal = basePath.startsWith("/personal");
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -38,6 +37,12 @@ export function ProfileHomeView({ basePath }: ProfileHomeViewProps) {
     .toUpperCase()
     .substring(0, 2);
 
+  const userName = user?.displayName || user?.name || "Sai Krishnan S";
+  const userRole = user?.role || "CEO";
+  const roleDisplay = isPersonal
+    ? "Personal Workspace"
+    : `${userRole} · ManMadhan`;
+
   const accountItems = [
     {
       id: "profile-info",
@@ -54,18 +59,18 @@ export function ProfileHomeView({ basePath }: ProfileHomeViewProps) {
       href: `${basePath}/settings?tab=preferences`,
     },
     {
-      id: "notifications",
-      label: "Notifications",
-      desc: "Task, approval, and deadline alerts",
-      icon: Bell,
-      href: `${basePath}/settings?tab=notifications`,
-    },
-    {
       id: "appearance",
       label: "Appearance",
       desc: "Theme: System, Light, or Dark",
       icon: Palette,
       href: `${basePath}/settings?tab=appearance`,
+    },
+    {
+      id: "notifications",
+      label: "Notifications",
+      desc: "Task, approval, and deadline alerts",
+      icon: Bell,
+      href: `${basePath}/settings?tab=notifications`,
     },
   ];
 
@@ -73,15 +78,15 @@ export function ProfileHomeView({ basePath }: ProfileHomeViewProps) {
     {
       id: "security",
       label: "Security & Password",
-      desc: "Password change and account protection",
+      desc: "Password and account protection",
       icon: Shield,
       href: `${basePath}/settings?tab=security`,
     },
     {
       id: "devices",
       label: "Connected Devices",
-      desc: "Manage your active device sessions",
-      icon: Settings,
+      desc: "Manage active device sessions",
+      icon: Laptop,
       href: `${basePath}/settings?tab=security-devices`,
     },
     {
@@ -94,276 +99,134 @@ export function ProfileHomeView({ basePath }: ProfileHomeViewProps) {
   ];
 
   return (
-    <div className="w-full h-[calc(100dvh-65px)] flex flex-col overflow-hidden bg-background">
-      {/* Fixed Header */}
-      <div className="shrink-0 sticky top-0 z-20 px-4 py-3.5 border-b border-border/40 bg-background flex items-center justify-between">
-        <h1 className="text-lg font-black text-foreground tracking-tight">Profile</h1>
+    <div className="w-full max-w-full overflow-x-hidden p-4 space-y-5 text-[#17202A] dark:text-[#F2F4F7] select-none font-sans">
+      
+      {/* 9. RESTRAINED COMPACT PROFILE HERO */}
+      <div className="flex flex-col items-center text-center py-4 bg-[#FFFFFF] dark:bg-[#15191F] rounded-[12px] border border-[#E4E7EC] dark:border-[#272D36] p-4 relative">
         <Link
           href={`${basePath}/profile/edit`}
-          className="text-xs font-bold text-gold hover:text-[#F0BC2B] transition-colors"
+          className="absolute top-3.5 right-4 text-[14px] font-semibold text-[#C9A52A] dark:text-[#D4B12F] hover:underline transition-colors"
         >
           Edit
         </Link>
-      </div>
-
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto pb-24 md:pb-8">
-
-        {/* Desktop: Two Column Layout */}
-        <div className="hidden md:flex gap-0 h-full">
-          {/* Desktop Sidebar Nav */}
-          <nav className="w-60 shrink-0 border-r border-border/50 bg-card/40 p-4 space-y-6 overflow-y-auto">
-            {/* Profile Card Compact */}
-            <div className="flex flex-col items-center text-center gap-3 py-4 border-b border-border/40">
-              <div className="w-16 h-16 rounded-full bg-gold/10 border-2 border-gold/30 flex items-center justify-center overflow-hidden">
-                {user?.avatar ? (
-                  <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-xl font-black text-gold">{initials}</span>
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-black text-foreground">{user?.displayName || user?.name || "User"}</p>
-                <p className="text-[11px] font-bold text-gold">{user?.role || "CEO"}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-[180px]">{user?.email}</p>
-              </div>
-              <Link
-                href={`${basePath}/profile/edit`}
-                className="w-full py-2 bg-gold/10 hover:bg-gold/20 text-gold border border-gold/30 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Camera className="w-3.5 h-3.5" /> Edit Profile
-              </Link>
-            </div>
-
-            {/* Desktop Nav Groups */}
-            <div className="space-y-1.5">
-              <h3 className="text-[10px] font-black text-muted-foreground/70 tracking-widest uppercase px-3">ACCOUNT</h3>
-              {accountItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.id}
-                    href={item.href}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent transition-all"
-                  >
-                    <Icon className="w-4 h-4 shrink-0 text-muted-foreground/70" />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-
-            <div className="space-y-1.5">
-              <h3 className="text-[10px] font-black text-muted-foreground/70 tracking-widest uppercase px-3">SECURITY</h3>
-              {securityItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.id}
-                    href={item.href}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent transition-all"
-                  >
-                    <Icon className="w-4 h-4 shrink-0 text-muted-foreground/70" />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-
-            {/* Sign Out */}
-            <div className="pt-2 border-t border-border/40">
-              <button
-                type="button"
-                onClick={handleSignOut}
-                disabled={signingOut}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-500/10 border border-transparent transition-all cursor-pointer disabled:opacity-50"
-              >
-                {signingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-                Sign Out
-              </button>
-            </div>
-          </nav>
-
-          {/* Desktop Main: Show Profile Overview */}
-          <main className="flex-1 overflow-y-auto p-6 lg:p-8">
-            <DesktopProfileContent
-              user={user}
-              initials={initials}
-              basePath={basePath}
-              accountItems={accountItems}
-              securityItems={securityItems}
-            />
-          </main>
-        </div>
-
-        {/* Mobile: Full-Screen Index */}
-        <div className="md:hidden">
-          {/* Profile Hero Card */}
-          <div className="mx-4 mt-4 mb-5 p-5 rounded-2xl bg-card border border-border/80">
-            <div className="flex flex-col items-center text-center gap-3">
-              <div className="w-20 h-20 rounded-full bg-gold/10 border-2 border-gold/30 flex items-center justify-center overflow-hidden">
-                {user?.avatar ? (
-                  <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-2xl font-black text-gold">{initials}</span>
-                )}
-              </div>
-              <div>
-                <p className="text-base font-black text-foreground">{user?.displayName || user?.name || "User"}</p>
-                <p className="text-xs font-bold text-gold mt-0.5">{user?.role || "CEO"}</p>
-                <p className="text-[11px] text-muted-foreground mt-1">{user?.email}</p>
-              </div>
-              <Link
-                href={`${basePath}/profile/edit`}
-                className="w-full py-2.5 bg-gold hover:bg-[#F0BC2B] text-black text-xs font-black rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Camera className="w-3.5 h-3.5" /> Edit Profile
-              </Link>
-            </div>
-          </div>
-
-          {signOutError && (
-            <div className="mx-4 mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs font-semibold text-rose-500 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" /> {signOutError}
-            </div>
+        <div className="w-[80px] h-[80px] rounded-full bg-[#D4B12F]/15 dark:bg-[#D4B12F]/20 border border-[#D4B12F]/30 flex items-center justify-center overflow-hidden shrink-0 mt-1">
+          {user?.avatar ? (
+            <img src={user.avatar} alt={userName} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-[22px] font-bold text-[#C9A52A] dark:text-[#D4B12F]">{initials}</span>
           )}
+        </div>
+        <h2 className="text-[18px] font-semibold text-[#17202A] dark:text-[#F2F4F7] mt-2.5 leading-tight">
+          {userName}
+        </h2>
+        <span className="text-[13px] font-medium text-[#C9A52A] dark:text-[#D4B12F] mt-0.5">
+          {roleDisplay}
+        </span>
+        <span className="text-[12px] font-normal text-[#667085] dark:text-[#8B95A5] mt-0.5">
+          {user?.email || "saikrishnanmk1603@gmail.com"}
+        </span>
+      </div>
 
-          {/* ACCOUNT Section */}
-          <div className="px-4 space-y-2 mb-5">
-            <h2 className="text-[10px] font-black text-gold uppercase tracking-widest px-1 mb-2">ACCOUNT</h2>
-            {accountItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className="flex items-center justify-between p-3.5 rounded-xl bg-card border border-border/80 active:border-gold transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-gold/10 text-gold flex items-center justify-center shrink-0">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-foreground truncate">{item.label}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">{item.desc}</p>
-                    </div>
+      {signOutError && (
+        <div className="p-3 rounded-[12px] bg-[#D92D20]/10 dark:bg-[#F04444]/10 border border-[#D92D20]/20 dark:border-[#F04444]/20 text-[#D92D20] dark:text-[#F04444] text-[12px] font-medium flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {signOutError}
+        </div>
+      )}
+
+      {/* 6. GROUPED ACCOUNT SETTINGS SECTION */}
+      <div className="space-y-1.5">
+        <h3 className="text-[11px] font-semibold tracking-[0.07em] uppercase text-[#667085] dark:text-[#8B95A5] px-1">
+          ACCOUNT
+        </h3>
+        <div className="rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] divide-y divide-[#E4E7EC]/60 dark:divide-[#272D36]/60 overflow-hidden">
+          {accountItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className="min-h-[58px] px-3.5 flex items-center justify-between hover:bg-[#F5F6F8] dark:hover:bg-[#181D24] transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Icon className="w-5 h-5 text-[#C9A52A] dark:text-[#D4B12F] shrink-0 stroke-[1.8]" />
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-medium text-[#17202A] dark:text-[#F2F4F7] truncate leading-tight">
+                      {item.label}
+                    </p>
+                    <p className="text-[12px] font-normal text-[#667085] dark:text-[#8B95A5] truncate leading-tight mt-0.5">
+                      {item.desc}
+                    </p>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* SECURITY Section */}
-          <div className="px-4 space-y-2 mb-5">
-            <h2 className="text-[10px] font-black text-gold uppercase tracking-widest px-1 mb-2">SECURITY</h2>
-            {securityItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  className="flex items-center justify-between p-3.5 rounded-xl bg-card border border-border/80 active:border-gold transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-muted/60 text-muted-foreground flex items-center justify-center shrink-0">
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-foreground truncate">{item.label}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">{item.desc}</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* ACCOUNT ACTIONS */}
-          <div className="px-4 space-y-2 mb-6">
-            <h2 className="text-[10px] font-black text-muted-foreground/70 uppercase tracking-widest px-1 mb-2">ACCOUNT ACTIONS</h2>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              disabled={signingOut}
-              className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-rose-500/5 border border-rose-500/20 active:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-50"
-            >
-              {signingOut ? (
-                <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
-              ) : (
-                <LogOut className="w-4 h-4 text-rose-500" />
-              )}
-              <div className="text-left">
-                <p className="text-xs font-bold text-rose-500">{signingOut ? "Signing Out..." : "Sign Out"}</p>
-                <p className="text-[10px] text-muted-foreground">Sign out of your account on this device</p>
-              </div>
-            </button>
-          </div>
+                </div>
+                <ChevronRight className="w-[18px] h-[18px] text-[#667085] dark:text-[#8B95A5] shrink-0" />
+              </Link>
+            );
+          })}
         </div>
       </div>
-    </div>
-  );
-}
 
-// Desktop Profile Overview Content
-function DesktopProfileContent({ user, initials, basePath, accountItems, securityItems }: any) {
-  return (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <h2 className="text-xl font-black text-foreground tracking-tight flex items-center gap-2">
-          <User className="w-5 h-5 text-gold" /> Personal Profile
-        </h2>
-        <p className="text-xs text-muted-foreground mt-1">Manage your personal account identity and security.</p>
+      {/* 6. GROUPED SECURITY SETTINGS SECTION */}
+      <div className="space-y-1.5">
+        <h3 className="text-[11px] font-semibold tracking-[0.07em] uppercase text-[#667085] dark:text-[#8B95A5] px-1">
+          SECURITY
+        </h3>
+        <div className="rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] divide-y divide-[#E4E7EC]/60 dark:divide-[#272D36]/60 overflow-hidden">
+          {securityItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                className="min-h-[58px] px-3.5 flex items-center justify-between hover:bg-[#F5F6F8] dark:hover:bg-[#181D24] transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Icon className="w-5 h-5 text-[#667085] dark:text-[#8B95A5] shrink-0 stroke-[1.8]" />
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-medium text-[#17202A] dark:text-[#F2F4F7] truncate leading-tight">
+                      {item.label}
+                    </p>
+                    <p className="text-[12px] font-normal text-[#667085] dark:text-[#8B95A5] truncate leading-tight mt-0.5">
+                      {item.desc}
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="w-[18px] h-[18px] text-[#667085] dark:text-[#8B95A5] shrink-0" />
+              </Link>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Profile Identity Card */}
-      <PremiumCard className="p-6 bg-card border-border/80 rounded-xl">
-        <div className="flex items-center gap-5">
-          <div className="w-20 h-20 rounded-full bg-gold/10 border-2 border-gold/30 flex items-center justify-center overflow-hidden shrink-0">
-            {user?.avatar ? (
-              <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-2xl font-black text-gold">{initials}</span>
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-lg font-black text-foreground">{user?.displayName || user?.name || "User"}</p>
-            <p className="text-sm font-bold text-gold mt-0.5">{user?.role || "CEO"}</p>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5" /> {user?.email}
+      {/* 11. COMPACT SIGN OUT ROW */}
+      <div className="space-y-1.5">
+        <h3 className="text-[11px] font-semibold tracking-[0.07em] uppercase text-[#667085] dark:text-[#8B95A5] px-1">
+          ACCOUNT ACTIONS
+        </h3>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          disabled={signingOut}
+          className="w-full min-h-[58px] px-3.5 rounded-[12px] bg-[#D92D20]/5 dark:bg-[#F04444]/10 border border-[#D92D20]/20 dark:border-[#F04444]/20 flex items-center gap-3 hover:bg-[#D92D20]/10 dark:hover:bg-[#F04444]/20 transition-colors cursor-pointer disabled:opacity-50 text-left"
+        >
+          {signingOut ? (
+            <Loader2 className="w-5 h-5 animate-spin text-[#D92D20] dark:text-[#F04444] shrink-0" />
+          ) : (
+            <LogOut className="w-5 h-5 text-[#D92D20] dark:text-[#F04444] shrink-0 stroke-[1.8]" />
+          )}
+          <div className="min-w-0">
+            <p className="text-[14px] font-medium text-[#D92D20] dark:text-[#F04444]">
+              {signingOut ? "Signing Out..." : "Sign Out"}
+            </p>
+            <p className="text-[12px] font-normal text-[#667085] dark:text-[#8B95A5]">
+              Sign out of your account on this device
             </p>
           </div>
-          <Link
-            href={`${basePath}/profile/edit`}
-            className="px-4 py-2 bg-gold hover:bg-[#F0BC2B] text-black text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
-          >
-            <Camera className="w-3.5 h-3.5" /> Edit Profile
-          </Link>
-        </div>
-      </PremiumCard>
-
-      {/* Account Settings Quick Links */}
-      <div className="grid grid-cols-2 gap-3">
-        {[...accountItems, ...securityItems].map((item: any) => {
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              className="flex items-center gap-3 p-4 rounded-xl bg-card border border-border/80 hover:border-gold/40 transition-colors"
-            >
-              <div className="w-8 h-8 rounded-lg bg-gold/10 text-gold flex items-center justify-center shrink-0">
-                <Icon className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-foreground truncate">{item.label}</p>
-                <p className="text-[10px] text-muted-foreground truncate">{item.desc}</p>
-              </div>
-            </Link>
-          );
-        })}
+        </button>
       </div>
+
     </div>
   );
 }
+
+export default ProfileHomeView;

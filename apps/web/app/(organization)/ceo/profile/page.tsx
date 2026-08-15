@@ -1,7 +1,7 @@
 "use client";
 
-import { OrgProfileView } from "@/components/organization/org-profile-view";
+import { ProfileHomeView } from "@/components/personal/profile-home-view";
 
-export default function CEOProfilePage() {
-  return <OrgProfileView userRole="CEO" basePath="/ceo" />;
+export default function CEOUserProfilePage() {
+  return <ProfileHomeView basePath="/ceo" />;
 }

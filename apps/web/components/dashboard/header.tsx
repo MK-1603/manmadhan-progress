@@ -1,207 +1,272 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { ChevronDown, Check, Building, User as UserIcon } from "lucide-react";
+import { useAuth } from "@/components/auth/auth-context";
+import { useSocket } from "@/components/providers/socket-provider";
+import apiClient from "@/lib/api-client";
+import { ResponsivePopover } from "@/components/ui/responsive-popover";
+import { WorkspaceSearch } from "./workspace-search";
 import { NotificationDropdown } from "./notification-dropdown";
 import { ProfileDropdown } from "./profile-dropdown";
-import { WorkspaceSearch } from "./workspace-search";
-import { ThemeToggle } from "./theme-toggle";
-import { usePathname, useRouter } from "next/navigation";
-import { Menu, ChevronDown, Check } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import apiClient from "@/lib/api-client";
-import { useAuth } from "../auth/auth-context";
-import { useSocket } from "@/components/providers/socket-provider";
 
-function getPageTitle(pathname: string): { title: string; subtitle: string } {
-  // Organization routes
-  if (pathname.match(/\/(ceo|co-ceo|member)\/dashboard/)) return { title: "Dashboard", subtitle: "Overview & Analytics" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/focus/)) return { title: "Focus", subtitle: "Deep Work Sessions" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/projects\/[^/]+\/edit/)) return { title: "Edit Project", subtitle: "Update Project Details" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/projects\/[^/]+/)) return { title: "Project Details", subtitle: "Execution Center" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/projects/)) return { title: "Projects", subtitle: "Organization Projects" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/tasks\/[^/]+/)) return { title: "Task Details", subtitle: "Task Execution" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/tasks/)) return { title: "Tasks", subtitle: "Assigned Work Items" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/calendar/)) return { title: "Calendar", subtitle: "Organization Schedule" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/timeline/)) return { title: "Timeline", subtitle: "Activity History" };
-  if (pathname.includes("/co-ceos")) return { title: "CO-CEOs", subtitle: "Leadership Team" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/members/)) return { title: "Members", subtitle: "Team Roster" };
-  if (pathname.includes("/invitations")) return { title: "Invitations", subtitle: "Manage Invitations" };
-  if (pathname.match(/\/co-ceo\/my-work/)) return { title: "My Work", subtitle: "Tasks Assigned to You" };
-  if (pathname.match(/\/co-ceo\/submissions/)) return { title: "Submissions", subtitle: "Review Member Work" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/automation/)) return { title: "Automation", subtitle: "Workflow Rules & Governance" };
-  if (pathname.match(/\/member\/my-work/)) return { title: "My Work", subtitle: "Your Assigned Tasks" };
-  if (pathname.match(/\/member\/progress/)) return { title: "My Progress", subtitle: "Personal Execution Summary" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/reports/)) return { title: "Reports", subtitle: "Performance Metrics" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/leaderboard/)) return { title: "Leaderboard", subtitle: "Team Rankings" };
-  if (pathname.includes("/approvals")) return { title: "Approvals", subtitle: "Review & Sign-offs" };
-  if (pathname.includes("/requests")) return { title: "Requests", subtitle: "Pending Requests" };
-  if (pathname.includes("/audit")) return { title: "Audit Log", subtitle: "Organization Activity History" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/documents/)) return { title: "Documents", subtitle: "Organization Files" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/notes/)) return { title: "Notes", subtitle: "Organization Notes" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/integrations/)) return { title: "Integrations", subtitle: "Connected Services" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/settings/)) return { title: "Settings", subtitle: "Organization Configuration" };
-  if (pathname.match(/\/(ceo|co-ceo|member)\/notifications/)) return { title: "Notifications", subtitle: "Real-time Updates" };
-  // Personal routes
-  if (pathname.includes("/personal/dashboard")) return { title: "Dashboard", subtitle: "Personal Overview" };
-  if (pathname.includes("/personal/focus")) return { title: "Focus", subtitle: "Deep Work Sessions" };
-  if (pathname.includes("/personal/automation")) return { title: "Automation", subtitle: "Personal Workflow Rules" };
-  if (pathname.includes("/personal/projects")) return { title: "Projects", subtitle: "Personal Projects" };
-  if (pathname.includes("/personal/tasks")) return { title: "Tasks", subtitle: "Personal Tasks" };
-  if (pathname.includes("/personal/calendar")) return { title: "Calendar", subtitle: "Personal Schedule" };
-  if (pathname.includes("/personal/timeline")) return { title: "Timeline", subtitle: "Activity History" };
-  if (pathname.includes("/personal/notes")) return { title: "Notes", subtitle: "Personal Notes" };
-  if (pathname.includes("/personal/documents")) return { title: "Documents", subtitle: "Personal Files" };
-  if (pathname.includes("/personal/reports")) return { title: "Reports", subtitle: "Personal Analytics" };
-  if (pathname.includes("/personal/settings")) return { title: "Settings", subtitle: "Personal Preferences" };
-  if (pathname.includes("/personal/notifications")) return { title: "Notifications", subtitle: "Your Notifications" };
-  // Fallback
+export type ActiveWorkspace = {
+  id: string;
+  type: "personal" | "organization";
+  name: string;
+  organizationName?: string;
+  role?: "CEO" | "CO_CEO" | "MEMBER";
+};
+
+function getPageTitle(pathname: string): string {
+  if (pathname.match(/\/(ceo|co-ceo|member)\/dashboard/)) return "Dashboard";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/focus/)) return "Focus";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/projects/)) return "Projects";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/tasks/)) return "Tasks";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/calendar/)) return "Calendar";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/timeline/)) return "Timeline";
+  if (pathname.includes("/co-ceos")) return "CO-CEOs";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/members/)) return "Members";
+  if (pathname.includes("/invitations")) return "Invitations";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/graph/)) return "Organization Graph";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/leaderboard/)) return "Leaderboard";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/automation/)) return "Automation";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/organization/)) return "Organization";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/profile/)) return "Organization Profile";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/settings/)) return "Organization Settings";
+
+  if (pathname.includes("/personal/dashboard")) return "Dashboard";
+  if (pathname.includes("/personal/focus")) return "Focus";
+  if (pathname.includes("/personal/projects")) return "Projects";
+  if (pathname.includes("/personal/tasks")) return "Tasks";
+  if (pathname.includes("/personal/calendar")) return "Calendar";
+  if (pathname.includes("/personal/timeline")) return "Timeline";
+  if (pathname.includes("/personal/notes")) return "Notes";
+  if (pathname.includes("/personal/documents")) return "Documents";
+  if (pathname.includes("/personal/ai-builder")) return "AI Builder";
+  if (pathname.includes("/personal/prompt-library")) return "Prompt Library";
+  if (pathname.includes("/personal/automation")) return "Automation";
+  if (pathname.includes("/personal/reminders")) return "Reminders";
+  if (pathname.includes("/personal/reports")) return "Reports";
+  if (pathname.includes("/personal/profile")) return "Profile";
+  if (pathname.includes("/personal/settings")) return "Settings";
+
   const parts = pathname.split("/").filter(Boolean);
   const lastPart = parts[parts.length - 1] || "Dashboard";
-  const formattedTitle = lastPart.charAt(0).toUpperCase() + lastPart.slice(1).replace(/-/g, " ");
-  return { title: formattedTitle, subtitle: "Workspace View" };
+  return lastPart.charAt(0).toUpperCase() + lastPart.slice(1).replace(/-/g, " ");
 }
 
 export function Header() {
   const pathname = usePathname();
-  const router = useRouter();
-  const { title } = getPageTitle(pathname);
   const { user, isLoading } = useAuth();
   const { socket } = useSocket();
 
-  const isPersonal = pathname?.startsWith("/personal");
-  const userRole = (user?.role || "CEO").toUpperCase();
+  const isPersonalRoute = pathname?.startsWith("/personal");
+  const userRole = (user?.role || "CEO").toUpperCase() as "CEO" | "CO_CEO" | "MEMBER";
+  const pageTitle = getPageTitle(pathname);
 
   const [orgWorkspace, setOrgWorkspace] = useState<any>(null);
-  const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
-  const switcherRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isLoading || !user) return;
-    const fetchOrg = async () => {
-      try {
-        const res = await apiClient.get("/workspaces");
-        if (res.data.success && res.data.data.length > 0) {
-          setOrgWorkspace(res.data.data[0]);
+    apiClient
+      .get("/workspaces")
+      .then((res) => {
+        if (res.data.success && Array.isArray(res.data.data)) {
+          // STRICT FILTER: Find the Organization (non-personal) workspace
+          const org = res.data.data.find(
+            (w: any) => w.type !== "personal" && w.name !== "Personal Workspace"
+          );
+          if (org) {
+            setOrgWorkspace(org);
+          }
         }
-      } catch (e) {
-        console.error("Failed to fetch workspaces:", e);
-      }
-    };
-    fetchOrg();
+      })
+      .catch(() => {});
   }, [user, isLoading]);
 
   useEffect(() => {
     if (!socket) return;
-    const handleOrganizationUpdated = (updated: any) => setOrgWorkspace((current: any) => current ? { ...current, ...updated } : updated);
-    socket.on("organization.updated", handleOrganizationUpdated);
-    return () => { socket.off("organization.updated", handleOrganizationUpdated); };
-  }, [socket]);
-
-  // Close when clicking outside
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (switcherRef.current && !switcherRef.current.contains(e.target as Node)) {
-        setIsSwitcherOpen(false);
+    const handleOrgUpdated = (updated: any) => {
+      if (updated && updated.type !== "personal" && updated.name !== "Personal Workspace") {
+        setOrgWorkspace((prev: any) => (prev ? { ...prev, ...updated } : updated));
       }
     };
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, []);
+    socket.on("organization.updated", handleOrgUpdated);
+    return () => {
+      socket.off("organization.updated", handleOrgUpdated);
+    };
+  }, [socket]);
 
-  const handleSwitch = (mode: "personal" | "org") => {
+  const cleanOrgName =
+    orgWorkspace?.name && orgWorkspace.name !== "Personal Workspace"
+      ? orgWorkspace.name
+      : "MANMADHAN";
+
+  // Canonical ActiveWorkspace state object
+  const activeWorkspace: ActiveWorkspace = isPersonalRoute
+    ? {
+        id: "personal",
+        type: "personal",
+        name: "Personal Workspace",
+      }
+    : {
+        id: orgWorkspace?.id || "org",
+        type: "organization",
+        name: cleanOrgName,
+        organizationName: cleanOrgName,
+        role: userRole,
+      };
+
+  // Popover state management for mutual exclusion
+  const [activePopover, setActivePopover] = useState<"none" | "switcher" | "search" | "notifications" | "profile">("none");
+
+  const isSwitcherOpen = activePopover === "switcher";
+  const setIsSwitcherOpen = (open: boolean) => {
+    setActivePopover(open ? "switcher" : "none");
+  };
+
+  const handleSwitchWorkspace = (target: "personal" | "org") => {
     setIsSwitcherOpen(false);
-    document.cookie = `last_workspace=${mode}; path=/; max-age=31536000; samesite=lax`;
-    if (mode === "personal") {
+    if (target === "personal") {
       window.location.href = "/personal/dashboard";
     } else {
-      // Derive target path from actual user role, not just pathname
-      const role = (user?.role || "CEO").toUpperCase();
-      let targetPath = "/ceo/dashboard";
-      if (role === "CO-CEO") targetPath = "/co-ceo/dashboard";
-      else if (role === "MEMBER") targetPath = "/member/dashboard";
-      
-      if (orgWorkspace) {
+      if (orgWorkspace?.id) {
         localStorage.setItem("workspaceId", orgWorkspace.id);
       }
-      window.location.href = targetPath;
+      const targetDash =
+        userRole === "CO_CEO"
+          ? "/co-ceo/dashboard"
+          : userRole === "MEMBER"
+          ? "/member/dashboard"
+          : "/ceo/dashboard";
+      window.location.href = targetDash;
     }
   };
 
-  const currentWorkspaceName = isPersonal 
-    ? "Personal Workspace" 
-    : (orgWorkspace ? orgWorkspace.name : "Organization Workspace");
+  const isPersonal = activeWorkspace.type === "personal";
 
   return (
-    <header className="hidden md:flex items-center justify-between h-16 w-full shrink-0 px-6 lg:px-8 border-b border-border bg-background z-40 gap-4">
-      {/* LEFT: Dynamic Page Title with Workspace Switcher */}
-      <div className="flex items-center gap-4 flex-1 min-w-0">
-        <div className="flex flex-col justify-center min-w-0 relative" ref={switcherRef}>
-          <h1 className="text-sm sm:text-base font-extrabold text-foreground tracking-tight leading-none truncate">
-            {title}
-          </h1>
-          <button 
-            onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}
-            className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors mt-1.5 focus:outline-none select-none"
-          >
-            <span className="truncate max-w-[120px] sm:max-w-[180px]">
-              {currentWorkspaceName}
-            </span>
-            <ChevronDown className={`w-3 h-3 transition-transform ${isSwitcherOpen ? "rotate-180 text-gold" : "text-muted-foreground"}`} />
-          </button>
+    <header className="hidden md:flex items-center justify-between h-[68px] w-full shrink-0 px-6 border-b border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#0B0D10] text-[#17202A] dark:text-[#F2F3F5] z-30 gap-4 select-none">
+      {/* 1. LEFT SIDE — STACKED PAGE TITLE & WORKSPACE SELECTOR SUBTITLE (IMAGE 2 DESIGN) */}
+      <div className="flex flex-col justify-center flex-1 min-w-0">
+        <h1 className="text-[17px] font-bold text-[#17202A] dark:text-[#F2F3F5] tracking-tight leading-snug truncate">
+          {pageTitle}
+        </h1>
 
-          <AnimatePresence>
-            {isSwitcherOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 5 }}
-                transition={{ duration: 0.12, ease: "easeOut" }}
-                className="absolute top-full left-0 mt-2 w-56 rounded-xl border border-border bg-card shadow-2xl p-1.5 z-50 flex flex-col gap-1"
-              >
-                <div className="px-2 py-1 text-[9px] font-bold text-muted-foreground uppercase tracking-wider">
-                  Switch Workspace
-                </div>
+        {/* Global Workspace Selector Trigger Button & Popover */}
+        <ResponsivePopover
+          isOpen={isSwitcherOpen}
+          setIsOpen={setIsSwitcherOpen}
+          align="left"
+          offsetY={4}
+          desktopClassName="w-[280px] rounded-xl border border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#0B0D10] shadow-xl p-2 z-50 flex flex-col space-y-1"
+          trigger={
+            <button
+              type="button"
+              onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}
+              aria-label="Switch workspace"
+              aria-expanded={isSwitcherOpen}
+              className="flex items-center gap-1 text-[12px] font-medium text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5] transition-colors cursor-pointer focus:outline-none -mt-0.5 group w-fit"
+            >
+              <span className="truncate">
+                {isPersonal ? "Personal Workspace" : cleanOrgName}
+              </span>
 
-                <button
-                  onClick={() => handleSwitch("personal")}
-                  className={`flex items-center justify-between px-2.5 py-2 w-full text-left rounded-lg text-xs font-semibold transition-colors focus:outline-none ${
-                    isPersonal 
-                      ? "bg-accent text-foreground" 
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  }`}
-                >
-                  <span className="truncate flex-1 text-[11.5px]">Personal Workspace</span>
-                  {isPersonal && <Check className="w-3.5 h-3.5 text-gold shrink-0 ml-2" />}
-                </button>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-[#667085] dark:text-[#8B94A3] group-hover:text-current transition-transform duration-180 ${
+                  isSwitcherOpen ? "rotate-180 text-[#B28D18] dark:text-[#D4B12F]" : ""
+                }`}
+              />
+            </button>
+          }
+        >
+          {/* Workspace Switcher Popover Content */}
+          <div className="flex flex-col space-y-1 py-1 text-xs">
+            <div className="px-2.5 py-1 text-[10px] font-mono font-medium tracking-[0.12em] text-[#667085] dark:text-[#8B94A3] uppercase">
+              WORKSPACES
+            </div>
 
-                <button
-                  onClick={() => handleSwitch("org")}
-                  className={`flex items-center justify-between px-2.5 py-2 w-full text-left rounded-lg text-xs font-semibold transition-colors focus:outline-none ${
-                    !isPersonal 
-                      ? "bg-accent text-foreground" 
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  }`}
-                >
-                  <span className="truncate flex-1 text-[11.5px]">
-                    {orgWorkspace ? orgWorkspace.name : "Organization Workspace"}
+            {/* Option 1: Personal Workspace */}
+            <button
+              type="button"
+              onClick={() => handleSwitchWorkspace("personal")}
+              className={`
+                w-full p-2 rounded-lg flex items-center justify-between text-left transition-colors cursor-pointer
+                ${
+                  isPersonal
+                    ? "bg-[#FFF8E7] dark:bg-[#1A1913] text-[#17202A] dark:text-[#F2F3F5]"
+                    : "hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-[#667085] dark:text-[#8B94A3]"
+                }
+              `}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <UserIcon className={`w-4 h-4 shrink-0 ${isPersonal ? "text-[#B28D18] dark:text-[#D4B12F]" : ""}`} />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-semibold truncate leading-tight">
+                    Personal Workspace
                   </span>
-                  {!isPersonal && <Check className="w-3.5 h-3.5 text-gold shrink-0 ml-2" />}
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                  <span className="text-[10.5px] text-[#667085] dark:text-[#8B94A3] leading-tight">
+                    Private workspace
+                  </span>
+                </div>
+              </div>
+              {isPersonal && <Check className="w-3.5 h-3.5 text-[#B28D18] dark:text-[#D4B12F] shrink-0" />}
+            </button>
+
+            {/* Option 2: Organization Workspace */}
+            <button
+              type="button"
+              onClick={() => handleSwitchWorkspace("org")}
+              className={`
+                w-full p-2 rounded-lg flex items-center justify-between text-left transition-colors cursor-pointer
+                ${
+                  !isPersonal
+                    ? "bg-[#FFF8E7] dark:bg-[#1A1913] text-[#17202A] dark:text-[#F2F3F5]"
+                    : "hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-[#667085] dark:text-[#8B94A3]"
+                }
+              `}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Building className={`w-4 h-4 shrink-0 ${!isPersonal ? "text-[#B28D18] dark:text-[#D4B12F]" : ""}`} />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-semibold truncate leading-tight uppercase">
+                    {cleanOrgName}
+                  </span>
+                  <span className="text-[10.5px] text-[#667085] dark:text-[#8B94A3] leading-tight">
+                    Organization workspace
+                  </span>
+                </div>
+              </div>
+              {!isPersonal && <Check className="w-3.5 h-3.5 text-[#B28D18] dark:text-[#D4B12F] shrink-0" />}
+            </button>
+          </div>
+        </ResponsivePopover>
       </div>
 
-      {/* CENTER: Global Search */}
-      <WorkspaceSearch />
+      {/* 2. CENTER AREA — GLOBAL SEARCH */}
+      <WorkspaceSearch
+        activePopover={activePopover as any}
+        setActivePopover={setActivePopover as any}
+      />
 
-      {/* RIGHT: Notifications & Profile Dropdowns */}
-      <div className="flex items-center justify-end gap-3 flex-1">
-        <ThemeToggle />
-        <NotificationDropdown />
-        <ProfileDropdown />
+      {/* 3. RIGHT SIDE — HEADER ACTIONS */}
+      <div className="flex items-center justify-end gap-2 flex-1">
+        {/* Notifications Button & Popover */}
+        <NotificationDropdown
+          activePopover={activePopover as any}
+          setActivePopover={setActivePopover as any}
+        />
+
+        {/* Profile Avatar & Popover */}
+        <ProfileDropdown
+          activePopover={activePopover as any}
+          setActivePopover={setActivePopover as any}
+        />
       </div>
     </header>
   );
 }
+
+export default Header;

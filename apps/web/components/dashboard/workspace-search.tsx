@@ -8,7 +8,6 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import apiClient from "@/lib/api-client";
-import { useMediaQuery } from "../../hooks/use-media-query";
 
 interface SearchResultItem {
   id: string;
@@ -34,13 +33,24 @@ interface GroupedResults {
   members: SearchResultItem[];
 }
 
-export function WorkspaceSearch() {
+export function WorkspaceSearch({
+  activePopover,
+  setActivePopover,
+}: {
+  activePopover?: "none" | "search" | "notifications" | "profile";
+  setActivePopover?: (val: "none" | "search" | "notifications" | "profile") => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const isPersonal = pathname?.startsWith("/personal");
-  const isMobile = useMediaQuery("(max-width: 768px)");
 
-  const [isOpen, setIsOpen] = useState(false);
+  const isOpen = activePopover === "search";
+  const setIsOpen = (open: boolean) => {
+    if (setActivePopover) {
+      setActivePopover(open ? "search" : "none");
+    }
+  };
+
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,8 +60,9 @@ export function WorkspaceSearch() {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Close when clicking outside
+  // Click outside listener
   useEffect(() => {
+    if (!isOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
@@ -59,26 +70,26 @@ export function WorkspaceSearch() {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [isOpen]);
 
-  // Keyboard shortcut Ctrl+K / Cmd+K to focus input
+  // Keyboard shortcut Cmd/Ctrl + K and Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key?.toLowerCase() === "k") {
         e.preventDefault();
         setIsOpen(true);
-        inputRef.current?.focus();
+        setTimeout(() => inputRef.current?.focus(), 50);
       }
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && isOpen) {
         setIsOpen(false);
         inputRef.current?.blur();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [isOpen]);
 
-  // Reset indices on open/close
+  // Reset indices on state change
   useEffect(() => {
     if (isOpen) {
       setSelectedIndex(0);
@@ -89,7 +100,7 @@ export function WorkspaceSearch() {
     }
   }, [isOpen]);
 
-  // Debounced search fetching
+  // Debounced search query
   useEffect(() => {
     if (!query.trim()) {
       setResults(null);
@@ -115,7 +126,7 @@ export function WorkspaceSearch() {
       } finally {
         setLoading(false);
       }
-    }, 300);
+    }, 250);
 
     return () => clearTimeout(delayDebounce);
   }, [query]);
@@ -135,7 +146,7 @@ export function WorkspaceSearch() {
   ];
 
   // Flatten results for keyboard navigation
-  const getFlattenedItems = () => {
+  const flattenedItems = React.useMemo(() => {
     if (!results) return [];
     const items: { id: string; label: string; url: string; groupLabel: string; icon: any }[] = [];
 
@@ -153,11 +164,9 @@ export function WorkspaceSearch() {
     });
 
     return items;
-  };
+  }, [results, isPersonal]);
 
-  const flattenedItems = getFlattenedItems();
-
-  // Keyboard navigation within the flattened list
+  // Arrow navigation
   useEffect(() => {
     const handleKeys = (e: KeyboardEvent) => {
       if (!isOpen || flattenedItems.length === 0) return;
@@ -189,95 +198,101 @@ export function WorkspaceSearch() {
     inputRef.current?.blur();
   };
 
+  const placeholderText = isPersonal ? "Search personal workspace..." : "Search ManMadhan workspace...";
+
   return (
     <div className="relative flex flex-1 justify-center max-w-[480px] w-full" ref={containerRef}>
       {/* Search Input Box */}
       <div className="relative w-full">
-        <Search className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-150 ${isOpen ? "text-gold" : "text-muted-foreground"}`} />
+        <Search className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-150 ${isOpen ? "text-[#B28D18] dark:text-[#D4B12F]" : "text-[#667085] dark:text-[#8B94A3]"}`} />
         <input 
           ref={inputRef}
           type="text" 
+          aria-label="Search workspace"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setIsOpen(true)}
-          placeholder={isPersonal ? "Search personal workspace..." : "Search organization..."}
-          className={`h-10 w-full bg-card border transition-all text-xs font-semibold text-foreground focus:outline-none placeholder:text-muted-foreground pl-10 pr-12 shadow-xs ${
-            isOpen ? "border-border border-b-transparent rounded-t-xl rounded-b-none" : "border-border rounded-xl hover:border-border/80"
+          placeholder={placeholderText}
+          className={`h-[42px] w-full bg-[#FFFFFF] dark:bg-[#15181D] border transition-all text-xs font-medium text-[#17202A] dark:text-[#F2F3F5] focus:outline-none placeholder:text-[#667085] dark:placeholder:text-[#8B94A3] pl-10 pr-12 ${
+            isOpen
+              ? "border-[#E5E7EB] dark:border-[#2A2F36] border-b-transparent rounded-t-xl rounded-b-none"
+              : "border-[#E5E7EB] dark:border-[#24282E] rounded-xl hover:border-[#B28D18]/40 dark:hover:border-[#D4B12F]/40"
           }`}
         />
         {!isOpen && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none select-none">
-            <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-background border border-border rounded text-muted-foreground shadow-xs">⌘</kbd>
-            <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-background border border-border rounded text-muted-foreground shadow-xs">K</kbd>
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-[#F3F4F6] dark:bg-[#1B2028] border border-[#E5E7EB] dark:border-[#24282E] rounded text-[#667085] dark:text-[#8B94A3]">⌘</kbd>
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-[#F3F4F6] dark:bg-[#1B2028] border border-[#E5E7EB] dark:border-[#24282E] rounded text-[#667085] dark:text-[#8B94A3]">K</kbd>
           </div>
         )}
         {isOpen && query && (
           <button 
+            type="button"
             onClick={() => setQuery("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-accent text-muted-foreground hover:text-foreground"
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-[#F3F4F6] dark:hover:bg-[#20252C] text-[#667085] dark:text-[#8B94A3]"
           >
             <X className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
 
-      {/* Dropdown Menu (Inline) */}
+      {/* Centered Command Panel Dropdown */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -5 }}
+            initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -5 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute top-full left-0 right-0 bg-card border border-t-0 border-border rounded-b-xl shadow-2xl overflow-hidden z-50 flex flex-col max-h-[60vh] select-none"
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.14 }}
+            className="absolute top-full left-0 right-0 bg-[#FFFFFF] dark:bg-[#15181D] border border-t-0 border-[#E5E7EB] dark:border-[#2A2F36] rounded-b-xl shadow-2xl overflow-hidden z-50 flex flex-col max-h-[460px] select-none"
           >
             {/* Dynamic Search Results & States */}
-            <div className="flex-1 overflow-y-auto p-2 min-h-0 scrollbar-thin scrollbar-thumb-muted-foreground/20">
+            <div className="flex-1 overflow-y-auto p-2 min-h-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {loading ? (
-                <div className="py-10 flex flex-col items-center justify-center text-muted-foreground">
-                  <Loader2 className="w-5 h-5 animate-spin text-gold mb-2" />
-                  <span className="text-[11px] font-semibold">Querying database...</span>
+                <div className="py-8 flex flex-col items-center justify-center text-[#667085] dark:text-[#8B94A3]">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#B28D18] dark:text-[#D4B12F] mb-2" />
+                  <span className="text-[11px] font-mono">Searching workspace...</span>
                 </div>
               ) : error ? (
-                <div className="py-10 text-center text-rose-500 flex flex-col items-center justify-center">
-                  <span className="text-xs font-bold">Couldn't complete search.</span>
-                  <span className="text-[10px] text-muted-foreground mt-0.5">Please check connection.</span>
+                <div className="py-8 text-center text-red-500 flex flex-col items-center justify-center">
+                  <span className="text-xs font-semibold">Search unavailable</span>
                 </div>
               ) : !query.trim() ? (
                 // Shortcuts state
-                <div className="py-2.5 px-2">
-                  <p className="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider mb-2">
-                    Search Categories
+                <div className="py-2 px-2">
+                  <p className="text-[10px] font-mono font-medium text-[#667085] dark:text-[#8B94A3] uppercase tracking-[0.1em] mb-2">
+                    DESTINATIONS & CATEGORIES
                   </p>
                   <div className="grid grid-cols-2 gap-1">
                     {groupConfig.map((group, idx) => (
                       <button
                         key={idx}
+                        type="button"
                         onClick={() => handleItemClick(group.path(""))}
-                        className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-accent/60 text-left text-xs font-semibold text-muted-foreground hover:text-foreground transition-all duration-150 focus:outline-none border border-transparent"
+                        className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-left text-xs font-medium text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5] transition-colors cursor-pointer"
                       >
-                        <group.icon className="w-3.5 h-3.5 text-gold/80 shrink-0" />
+                        <group.icon className="w-3.5 h-3.5 text-[#B28D18] dark:text-[#D4B12F] shrink-0" />
                         <span>{group.label}</span>
                       </button>
                     ))}
                   </div>
                 </div>
               ) : flattenedItems.length === 0 ? (
-                <div className="py-12 text-center flex flex-col items-center justify-center text-muted-foreground">
-                  <Search className="w-8 h-8 opacity-20 mb-2.5" />
-                  <p className="text-xs font-bold text-foreground">No results found</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">Try another search term.</p>
+                <div className="py-10 text-center flex flex-col items-center justify-center text-[#667085] dark:text-[#8B94A3]">
+                  <Search className="w-6 h-6 opacity-30 mb-2" />
+                  <p className="text-xs font-semibold text-[#17202A] dark:text-[#F2F3F5]">No matching results</p>
+                  <p className="text-[11px] mt-0.5 font-normal">Try adjusting your query.</p>
                 </div>
               ) : (
                 // Live Grouped Results List
-                <div className="flex flex-col gap-2.5 py-1">
+                <div className="flex flex-col gap-2 py-1">
                   {groupConfig.map(group => {
                     const list = results ? (results[group.key as keyof GroupedResults] || []) : [];
                     if (list.length === 0) return null;
 
                     return (
                       <div key={group.key} className="flex flex-col">
-                        <div className="px-2 py-0.5 text-[9px] font-extrabold text-muted-foreground uppercase tracking-wider">
+                        <div className="px-2 py-0.5 text-[10px] font-mono font-medium text-[#667085] dark:text-[#8B94A3] uppercase tracking-[0.1em]">
                           {group.label}
                         </div>
                         <div className="flex flex-col gap-0.5 mt-1">
@@ -288,25 +303,21 @@ export function WorkspaceSearch() {
                             return (
                               <button
                                 key={item.id}
+                                type="button"
                                 onClick={() => handleItemClick(group.path(item.id))}
-                                className={`flex items-center gap-2.5 px-2.5 py-1.5 w-full text-left rounded-lg text-xs font-semibold transition-all duration-150 focus:outline-none border border-transparent ${
+                                className={`flex items-center gap-2.5 px-2.5 py-1.5 w-full text-left rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                                   isSelected 
-                                    ? "bg-gold/10 text-foreground border-l-2 border-gold font-bold" 
-                                    : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+                                    ? "bg-[#FFF8E7] dark:bg-[#1A1913] text-[#17202A] dark:text-[#F2F3F5] font-semibold" 
+                                    : "text-[#667085] dark:text-[#8B94A3] hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] hover:text-[#17202A] dark:hover:text-[#F2F3F5]"
                                 }`}
                               >
-                                <group.icon className={`w-3.5 h-3.5 shrink-0 transition-colors ${isSelected ? "text-gold" : "opacity-75"}`} />
+                                <group.icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#B28D18] dark:text-[#D4B12F]" : ""}`} />
                                 <div className="flex-1 min-w-0">
-                                  <p className={`truncate ${isSelected ? "text-foreground" : "text-foreground/95"}`}>
+                                  <p className="truncate">
                                     {item.title || item.name || item.content || item.email}
                                   </p>
-                                  {(item.description || item.status) && (
-                                    <p className="text-[10px] text-muted-foreground truncate font-normal mt-0.5">
-                                      {item.status ? `[${item.status}] ` : ""}{item.description}
-                                    </p>
-                                  )}
                                 </div>
-                                {isSelected && <ArrowRight className="w-3 h-3 text-gold shrink-0" />}
+                                {isSelected && <ArrowRight className="w-3 h-3 text-[#B28D18] dark:text-[#D4B12F] shrink-0" />}
                               </button>
                             );
                           })}
@@ -318,20 +329,19 @@ export function WorkspaceSearch() {
               )}
             </div>
 
-            {/* Dropdown Footer */}
-            <div className="border-t border-border/70 p-2 px-3 flex items-center justify-between shrink-0 bg-muted/15">
+            {/* Command Panel Footer */}
+            <div className="border-t border-[#E5E7EB] dark:border-[#24282E] p-2 px-3 flex items-center justify-between shrink-0 bg-[#FBFBFB] dark:bg-[#111419]">
               <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1.5 text-[9.5px] text-muted-foreground font-semibold">
-                  <kbd className="px-1 py-0.5 bg-card border border-border rounded shadow-xs">↑</kbd>
-                  <kbd className="px-1 py-0.5 bg-card border border-border rounded shadow-xs">↓</kbd>
+                <span className="flex items-center gap-1 text-[10px] text-[#667085] dark:text-[#8B94A3] font-mono">
+                  <kbd className="px-1 py-0.5 bg-[#FFFFFF] dark:bg-[#1A1F26] border border-[#E5E7EB] dark:border-[#24282E] rounded">↑↓</kbd>
                   Navigate
                 </span>
-                <span className="flex items-center gap-1.5 text-[9.5px] text-muted-foreground font-semibold">
-                  <kbd className="px-1 py-0.5 bg-card border border-border rounded shadow-xs">↵</kbd>
+                <span className="flex items-center gap-1 text-[10px] text-[#667085] dark:text-[#8B94A3] font-mono">
+                  <kbd className="px-1 py-0.5 bg-[#FFFFFF] dark:bg-[#1A1F26] border border-[#E5E7EB] dark:border-[#24282E] rounded">↵</kbd>
                   Select
                 </span>
               </div>
-              <span className="text-[9.5px] text-muted-foreground font-semibold">
+              <span className="text-[10px] text-[#667085] dark:text-[#8B94A3] font-mono">
                 Esc to Close
               </span>
             </div>

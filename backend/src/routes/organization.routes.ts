@@ -24,18 +24,40 @@ const getOrganizationMembership = async (req: Request) => {
 	const userId = (req as any).user?.id;
 	const requestedId = String(
 		req.query.workspaceId || req.body?.workspaceId || "",
-	);
-	const membership = requestedId
-		? await db.query.workspaceMembers.findFirst({
-				where: and(
-					eq(workspaceMembers.workspaceId, requestedId),
-					eq(workspaceMembers.userId, userId),
-				),
-			})
-		: await db.query.workspaceMembers.findFirst({
-				where: eq(workspaceMembers.userId, userId),
+	).trim();
+
+	if (requestedId && requestedId !== "undefined" && requestedId !== "null") {
+		const membership = await db.query.workspaceMembers.findFirst({
+			where: and(
+				eq(workspaceMembers.workspaceId, requestedId),
+				eq(workspaceMembers.userId, userId),
+			),
+		});
+		if (membership) {
+			const ws = await db.query.workspaces.findFirst({
+				where: eq(workspaces.id, membership.workspaceId),
 			});
-	return { userId, membership };
+			if (ws && ws.type !== "personal") {
+				return { userId, membership };
+			}
+		}
+	}
+
+	// Fallback to finding user's Organization (non-personal) workspace membership
+	const allMemberships = await db.query.workspaceMembers.findMany({
+		where: eq(workspaceMembers.userId, userId),
+	});
+
+	for (const mem of allMemberships) {
+		const ws = await db.query.workspaces.findFirst({
+			where: eq(workspaces.id, mem.workspaceId),
+		});
+		if (ws && ws.type !== "personal") {
+			return { userId, membership: mem };
+		}
+	}
+
+	return { userId, membership: null };
 };
 
 const serializeOrganization = (workspace: any, members: any[], owner: any) => ({
@@ -184,55 +206,69 @@ const requireLeadership = async (req: Request, res: Response, next: any) => {
 				.json({ success: false, error: "Authentication required" });
 
 		let workspaceId = String(
-			req.query.workspaceId || req.body.workspaceId || "",
+			req.query.workspaceId || req.body?.workspaceId || "",
 		).trim();
 
+		let membership = null;
+
+		// 1. Try requested workspaceId if provided and valid
 		if (
-			!workspaceId ||
-			workspaceId === "undefined" ||
-			workspaceId === "null" ||
-			workspaceId === ""
+			workspaceId &&
+			workspaceId !== "undefined" &&
+			workspaceId !== "null"
 		) {
-			const [firstM] = await db
+			const [found] = await db
 				.select()
 				.from(workspaceMembers)
-				.where(eq(workspaceMembers.userId, userId))
+				.where(
+					and(
+						eq(workspaceMembers.workspaceId, workspaceId),
+						eq(workspaceMembers.userId, userId),
+					),
+				)
 				.limit(1);
-			if (firstM) {
-				workspaceId = firstM.workspaceId;
-				(req.query as any).workspaceId = workspaceId;
-				req.body.workspaceId = workspaceId;
+			if (found) {
+				const [ws] = await db
+					.select()
+					.from(workspaces)
+					.where(eq(workspaces.id, found.workspaceId))
+					.limit(1);
+				if (ws && ws.type !== "personal") {
+					membership = found;
+				}
 			}
 		}
 
-		if (
-			!workspaceId ||
-			workspaceId === "undefined" ||
-			workspaceId === "null" ||
-			workspaceId === ""
-		) {
-			return res
-				.status(400)
-				.json({ success: false, error: "workspaceId is required" });
+		// 2. Fallback to finding user's Organization (non-personal) workspace membership
+		if (!membership) {
+			const userMemberships = await db
+				.select()
+				.from(workspaceMembers)
+				.where(eq(workspaceMembers.userId, userId));
+
+			for (const mem of userMemberships) {
+				const [ws] = await db
+					.select()
+					.from(workspaces)
+					.where(eq(workspaces.id, mem.workspaceId))
+					.limit(1);
+				if (ws && ws.type !== "personal") {
+					membership = mem;
+					workspaceId = mem.workspaceId;
+					(req.query as any).workspaceId = workspaceId;
+					if (req.body && typeof req.body === "object") {
+						req.body.workspaceId = workspaceId;
+					}
+					break;
+				}
+			}
 		}
-
-		(req as any).workspaceId = workspaceId;
-
-		const [membership] = await db
-			.select()
-			.from(workspaceMembers)
-			.where(
-				and(
-					eq(workspaceMembers.workspaceId, String(workspaceId)),
-					eq(workspaceMembers.userId, userId),
-				),
-			)
-			.limit(1);
 
 		if (
 			membership &&
 			(membership.role === "CEO" || membership.role === "CO-CEO")
 		) {
+			(req as any).workspaceId = workspaceId;
 			(req as any).membership = membership;
 			return next();
 		}

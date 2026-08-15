@@ -1,18 +1,21 @@
 "use client";
 
 import React, { useState } from "react";
-import { Lock, CheckCircle2, FileText, ChevronRight, Plus, Loader2, X, Flag, AlertCircle } from "lucide-react";
+import { Lock, CheckCircle2, FileText, ChevronRight, Plus, Loader2, X, Flag, AlertCircle, Calendar } from "lucide-react";
 import { formatEnumLabel, getMilestoneStateBadgeClass } from "@/lib/utils/formatters";
 import apiClient from "@/lib/api-client";
 
 export interface StageMilestone {
   id: string;
-  stageNumber: number;
-  milestoneCode: string;
+  stageNumber?: number;
+  milestoneCode?: string;
   name: string;
-  description: string;
+  description?: string;
   state?: string | null;
   status?: string | null;
+  source?: "SYSTEM" | "MANUAL";
+  deadline?: string | null;
+  targetDate?: string | null;
   dependencies?: number[];
   document?: {
     id: string;
@@ -30,7 +33,7 @@ interface ProjectMilestonesViewProps {
   onRefresh?: () => void;
 }
 
-/* ── inline "Add Manual Milestone" modal ── */
+/* ── Add Milestone Modal (Theme-Consistent) ── */
 function AddMilestoneModal({
   projectId,
   projectDeadline,
@@ -55,12 +58,13 @@ function AddMilestoneModal({
     if (!name.trim()) { setError("Milestone name is required."); return; }
     setLoading(true); setError("");
     try {
-      const wsId = localStorage.getItem("workspaceId");
+      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
       const res = await apiClient.post(`/org/projects/${projectId}/milestones`, {
         workspaceId: wsId,
         name: name.trim(),
         description: description.trim() || null,
         deadline: new Date(deadline).toISOString(),
+        source: "MANUAL",
       });
       if (res.data.success) { onSaved(); onClose(); }
       else setError(res.data.error || "Failed to add milestone.");
@@ -70,61 +74,72 @@ function AddMilestoneModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-[#171717] border border-[#292929] rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#292929]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[4px] p-4">
+      <div className="w-full max-w-md bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] shadow-2xl overflow-hidden font-sans">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#E4E7EC] dark:border-[#272D36]">
           <div className="flex items-center gap-2">
-            <Flag className="w-4 h-4 text-[#E3AA18]" />
-            <span className="text-xs font-bold text-[#F5F5F5] uppercase tracking-wider">Add Manual Milestone</span>
+            <Flag className="w-4 h-4 text-[#C9A52A] dark:text-[#D4B12F]" />
+            <span className="text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7]">Add Milestone</span>
           </div>
-          <button onClick={onClose} className="text-[#858585] hover:text-[#F5F5F5] transition-colors">
-            <X className="w-4 h-4" />
+          <button onClick={onClose} className="p-1 text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7] transition-colors cursor-pointer">
+            <X className="w-4.5 h-4.5" />
           </button>
         </div>
-        <div className="p-5 space-y-3">
+        <div className="p-5 space-y-3.5 text-[12.5px]">
           {error && (
-            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-[#E05252]/10 border border-[#E05252]/20 text-[#E05252] text-xs">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0" />{error}
+            <div className="flex items-center gap-2 p-3 rounded-[8px] bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-[12px]">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
             </div>
           )}
           <div>
-            <label className="block text-[10px] font-semibold text-[#858585] uppercase tracking-widest mb-1.5">Milestone Name *</label>
+            <label className="block text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] mb-1">
+              Milestone Name <span className="text-rose-500">*</span>
+            </label>
             <input
               type="text"
+              required
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="e.g. Additional Research Phase"
-              className="w-full h-10 px-3.5 rounded-xl bg-[#111111] border border-[#2A2A2A] text-xs text-[#F5F5F5] placeholder-[#555] focus:outline-none focus:border-[#E3AA18]"
+              placeholder="e.g. Core System Verification"
+              className="w-full px-3.5 h-[42px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A] dark:focus:border-[#D4B12F] transition-colors"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-[#858585] uppercase tracking-widest mb-1.5">Description</label>
+            <label className="block text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] mb-1">
+              Description
+            </label>
             <textarea
               rows={2}
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="Scope and deliverables..."
-              className="w-full p-3 rounded-xl bg-[#111111] border border-[#2A2A2A] text-xs text-[#F5F5F5] placeholder-[#555] focus:outline-none focus:border-[#E3AA18] resize-none"
+              placeholder="Scope and key deliverable criteria..."
+              className="w-full p-3 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A] dark:focus:border-[#D4B12F] transition-colors resize-none"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-[#858585] uppercase tracking-widest mb-1.5">Target Date</label>
+            <label className="block text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] mb-1">
+              Target Date <span className="text-rose-500">*</span>
+            </label>
             <input
               type="date"
+              required
               value={deadline}
               onChange={e => setDeadline(e.target.value)}
-              className="w-full h-10 px-3.5 rounded-xl bg-[#111111] border border-[#2A2A2A] text-xs text-[#F5F5F5] focus:outline-none focus:border-[#E3AA18]"
+              className="w-full px-3.5 h-[42px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A] dark:focus:border-[#D4B12F] transition-colors"
             />
           </div>
-          <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onClose} className="px-4 py-2 rounded-xl border border-[#2A2A2A] text-xs text-[#BDBDBD] hover:bg-[#1D1D1D] transition-colors">Cancel</button>
+          <div className="flex justify-end gap-2 pt-2 border-t border-[#E4E7EC] dark:border-[#272D36]">
+            <button onClick={onClose} className="px-4 h-[40px] rounded-[9px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] font-semibold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] transition-colors cursor-pointer">
+              Cancel
+            </button>
             <button
               onClick={submit}
-              disabled={loading}
-              className="px-4 py-2 rounded-xl bg-[#E3AA18] hover:bg-[#F0BC2B] text-[#0A0A0A] text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              disabled={loading || !name.trim()}
+              className="px-4 h-[40px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-1.5 cursor-pointer"
             >
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-              Add Milestone
+              <span>Add Milestone</span>
             </button>
           </div>
         </div>
@@ -133,7 +148,7 @@ function AddMilestoneModal({
   );
 }
 
-/* ── main view ── */
+/* ── Main View Component ── */
 export function ProjectMilestonesView({
   milestones,
   projectId,
@@ -142,128 +157,110 @@ export function ProjectMilestonesView({
 }: ProjectMilestonesViewProps) {
   const [showAdd, setShowAdd] = useState(false);
 
-  const mandatory = [...(milestones || [])]
-    .filter(m => m.stageNumber && m.stageNumber <= 8)
-    .sort((a, b) => (a.stageNumber || 0) - (b.stageNumber || 0));
-
-  const additional = [...(milestones || [])]
-    .filter(m => !m.stageNumber || m.stageNumber > 8)
-    .sort((a, b) => (a.stageNumber || 0) - (b.stageNumber || 0));
-
-  const renderRow = (m: StageMilestone, isAdditional = false) => {
-    const rawState = m.state || m.status || "LOCKED";
-    const isLocked   = rawState === "LOCKED";
-    const isApproved = rawState === "APPROVED";
-    const isAvailable = rawState === "AVAILABLE";
-
-    return (
-      <button
-        key={m.id || m.stageNumber}
-        type="button"
-        disabled={isLocked}
-        onClick={() => !isLocked && onSelectMilestone && onSelectMilestone(m)}
-        aria-label={`Open milestone: ${m.name}`}
-        className={`
-          w-full text-left p-4 rounded-xl border transition-all flex items-center justify-between gap-4
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E3AA18]
-          ${isLocked
-            ? "bg-background border-border opacity-50 cursor-not-allowed"
-            : isApproved
-            ? "bg-[#65C466]/5 border-[#65C466]/20 hover:border-[#65C466]/40 cursor-pointer"
-            : isAvailable
-            ? "bg-gold/5 border-gold/30 hover:border-gold cursor-pointer"
-            : "bg-background border-border hover:border-gold/50 cursor-pointer"
-          }
-        `}
-      >
-        {/* left: number badge + text */}
-        <div className="flex items-center gap-3.5 min-w-0">
-          <div className={`
-            w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-xs font-bold
-            ${isApproved ? "bg-[#65C466] text-[#0A0A0A]"
-              : isLocked  ? "bg-muted text-muted-foreground"
-              : "bg-gold text-[#0A0A0A]"}
-          `}>
-            {isApproved
-              ? <CheckCircle2 className="w-4 h-4" />
-              : isLocked
-              ? <Lock className="w-4 h-4" />
-              : isAdditional
-              ? `A${(m.stageNumber || 9) - 8}`
-              : String(m.stageNumber || 1).padStart(2, "0")}
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-semibold text-foreground truncate">{m.name || "Milestone"}</span>
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 ${getMilestoneStateBadgeClass(rawState)}`}>
-                {formatEnumLabel(rawState, "LOCKED")}
-              </span>
-              {isAdditional && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-border text-muted-foreground uppercase tracking-wider shrink-0">
-                  Additional
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground truncate mt-0.5">{m.description || ""}</p>
-          </div>
-        </div>
-
-        {/* right: doc info + chevron */}
-        <div className="flex items-center gap-3 shrink-0 text-xs">
-          {m.document && (
-            <div className="hidden sm:flex items-center gap-1.5 text-muted-foreground text-[11px]">
-              <FileText className="w-3.5 h-3.5" />
-              <span>v{m.document.currentVersion} · {m.document.wordCount}w</span>
-            </div>
-          )}
-          {!isLocked && <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-        </div>
-      </button>
-    );
-  };
+  const list = [...(milestones || [])].sort((a, b) => (a.stageNumber || 99) - (b.stageNumber || 99));
 
   return (
     <>
-      <div className="bg-card border border-border rounded-2xl p-6 space-y-6">
-        {/* header */}
-        <div className="flex items-center justify-between border-b border-border pb-4 flex-wrap gap-3">
-          <div>
-            <span className="text-[11px] font-semibold text-gold uppercase tracking-wider">8-Stage Execution Pipeline</span>
-            <h2 className="text-base font-semibold text-foreground mt-0.5">Mandatory Project Milestones</h2>
+      <div className="space-y-4 font-sans text-[#17202A] dark:text-[#F2F4F7]">
+        {/* Header toolbar */}
+        <div className="flex items-center justify-between pb-3 border-b border-[#E4E7EC] dark:border-[#272D36]">
+          <div className="space-y-0.5">
+            <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-[0.08em]">
+              PROJECT MILESTONES
+            </span>
+            <h3 className="text-[14px] font-semibold text-[#17202A] dark:text-[#F2F4F7]">
+              Execution Checkpoints & Milestones
+            </h3>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#65C466]" /> Approved</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gold" /> In Progress</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-muted-foreground" /> Locked</span>
-            </div>
-            {projectId && (
-              <button
-                onClick={() => setShowAdd(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-background hover:bg-accent text-foreground text-[11px] font-semibold transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" /> Add Milestone
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* mandatory 8 */}
-        <div className="space-y-2.5">
-          {mandatory.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-6">No mandatory milestones found for this project.</p>
-          ) : (
-            mandatory.map(m => renderRow(m, false))
+          {projectId && (
+            <button
+              onClick={() => setShowAdd(true)}
+              className="px-3.5 h-[36px] rounded-[8px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12px] font-semibold hover:opacity-90 transition-opacity flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Milestone</span>
+            </button>
           )}
         </div>
 
-        {/* additional milestones */}
-        {additional.length > 0 && (
-          <div className="space-y-2.5 pt-2 border-t border-border">
-            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">Additional Milestones</span>
-            {additional.map(m => renderRow(m, true))}
-          </div>
-        )}
+        {/* Milestone Timeline List */}
+        <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#E4E7EC] dark:before:bg-[#272D36]">
+          {list.length === 0 ? (
+            <div className="text-center py-8 text-[13px] text-[#667085] dark:text-[#8B95A5]">
+              No milestones yet. Create a milestone to define an important checkpoint.
+            </div>
+          ) : (
+            list.map((m, idx) => {
+              const rawState = m.state || m.status || "UPCOMING";
+              const isApproved = rawState === "APPROVED" || rawState === "COMPLETED";
+              const isInProgress = rawState === "AVAILABLE" || rawState === "IN_PROGRESS";
+
+              return (
+                <div key={m.id || idx} className="relative flex items-start justify-between gap-3 group">
+                  {/* Timeline Dot */}
+                  <div
+                    className={`absolute -left-6 top-1 w-5 h-5 rounded-full border-2 flex items-center justify-center bg-[#FFFFFF] dark:bg-[#15191F] transition-colors ${
+                      isApproved
+                        ? "border-emerald-500 text-emerald-500"
+                        : isInProgress
+                        ? "border-[#C9A52A] dark:border-[#D4B12F] text-[#C9A52A] dark:text-[#D4B12F]"
+                        : "border-[#E4E7EC] dark:border-[#272D36] text-[#667085]"
+                    }`}
+                  >
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        isApproved
+                          ? "bg-emerald-500"
+                          : isInProgress
+                          ? "bg-[#C9A52A] dark:bg-[#D4B12F]"
+                          : "bg-transparent"
+                      }`}
+                    />
+                  </div>
+
+                  {/* Milestone Details */}
+                  <div
+                    onClick={() => onSelectMilestone?.(m)}
+                    className="flex-1 p-3 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] hover:border-[#C9A52A] dark:hover:border-[#D4B12F] transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[13.5px] font-semibold text-[#17202A] dark:text-[#F2F4F7] truncate">
+                          {m.name}
+                        </span>
+                        <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded border border-[#E4E7EC] dark:border-[#272D36] text-[#667085] dark:text-[#8B95A5] uppercase">
+                          {m.source || (m.stageNumber ? "SYSTEM" : "MANUAL")}
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase ${
+                        isApproved
+                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                          : isInProgress
+                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                          : "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20"
+                      }`}>
+                        {rawState}
+                      </span>
+                    </div>
+
+                    {m.description && (
+                      <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] line-clamp-2 mt-0.5">
+                        {m.description}
+                      </p>
+                    )}
+
+                    {(m.deadline || m.targetDate) && (
+                      <p className="text-[11px] font-mono text-[#667085] dark:text-[#8B95A5] mt-1.5 flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        Target: {new Date(m.deadline || m.targetDate || "").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {showAdd && projectId && (

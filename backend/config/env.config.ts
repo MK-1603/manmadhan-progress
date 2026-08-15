@@ -43,7 +43,7 @@ export const env = {
 	APPLE_CLIENT_SECRET: process.env.APPLE_CLIENT_SECRET || "",
 
 	// Mail Transport Settings
-	// When RESEND_API_KEY is set, SMTP credentials are not required.
+	EMAIL_PROVIDER: process.env.EMAIL_PROVIDER || "smtp",
 	MAIL_MODE: process.env.MAIL_MODE || "gmail",
 	MAIL_USER: process.env.MAIL_USER || "manmadhannotify@gmail.com",
 	MAIL_PASS: process.env.MAIL_PASS || "",

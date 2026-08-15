@@ -1,7 +1,7 @@
 "use client";
 
-import { OrgProfileView } from "@/components/organization/org-profile-view";
+import { ProfileHomeView } from "@/components/personal/profile-home-view";
 
-export default function MemberProfilePage() {
-  return <OrgProfileView userRole="MEMBER" basePath="/member" />;
+export default function MemberUserProfilePage() {
+  return <ProfileHomeView basePath="/member" />;
 }

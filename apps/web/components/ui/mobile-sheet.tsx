@@ -21,18 +21,23 @@ export function MobileSheet({
   footerActions,
   snapPoint = "auto",
 }: MobileSheetProps) {
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen || typeof window === "undefined") return;
 
-    const handleVisualViewportResize = () => {
+    const updateViewport = () => {
       if (window.visualViewport) {
-        const currentHeight = window.visualViewport.height;
+        const vvHeight = window.visualViewport.height;
         const totalHeight = window.innerHeight;
-        const calculatedKeyboardHeight = Math.max(0, totalHeight - currentHeight);
-        setKeyboardHeight(calculatedKeyboardHeight);
+        const kbHeight = Math.max(0, totalHeight - vvHeight);
+        setViewportHeight(vvHeight);
+        setKeyboardHeight(kbHeight);
+      } else {
+        setViewportHeight(window.innerHeight);
+        setKeyboardHeight(0);
       }
     };
 
@@ -51,9 +56,11 @@ export function MobileSheet({
       }
     };
 
+    updateViewport();
+
     if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", handleVisualViewportResize);
-      window.visualViewport.addEventListener("scroll", handleVisualViewportResize);
+      window.visualViewport.addEventListener("resize", updateViewport);
+      window.visualViewport.addEventListener("scroll", updateViewport);
     }
     window.addEventListener("focusin", handleFocusIn);
 
@@ -62,8 +69,8 @@ export function MobileSheet({
 
     return () => {
       if (window.visualViewport) {
-        window.visualViewport.removeEventListener("resize", handleVisualViewportResize);
-        window.visualViewport.removeEventListener("scroll", handleVisualViewportResize);
+        window.visualViewport.removeEventListener("resize", updateViewport);
+        window.visualViewport.removeEventListener("scroll", updateViewport);
       }
       window.removeEventListener("focusin", handleFocusIn);
       document.body.style.overflow = prevOverflow;
@@ -72,20 +79,14 @@ export function MobileSheet({
 
   if (!isOpen) return null;
 
-  const getHeightClass = () => {
-    switch (snapPoint) {
-      case "full":
-        return "max-h-[92vh] h-[92vh]";
-      case "medium":
-        return "max-h-[60vh]";
-      default:
-        return "max-h-[85vh]";
-    }
-  };
+  // Compute maximum available height inside visual viewport above keyboard
+  const maxAvailableHeight = viewportHeight
+    ? `${Math.min(viewportHeight * 0.9, viewportHeight - 12)}px`
+    : "85vh";
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex flex-col justify-end bg-black/60 backdrop-blur-sm md:hidden">
+      <div className="fixed inset-0 z-[100] flex flex-col justify-end bg-black/60 backdrop-blur-sm md:hidden overflow-hidden font-sans">
         {/* BACKDROP TAP TO DISMISS */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -95,29 +96,40 @@ export function MobileSheet({
           onClick={onClose}
         />
 
-        {/* CONTAINER WITH KEYBOARD OFFSET */}
+        {/* KEYBOARD-AWARE & GESTURE DRAGGABLE SHEET CONTAINER */}
         <motion.div
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", stiffness: 350, damping: 32 }}
-          style={{ paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : "env(safe-area-inset-bottom, 16px)" }}
-          className={`relative w-full ${getHeightClass()} bg-card border-t border-border rounded-t-[28px] shadow-2xl flex flex-col overflow-hidden z-10`}
+          drag="y"
+          dragConstraints={{ top: 0 }}
+          dragElastic={0.2}
+          onDragEnd={(_, { offset, velocity }) => {
+            if (offset.y > 100 || velocity.y > 500) {
+              onClose();
+            }
+          }}
+          style={{
+            maxHeight: maxAvailableHeight,
+            marginBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : "0px",
+          }}
+          className="relative w-full bg-[#FFFFFF] dark:bg-[#15191F] border-t border-[#E4E7EC] dark:border-[#272D36] rounded-t-[28px] shadow-2xl flex flex-col overflow-hidden z-10"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* DRAG HANDLE & HEADER */}
-          <div className="w-full flex flex-col items-center pt-3 pb-2 px-6 bg-card border-b border-border/50 shrink-0">
-            <div className="w-10 h-1.5 rounded-full bg-muted-foreground/30 mb-3" />
+          {/* TOUCH DRAG HANDLE & HEADER */}
+          <div className="w-full flex flex-col items-center pt-2.5 pb-2 px-5 bg-[#FFFFFF] dark:bg-[#15191F] border-b border-[#E4E7EC] dark:border-[#272D36] shrink-0 touch-none cursor-grab active:cursor-grabbing">
+            <div className="w-10 h-1.2 rounded-full bg-[#667085]/30 mb-2" />
             <div className="w-full flex items-center justify-between">
               {title ? (
-                <h3 className="text-base font-bold text-foreground tracking-tight">{title}</h3>
+                <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight">{title}</h3>
               ) : (
                 <div />
               )}
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                className="p-1 rounded-full text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] transition-colors cursor-pointer"
                 aria-label="Close sheet"
               >
                 <X className="w-4 h-4" />
@@ -125,14 +137,17 @@ export function MobileSheet({
             </div>
           </div>
 
-          {/* SCROLLABLE FORM CONTENT */}
-          <div ref={contentRef} className="flex-1 overflow-y-auto p-5 space-y-4">
+          {/* FORM CONTENT AREA */}
+          <div ref={contentRef} className="flex-1 overflow-y-auto p-4 space-y-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {children}
           </div>
 
           {/* STICKY FOOTER ACTIONS */}
           {footerActions && (
-            <div className="p-4 bg-card border-t border-border/60 shrink-0">
+            <div
+              className="p-3.5 bg-[#F8F9FB] dark:bg-[#111419] border-t border-[#E4E7EC] dark:border-[#272D36] shrink-0"
+              style={{ paddingBottom: "max(14px, env(safe-area-inset-bottom))" }}
+            >
               {footerActions}
             </div>
           )}

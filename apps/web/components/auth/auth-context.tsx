@@ -69,6 +69,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             sessionStorage.removeItem('authData');
             return null;
           }
+          // Transient request confirmation states must never survive page refresh
+          if (parsed.step === "RESET_SENT" || parsed.step === "FORGOT_PASSWORD") {
+            sessionStorage.removeItem('authData');
+            return null;
+          }
           return parsed; 
         } catch (e) {}
       }
@@ -76,9 +81,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null;
   });
 
-  // Persist authData to handle accidental refreshes, with a 5-minute expiration
+  // Persist authData to handle accidental refreshes for setup flows only, filtering transient reset request screens
   useEffect(() => {
-    if (authData) {
+    if (authData && authData.step !== "RESET_SENT" && authData.step !== "FORGOT_PASSWORD") {
       const dataToStore = {
         ...authData,
         expiresAt: authData.expiresAt || Date.now() + 5 * 60 * 1000 // 5 minutes from now
@@ -151,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionPromise = apiClient.get("/auth/me");
       }
       const res = await sessionPromise;
-      if (res.data.authenticated) {
+      if ((res.data.authenticated || res.data.success) && res.data.user) {
         setUser(res.data.user);
       } else {
         setUser(null);
@@ -169,12 +174,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUser = React.useCallback(async () => {
     try {
       const res = await apiClient.get("/auth/me");
-      if (res.data.authenticated && res.data.user) {
+      if ((res.data.authenticated || res.data.success) && res.data.user) {
         setUser(res.data.user);
       }
     } catch {
       // Silently ignore — if the session is gone the 401 interceptor handles it
     }
+  }, []);
+
+  // Guaranteed cleanup of stale transition overlays on mount and tab/app visibility changes
+  useEffect(() => {
+    const handleReturn = () => {
+      setIsTransitioning(false);
+    };
+
+    window.addEventListener("pageshow", handleReturn);
+    window.addEventListener("focus", handleReturn);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        handleReturn();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    // Timeout safety net: automatically clear transition overlay if redirect didn't leave within 2.5s
+    const timer = setTimeout(() => {
+      setIsTransitioning(false);
+    }, 2500);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("pageshow", handleReturn);
+      window.removeEventListener("focus", handleReturn);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, []);
 
   useEffect(() => {
@@ -188,15 +221,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     pathname?.startsWith("/personal") ||
     pathname?.startsWith("/dashboard");
 
+  const isAuthPage = pathname === "/" || pathname === "/login" || pathname === "/activate";
+
   useEffect(() => {
-    // Only redirect if:
-    // 1. We've completed at least one session check (not during initial hydration)
-    // 2. We're not currently navigating away (which would temporarily set user=null on next mount)
-    // 3. The user is genuinely not authenticated
-    if (hasInitialised.current && !isLoading && !user && isProtected && !isNavigatingRef.current) {
+    if (!hasInitialised.current || isLoading || isNavigatingRef.current) return;
+
+    if (!user && isProtected) {
       router.push("/login");
+    } else if (user && isAuthPage) {
+      const role = (user.role || "CEO").toUpperCase();
+      const targetDash = role === "CEO" ? "/ceo/dashboard" : role === "CO-CEO" ? "/co-ceo/dashboard" : "/member/dashboard";
+      router.push(targetDash);
     }
-  }, [isLoading, user, isProtected, router]);
+  }, [isLoading, user, isProtected, isAuthPage, router]);
 
   const open = React.useCallback(() => {
     if (isOpeningRef.current) return;

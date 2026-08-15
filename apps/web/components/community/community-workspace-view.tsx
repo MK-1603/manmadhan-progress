@@ -24,9 +24,9 @@ export function CommunityWorkspaceView({ initialMode = "list" }: CommunityWorksp
 	// Dynamic database state (loaded dynamically, starts with database communities or empty state)
 	const [communities, setCommunities] = useState<any[]>([
 		{
-			id: "hub-1",
-			name: "ManMadhan Hub - 1",
-			badge: "Admin Only",
+			id: "org-1",
+			name: "ManMadhan Workspace",
+			badge: "Organization",
 			type: "Executive Strategy & Governance",
 			visibility: "Private",
 			description: "Exclusive hub for CEO & Co-CEOs governing strategic mandates, approvals, and architecture.",

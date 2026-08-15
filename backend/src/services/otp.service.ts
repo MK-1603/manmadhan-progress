@@ -3,16 +3,16 @@ import { and, eq, gt } from "drizzle-orm";
 import { env } from "../../config/env.config";
 import { db } from "../../database/client";
 import { otpCodes } from "../../database/schema";
+import { runtimeActivity } from "../bootstrap/startup-logger";
 import { emailService } from "./email.service";
 import { logger } from "./logger.service";
-import { NotificationService } from "./notification.service";
 
 export class OtpService {
-	private static OTP_EXPIRY_MINUTES = 5;
+	private static OTP_EXPIRY_MINUTES = 15;
 	private static MAX_ATTEMPTS = 3;
 
 	/**
-	 * Generates a 6-digit random OTP
+	 * Generates a cryptographically secure 6-digit random OTP
 	 */
 	private static generateNumericOTP(): string {
 		return crypto.randomInt(100000, 999999).toString();
@@ -38,9 +38,13 @@ export class OtpService {
 	}
 
 	/**
-	 * Creates a new OTP for an email, hashes it, stores it in DB, and sends it via email
+	 * Creates a new OTP for an email, hashes it, stores it in DB, and dispatches single email
 	 */
-	public static async sendOTP(email: string): Promise<boolean> {
+	public static async sendOTP(
+		email: string,
+		options?: { isFirstLogin?: boolean; isResetPassword?: boolean; userName?: string },
+	): Promise<boolean> {
+		const challengeId = crypto.randomUUID();
 		const otp = OtpService.generateNumericOTP();
 		const otpHash = OtpService.hashOTP(otp);
 		const expiresAt = new Date(
@@ -52,7 +56,7 @@ export class OtpService {
 
 		// Store new OTP hash
 		await db.insert(otpCodes).values({
-			id: crypto.randomUUID(),
+			id: challengeId,
 			email,
 			otpHash,
 			expiresAt,
@@ -60,42 +64,65 @@ export class OtpService {
 			attempts: 0,
 		});
 
-		await NotificationService.dispatch({
-			type: "OTP_LOGIN",
-			clientUrl: env.CLIENT_URL,
-			emailOnly: true,
-			data: {
-				email: email,
-				otpCode: otp,
-				securityNotice: true,
-			},
-		});
+		const masked = OtpService.maskEmail(email);
+		runtimeActivity.startLifecycle("OTP");
+		runtimeActivity.info("OTP", "OTP", `Security challenge created for ${masked}`);
+		runtimeActivity.info("OTP", "EMAIL", "Gmail SMTP delivery started");
 
-		// Direct SMTP email dispatch for real email delivery
+		let emailSuccess = false;
 		try {
-			await emailService.sendEmail({
+			const isFirstLogin = options?.isFirstLogin ?? false;
+			const isResetPassword = options?.isResetPassword ?? false;
+
+			let subject = "Your ManMadhan Progress verification code";
+			let title = "Verification Code";
+			let actionText = "Verify & Continue →";
+
+			if (isFirstLogin) {
+				subject = "Welcome to ManMadhan Progress";
+				title = "Welcome to ManMadhan Progress";
+				actionText = "Verify & Continue →";
+			} else if (isResetPassword) {
+				subject = "Your ManMadhan Progress password reset code";
+				title = "Reset Password Code";
+				actionText = "Reset Password →";
+			}
+
+			const sendResult = await emailService.sendEmail({
 				to: email,
-				subject: "ManMadhan Progress — Your Executive Security OTP Code",
-				title: "Executive Security Verification Code",
-				text: `Your security verification code is: ${otp}\n\nThis code will expire in 5 minutes. Enter this code to complete workspace setup.`,
-				actionText: "Complete Setup & Login",
-				actionUrl: `${env.CLIENT_URL}/login`,
+				subject,
+				title,
+				otpCode: otp,
+				userName: options?.userName,
+				isFirstLogin,
+				isResetPassword,
+				expiresIn: "15 minutes",
+				actionText,
+				actionUrl: isResetPassword
+					? `${env.CLIENT_URL}/login?auth_step=RESET_PASSWORD`
+					: `${env.CLIENT_URL}/login`,
+				securityNotice: true,
+				text: isFirstLogin
+					? `Hi ${options?.userName || "there"},\n\nWelcome to ManMadhan Progress. Great to have you on board.\nThis is your first time logging in. Verify your account using the code below to continue:\n\n${otp}\n\nThis code expires in 15 minutes.`
+					: isResetPassword
+					? `Hi ${options?.userName || "there"},\n\nWe received a request to reset the password for your ManMadhan Progress account. Use the code below to continue with your password reset:\n\n${otp}\n\nThis code expires in 15 minutes.`
+					: `Hi ${options?.userName || "there"},\n\nWe received a request to verify your account for ManMadhan Progress. Use the code below to continue:\n\n${otp}\n\nThis code expires in 15 minutes.`,
 			});
+			emailSuccess = sendResult.success;
 		} catch (emailErr: any) {
 			logger.warn(
-				`Direct email dispatch notice: ${emailErr?.message || String(emailErr)}`,
+				{ challengeId, error: emailErr?.message || String(emailErr) },
+				"OTP email dispatch notice",
 			);
 		}
 
-		if (process.env.NODE_ENV !== "production") {
-			logger.info({ otp, email }, "Generated OTP Security Code");
+		if (emailSuccess) {
+			runtimeActivity.success("OTP", "EMAIL", "Gmail SMTP delivery successful");
+			runtimeActivity.info("OTP", "OTP", "Verification code dispatched");
+		} else {
+			runtimeActivity.warn("OTP", "EMAIL", "Gmail SMTP delivery check failed");
 		}
 
-		// Since NotificationService handles the queue async, we just assume success.
-		logger.info(
-			{ email: OtpService.maskEmail(email) },
-			"OTP generated and sent successfully",
-		);
 		return true;
 	}
 
@@ -108,7 +135,6 @@ export class OtpService {
 	): Promise<{ success: boolean; message: string }> {
 		const otpHash = OtpService.hashOTP(otp);
 
-		// Find the active OTP for this email
 		const activeCode = await db
 			.select()
 			.from(otpCodes)
@@ -122,14 +148,15 @@ export class OtpService {
 			.limit(1);
 
 		if (activeCode.length === 0) {
+			runtimeActivity.warn("OTP", "OTP", "Verification challenge expired or invalid");
 			return { success: false, message: "Invalid or expired OTP." };
 		}
 
 		const codeRecord = activeCode[0];
 
 		if (codeRecord.attempts >= OtpService.MAX_ATTEMPTS) {
-			// Invalidate if max attempts reached
 			await db.delete(otpCodes).where(eq(otpCodes.id, codeRecord.id));
+			runtimeActivity.warn("OTP", "OTP", "Max OTP verification attempts reached");
 			return {
 				success: false,
 				message: "Maximum attempts reached. Please request a new code.",
@@ -137,21 +164,20 @@ export class OtpService {
 		}
 
 		if (codeRecord.otpHash !== otpHash) {
-			// Increment attempts
 			await db
 				.update(otpCodes)
 				.set({ attempts: codeRecord.attempts + 1 })
 				.where(eq(otpCodes.id, codeRecord.id));
+			runtimeActivity.warn("OTP", "OTP", "Incorrect OTP code attempt");
 			return { success: false, message: "Incorrect code." };
 		}
 
-		// Success - mark as used (or delete to ensure single use)
+		// Success - delete to ensure single use (consumed)
 		await db.delete(otpCodes).where(eq(otpCodes.id, codeRecord.id));
 
-		logger.info(
-			{ email: OtpService.maskEmail(email) },
-			"OTP verified successfully",
-		);
+		runtimeActivity.success("OTP", "OTP", "Verification successful ✓");
+		runtimeActivity.clearLifecycle("OTP", 1200); // Auto-clear OTP runtime logs after 1200ms!
+
 		return { success: true, message: "Code verified successfully." };
 	}
 }

@@ -32,10 +32,10 @@ export default function OrganizationLayout({ children }: { children: React.React
   return (
     <div className="flex h-[100dvh] w-full bg-background overflow-hidden">
       <OrgSidebar role={role} base={base} />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-full w-full overflow-hidden">
         <Header />
         <MobileHeader />
-        <main data-lenis-prevent className="flex-1 overflow-y-auto overscroll-none pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
+        <main data-lenis-prevent className="flex-1 min-h-0 w-full max-w-full overflow-y-auto overflow-x-hidden pb-[calc(70px+env(safe-area-inset-bottom))] md:pb-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {children}
         </main>
         <BottomNav workspace="organization" role={role} />

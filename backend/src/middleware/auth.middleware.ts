@@ -45,6 +45,27 @@ export const strictAuth = (req: Request, res: Response, next: NextFunction) => {
 	}
 };
 
+// Verify setup temporary token
+export const verifyTempToken = (req: Request, res: Response, next: NextFunction) => {
+	const token =
+		req.cookies?.auth_token ||
+		req.headers.authorization?.replace("Bearer ", "");
+	if (!token)
+		return res.status(401).json({ success: false, error: "Setup token required" });
+
+	try {
+		const decoded = jwt.verify(token, env.JWT_SECRET) as any;
+		if (decoded.intent !== "setup")
+			return res.status(403).json({ success: false, error: "Invalid setup token" });
+		(req as any).setupUser = decoded;
+		return next();
+	} catch (_err) {
+		return res
+			.status(401)
+			.json({ success: false, error: "Invalid or expired setup token" });
+	}
+};
+
 // Role checking middleware
 export const requireRole = (allowedRoles: string[]) => {
 	return (req: Request, res: Response, next: NextFunction) => {
