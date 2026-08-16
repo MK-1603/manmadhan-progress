@@ -1,52 +1,16 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import React, { createContext, useState, useEffect, type ReactNode } from "react";
 import apiClient from "../../lib/api-client";
 import { useRouter, usePathname } from "next/navigation";
 import { TransitionScreen } from "../transition-screen";
+import { resetGlobalSheetState } from "@/components/ui/global-sheet";
+import type { User, AuthContextValue } from "./auth-types";
 
-// Singleton promise cache to deduplicate simultaneous /auth/me requests across components/renders
-let sessionPromise: Promise<any> | null = null;
+export type { User, AuthContextValue } from "./auth-types";
+export { useAuth } from "./use-auth";
 
-export type User = {
-  id: string;
-  name: string;
-  displayName?: string;
-  email: string;
-  avatar: string;
-  role: string;
-  workspaceId?: string;
-  timezone?: string;
-  language?: string;
-  dateFormat?: string;
-  timeFormat?: string;
-  batchNumber?: string;
-};
-
-type AuthContextValue = {
-  user: User | null;
-  isLoading: boolean;
-  isOpen: boolean;
-  isDirty: boolean;
-  setIsDirty: (val: boolean) => void;
-  isTransitioning: boolean;
-  setIsTransitioning: (val: boolean) => void;
-  transitionMessage: string;
-  setTransitionMessage: (val: string) => void;
-  authState: string;
-  setAuthState: (state: string) => void;
-  authData: { step?: string, token?: string, role?: string, error?: string } | null;
-  setAuthData: (data: { step?: string, token?: string, role?: string, error?: string } | null) => void;
-  open: () => void;
-  close: (discardState?: boolean) => void;
-  verifyOtp: (tempToken: string, otp: string) => Promise<void>;
-  logout: () => Promise<void>;
-  checkSession: () => Promise<void>;
-  /** Re-fetches the current user from /auth/me and updates context state. */
-  refreshUser: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthContextValue | null>(null);
+export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -56,25 +20,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionMessage, setTransitionMessage] = useState("Processing...");
   const [authState, setAuthState] = useState("EMAIL_ENTRY");
+  const [authStatus, setAuthStatus] = useState<"initializing" | "authenticated" | "unauthenticated">("initializing");
+
   const hasInitialised = React.useRef(false);
   const isNavigatingRef = React.useRef(false);
-  
-  const [authData, setAuthData] = useState<{ step?: string, token?: string, role?: string, error?: string, expiresAt?: number } | null>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = sessionStorage.getItem('authData');
+  const sessionPromiseRef = React.useRef<Promise<any> | null>(null);
+
+  const [authData, setAuthData] = useState<{ step?: string; token?: string; role?: string; error?: string; expiresAt?: number } | null>(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("authData");
       if (stored) {
-        try { 
-          const parsed = JSON.parse(stored); 
+        try {
+          const parsed = JSON.parse(stored);
           if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
-            sessionStorage.removeItem('authData');
+            sessionStorage.removeItem("authData");
             return null;
           }
           // Transient request confirmation states must never survive page refresh
           if (parsed.step === "RESET_SENT" || parsed.step === "FORGOT_PASSWORD") {
-            sessionStorage.removeItem('authData');
+            sessionStorage.removeItem("authData");
             return null;
           }
-          return parsed; 
+          return parsed;
         } catch (e) {}
       }
     }
@@ -86,62 +53,89 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (authData && authData.step !== "RESET_SENT" && authData.step !== "FORGOT_PASSWORD") {
       const dataToStore = {
         ...authData,
-        expiresAt: authData.expiresAt || Date.now() + 5 * 60 * 1000 // 5 minutes from now
+        expiresAt: authData.expiresAt || Date.now() + 5 * 60 * 1000, // 5 minutes from now
       };
-      sessionStorage.setItem('authData', JSON.stringify(dataToStore));
+      sessionStorage.setItem("authData", JSON.stringify(dataToStore));
     } else {
-      sessionStorage.removeItem('authData');
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("authData");
+      }
     }
   }, [authData]);
 
   const router = useRouter();
   const pathname = usePathname();
-  
+
   // Debounce ref to prevent double opening
   const isOpeningRef = React.useRef(false);
 
-  const verifyOtp = React.useCallback(async (tempToken: string, otp: string) => {
-    const res = await apiClient.post("/auth/verify-otp", { tempToken, otp });
-    if (res.data.success) {
-      setTransitionMessage("Authenticating...");
-      setIsTransitioning(true);
-      setUser(res.data.user);
-      
-      // Route to correct dashboard based on role
-      const role = (res.data.user?.role || "CEO").toUpperCase();
-      let dashPath = "/ceo/dashboard";
-      if (role === "CO-CEO") dashPath = "/co-ceo/dashboard";
-      else if (role === "MEMBER") dashPath = "/member/dashboard";
+  const verifyOtp = React.useCallback(
+    async (tempToken: string, otp: string) => {
+      const res = await apiClient.post("/auth/verify-otp", { tempToken, otp });
+      if (res.data.success) {
+        setTransitionMessage("Authenticating...");
+        setIsTransitioning(true);
 
-      // Store workspaceId if returned
-      if (res.data.workspaceId) {
-        localStorage.setItem("workspaceId", res.data.workspaceId);
+        const token = res.data.token || res.data.accessToken;
+        if (token && typeof window !== "undefined") {
+          localStorage.setItem("auth_token", token);
+          localStorage.setItem("token", token);
+        }
+
+        // Store workspaceId if returned
+        if (res.data.workspaceId && typeof window !== "undefined") {
+          localStorage.setItem("workspaceId", res.data.workspaceId);
+        }
+
+        // Instantly invalidate session promise and set authenticated status
+        sessionPromiseRef.current = null;
+        setUser(res.data.user);
+        setAuthStatus("authenticated");
+
+        // Route to correct dashboard based on role
+        const role = (res.data.user?.role || "CEO").toUpperCase();
+        let dashPath = "/ceo/dashboard";
+        if (role === "CO-CEO") dashPath = "/co-ceo/dashboard";
+        else if (role === "MEMBER") dashPath = "/member/dashboard";
+
+        // Refresh current user session from /auth/me
+        try {
+          const meRes = await apiClient.get("/auth/me");
+          if ((meRes.data?.authenticated || meRes.data?.success) && meRes.data?.user) {
+            setUser(meRes.data.user);
+          }
+        } catch (e) {}
+
+        setTimeout(() => {
+          router.push(dashPath);
+          setTimeout(() => setIsTransitioning(false), 500);
+        }, 500);
       }
-      
-      setTimeout(() => {
-        router.push(dashPath);
-        setTimeout(() => setIsTransitioning(false), 500);
-      }, 800);
-    }
-  }, [router]);
+    },
+    [router],
+  );
 
   const logout = React.useCallback(async () => {
+    resetGlobalSheetState();
     isNavigatingRef.current = true;
     setTransitionMessage("Signing out securely...");
     setIsTransitioning(true);
-    
+
     setTimeout(async () => {
       try {
         await apiClient.post("/auth/logout");
       } catch (e) {}
       setUser(null);
       setAuthData(null);
-      if (typeof window !== 'undefined') {
+      setAuthStatus("unauthenticated");
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("token");
         localStorage.removeItem("workspaceId");
         sessionStorage.removeItem("authData");
       }
       router.push("/login");
-      
+
       setTimeout(() => {
         setIsTransitioning(false);
         isNavigatingRef.current = false;
@@ -151,22 +145,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkSession = React.useCallback(async () => {
     setIsLoading(true);
+    setAuthStatus("initializing");
     try {
-      if (!sessionPromise) {
-        sessionPromise = apiClient.get("/auth/me");
+      if (!sessionPromiseRef.current) {
+        sessionPromiseRef.current = apiClient.get("/auth/me").catch((err) => {
+          // Handle 401 Unauthorized as expected anonymous state
+          if (err?.response?.status === 401) {
+            return { data: { authenticated: false, user: null } };
+          }
+          return { data: { authenticated: false, user: null } };
+        });
       }
-      const res = await sessionPromise;
-      if ((res.data.authenticated || res.data.success) && res.data.user) {
+      const res = await sessionPromiseRef.current;
+      if (res?.data?.authenticated && res?.data?.user) {
         setUser(res.data.user);
+        setAuthStatus("authenticated");
+        if (res.data.workspaceId && typeof window !== "undefined") {
+          localStorage.setItem("workspaceId", res.data.workspaceId);
+        }
       } else {
         setUser(null);
+        setAuthStatus("unauthenticated");
       }
-    } catch (error) {
+    } catch {
       setUser(null);
+      setAuthStatus("unauthenticated");
     } finally {
       setIsLoading(false);
       hasInitialised.current = true;
-      sessionPromise = null;
+      sessionPromiseRef.current = null;
     }
   }, []);
 
@@ -176,6 +183,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await apiClient.get("/auth/me");
       if ((res.data.authenticated || res.data.success) && res.data.user) {
         setUser(res.data.user);
+        setAuthStatus("authenticated");
+        if (res.data.workspaceId && typeof window !== "undefined") {
+          localStorage.setItem("workspaceId", res.data.workspaceId);
+        }
       }
     } catch {
       // Silently ignore — if the session is gone the 401 interceptor handles it
@@ -214,32 +225,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkSession();
   }, [checkSession]);
 
-  const isProtected = 
-    pathname?.startsWith("/ceo") || 
-    pathname?.startsWith("/co-ceo") || 
-    pathname?.startsWith("/member") || 
+  const isProtected =
+    pathname?.startsWith("/ceo") ||
+    pathname?.startsWith("/co-ceo") ||
+    pathname?.startsWith("/member") ||
     pathname?.startsWith("/personal") ||
     pathname?.startsWith("/dashboard");
 
   const isAuthPage = pathname === "/" || pathname === "/login" || pathname === "/activate";
 
   useEffect(() => {
-    if (!hasInitialised.current || isLoading || isNavigatingRef.current) return;
+    if (!hasInitialised.current || isLoading || authStatus === "initializing" || isNavigatingRef.current) return;
 
-    if (!user && isProtected) {
+    if (authStatus === "unauthenticated" && isProtected) {
+      isNavigatingRef.current = true;
       router.push("/login");
-    } else if (user && isAuthPage) {
+      setTimeout(() => {
+        isNavigatingRef.current = false;
+      }, 500);
+    } else if (authStatus === "authenticated" && user && isAuthPage) {
+      isNavigatingRef.current = true;
       const role = (user.role || "CEO").toUpperCase();
-      const targetDash = role === "CEO" ? "/ceo/dashboard" : role === "CO-CEO" ? "/co-ceo/dashboard" : "/member/dashboard";
+      const targetDash =
+        role === "CEO"
+          ? "/ceo/dashboard"
+          : role === "CO-CEO"
+            ? "/co-ceo/dashboard"
+            : "/member/dashboard";
       router.push(targetDash);
+      setTimeout(() => {
+        isNavigatingRef.current = false;
+      }, 500);
     }
-  }, [isLoading, user, isProtected, isAuthPage, router]);
+  }, [isLoading, authStatus, user, isProtected, isAuthPage, router]);
 
   const open = React.useCallback(() => {
     if (isOpeningRef.current) return;
     isOpeningRef.current = true;
     setOpenModal(true);
-    setTimeout(() => { isOpeningRef.current = false; }, 500);
+    setTimeout(() => {
+      isOpeningRef.current = false;
+    }, 500);
   }, []);
 
   const close = React.useCallback((discardState = false) => {
@@ -251,27 +277,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const contextValue = React.useMemo(() => ({
-    user,
-    isLoading,
-    isOpen: openModal,
-    isDirty,
-    setIsDirty,
-    isTransitioning,
-    setIsTransitioning,
-    transitionMessage,
-    setTransitionMessage,
-    authState,
-    setAuthState,
-    authData,
-    setAuthData,
-    open,
-    close,
-    verifyOtp,
-    logout,
-    checkSession,
-    refreshUser,
-  }), [user, isLoading, openModal, isDirty, isTransitioning, transitionMessage, authState, setAuthState, authData, setAuthData, open, close, verifyOtp, logout, checkSession, refreshUser]);
+  const contextValue = React.useMemo(
+    () => ({
+      user,
+      isLoading,
+      isOpen: openModal,
+      isDirty,
+      setIsDirty,
+      isTransitioning,
+      setIsTransitioning,
+      transitionMessage,
+      setTransitionMessage,
+      authState,
+      setAuthState,
+      authData,
+      setAuthData,
+      authStatus,
+      open,
+      close,
+      verifyOtp,
+      logout,
+      checkSession,
+      refreshUser,
+    }),
+    [
+      user,
+      isLoading,
+      openModal,
+      isDirty,
+      isTransitioning,
+      transitionMessage,
+      authState,
+      setAuthState,
+      authData,
+      setAuthData,
+      authStatus,
+      open,
+      close,
+      verifyOtp,
+      logout,
+      checkSession,
+      refreshUser,
+    ],
+  );
 
   return (
     <AuthContext.Provider value={contextValue}>
@@ -280,10 +328,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error("useAuth must be used within AuthProvider");
-  return context;
-}
-

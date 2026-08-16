@@ -85,79 +85,85 @@
 
   .dark {
     /* ManMadhan Enterprise Dark Surface System */
-    --layer-0: #0B0D11; /* Application background */
-    --layer-1: #11141A; /* Secondary surface */
-    --layer-2: #151920; /* Input surface */
-    --layer-3: #181C23; /* Card / elevated surface */
-    --layer-4: #202630; /* Hover state */
-    --layer-5: #181C23; /* Elevated Modal surface */
-    --layer-6: #181C23; /* Popover */
+    --layer-0: #0E1117; /* Application background */
+    --layer-1: #12161F; /* Secondary surface */
+    --layer-2: #161B26; /* Input surface */
+    --layer-3: #1A202C; /* Card / elevated surface */
+    --layer-4: #222938; /* Hover state */
+    --layer-5: #1A202C; /* Elevated Modal surface */
+    --layer-6: #1A202C; /* Popover */
 
-    --background: #0B0D11;
-    --foreground: #F5F5F2;
+    --background: #0E1117;
+    --foreground: #F3FFF0;
     
-    --card: #181C23;
-    --card-foreground: #F5F5F2;
+    --card: #141822;
+    --card-foreground: #F3FFF0;
     
-    --popover: #181C23;
-    --popover-foreground: #F5F5F2;
+    --popover: #141822;
+    --popover-foreground: #F3FFF0;
     
     --primary: #D4AF37;
-    --primary-foreground: #0B0D11;
+    --primary-hover: #E3C45A;
+    --primary-pressed: #B99524;
+    --primary-foreground: #0E1117;
     
-    --secondary: #11141A;
-    --secondary-foreground: #9299A8;
+    --secondary: #12161F;
+    --secondary-foreground: #8E949E;
     
-    --muted: #151920;
-    --muted-foreground: #697180;
+    --muted: #161B26;
+    --muted-foreground: #626A75;
     
-    --accent: #181C23;
-    --accent-foreground: #F5F5F2;
+    --accent: #1A202C;
+    --accent-foreground: #F3FFF0;
     
     --destructive: #EF4444;
+    --destructive-hover: #F05252;
+    --destructive-muted: rgba(239, 68, 68, 0.10);
     --destructive-foreground: #FFFFFF;
     
-    --border: #282E38;
-    --input: #151920;
+    --border: #252B35;
+    --border-strong: #343B46;
+    --input: #161B26;
     
     --gold: #D4AF37;
-    --gold-hover: #E5C158;
-    --ring: #C9A227;
+    --gold-hover: #E3C45A;
+    --gold-pressed: #B99524;
+    --ring: #D4AF37;
 
     /* Semantic Extensions (Dark Mode) */
-    --surface: #11141A;
-    --surface-card: #181C23;
-    --surface-elevated: #181C23;
-    --surface-hover: #202630;
-    --surface-active: #282E38;
+    --surface: #12161F;
+    --surface-card: #141822;
+    --surface-elevated: #1A202C;
+    --surface-hover: #222938;
+    --surface-active: #252B35;
 
-    --border-subtle: #1E232D;
-    --border-hover: #3A4250;
-    --border-focus: #C9A227;
-    --divider: #282E38;
+    --border-subtle: #1D232C;
+    --border-hover: #343B46;
+    --border-focus: #D4AF37;
+    --divider: #252B35;
 
-    --text-primary: #F5F5F2;
-    --text-secondary: #9299A8;
-    --text-muted: #697180;
-    --text-disabled: #4A5260;
+    --text-primary: #F3FFF0;
+    --text-secondary: #8E949E;
+    --text-muted: #626A75;
+    --text-disabled: #444B55;
 
     /* Complete Auth System Tokens (Dark Theme) */
-    --auth-bg: #0B0D10;
-    --auth-surface: #111419;
-    --auth-surface-secondary: #171B21;
-    --auth-input-bg: #111419;
-    --auth-border: #282E36;
-    --auth-border-strong: #3B424E;
-    --auth-text: #F3F4F6;
-    --auth-text-secondary: #8B93A0;
-    --auth-text-muted: #69717D;
-    --auth-accent: #D7B33A;
-    --auth-accent-hover: #E4C35A;
+    --auth-bg: #0E1117;
+    --auth-surface: #12161F;
+    --auth-surface-secondary: #161B26;
+    --auth-input-bg: #12161F;
+    --auth-border: #252B35;
+    --auth-border-strong: #343B46;
+    --auth-text: #F3FFF0;
+    --auth-text-secondary: #8E949E;
+    --auth-text-muted: #626A75;
+    --auth-accent: #D4AF37;
+    --auth-accent-hover: #E3C45A;
     --auth-accent-soft: #332B12;
-    --auth-btn-text: #111419;
+    --auth-btn-text: #0E1117;
     --auth-btn-disabled-bg: #332F24;
-    --auth-btn-disabled-text: #77736A;
-    --auth-focus: #D7B33A;
+    --auth-btn-disabled-text: #626A75;
+    --auth-focus: #D4AF37;
   }
 }
 
@@ -331,7 +337,12 @@
   }
 }
 
-/* Clean Custom Scrollbar */
+/* Clean Custom Scrollbar System */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -347,7 +358,7 @@
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--muted-foreground);
+  background: var(--text-muted);
 }
 
 /* Native Hidden Scrollbar Utilities */
@@ -360,8 +371,6 @@
   width: 0 !important;
   height: 0 !important;
 }
-
-
 
 .site-container {
   width: 100%;
@@ -380,15 +389,15 @@
   box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
 }
 
-/* Prevent browser autofill from changing dark/light input backgrounds */
+/* Prevent browser autofill from changing input backgrounds */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 input:-webkit-autofill:active {
-  -webkit-background-clip: text !important;
-  -webkit-text-fill-color: var(--foreground) !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-card) inset !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+  caret-color: var(--text-primary) !important;
   transition: background-color 50000s ease-in-out 0s !important;
-  box-shadow: inset 0 0 20px 20px var(--background) !important;
 }
 
 /* Next.js Dev Tool / Overlay Indicator Suppression */

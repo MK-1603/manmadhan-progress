@@ -23,6 +23,8 @@ type MobileHeaderProps = {
   role?: "CEO" | "CO-CEO" | "MEMBER";
 };
 
+import { useSetRefreshDisabled } from "@/components/providers/global-refresh-provider";
+
 export function MobileHeader({
   activePopover,
   setActivePopover,
@@ -33,6 +35,8 @@ export function MobileHeader({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const pathname = usePathname();
   const { user, logout } = useAuth();
+
+  useSetRefreshDisabled(isDrawerOpen);
 
   const isPersonal = workspaceType
     ? workspaceType === "personal"
@@ -79,9 +83,10 @@ export function MobileHeader({
     if (pathname.includes("/automation")) return "Automation";
     if (pathname.includes("/reminders")) return "Reminders";
     if (pathname.includes("/reports")) return "Reports";
-    if (pathname.includes("/co-ceos")) return "CO-CEOs";
-    if (pathname.includes("/members")) return "Members";
-    if (pathname.includes("/invitations")) return "Invitations";
+    if (pathname.includes("/people")) return "People";
+    if (pathname.includes("/co-ceos")) return "People";
+    if (pathname.includes("/members")) return "People";
+    if (pathname.includes("/invitations")) return "People";
     if (pathname.includes("/graph")) return "Organization Graph";
     if (pathname.includes("/leaderboard")) return "Leaderboard";
     if (pathname.includes("/organization")) return "Organization";
@@ -157,7 +162,7 @@ export function MobileHeader({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsDrawerOpen(false)}
-              className="fixed inset-0 bg-black/55 backdrop-blur-xs z-[10000]"
+              className="fixed inset-0 bg-black/60 z-[10000]"
             />
 
             {/* Sliding Left Full-Height Drawer */}
@@ -186,7 +191,6 @@ export function MobileHeader({
                       width={32}
                       height={32}
                       className="w-full h-full object-cover"
-                      priority
                     />
                   </div>
                   <div className="flex flex-col">

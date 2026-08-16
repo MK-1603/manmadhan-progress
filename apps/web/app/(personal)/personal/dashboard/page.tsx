@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState, useCallback } from "react";
 import apiClient from "@/lib/api-client";
@@ -16,6 +16,7 @@ import { ActiveProjects } from "@/components/personal/dashboard/active-projects"
 import { NextBestAction } from "@/components/personal/dashboard/next-best-action";
 import { GrowthCard } from "@/components/personal/dashboard/growth-card";
 import { RecentActivity } from "@/components/personal/dashboard/recent-activity";
+import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 
 export default function PersonalDashboard() {
   const { user } = useAuth();
@@ -76,19 +77,8 @@ export default function PersonalDashboard() {
     };
   }, [socket, isConnected, fetchDashboardData]);
 
-  if (loading) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-background">
-        <LoaderCircle className="w-5 h-5 text-gold animate-spin mb-3" strokeWidth={2} />
-        <span className="text-[12px] font-medium text-muted-foreground">Loading</span>
-      </div>
-    );
-  }
-
-  if (!data) return null;
-
-  // Compute Timer State & Data
-  const activeFocus = data.activeFocus;
+  // Compute Timer State & Data safely when loading or loaded
+  const activeFocus = data?.activeFocus;
   let timerState: TimerState = "IDLE";
   if (activeFocus) {
     if (activeFocus.status === "RUNNING") timerState = "RUNNING";
@@ -101,12 +91,12 @@ export default function PersonalDashboard() {
     return `${h.toString().padStart(2, "0")}h ${m.toString().padStart(2, "0")}m`;
   };
 
-  const focusTimeStr = formatTimeStr(data.totalFocusSecondsToday || 0);
-  const focusGoalSeconds = data.kpis?.dailyFocusGoalSeconds || (6 * 3600); 
-  const focusPercent = Math.min(100, Math.round(((data.totalFocusSecondsToday || 0) / focusGoalSeconds) * 100));
+  const focusTimeStr = formatTimeStr(data?.totalFocusSecondsToday || 0);
+  const focusGoalSeconds = data?.kpis?.dailyFocusGoalSeconds || (6 * 3600); 
+  const focusPercent = Math.min(100, Math.round(((data?.totalFocusSecondsToday || 0) / focusGoalSeconds) * 100));
 
-  const yesterdaySecs = data.totalFocusSecondsYesterday || 0;
-  const todaySecs = data.totalFocusSecondsToday || 0;
+  const yesterdaySecs = data?.totalFocusSecondsYesterday || 0;
+  const todaySecs = data?.totalFocusSecondsToday || 0;
   
   let trendPercent = 0;
   let trendText = "from yesterday";
@@ -121,23 +111,27 @@ export default function PersonalDashboard() {
     trendPercent = Math.round(((todaySecs - yesterdaySecs) / yesterdaySecs) * 100);
   }
 
+  const tasksTodayList = data?.tasksToday || [];
+  const activeProjectsList = data?.activeProjects || [];
+  const projectPulsesList = data?.projectPulses || [];
+
   // Compute KPI Data
   const kpiData = {
     focusTime: focusTimeStr,
     focusGoal: formatTimeStr(focusGoalSeconds),
     focusPercent: focusPercent,
     focusTrendPercent: yesterdaySecs > 0 ? Math.round(((todaySecs - yesterdaySecs) / yesterdaySecs) * 100) : null,
-    tasksCompleted: data.tasksToday?.filter((t: any) => t.status === "Completed")?.length || 0,
-    tasksTotal: data.tasksToday?.length || 0,
-    tasksPercent: data.tasksToday?.length ? Math.round(((data.tasksToday?.filter((t: any) => t.status === "Completed")?.length || 0) / data.tasksToday.length) * 100) : null,
-    projectsActive: data.activeProjects?.filter((p: any) => p.status === "Active")?.length || 0,
-    projectsAttention: data.projectPulses?.filter((p: any) => p.progress < 50)?.length || 0,
-    score: data.todayProgressPercent || 0,
-    scoreAvailable: (data.tasksToday?.length || 0) > 0 || todaySecs > 0,
+    tasksCompleted: tasksTodayList.filter((t: any) => t.status === "Completed")?.length || 0,
+    tasksTotal: tasksTodayList.length,
+    tasksPercent: tasksTodayList.length ? Math.round(((tasksTodayList.filter((t: any) => t.status === "Completed")?.length || 0) / tasksTodayList.length) * 100) : null,
+    projectsActive: activeProjectsList.filter((p: any) => p.status === "Active")?.length || 0,
+    projectsAttention: projectPulsesList.filter((p: any) => p.progress < 50)?.length || 0,
+    score: data?.todayProgressPercent || 0,
+    scoreAvailable: tasksTodayList.length > 0 || todaySecs > 0,
     scoreTrend: null, 
   };
 
-  const highestPriorityTask = data.tasksToday?.filter((t: any) => t.status !== "Completed")?.[0] || null;
+  const highestPriorityTask = tasksTodayList.filter((t: any) => t.status !== "Completed")?.[0] || null;
 
   // Timer Actions
   const handleStartFocus = async () => {
@@ -198,84 +192,86 @@ export default function PersonalDashboard() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background w-full overflow-hidden">
-      <div className="pt-7 pb-24 md:pb-8 px-4 md:px-8 xl:px-10 w-full flex-1 overflow-y-auto min-h-0">
+    <PullToRefresh onRefresh={fetchDashboardData}>
+      <div className="flex flex-col h-full bg-background w-full overflow-hidden">
+        <div className="pt-7 pb-24 md:pb-8 px-4 md:px-8 xl:px-10 w-full flex-1 overflow-y-auto min-h-0">
 
-        {/* ONE CSS GRID SYSTEM */}
-        <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-4 lg:gap-5 w-full items-stretch">
-          
-          {/* ROW 1: Greeting & Motivation */}
-          <div className="md:col-span-6 lg:col-span-12 flex flex-col gap-3 mb-1">
-            <DashboardGreeting 
-              greetingName={user?.displayName || user?.name?.split(" ")[0] || ""} 
-            />
-            <DailyMotivation 
+          {/* ONE CSS GRID SYSTEM */}
+          <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-4 lg:gap-5 w-full items-stretch">
+            
+            {/* ROW 1: Greeting & Motivation */}
+            <div className="md:col-span-6 lg:col-span-12 flex flex-col gap-3 mb-1">
+              <DashboardGreeting 
+                greetingName={user?.displayName || user?.name?.split(" ")[0] || ""} 
+              />
+              <DailyMotivation 
+                focusPercent={focusPercent}
+                timerState={timerState}
+                tasksCompleted={kpiData.tasksCompleted}
+                tasksTotal={kpiData.tasksTotal}
+              />
+            </div>
+
+            {/* ROW 2: Today (8) + Plan (4) */}
+            <HeroProgress 
+              className="md:col-span-6 lg:col-span-8 h-full"
+              focusTime={focusTimeStr}
+              focusGoal={formatTimeStr(focusGoalSeconds)}
               focusPercent={focusPercent}
+              trendPercent={trendPercent}
+              trendText={trendText}
+              currentTaskTitle={activeFocus?.task?.title || null}
+              currentProjectName={activeFocus?.project?.name || null}
               timerState={timerState}
-              tasksCompleted={kpiData.tasksCompleted}
-              tasksTotal={kpiData.tasksTotal}
+              startedAt={activeFocus?.startedAt}
+              resumedAt={activeFocus?.resumedAt}
+              accumulatedDuration={activeFocus?.activeDuration || 0}
+              upcomingTask={highestPriorityTask}
+              isActionLoading={isActionLoading}
+              onStart={handleStartFocus}
+              onPause={handlePauseFocus}
+              onResume={handleResumeFocus}
+              onComplete={handleCompleteFocus}
             />
+            <TodayPlan 
+              className="md:col-span-6 lg:col-span-4 h-full"
+              tasks={data?.tasksToday || []} 
+            />
+
+            {/* ROW 3: KPI Grid (12 internal 4x3) */}
+            <div className="md:col-span-6 lg:col-span-12">
+              <KpiGrid data={kpiData} />
+            </div>
+
+            {/* ROW 4: 7-Day Execution (8) + Active Projects (4) */}
+            <ExecutionAnalytics className="md:col-span-6 lg:col-span-8 h-full" />
+            <ActiveProjects 
+              className="md:col-span-6 lg:col-span-4 h-full"
+              projects={data?.projectPulses || []} 
+            />
+
+            {/* ROW 5: Next Action (8) + Growth (4) */}
+            <NextBestAction 
+              className="md:col-span-6 lg:col-span-8 h-full"
+              task={highestPriorityTask}
+              isActionLoading={isActionLoading}
+              onStartFocus={handleStartFocus}
+            />
+            <GrowthCard 
+              className="md:col-span-6 lg:col-span-4 h-full" 
+              activeBook={data?.learning?.activeBook || null} 
+            />
+
+            {/* ROW 6: Recent Activity (12) */}
+            <RecentActivity 
+              className="md:col-span-6 lg:col-span-12"
+              activities={data?.recentActivityList || []} 
+            />
+            
           </div>
-
-          {/* ROW 2: Today (8) + Plan (4) */}
-          <HeroProgress 
-            className="md:col-span-6 lg:col-span-8 h-full"
-            focusTime={focusTimeStr}
-            focusGoal={formatTimeStr(focusGoalSeconds)}
-            focusPercent={focusPercent}
-            trendPercent={trendPercent}
-            trendText={trendText}
-            currentTaskTitle={activeFocus?.task?.title || null}
-            currentProjectName={activeFocus?.project?.name || null}
-            timerState={timerState}
-            startedAt={activeFocus?.startedAt}
-            resumedAt={activeFocus?.resumedAt}
-            accumulatedDuration={activeFocus?.activeDuration || 0}
-            upcomingTask={highestPriorityTask}
-            isActionLoading={isActionLoading}
-            onStart={handleStartFocus}
-            onPause={handlePauseFocus}
-            onResume={handleResumeFocus}
-            onComplete={handleCompleteFocus}
-          />
-          <TodayPlan 
-            className="md:col-span-6 lg:col-span-4 h-full"
-            tasks={data.tasksToday || []} 
-          />
-
-          {/* ROW 3: KPI Grid (12 internal 4x3) */}
-          <div className="md:col-span-6 lg:col-span-12">
-            <KpiGrid data={kpiData} />
-          </div>
-
-          {/* ROW 4: 7-Day Execution (8) + Active Projects (4) */}
-          <ExecutionAnalytics className="md:col-span-6 lg:col-span-8 h-full" />
-          <ActiveProjects 
-            className="md:col-span-6 lg:col-span-4 h-full"
-            projects={data.projectPulses || []} 
-          />
-
-          {/* ROW 5: Next Action (8) + Growth (4) */}
-          <NextBestAction 
-            className="md:col-span-6 lg:col-span-8 h-full"
-            task={highestPriorityTask}
-            isActionLoading={isActionLoading}
-            onStartFocus={handleStartFocus}
-          />
-          <GrowthCard 
-            className="md:col-span-6 lg:col-span-4 h-full" 
-            activeBook={data.learning?.activeBook || null} 
-          />
-
-          {/* ROW 6: Recent Activity (12) */}
-          <RecentActivity 
-            className="md:col-span-6 lg:col-span-12"
-            activities={data.recentActivityList || []} 
-          />
-          
         </div>
       </div>
-    </div>
+    </PullToRefresh>
   );
 }
 

@@ -1,12 +1,14 @@
 import axios from "axios";
 
-const isServer = typeof window === "undefined";
+const getBaseUrl = () => {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL || process.env.INTERNAL_API_URL;
+  if (envUrl) {
+    return envUrl.endsWith("/api/v1") ? envUrl : `${envUrl.replace(/\/$/, "")}/api/v1`;
+  }
+  return "http://localhost:4100/api/v1";
+};
 
-// CLIENT: Use relative /api/v1 so Vercel proxies to backend — cookies stay same-domain.
-// SERVER (SSR): Must use the full backend URL since relative paths don't work server-side.
-const baseURL = isServer
-  ? (process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100/api/v1")
-  : "/api/v1";
+const baseURL = getBaseUrl();
 
 const apiClient = axios.create({
   baseURL,
@@ -49,27 +51,49 @@ function clearAuthStorage() {
 
 async function attemptTokenRefresh(): Promise<string | null> {
   try {
-    // Use a plain axios instance (no interceptors) to avoid recursive loops.
+    const existingToken =
+      typeof window !== "undefined"
+        ? localStorage.getItem("auth_token") ||
+          localStorage.getItem("token") ||
+          localStorage.getItem("jwt")
+        : undefined;
+
     const refreshRes = await axios.post(
       `${baseURL}/auth/refresh`,
-      {},
-      { withCredentials: true },
+      { refreshToken: existingToken },
+      {
+        withCredentials: true,
+        headers: existingToken
+          ? {
+              Authorization: `Bearer ${existingToken}`,
+              "x-refresh-token": existingToken,
+            }
+          : {},
+      },
     );
 
-    // Backend returns: { success: true, accessToken: "..." }
     const newToken: string | undefined =
       refreshRes.data?.accessToken ||
       refreshRes.data?.data?.accessToken ||
       refreshRes.data?.data?.token;
 
     if (newToken) {
-      localStorage.setItem("token", newToken);
-      localStorage.setItem("auth_token", newToken);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("token", newToken);
+        localStorage.setItem("auth_token", newToken);
+      }
       return newToken;
     }
 
     return null;
-  } catch {
+  } catch (err: any) {
+    const errCode = err.response?.data?.code;
+    if (errCode === "ACCOUNT_SUSPENDED" || errCode === "ACCOUNT_DELETED") {
+      clearAuthStorage();
+      if (typeof window !== "undefined") {
+        window.location.href = "/login?error=AccountSuspended";
+      }
+    }
     return null;
   }
 }
@@ -80,8 +104,30 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Only handle 401 Unauthorized
+    // Handle 403 Forbidden Permission / Account Suspended
+    if (error.response?.status === 403) {
+      const errCode = error.response?.data?.code || error.response?.data?.error?.code;
+
+      if (errCode === "ACCOUNT_SUSPENDED" || errCode === "ACCOUNT_DELETED") {
+        clearAuthStorage();
+        if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+          window.location.href = "/login?error=AccountSuspended";
+        }
+        return Promise.reject(new Error("Your account has been suspended or is unavailable."));
+      }
+
+      // General 403 Permission Denied — return clean error message without forcing logout
+      const permMsg =
+        error.response?.data?.error?.message ||
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        "You do not have permission to perform this action.";
+      return Promise.reject(new Error(typeof permMsg === "string" ? permMsg : "Permission denied."));
+    }
+
+    // Handle 401 Unauthorized Session Expiration
     if (error.response?.status === 401) {
+
       // Never retry refresh/login/me endpoints to avoid infinite loops
       const isAuthEndpoint =
         originalRequest?.url?.includes("/auth/me") ||
@@ -89,6 +135,10 @@ apiClient.interceptors.response.use(
         originalRequest?.url?.includes("/auth/login");
 
       if (isAuthEndpoint || originalRequest?._retry) {
+        if (isAuthEndpoint && originalRequest?.url?.includes("/auth/me")) {
+          // Silent non-authenticated response for initial auth check
+          return Promise.reject(error);
+        }
         clearAuthStorage();
         return Promise.reject(error);
       }
@@ -96,7 +146,7 @@ apiClient.interceptors.response.use(
       // Mark this request so it won't retry again
       originalRequest._retry = true;
 
-      // Deduplicate: if a refresh is already in-flight, wait for it
+      // Deduplicate: if a refresh is already in-flight, wait for shared promise lock
       if (!refreshPromise) {
         refreshPromise = attemptTokenRefresh().finally(() => {
           refreshPromise = null;
@@ -106,7 +156,7 @@ apiClient.interceptors.response.use(
       const newToken = await refreshPromise;
 
       if (newToken) {
-        // Retry the original request with the fresh token
+        // Retry the original request ONCE with the fresh token
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return apiClient(originalRequest);
       }

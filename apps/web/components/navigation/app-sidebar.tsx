@@ -54,9 +54,7 @@ const ORG_CEO_NAV: NavGroup[] = [
     id: "people",
     label: "PEOPLE",
     items: [
-      { name: "CO-CEOs",     href: "/ceo/co-ceos",     icon: UserCheck },
-      { name: "Members",     href: "/ceo/members",     icon: Users },
-      { name: "Invitations", href: "/ceo/invitations", icon: UserPlus },
+      { name: "People", href: "/ceo/people", icon: Users },
     ],
   },
   {
@@ -65,6 +63,7 @@ const ORG_CEO_NAV: NavGroup[] = [
     items: [
       { name: "Organization Graph", href: "/ceo/graph",       icon: Network },
       { name: "Leaderboard",        href: "/ceo/leaderboard", icon: Trophy },
+      { name: "Performance",        href: "/ceo/performance", icon: BarChart3 },
     ],
   },
   {
@@ -113,9 +112,9 @@ const ORG_COCEO_NAV: NavGroup[] = [
     id: "performance",
     label: "PERFORMANCE",
     items: [
-      { name: "Reports",         href: "/co-ceo/reports",         icon: BarChart3 },
-      { name: "Submissions",     href: "/co-ceo/submissions",     icon: FileText },
-      { name: "Focus Analytics", href: "/co-ceo/focus-analytics", icon: Focus },
+      { name: "Organization Graph", href: "/co-ceo/organization-graph", icon: Network },
+      { name: "Leaderboard",        href: "/co-ceo/leaderboard",        icon: Trophy },
+      { name: "Performance",        href: "/co-ceo/performance",        icon: BarChart3 },
     ],
   },
 ];
@@ -140,16 +139,6 @@ const ORG_MEMBER_NAV: NavGroup[] = [
       { name: "ManMadhan Command", href: "/member/ai-builder", icon: Brain },
       { name: "Calendar",  href: "/member/calendar", icon: Calendar },
       { name: "Timeline",  href: "/member/timeline", icon: History },
-    ],
-  },
-
-  {
-    id: "performance",
-    label: "PERFORMANCE",
-    items: [
-      { name: "Reports",         href: "/member/reports",         icon: BarChart3 },
-      { name: "Submissions",     href: "/member/submissions",     icon: FileText },
-      { name: "Focus Analytics", href: "/member/focus-analytics", icon: Focus },
     ],
   },
 ];
@@ -259,19 +248,25 @@ export function AppSidebar({
     return ORG_CEO_NAV;
   }, [isPersonal, effectiveRole]);
 
-  // 3. Collapsible sections state management
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+  // 3. Collapsible sections state management (SSR-safe deterministic initial state)
+  const [mounted, setMounted] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setMounted(true);
     if (typeof window !== "undefined") {
       try {
         const stored = localStorage.getItem("sidebar_sections_state");
-        if (stored) return JSON.parse(stored);
+        if (stored) {
+          setCollapsedSections(JSON.parse(stored));
+        }
       } catch {}
     }
-    return {};
-  });
+  }, []);
 
-  // Automatically expand the section that contains the active route
+  // Automatically expand the section that contains the active route after mount
   useEffect(() => {
+    if (!mounted) return;
     for (const group of navGroups) {
       const containsActive = group.items.some((item) => isItemActive(pathname, item.href));
       if (containsActive && collapsedSections[group.id]) {
@@ -285,7 +280,7 @@ export function AppSidebar({
         break;
       }
     }
-  }, [pathname, navGroups]);
+  }, [pathname, navGroups, collapsedSections, mounted]);
 
   const toggleSection = (groupId: string) => {
     setCollapsedSections((prev) => {

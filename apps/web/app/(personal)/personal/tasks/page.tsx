@@ -380,7 +380,7 @@ export default function TasksPage() {
 
       {/* Manual Create Modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <form
             onSubmit={handleManualCreate}
             className="bg-card border border-border text-card-foreground rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl"

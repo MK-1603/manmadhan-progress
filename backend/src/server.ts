@@ -10,6 +10,7 @@ import { startupLogger } from "./bootstrap/startup-logger";
 import { cronService } from "./services/cron.service";
 import { emailService } from "./services/email.service";
 import { logger } from "./services/logger.service";
+import { queueService } from "./services/queue.service";
 import { socketService } from "./services/socket.service";
 
 const startServer = async () => {
@@ -278,6 +279,31 @@ const startServer = async () => {
 		);
 		startupLogger.flushAndRenderDashboard(port, startTime, isDbConnected);
 	});
+
+	// Graceful Shutdown Handlers (SIGTERM & SIGINT)
+	const gracefulShutdown = async (signal: string) => {
+		logger.info(`Received ${signal}. Starting graceful shutdown...`);
+		try {
+			httpServer.close(() => {
+				logger.info("HTTP server stopped listening for new requests.");
+			});
+			io.close();
+			logger.info("Socket.IO connections closed.");
+			cronService.stop();
+			await queueService.close();
+			logger.info("Queue & cron tasks terminated cleanly.");
+		} catch (err) {
+			logger.error({ err }, "Error during graceful shutdown");
+		} finally {
+			setTimeout(() => {
+				logger.info("Graceful shutdown complete. Exiting process.");
+				process.exit(0);
+			}, 500);
+		}
+	};
+
+	process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+	process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 };
 
 startServer().catch((error) => {

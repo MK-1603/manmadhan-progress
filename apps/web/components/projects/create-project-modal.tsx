@@ -437,7 +437,7 @@ export function CreateProjectModal({
 
   /* ── Desktop Viewport Layout (Width ~ 620px) ────────────────────────────── */
   return (
-    <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[4px] flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7] rounded-[14px] max-w-[620px] w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden font-sans">
         {/* Header */}
         <div className="px-5 py-3 border-b border-[#E4E7EC] dark:border-[#272D36] shrink-0">

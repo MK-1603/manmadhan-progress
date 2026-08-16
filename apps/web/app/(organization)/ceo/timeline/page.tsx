@@ -1,36 +1,108 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   History, Search, Loader2, AlertCircle, Folder, CheckSquare, Users, CheckCircle2,
-  Zap, Calendar, Clock, ArrowRight, User, X, ChevronRight, Filter, ShieldCheck
+  Zap, Clock, User, X, ShieldCheck, RefreshCw
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import apiClient from "@/lib/api-client";
-import { PremiumCard } from "@/components/ui/premium-card";
-import Link from "next/link";
+import { useSocket } from "@/components/providers/socket-provider";
+import { useRegisterRefresh } from "@/components/providers/global-refresh-provider";
 
-const categoryIcon = (cat: string) => {
-  switch (cat) {
-    case "Projects": return <Folder className="w-4 h-4 text-amber-500" />;
-    case "Tasks": return <CheckSquare className="w-4 h-4 text-blue-500" />;
-    case "People": return <Users className="w-4 h-4 text-purple-500" />;
-    case "Approvals": return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
-    case "Automation": return <Zap className="w-4 h-4 text-amber-400" />;
-    default: return <ShieldCheck className="w-4 h-4 text-muted-foreground" />;
-  }
-};
+interface NormalizedActivity {
+  id: string;
+  category: "Projects" | "Tasks" | "People" | "Approvals" | "Automation" | "System";
+  eventType: string;
+  title: string;
+  details: string;
+  actor: {
+    id?: string;
+    name: string;
+    email?: string;
+    avatar?: string | null;
+  };
+  createdAt: string;
+  isToday: boolean;
+}
 
-const categoryBadgeClass = (cat: string) => {
-  switch (cat) {
-    case "Projects": return "bg-amber-500/10 text-amber-500 border-amber-500/20";
-    case "Tasks": return "bg-blue-500/10 text-blue-500 border-blue-500/20";
-    case "People": return "bg-purple-500/10 text-purple-500 border-purple-500/20";
-    case "Approvals": return "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
-    case "Automation": return "bg-amber-400/10 text-amber-400 border-amber-400/20";
-    default: return "bg-muted text-muted-foreground border-border";
+function normalizeTitle(rawType?: string): string {
+  if (!rawType) return "System Activity";
+  const upper = rawType.toUpperCase();
+  switch (upper) {
+    case "PROJECT_CREATED": return "Project created";
+    case "PROJECT_UPDATED": return "Project updated";
+    case "PROJECT_DELETED": return "Project deleted";
+    case "TASK_CREATED": return "Task created";
+    case "TASK_ASSIGNED": return "Task assigned";
+    case "TASK_ACCEPTED": return "Task accepted";
+    case "TASK_COMPLETED": return "Task completed";
+    case "TASK_UPDATED": return "Task updated";
+    case "TASK_DELETED": return "Task deleted";
+    case "PEOPLE_INVITED":
+    case "INVITATION_SENT": return "Invitation sent";
+    case "INVITATION_ACCEPTED": return "Invitation accepted";
+    case "INVITATION_CANCELLED": return "Invitation cancelled";
+    case "APPROVAL_REQUESTED": return "Approval requested";
+    case "WORK_APPROVED": return "Work approved";
+    case "WORK_REJECTED": return "Work rejected";
+    case "AUTOMATION_CREATED": return "Automation created";
+    case "AUTOMATION_UPDATED": return "Automation updated";
+    case "AUTOMATION_PAUSED": return "Automation paused";
+    case "AUTOMATION_RESUMED": return "Automation resumed";
+    case "FOCUS_STARTED": return "Focus session started";
+    case "FOCUS_COMPLETED": return "Focus session completed";
+    default: {
+      return upper
+        .replace(/_/g, " ")
+        .toLowerCase()
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+    }
   }
-};
+}
+
+function normalizeDetails(rawDetails?: any, eventType?: string): string {
+  if (!rawDetails) return normalizeTitle(eventType);
+
+  let str = typeof rawDetails === "object" ? JSON.stringify(rawDetails) : String(rawDetails).trim();
+
+  // If raw details is JSON object, extract human legible names
+  if (str.startsWith("{") && str.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(str);
+      if (parsed.name || parsed.title || parsed.projectName || parsed.taskTitle) {
+        return String(parsed.name || parsed.title || parsed.projectName || parsed.taskTitle);
+      }
+      if (parsed.message) return String(parsed.message);
+    } catch {
+      // Fall through
+    }
+    return normalizeTitle(eventType);
+  }
+
+  // Strip raw UUIDs and JSON braces
+  str = str
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "")
+    .replace(/["'{}\[\]]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!str || str.length < 2) return normalizeTitle(eventType);
+  return str;
+}
+
+function formatRelativeTime(dateString?: string): string {
+  if (!dateString) return "Just now";
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return "Just now";
+
+  const seconds = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (seconds < 60) return "Just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hour ago`;
+  
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 function formatEventDateGroup(dateStr: string): string {
   const d = new Date(dateStr);
@@ -43,17 +115,31 @@ function formatEventDateGroup(dateStr: string): string {
   return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 }
 
-function timeAgo(dateString: string) {
-  const d = new Date(dateString);
-  const seconds = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
-}
+const categoryIcon = (cat: string) => {
+  switch (cat) {
+    case "Projects": return <Folder className="w-4 h-4 text-amber-500" />;
+    case "Tasks": return <CheckSquare className="w-4 h-4 text-blue-500" />;
+    case "People": return <Users className="w-4 h-4 text-purple-500" />;
+    case "Approvals": return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
+    case "Automation": return <Zap className="w-4 h-4 text-[#B28D18] dark:text-[#C9A52A]" />;
+    default: return <ShieldCheck className="w-4 h-4 text-[#667085] dark:text-[#8B95A5]" />;
+  }
+};
+
+const categoryBadgeClass = (cat: string) => {
+  switch (cat) {
+    case "Projects": return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
+    case "Tasks": return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
+    case "People": return "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20";
+    case "Approvals": return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+    case "Automation": return "bg-[#B28D18]/10 text-[#B28D18] dark:text-[#C9A52A] border-[#B28D18]/20";
+    default: return "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20";
+  }
+};
 
 export default function CEOTimelinePage() {
-  const [events, setEvents] = useState<any[]>([]);
+  const { socket } = useSocket();
+  const [events, setEvents] = useState<NormalizedActivity[]>([]);
   const [summary, setSummary] = useState<any>({
     todayCount: 0,
     projectsCount: 0,
@@ -64,35 +150,61 @@ export default function CEOTimelinePage() {
   });
 
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState("");
 
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [dateRangeFilter, setDateRangeFilter] = useState("All");
   const [search, setSearch] = useState("");
-  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [selectedEvent, setSelectedEvent] = useState<NormalizedActivity | null>(null);
 
   const fetchTimeline = useCallback(async () => {
     try {
-      const workspaceId = localStorage.getItem("workspaceId");
-      if (!workspaceId) return;
+      const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
 
       const params = new URLSearchParams();
-      params.set("workspaceId", workspaceId);
+      if (workspaceId && workspaceId !== "undefined" && workspaceId !== "null") {
+        params.set("workspaceId", workspaceId);
+      }
       if (categoryFilter !== "All") params.set("category", categoryFilter);
       if (dateRangeFilter !== "All") params.set("dateRange", dateRangeFilter);
       if (search.trim()) params.set("search", search.trim());
 
-      const res = await apiClient.get(`/org/timeline?${params.toString()}`);
-      if (res.data.success) {
-        setEvents(res.data.data.events || []);
+      const queryStr = params.toString();
+      const res = await apiClient.get(`/org/timeline${queryStr ? `?${queryStr}` : ""}`);
+      if (res.data?.success) {
+        const rawEvents = Array.isArray(res.data.data.events) ? res.data.data.events : [];
+        const normalized = rawEvents.map((ev: any) => ({
+          id: ev.id || String(Math.random()),
+          category: ev.category || "System",
+          eventType: ev.eventType || "SYSTEM",
+          title: normalizeTitle(ev.title || ev.eventType),
+          details: normalizeDetails(ev.details, ev.eventType),
+          actor: {
+            id: ev.actor?.id,
+            name: ev.actor?.name || ev.actor?.email || "System",
+            email: ev.actor?.email || "",
+            avatar: ev.actor?.avatar || null,
+          },
+          createdAt: ev.createdAt || new Date().toISOString(),
+          isToday: Boolean(ev.isToday),
+        }));
+
+        setEvents(normalized);
         if (res.data.data.summary) setSummary(res.data.data.summary);
+        setError("");
       } else {
-        setError(res.data.error || "Failed to load timeline");
+        setError(res.data?.error || "Unable to load activity timeline right now.");
       }
-    } catch {
-      setError("Unable to load organization execution timeline");
+    } catch (err: any) {
+      if (err.code === "ERR_NETWORK" || err.message?.includes("Network Error")) {
+        setError("Unable to connect to ManMadhan services.");
+      } else {
+        setError(err.response?.data?.error?.message || err.response?.data?.error || "Unable to load activity timeline.");
+      }
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }, [categoryFilter, dateRangeFilter, search]);
 
@@ -100,8 +212,47 @@ export default function CEOTimelinePage() {
     fetchTimeline();
   }, [fetchTimeline]);
 
-  // Group events by Date Heading
-  const groupedEvents = events.reduce((acc: Record<string, any[]>, ev) => {
+  useRegisterRefresh(fetchTimeline);
+
+  // Realtime Socket Activity Normalization
+  useEffect(() => {
+    if (!socket) return;
+    const handleActivity = (raw: any) => {
+      if (!raw) return;
+      const normalized: NormalizedActivity = {
+        id: raw.id || String(Date.now()),
+        category: raw.category || "System",
+        eventType: raw.eventType || "ACTIVITY",
+        title: normalizeTitle(raw.title || raw.eventType),
+        details: normalizeDetails(raw.details, raw.eventType),
+        actor: {
+          id: raw.actor?.id,
+          name: raw.actor?.name || "System",
+          email: raw.actor?.email || "",
+          avatar: raw.actor?.avatar || null,
+        },
+        createdAt: raw.createdAt || new Date().toISOString(),
+        isToday: true,
+      };
+
+      setEvents((prev) => [normalized, ...prev.slice(0, 199)]);
+    };
+
+    socket.on("activity.created", handleActivity);
+    socket.on("audit.created", handleActivity);
+    return () => {
+      socket.off("activity.created", handleActivity);
+      socket.off("audit.created", handleActivity);
+    };
+  }, [socket]);
+
+  const handleManualRefresh = () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    fetchTimeline();
+  };
+
+  const groupedEvents = events.reduce((acc: Record<string, NormalizedActivity[]>, ev) => {
     const groupKey = formatEventDateGroup(ev.createdAt);
     if (!acc[groupKey]) acc[groupKey] = [];
     acc[groupKey].push(ev);
@@ -109,161 +260,174 @@ export default function CEOTimelinePage() {
   }, {});
 
   return (
-    <div className="p-4 lg:p-6 max-w-[1240px] mx-auto w-full space-y-5">
-      {/* Header Bar */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <History className="w-5 h-5 text-primary" />
-            <h1 className="text-xl font-bold text-foreground tracking-tight">Timeline</h1>
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Executive organization execution history and audit stream
+    <div className="w-full h-full flex flex-col justify-between overflow-y-auto bg-[#F9FAFB] dark:bg-[#060806] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none p-4 sm:p-5 md:px-8 md:py-5 pb-[calc(84px+env(safe-area-inset-bottom))] md:pb-5 max-w-[1400px] mx-auto space-y-5 box-border [scrollbar-width:none]">
+      
+      {/* HEADER BAR */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E5E7EB] dark:border-[#272D36] shrink-0">
+        <div className="space-y-0.5">
+          <h1 className="text-[20px] sm:text-[24px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none flex items-center gap-2">
+            <History className="w-5 h-5 text-[#B28D18] dark:text-[#C9A52A]" />
+            <span>Timeline</span>
+          </h1>
+          <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5]">
+            Executive organization execution history and activity feed.
           </p>
         </div>
+
+        <button
+          onClick={handleManualRefresh}
+          disabled={isRefreshing}
+          className="w-[38px] h-[38px] rounded-[11px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] text-[#667085] dark:text-[#8B95A5] hover:text-[#17202A] dark:hover:text-[#F2F4F7] flex items-center justify-center cursor-pointer transition-colors shrink-0 shadow-xs"
+          title="Refresh activity feed"
+        >
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-[#B28D18] dark:text-[#C9A52A]" : ""}`} />
+        </button>
       </div>
 
-      {/* Top Summary Strip */}
+      {/* KPI SUMMARY CARDS */}
       <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
         {[
-          { label: "Today", value: summary.todayCount, color: "text-foreground" },
+          { label: "Today", value: summary.todayCount, color: "text-[#17202A] dark:text-[#F2F4F7]" },
           { label: "Projects", value: summary.projectsCount, color: "text-amber-500" },
           { label: "Tasks", value: summary.tasksCount, color: "text-blue-500" },
           { label: "People", value: summary.peopleCount, color: "text-purple-500" },
           { label: "Approvals", value: summary.approvalsCount, color: "text-emerald-500" },
-          { label: "Automation", value: summary.automationCount, color: "text-amber-400" },
+          { label: "Automation", value: summary.automationCount, color: "text-[#B28D18] dark:text-[#C9A52A]" },
         ].map((s) => (
-          <PremiumCard key={s.label} className="p-2.5">
-            <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">{s.label}</p>
-            <p className={`text-lg font-bold mt-0.5 ${s.color}`}>{s.value}</p>
-          </PremiumCard>
+          <div key={s.label} className="p-3 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] shadow-xs">
+            <p className="text-[10.5px] uppercase font-bold tracking-wider text-[#667085] dark:text-[#8B95A5]">{s.label}</p>
+            <p className={`text-[20px] font-bold mt-0.5 leading-none ${s.color}`}>{s.value}</p>
+          </div>
         ))}
       </div>
 
-      {/* Filter & Search Bar */}
+      {/* SEARCH AND FILTERS */}
       <div className="flex flex-col sm:flex-row gap-2.5">
-        {/* Search */}
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#667085] dark:text-[#8B95A5]" />
           <input
             type="text"
-            placeholder="Search activity by title, actor, or details..."
+            placeholder="Search activity by title or actor..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-xs text-foreground placeholder:text-muted-foreground focus:border-primary outline-none"
+            className="w-full pl-9 pr-4 h-[38px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] rounded-[11px] text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] placeholder-[#667085] dark:placeholder-[#8B95A5] outline-none focus:border-[#B28D18] dark:focus:border-[#C9A52A]"
           />
         </div>
 
-        {/* Category Pills */}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 [scrollbar-width:none]">
           {["All", "Projects", "Tasks", "People", "Approvals", "Automation"].map((cat) => (
             <button
               key={cat}
               onClick={() => setCategoryFilter(cat)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+              className={`h-[38px] px-3.5 rounded-[11px] text-[12px] font-bold transition-all shrink-0 cursor-pointer border ${
                 categoryFilter === cat
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card border-border text-muted-foreground hover:text-foreground"
+                  ? "bg-[#B28D18] dark:bg-[#C9A52A] text-white dark:text-[#0B0D10] border-[#B28D18] dark:border-[#C9A52A] shadow-xs"
+                  : "bg-[#FFFFFF] dark:bg-[#15191F] border-[#E5E7EB] dark:border-[#272D36] text-[#667085] dark:text-[#8B95A5] hover:text-[#17202A]"
               }`}
             >
               {cat}
             </button>
           ))}
-        </div>
 
-        {/* Date Range Selector */}
-        <select
-          value={dateRangeFilter}
-          onChange={(e) => setDateRangeFilter(e.target.value)}
-          className="px-3 py-1.5 bg-card border border-border rounded-xl text-xs font-semibold text-foreground focus:border-primary outline-none"
-        >
-          <option value="All">All Time</option>
-          <option value="Today">Today</option>
-          <option value="Yesterday">Yesterday</option>
-        </select>
+          <select
+            value={dateRangeFilter}
+            onChange={(e) => setDateRangeFilter(e.target.value)}
+            className="h-[38px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] rounded-[11px] text-[12px] font-bold text-[#17202A] dark:text-[#F2F4F7] outline-none cursor-pointer shrink-0"
+          >
+            <option value="All">All Time</option>
+            <option value="Today">Today</option>
+            <option value="Yesterday">Yesterday</option>
+          </select>
+        </div>
       </div>
 
       {error && (
-        <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-500 text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+        <div className="p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-[12px] text-rose-600 dark:text-rose-400 text-[12.5px] font-medium flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={fetchTimeline}
+            className="px-3 py-1 bg-rose-600 text-white rounded-[8px] text-[11px] font-bold cursor-pointer"
+          >
+            Retry
+          </button>
         </div>
       )}
 
-      {/* Main Timeline Stream Grouped by Date */}
+      {/* TIMELINE EVENT STREAM */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        <div className="p-12 text-center space-y-3 rounded-[16px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36]">
+          <Loader2 className="w-6 h-6 animate-spin text-[#B28D18] dark:text-[#C9A52A] mx-auto" />
+          <span className="text-[13px] font-medium text-[#667085] dark:text-[#8B95A5]">Loading activity...</span>
         </div>
       ) : Object.keys(groupedEvents).length === 0 ? (
-        <div className="text-center py-16 p-6 border border-border rounded-2xl bg-card space-y-2">
-          <History className="w-8 h-8 text-muted-foreground/40 mx-auto" />
-          <p className="text-xs font-bold text-foreground">No execution activity found</p>
-          <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
-            Organization execution history will populate automatically as projects, tasks, approvals, and automation events occur.
-          </p>
+        <div className="p-12 text-center space-y-3 rounded-[16px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36]">
+          <History className="w-8 h-8 text-[#667085] dark:text-[#8B95A5]/40 mx-auto" />
+          <div className="space-y-1">
+            <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">No activity yet</h3>
+            <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5] max-w-sm mx-auto leading-relaxed">
+              Your organization's execution history will appear here as work happens.
+            </p>
+          </div>
         </div>
       ) : (
         <div className="space-y-6">
           {Object.entries(groupedEvents).map(([dateGroup, groupItems]) => (
             <div key={dateGroup} className="space-y-3">
-              {/* Date Group Heading */}
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-primary px-2.5 py-0.5 bg-primary/10 border border-primary/20 rounded-md">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#B28D18] dark:text-[#C9A52A] px-2.5 py-0.5 bg-[#B28D18]/10 dark:bg-[#C9A52A]/10 border border-[#B28D18]/20 dark:border-[#C9A52A]/20 rounded-md">
                   {dateGroup}
                 </span>
-                <div className="flex-1 h-px bg-border/60" />
+                <div className="flex-1 h-px bg-[#E5E7EB] dark:bg-[#272D36]" />
               </div>
 
-              {/* Group Events */}
-              <div className="relative pl-4 space-y-2.5 border-l border-border/60 ml-2.5">
+              <div className="relative pl-4 space-y-2.5 border-l border-[#E5E7EB] dark:border-[#272D36] ml-2.5">
                 {groupItems.map((ev, i) => (
                   <motion.div
                     key={ev.id || i}
                     initial={{ opacity: 0, x: -6 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.02 }}
+                    transition={{ delay: i * 0.015 }}
                   >
-                    <PremiumCard
+                    <div
                       onClick={() => setSelectedEvent(ev)}
-                      className="p-3 hover:border-primary/40 transition-colors cursor-pointer group"
+                      className="p-3.5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] hover:border-[#B28D18] dark:hover:border-[#C9A52A] transition-colors cursor-pointer space-y-2 shadow-xs group"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3 min-w-0 flex-1">
-                          {/* Event Icon */}
-                          <div className="w-8 h-8 rounded-lg bg-card border border-border flex items-center justify-center shrink-0 mt-0.5">
+                          <div className="w-8 h-8 rounded-[9px] bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] flex items-center justify-center shrink-0 mt-0.5">
                             {categoryIcon(ev.category)}
                           </div>
 
-                          <div className="space-y-1 min-w-0 flex-1">
+                          <div className="space-y-0.5 min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
+                              <h4 className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] group-hover:text-[#B28D18] dark:group-hover:text-[#C9A52A] transition-colors">
                                 {ev.title}
-                              </span>
-                              <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border ${categoryBadgeClass(ev.category)}`}>
+                              </h4>
+                              <span className={`text-[9.5px] font-extrabold uppercase px-2 py-0.5 rounded border ${categoryBadgeClass(ev.category)}`}>
                                 {ev.category}
                               </span>
                             </div>
 
-                            <p className="text-xs text-foreground/90 font-medium line-clamp-2">
+                            <p className="text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] font-medium truncate">
                               {ev.details}
                             </p>
 
-                            <div className="flex items-center gap-3 text-[11px] text-muted-foreground pt-0.5 flex-wrap">
-                              <span className="flex items-center gap-1 font-semibold text-foreground">
-                                <User className="w-3 h-3 text-primary" /> {ev.actor.name}
+                            <div className="flex items-center gap-3 text-[11.5px] text-[#667085] dark:text-[#8B95A5] pt-0.5">
+                              <span className="flex items-center gap-1 font-semibold text-[#17202A] dark:text-[#F2F4F7]">
+                                <User className="w-3 h-3 text-[#B28D18] dark:text-[#C9A52A]" /> {ev.actor.name}
                               </span>
-                              <span className="flex items-center gap-1 font-mono">
-                                <Clock className="w-3 h-3" /> {timeAgo(ev.createdAt)}
+                              <span>·</span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> {formatRelativeTime(ev.createdAt)}
                               </span>
                             </div>
                           </div>
                         </div>
-
-                        <span className="text-[10px] text-muted-foreground shrink-0 font-mono hidden sm:inline-block">
-                          {new Date(ev.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </span>
                       </div>
-                    </PremiumCard>
+                    </div>
                   </motion.div>
                 ))}
               </div>
@@ -272,76 +436,72 @@ export default function CEOTimelinePage() {
         </div>
       )}
 
-      {/* Slide-over Side Drawer for Event Details */}
+      {/* EVENT DETAILS SIDE DRAWER */}
       <AnimatePresence>
         {selectedEvent && (
-          <div className="fixed inset-0 z-50 flex justify-end bg-background/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs">
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="w-full max-w-md bg-card border-l border-border h-full shadow-2xl flex flex-col p-6 space-y-5"
+              className="w-full max-w-md bg-[#FFFFFF] dark:bg-[#15191F] border-l border-[#E5E7EB] dark:border-[#272D36] h-full shadow-2xl flex flex-col p-5 space-y-5"
             >
-              <div className="flex items-center justify-between border-b border-border pb-4">
+              <div className="flex items-center justify-between border-b border-[#E5E7EB] dark:border-[#272D36] pb-3.5">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 text-primary flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-[9px] bg-[#B28D18]/10 dark:bg-[#C9A52A]/10 text-[#B28D18] dark:text-[#C9A52A] flex items-center justify-center">
                     {categoryIcon(selectedEvent.category)}
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-foreground">{selectedEvent.title}</h3>
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">{selectedEvent.category} Event</p>
+                    <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">{selectedEvent.title}</h3>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-[#667085] dark:text-[#8B95A5]">{selectedEvent.category} Event</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setSelectedEvent(null)}
-                  className="p-1 text-muted-foreground hover:text-foreground rounded-lg"
+                  className="p-1.5 text-[#667085] dark:text-[#8B95A5] hover:text-[#17202A] dark:hover:text-[#F2F4F7] rounded-lg cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="space-y-4 flex-1 overflow-y-auto">
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground block mb-1">
-                    Actor / Responsible User
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-[#667085] dark:text-[#8B95A5] block">
+                    User / Actor
                   </label>
-                  <div className="flex items-center gap-2.5 p-2.5 bg-background border border-border rounded-xl">
-                    <div className="w-7 h-7 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
-                      {selectedEvent.actor.name.charAt(0)}
+                  <div className="flex items-center gap-2.5 p-3 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[12px]">
+                    <div className="w-7 h-7 rounded-full bg-[#B28D18]/10 dark:bg-[#C9A52A]/10 text-[#B28D18] dark:text-[#C9A52A] font-bold text-xs flex items-center justify-center">
+                      {selectedEvent.actor.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-foreground">{selectedEvent.actor.name}</p>
-                      {selectedEvent.actor.email && <p className="text-[10px] text-muted-foreground">{selectedEvent.actor.email}</p>}
+                      <p className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7]">{selectedEvent.actor.name}</p>
+                      {selectedEvent.actor.email && <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">{selectedEvent.actor.email}</p>}
                     </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground block mb-1">
-                    Event Details & Context
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-[#667085] dark:text-[#8B95A5] block">
+                    Activity Context
                   </label>
-                  <div className="p-3 bg-background border border-border rounded-xl text-xs text-foreground font-medium leading-relaxed">
+                  <div className="p-3.5 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[12px] text-[13px] text-[#17202A] dark:text-[#F2F4F7] font-medium leading-relaxed">
                     {selectedEvent.details}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2.5 bg-background border border-border rounded-xl">
-                    <span className="text-[9px] font-bold uppercase text-muted-foreground block">Relative Time</span>
-                    <span className="font-semibold text-foreground">{timeAgo(selectedEvent.createdAt)}</span>
-                  </div>
-                  <div className="p-2.5 bg-background border border-border rounded-xl">
-                    <span className="text-[9px] font-bold uppercase text-muted-foreground block">Exact Timestamp</span>
-                    <span className="font-mono text-[11px] text-foreground">{new Date(selectedEvent.createdAt).toLocaleString()}</span>
-                  </div>
+                <div className="p-3 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[12px] space-y-1">
+                  <span className="text-[11px] font-bold uppercase text-[#667085] dark:text-[#8B95A5] block">Time</span>
+                  <span className="font-semibold text-[13px] text-[#17202A] dark:text-[#F2F4F7]">
+                    {formatRelativeTime(selectedEvent.createdAt)}
+                  </span>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-border flex justify-end">
+              <div className="pt-3 border-t border-[#E5E7EB] dark:border-[#272D36] flex justify-end">
                 <button
                   onClick={() => setSelectedEvent(null)}
-                  className="px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-xl"
+                  className="px-4 py-2 bg-[#B28D18] dark:bg-[#C9A52A] text-white dark:text-[#0B0D10] text-[12.5px] font-bold rounded-[10px] cursor-pointer"
                 >
                   Close Details
                 </button>

@@ -24,7 +24,9 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
-  UserIcon
+  UserIcon,
+  Mail,
+  MailCheck
 } from "lucide-react";
 import apiClient from "../../lib/api-client";
 import { useAuth } from "./auth-context";
@@ -49,6 +51,7 @@ export type AuthState =
   | "ACCOUNT_NOT_FOUND"
   | "OTP_VERIFICATION"
   | "PASSWORD_CREATION"
+  | "PASSWORD_CHANGE_REQUIRED"
   | "PASSWORD"
   | "FORGOT_PASSWORD"
   | "RESET_PASSWORD"
@@ -61,10 +64,10 @@ export type AuthState =
   | "ERROR";
 
 const fadeSlideProps = {
-  initial: { opacity: 0, x: 20 },
-  animate: { opacity: 1, x: 0 },
-  exit: { opacity: 0, x: -20 },
-  transition: { type: "spring" as const, stiffness: 300, damping: 30 }
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.16, ease: "easeOut" as const }
 };
 
 const ParticleBurst = () => null;
@@ -153,14 +156,14 @@ function CustomTimeZoneCombobox({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full h-[52px] rounded-xl bg-[#111419] border ${
-          isOpen ? "border-[#D7B33A]" : "border-[#282E36]"
-        } px-4 text-xs font-medium text-[#F3F4F6] flex items-center justify-between outline-none transition-all cursor-pointer shadow-inner`}
+        className={`w-full h-[52px] rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border ${
+          isOpen ? "border-[#B99625] dark:border-[#D7B33A]" : "border-[#D9DDE3] dark:border-[#282E36]"
+        } px-4 text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] flex items-center justify-between outline-none transition-all cursor-pointer shadow-inner`}
       >
         <span className="truncate">{value || "Asia/Kolkata"}</span>
         <ChevronDown
-          className={`w-4 h-4 text-[#8B93A0] transition-transform duration-200 ${
-            isOpen ? "rotate-180 text-[#D7B33A]" : ""
+          className={`w-4 h-4 text-[#69717D] dark:text-[#8B93A0] transition-transform duration-200 ${
+            isOpen ? "rotate-180 text-[#B99625] dark:text-[#D7B33A]" : ""
           }`}
         />
       </button>
@@ -172,15 +175,15 @@ function CustomTimeZoneCombobox({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            className="absolute left-0 right-0 top-[58px] z-50 bg-[#12161C] border border-[#282E36] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[260px] sm:max-h-[300px]"
+            className="absolute left-0 right-0 top-[58px] z-50 bg-[#FFFFFF] dark:bg-[#12161C] border border-[#D9DDE3] dark:border-[#282E36] rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[260px] sm:max-h-[300px]"
           >
-            <div className="p-2 border-b border-[#282E36] bg-[#111419] flex items-center gap-2">
-              <Search className="w-3.5 h-3.5 text-[#8B93A0] ml-2 shrink-0" />
+            <div className="p-2 border-b border-[#D9DDE3] dark:border-[#282E36] bg-[#F7F7F5] dark:bg-[#111419] flex items-center gap-2">
+              <Search className="w-3.5 h-3.5 text-[#69717D] dark:text-[#8B93A0] ml-2 shrink-0" />
               <input
                 ref={searchInputRef}
                 type="text"
                 placeholder="Search time zone..."
-                className="w-full bg-transparent text-xs text-[#F3F4F6] placeholder-[#8B93A0] outline-none py-1.5 px-1"
+                className="w-full bg-transparent text-xs text-[#171A1F] dark:text-[#F3F4F6] placeholder-[#69717D] dark:placeholder-[#8B93A0] outline-none py-1.5 px-1"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -190,7 +193,7 @@ function CustomTimeZoneCombobox({
               {filteredTzs ? (
                 <div className="space-y-0.5">
                   {filteredTzs.length === 0 ? (
-                    <p className="text-xs text-[#8B93A0] p-3 text-center">No timezones found</p>
+                    <p className="text-xs text-[#69717D] dark:text-[#8B93A0] p-3 text-center">No timezones found</p>
                   ) : (
                     filteredTzs.map((tz) => {
                       const isSelected = tz === value;
@@ -204,12 +207,12 @@ function CustomTimeZoneCombobox({
                           }}
                           className={`w-full text-left px-3 py-2 text-xs rounded-lg flex items-center justify-between transition-colors ${
                             isSelected
-                              ? "bg-[#D7B33A]/15 text-[#D7B33A] font-semibold"
-                              : "text-[#F3F4F6] hover:bg-[#1C222B]"
+                              ? "bg-[#B99625]/15 dark:bg-[#D7B33A]/15 text-[#B99625] dark:text-[#D7B33A] font-semibold"
+                              : "text-[#171A1F] dark:text-[#F3F4F6] hover:bg-[#F1F2F4] dark:hover:bg-[#1C222B]"
                           }`}
                         >
                           <span className="truncate">{tz}</span>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-[#D7B33A] shrink-0 ml-2" />}
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[#B99625] dark:text-[#D7B33A] shrink-0 ml-2" />}
                         </button>
                       );
                     })
@@ -314,7 +317,13 @@ export function AuthForm({
   const [orgLoadingStep, setOrgLoadingStep] = useState(0);
   const [userRole, setUserRole] = useState(startingRole);
   const [loadingStep, setLoadingStep] = useState(0);
-  const [countdown, setCountdown] = useState(59);
+  const [countdown, setCountdown] = useState(0);
+  const [resendCount, setResendCount] = useState(0);
+  const [remainingResends, setRemainingResends] = useState(3);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendLimitReached, setResendLimitReached] = useState(false);
+  const [resendToast, setResendToast] = useState<string | null>(null);
+  const [nextResendAt, setNextResendAt] = useState<string | null>(null);
   const [tzOpen, setTzOpen] = useState(false);
   const [tzSearch, setTzSearch] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -331,9 +340,95 @@ export function AuthForm({
       }
     });
   };
+
+  const getInitials = (name?: string) => {
+    const trimmed = (name || "").trim();
+    if (!trimmed) return "•";
+    const parts = trimmed.split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  const [setupRedirectCountdown, setSetupRedirectCountdown] = useState(3);
+  const setupRedirectGuardRef = useRef(false);
+
+  const handleReturnToLogin = () => {
+    if (setupRedirectGuardRef.current && state !== "SETUP_COMPLETE") return;
+    setupRedirectGuardRef.current = true;
+    setTempToken("");
+    setPassword("");
+    setError("");
+    setState("EMAIL_ENTRY");
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("auth_step");
+      url.searchParams.delete("token");
+      url.searchParams.set("activated", "true");
+      window.history.replaceState({}, '', url.pathname + url.search);
+    }
+  };
+
+  useEffect(() => {
+    if (state !== "SETUP_COMPLETE") {
+      setSetupRedirectCountdown(3);
+      setupRedirectGuardRef.current = false;
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setSetupRedirectCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          handleReturnToLogin();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [state]);
   
   const [isGoogleAllowed, setIsGoogleAllowed] = useState(true);
   const [googleSubtext, setGoogleSubtext] = useState<string | undefined>(undefined);
+
+  // Server-authoritative OTP Status Hydration
+  useEffect(() => {
+    if (state === "OTP_VERIFICATION" && email) {
+      let isMounted = true;
+      apiClient.get(`/auth/otp-status?email=${encodeURIComponent(email)}`)
+        .then((res) => {
+          if (!isMounted || !res.data?.success) return;
+          const { resendCount: count, remainingResends: rem, cooldownSeconds, nextResendAt: nextAt } = res.data;
+          setResendCount(count ?? 0);
+          setRemainingResends(rem ?? Math.max(0, 3 - (count ?? 0)));
+          setResendLimitReached((count ?? 0) >= 3);
+          setNextResendAt(nextAt || null);
+
+          if (nextAt) {
+            const remSec = Math.max(0, Math.ceil((new Date(nextAt).getTime() - Date.now()) / 1000));
+            setCountdown(remSec);
+          } else if (cooldownSeconds !== undefined) {
+            setCountdown(cooldownSeconds);
+          }
+        })
+        .catch(() => {});
+      return () => { isMounted = false; };
+    }
+  }, [state, email]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (state === "OTP_VERIFICATION" && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) return 0;
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [state, countdown]);
 
   useEffect(() => {
     // Only check Google availability on primary login screens, never while typing in Forgot Password
@@ -349,11 +444,8 @@ export function AuthForm({
 
     const timer = setTimeout(async () => {
       try {
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
-        const url = `${apiBase.endsWith("/api/v1") ? apiBase : apiBase + "/api/v1"}/auth/check-google-availability?email=${encodeURIComponent(email)}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.allowed === false) {
+        const res = await apiClient.get(`/auth/check-google-availability?email=${encodeURIComponent(email)}`);
+        if (res.data?.allowed === false) {
           setIsGoogleAllowed(false);
           setGoogleSubtext("Google login available after first login");
         } else {
@@ -370,6 +462,9 @@ export function AuthForm({
   }, [email, state]);
 
   useEffect(() => {
+    if (authData?.email) {
+      setEmail((prev) => prev || authData.email || "");
+    }
     if (authData?.error) {
       if (authData.error === "google_cancelled") {
         setError("Google sign-in was cancelled.");
@@ -419,26 +514,21 @@ export function AuthForm({
   }, [state, countdown]);
 
   useEffect(() => {
-    if (state !== "EMAIL_ENTRY" || email.length > 0) {
+    if (state === "OTP_VERIFICATION") {
+      const timer = setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [state]);
+
+  useEffect(() => {
+    if (state !== "EMAIL_ENTRY") {
       setIsDirty(true);
     } else {
       setIsDirty(false);
     }
-  }, [state, email, setIsDirty]);
-
-  const handleResend = async () => {
-    if (countdown > 0) return;
-    setLoading(true);
-    try {
-      await apiClient.post("/auth/login", { email });
-      setCountdown(59);
-      setOtp("");
-    } catch (err: any) {
-      handleError(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [state, setIsDirty]);
 
   const handleOtpChange = (index: number, value: string) => {
     if (value.length > 1) {
@@ -483,11 +573,36 @@ export function AuthForm({
   const handleError = (err: any) => {
     const errCode = err?.response?.data?.code;
     const errStatus = err?.response?.status;
-    const errMsg = err?.response?.data?.error || err?.message;
+    const errMsg = err?.response?.data?.error || err?.response?.data?.details || err?.message;
 
+    if (errCode === "INVALID_EMAIL") {
+      setError("Enter a valid email address.");
+      setLoading(false);
+      return;
+    }
     if (errCode === "ACCOUNT_NOT_FOUND" || errStatus === 404) {
-      setState("ACCOUNT_NOT_FOUND");
-      setError("");
+      setError("We couldn't find an account with this email address.");
+      setLoading(false);
+      return;
+    }
+    if (errCode === "INVALID_PASSWORD" || errStatus === 401) {
+      setPassword(""); // Clear ONLY the password field, keeping email populated
+      setError(err?.response?.data?.details || "The password you entered is incorrect.");
+      setLoading(false);
+      return;
+    }
+    if (errCode === "ACCOUNT_SUSPENDED" || errStatus === 403) {
+      setError("Your ManMadhan Progress account has been suspended.");
+      setLoading(false);
+      return;
+    }
+    if (errCode === "ACCOUNT_DELETED") {
+      setError("This account is no longer available.");
+      setLoading(false);
+      return;
+    }
+    if (errCode === "ACCOUNT_PENDING_SETUP") {
+      setError("Your organization invitation is waiting for you. Complete your account setup.");
       setLoading(false);
       return;
     }
@@ -541,6 +656,60 @@ export function AuthForm({
     await verifyOtp(otp);
   };
 
+  const handleResend = async () => {
+    if (resendLoading || countdown > 0 || resendCount >= 3 || !email) return;
+    setResendLoading(true);
+    setError("");
+    setResendToast(null);
+    try {
+      const purpose = state === "FORGOT_PASSWORD" ? "reset_password" : "login";
+      const res = await apiClient.post("/auth/resend-otp", { email, purpose });
+
+      if (res.data?.success) {
+        setOtp("");
+        otpAutoSubmitRef.current = false;
+        inputRefs.current[0]?.focus();
+
+        const newResendCount = res.data.resendCount ?? (resendCount + 1);
+        const newRemaining = res.data.remainingResends ?? Math.max(0, 3 - newResendCount);
+        const newCooldown = res.data.cooldownSeconds ?? 60;
+
+        setResendCount(newResendCount);
+        setRemainingResends(newRemaining);
+        setCountdown(newCooldown);
+        setNextResendAt(res.data.nextResendAt || null);
+        setResendLimitReached(newResendCount >= 3);
+
+        setResendToast("✓ New verification code sent");
+        setTimeout(() => setResendToast(null), 3500);
+      }
+    } catch (err: any) {
+      const errData = err?.response?.data;
+      const isLimit = errData?.error === "RESEND_LIMIT_REACHED" || err?.response?.status === 429;
+      if (isLimit) {
+        setResendCount(3);
+        setRemainingResends(0);
+        setResendLimitReached(true);
+        setError(errData?.message || "You've reached the maximum number of verification codes.");
+      } else {
+        setError(errData?.message || "Unable to send a new code. Please try again.");
+      }
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
+  const handleRestartVerification = () => {
+    setOtp("");
+    otpAutoSubmitRef.current = false;
+    setError("");
+    setResendCount(0);
+    setRemainingResends(3);
+    setResendLimitReached(false);
+    setCountdown(0);
+    setState("EMAIL_ENTRY");
+  };
+
   useEffect(() => {
     if (state === "OTP_VERIFICATION" && otp.length === 6 && !loading && !otpAutoSubmitRef.current) {
       otpAutoSubmitRef.current = true; // mark as attempted — prevents infinite retry on error
@@ -560,11 +729,11 @@ export function AuthForm({
 
   useEffect(() => {
     if (state !== "RESET_SENT") {
-      setResetSentCountdown(3);
+      setResetSentCountdown(5);
       return;
     }
 
-    setResetSentCountdown(3);
+    setResetSentCountdown(5);
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("authData");
     }
@@ -583,28 +752,35 @@ export function AuthForm({
     return () => clearInterval(interval);
   }, [state]);
 
-
-
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
+    // Inline Email Format Validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email.trim())) {
+      setError("Enter a valid email address.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
-      if (state === "PASSWORD_CREATION") {
+      if (state === "PASSWORD_CREATION" || state === "PASSWORD" || state === "PASSWORD_CHANGE_REQUIRED") {
         const res = await apiClient.post("/auth/setup/password", { password }, {
-          headers: { Authorization: `Bearer ${tempToken}` }
+          headers: tempToken ? { Authorization: `Bearer ${tempToken}` } : {}
         });
-        if (res.data.success) {
+        if (res.data?.success) {
           setLoading(false);
-          setTempToken(res.data.tempToken);
-          setState("PROFILE_SETUP");
+          if (res.data.tempToken) setTempToken(res.data.tempToken);
+          setState((res.data.nextStep as AuthState) || "PROFILE_SETUP");
           setProfileStep(1);
         } else {
           handleError({ response: { data: res.data } });
         }
       } else {
         // Normal password login flow
-        const res = await apiClient.post("/auth/login/password", { email, password });
+        const res = await apiClient.post("/auth/login/password", { email: email.trim(), password });
         if (res.data.success) {
           if (res.data.nextStep === "OTP_VERIFICATION") {
             setLoadingState("SENT");
@@ -627,8 +803,6 @@ export function AuthForm({
               const urlParams = new URLSearchParams(window.location.search);
               const redirectParam = urlParams.get('redirect');
             
-              // Use window.location.href for a hard navigation so the new page
-              // picks up localStorage token cleanly (avoids SPA hydration race)
               setTimeout(() => {
                 if (redirectParam) {
                   window.location.href = redirectParam;
@@ -651,15 +825,14 @@ export function AuthForm({
     e.preventDefault();
     if (!email) return;
     setLoading(true);
+    setLoadingState("SENDING");
     setError("");
     try {
       await apiClient.post("/auth/forgot-password", { email });
-      setLoadingState("SENT");
-      setTimeout(() => {
-        setState("RESET_SENT");
-        setLoadingState("");
-      }, 600);
+      setLoadingState("SUCCESS");
+      setState("RESET_SENT");
     } catch (err: any) {
+      setLoadingState("ERROR");
       handleError(err);
     } finally {
       setLoading(false);
@@ -832,24 +1005,20 @@ export function AuthForm({
     <div className={`w-full relative z-10 flex flex-col items-center ${isMobile ? "" : ""}`}>
       
       {/* Mobile Contextual Auth Heading Area */}
-      {isMobile && (state === "EMAIL_ENTRY" || state === "FORGOT_PASSWORD" || state === "RESET_PASSWORD" || state === "RESET_SENT") && (
+      {isMobile && (state === "EMAIL_ENTRY" || state === "RESET_PASSWORD" || state === "RESET_SENT") && (
         <div className="w-full max-w-[440px] text-left mx-auto mb-6 space-y-1">
-          <h2 className="text-2xl font-bold tracking-tight text-foreground dark:text-[#F5F5F2]">
+          <h2 className="text-2xl font-bold tracking-tight text-foreground dark:text-[#F3FFF0]">
             {state === "EMAIL_ENTRY" 
               ? "Welcome back." 
-              : state === "FORGOT_PASSWORD" 
-              ? "Forgot your password?" 
               : state === "RESET_PASSWORD" 
               ? "Create a new password." 
               : state === "RESET_SENT" 
               ? "Check your inbox." 
               : "Welcome back."}
           </h2>
-          <p className="text-sm text-muted-foreground dark:text-[#9299A8] leading-relaxed">
+          <p className="text-sm text-muted-foreground dark:text-[#8E949E] leading-relaxed">
             {state === "EMAIL_ENTRY" ? (
               "Sign in to continue your progress."
-            ) : state === "FORGOT_PASSWORD" ? (
-              "No worries. Enter your email and we'll help you reset it."
             ) : state === "RESET_PASSWORD" ? (
               "Choose a strong password to secure your account."
             ) : state === "RESET_SENT" ? (
@@ -861,24 +1030,20 @@ export function AuthForm({
         </div>
       )}
 
-      {/* Dynamic Header Section for sub-steps (Forgot Password, Reset Password, Reset Sent) */}
-      {!isMobile && (state === "FORGOT_PASSWORD" || state === "RESET_PASSWORD" || state === "RESET_SENT") && (
+      {/* Dynamic Header Section for sub-steps (Reset Password, Reset Sent) */}
+      {!isMobile && (state === "RESET_PASSWORD" || state === "RESET_SENT") && (
         <div className="mb-5 text-center space-y-1 flex flex-col items-center max-w-[440px] mx-auto">
-          <p className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-muted-foreground dark:text-[#697180] mb-0.5">
+          <p className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-muted-foreground dark:text-[#626A75] mb-0.5">
             ACCOUNT RECOVERY
           </p>
-          <h2 className="text-xl font-bold tracking-tight text-foreground dark:text-[#F5F5F2]">
+          <h2 className="text-xl font-bold tracking-tight text-foreground dark:text-[#F3FFF0]">
             {state === "RESET_PASSWORD" 
               ? "Secure Password Reset" 
-              : state === "FORGOT_PASSWORD" 
-              ? "Reset your password" 
               : "Check your inbox"}
           </h2>
-          <p className="mt-1 text-xs text-muted-foreground dark:text-[#9299A8]">
+          <p className="mt-1 text-xs text-muted-foreground dark:text-[#8E949E]">
             {state === "RESET_PASSWORD" ? (
               "Please establish a new secure master password below."
-            ) : state === "FORGOT_PASSWORD" ? (
-              "Enter your email address and we'll send you a secure link to create a new password."
             ) : state === "RESET_SENT" ? (
               "Check your email for reset instructions."
             ) : (
@@ -937,14 +1102,14 @@ export function AuthForm({
               
               {/* 2. Refined Divider (24px bottom gap) */}
               <div className="flex items-center mb-[24px]">
-                <div className="flex-1 h-px bg-border dark:bg-[#282E38]"></div>
-                <span className="px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground dark:text-[#697180]">
+                <div className="flex-1 h-px bg-[#E5E7EB] dark:bg-[#29313B]"></div>
+                <span className="px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-[#6B7280] dark:text-[#747D8B]">
                   OR CONTINUE WITH EMAIL
                 </span>
-                <div className="flex-1 h-px bg-border dark:bg-[#282E38]"></div>
+                <div className="flex-1 h-px bg-[#E5E7EB] dark:bg-[#29313B]"></div>
               </div>
 
-              {/* 3. Input Fields (14px spacing, 56px height, 14px radius, #151920 surface) */}
+              {/* 3. Input Fields (14px spacing, 56px height, 14px radius, theme-aware surface) */}
               <div className="space-y-[14px]">
                 <div className="relative group">
                   <input
@@ -953,7 +1118,7 @@ export function AuthForm({
                     disabled={loadingState !== ""}
                     placeholder="Work email"
                     enterKeyHint="next"
-                    className="w-full h-[56px] rounded-[14px] bg-background/60 dark:bg-[#151920] border border-border dark:border-[#282E38] px-4 text-sm text-foreground dark:text-[#F5F5F2] placeholder:text-muted-foreground dark:placeholder:text-[#7F8796] outline-none focus:outline-none focus:ring-0 focus:border-border-focus dark:focus:border-[#D4AF37] transition-all duration-200 shadow-xs peer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full h-[56px] rounded-[14px] bg-[#FFFFFF] dark:bg-[#151A22] border border-[#D9DDE3] dark:border-[#29313B] px-4 text-sm text-[#171A1F] dark:text-[#F3FFF0] placeholder:text-[#9CA3AF] dark:placeholder:text-[#7F8896] outline-none focus:outline-none focus:ring-0 focus:border-[#B99625] dark:focus:border-[#DDB52F] transition-all duration-200 shadow-xs peer disabled:bg-[#F3F4F6] dark:disabled:bg-[#10141A] disabled:border-[#E5E7EB] dark:disabled:border-[#222831] disabled:text-[#9CA3AF] dark:disabled:text-[#606977] disabled:cursor-not-allowed"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="off"
@@ -967,7 +1132,7 @@ export function AuthForm({
                     disabled={loadingState !== ""}
                     placeholder="Password"
                     enterKeyHint="go"
-                    className="w-full h-[56px] rounded-[14px] bg-background/60 dark:bg-[#151920] border border-border dark:border-[#282E38] px-4 pr-12 text-sm text-foreground dark:text-[#F5F5F2] placeholder:text-muted-foreground dark:placeholder:text-[#7F8796] outline-none focus:outline-none focus:ring-0 focus:border-border-focus dark:focus:border-[#D4AF37] transition-all duration-200 shadow-xs peer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full h-[56px] rounded-[14px] bg-[#FFFFFF] dark:bg-[#151A22] border border-[#D9DDE3] dark:border-[#29313B] px-4 pr-12 text-sm text-[#171A1F] dark:text-[#F3FFF0] placeholder:text-[#9CA3AF] dark:placeholder:text-[#7F8896] outline-none focus:outline-none focus:ring-0 focus:border-[#B99625] dark:focus:border-[#DDB52F] transition-all duration-200 shadow-xs peer disabled:bg-[#F3F4F6] dark:disabled:bg-[#10141A] disabled:border-[#E5E7EB] dark:disabled:border-[#222831] disabled:text-[#9CA3AF] dark:disabled:text-[#606977] disabled:cursor-not-allowed"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="new-password"
@@ -978,9 +1143,9 @@ export function AuthForm({
                     onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={showPassword ? "Hide password" : "Show password"}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground dark:text-[#697180] hover:text-foreground dark:hover:text-[#9299A8] active:text-[#D4AF37] dark:active:text-[#D4AF37] cursor-pointer rounded-md p-1 outline-none select-none flex items-center justify-center transition-colors"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#69717D] dark:text-[#7F8896] hover:text-[#B99625] dark:hover:text-[#DDB52F] active:text-[#B99625] dark:active:text-[#DDB52F] cursor-pointer rounded-md p-1 outline-none select-none flex items-center justify-center transition-colors"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4 text-[#D4AF37]" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? <EyeOff className="w-4 h-4 text-[#B99625] dark:text-[#DDB52F]" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
@@ -991,7 +1156,7 @@ export function AuthForm({
                   type="button"
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={() => setState("FORGOT_PASSWORD")}
-                  className="text-xs font-semibold text-muted-foreground dark:text-[#9299A8] hover:text-foreground dark:hover:text-[#D4AF37] transition-colors hover:underline decoration-border dark:decoration-[#282E38] underline-offset-4 cursor-pointer"
+                  className="text-xs font-semibold text-[#69717D] dark:text-[#8D96A5] hover:text-[#B99625] dark:hover:text-[#DDB52F] active:text-[#A68520] dark:active:text-[#E8C54A] transition-colors hover:underline decoration-[#D9DDE3] dark:decoration-[#29313B] underline-offset-4 cursor-pointer"
                 >
                   Forgot password?
                 </button>
@@ -1003,22 +1168,22 @@ export function AuthForm({
                 whileHover={loading ? {} : { scale: 1.005 }}
                 whileTap={loading ? {} : { scale: 0.99 }}
                 disabled={loading}
-                className="w-full h-[56px] rounded-[14px] bg-[#D4AF37] hover:bg-[#E5C158] active:bg-[#C49F2B] text-[#0B0D11] font-bold text-sm flex items-center justify-center transition-all duration-200 disabled:bg-[#1C212B] disabled:text-[#697180] disabled:cursor-not-allowed shadow-sm group cursor-pointer"
+                className="w-full h-[56px] rounded-[14px] bg-[#B99625] dark:bg-[#DDB52F] hover:bg-[#A68520] dark:hover:bg-[#E8C54A] active:bg-[#96791E] dark:active:bg-[#C9A224] text-[#FFFFFF] dark:text-[#080A0D] font-semibold text-sm flex items-center justify-center transition-all duration-200 disabled:bg-[#E5E1D2] dark:disabled:bg-[#10141A] disabled:border disabled:border-[#D9DDE3] dark:disabled:border-[#222831] disabled:text-[#92908A] dark:disabled:text-[#666D78] disabled:cursor-not-allowed shadow-sm group cursor-pointer"
               >
                 {loading ? (
                   <>
-                    <Loader2 className="animate-spin h-5 w-5 mr-2 text-[#0B0D11]" />
+                    <Loader2 className="animate-spin h-5 w-5 mr-2 text-current" />
                     <span>Signing in...</span>
                   </>
                 ) : loadingState === "SENT" ? (
                   <>
-                    <CheckCircle2 className="h-5 w-5 mr-2 text-[#0B0D11]" />
+                    <CheckCircle2 className="h-5 w-5 mr-2 text-current" />
                     <span>Code sent successfully</span>
                   </>
                 ) : (
                   <>
                     <span className="mr-2">Sign In</span>
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 text-[#0B0D11]" />
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 text-current" />
                   </>
                 )}
               </motion.button>
@@ -1034,35 +1199,55 @@ export function AuthForm({
               <div className="space-y-4">
                 {/* Quiet Step Header */}
                 <div>
-                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase pb-1">
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#7F8896] uppercase pb-1">
                     <span>ACCOUNT</span>
                   </div>
-                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
+                  <div className="w-full h-[1px] bg-[#20262F]" />
                 </div>
 
                 {/* Heading & Subtitle */}
                 <div className="space-y-1">
-                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#F3FFF0] tracking-tight leading-tight">
                     Account not found
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0] leading-relaxed">
+                  <p className="text-xs sm:text-sm text-[#9AA2AF] leading-relaxed">
                     We couldn't find an authorized account for this email.
                   </p>
                 </div>
 
-                {/* Masked Email Badge */}
-                <div className="p-3.5 rounded-xl bg-[#F1F2F4] dark:bg-[#171B21] border border-[#D9DDE3] dark:border-[#282E36] flex items-center justify-between shadow-xs">
-                  <span className="text-xs font-mono font-semibold text-[#171A1F] dark:text-[#F3F4F6]">{obfuscatedEmail || email}</span>
-                  <span className="px-2 py-0.5 rounded bg-[#E5E7EB] dark:bg-[#282E36] text-[10px] font-mono font-semibold text-[#69717D] dark:text-[#767E8C] uppercase">Unregistered</span>
+                {/* Masked Email Badge / Status Card */}
+                <div className="p-3.5 rounded-xl bg-[#151A22] border border-[#29313B] flex items-center justify-between shadow-xs">
+                  <span className="text-xs font-mono font-semibold text-[#F3FFF0] truncate mr-2">{obfuscatedEmail || email}</span>
+                  <span className="px-2 py-0.5 rounded bg-[#202731] border border-[#29313B] text-[10px] font-mono font-semibold text-[#8F98A5] uppercase shrink-0">UNREGISTERED</span>
                 </div>
 
-                <p className="text-xs text-[#69717D] dark:text-[#767E8C]">
+                <p className="text-xs text-[#9AA2AF]">
                   This account isn't ready for ManMadhan Progress yet.
                 </p>
               </div>
 
-              {/* Actions */}
-              <div className="pt-4 space-y-3">
+              {/* Actions Grid: LEFT = ← Back to sign in (Secondary), RIGHT = Try another account → (Primary) */}
+              <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPassword("");
+                    setError("");
+                    setState("EMAIL_ENTRY");
+                    if (typeof window !== "undefined") {
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete("auth_step");
+                      url.searchParams.delete("token");
+                      url.searchParams.delete("error");
+                      window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+                    }
+                  }}
+                  className="w-full h-[56px] rounded-[14px] bg-[#151A22] border border-[#29313B] text-[#9AA2AF] hover:bg-[#1B212A] hover:border-[#3A4350] hover:text-[#F3FFF0] font-semibold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer group"
+                >
+                  <ArrowLeft className="mr-2 w-4 h-4 text-current transition-transform group-hover:-translate-x-1" />
+                  Back to sign in
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -1078,28 +1263,10 @@ export function AuthForm({
                       window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
                     }
                   }}
-                  className="w-full h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all shadow-sm rounded-xl cursor-pointer group"
+                  className="w-full h-[56px] rounded-[14px] bg-[#DDB52F] hover:bg-[#E8C54A] active:bg-[#C9A224] text-[#080A0D] font-bold text-xs sm:text-sm flex items-center justify-center transition-all shadow-sm cursor-pointer group"
                 >
-                  Try another account <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" />
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPassword("");
-                    setError("");
-                    setState("EMAIL_ENTRY");
-                    if (typeof window !== "undefined") {
-                      const url = new URL(window.location.href);
-                      url.searchParams.delete("auth_step");
-                      url.searchParams.delete("token");
-                      url.searchParams.delete("error");
-                      window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
-                    }
-                  }}
-                  className="w-full text-center text-xs font-semibold text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-colors py-1 cursor-pointer"
-                >
-                  Back to sign in
+                  Try another account
+                  <ArrowRight className="ml-2 w-4 h-4 text-[#080A0D] group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>
             </motion.div>
@@ -1113,45 +1280,77 @@ export function AuthForm({
                 {/* Step Indicator */}
                 <div>
                   <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase mb-1">
-                    <span>VERIFY IDENTITY</span>
+                    <span>IDENTITY VERIFICATION CORE</span>
                     <span>02 / 07</span>
                   </div>
                   <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
                 </div>
 
-                {/* Heading */}
-                <div className="space-y-1 pt-1">
+                {/* 3D Identity Verification Core Emblem */}
+                <div className="text-center">
+                  <Otp3DObject
+                    state={
+                      resendLoading
+                        ? "SENDING_EMAIL"
+                        : loading
+                        ? "VERIFYING"
+                        : error
+                        ? "ERROR"
+                        : otp.length === 6
+                        ? "SUCCESS"
+                        : "IDLE"
+                    }
+                    otpLength={otp.length}
+                  />
+                </div>
+
+                {/* Heading & Description */}
+                <div className="space-y-1 text-center pt-1">
                   <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
                     Verify your identity
                   </h3>
                   <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0]">
-                    We've sent a 6-digit verification code to
+                    We've sent a 6-digit security verification code to
                   </p>
                 </div>
 
-                {/* Email Pill */}
-                <div className="p-2.5 sm:p-3 rounded-xl bg-[#F1F2F4] dark:bg-[#171B21] border border-[#D9DDE3] dark:border-[#282E36] flex items-center justify-between">
+                {/* Masked Email Capsule */}
+                <div className="max-w-xs mx-auto p-2.5 sm:p-3 rounded-xl bg-[#F1F2F4] dark:bg-[#171B21] border border-[#D9DDE3] dark:border-[#282E36] flex items-center justify-between shadow-xs">
                   <span className="text-xs font-mono text-[#171A1F] dark:text-[#F3F4F6] font-semibold truncate pr-2">
                     {obfuscatedEmail || email}
                   </span>
                   <button
                     type="button"
-                    onClick={() => { setState("EMAIL_ENTRY"); setOtp(""); }}
-                    className="w-8 h-8 rounded-lg bg-[#FFFFFF] dark:bg-[#1F2530] hover:bg-[#E5E7EB] dark:hover:bg-[#28303F] text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-all border border-[#D9DDE3] dark:border-[#2D3544] flex items-center justify-center cursor-pointer shrink-0"
-                    title="Edit Email"
+                    onClick={handleRestartVerification}
+                    className="w-7 h-7 rounded-lg bg-[#FFFFFF] dark:bg-[#1F2530] hover:bg-[#E5E7EB] dark:hover:bg-[#28303F] text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-all border border-[#D9DDE3] dark:border-[#2D3544] flex items-center justify-center cursor-pointer shrink-0"
+                    title="Change Email"
                   >
                     <Edit2 className="w-3.5 h-3.5 text-[#B99625] dark:text-[#D7B33A]" />
                   </button>
                 </div>
 
+                {/* Subtle Resend Success Toast */}
+                {resendToast && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="max-w-xs mx-auto text-center px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold"
+                  >
+                    {resendToast}
+                  </motion.div>
+                )}
+
                 {/* OTP Input Slots */}
-                <div className="flex justify-between sm:justify-center gap-1.5 sm:gap-2.5 w-full max-w-xs mx-auto pt-2">
+                <div className="flex justify-center gap-1.5 sm:gap-2.5 w-full max-w-xs mx-auto pt-2">
                   {Array.from({ length: 6 }).map((_, i) => {
                     const digit = otp.split("")[i] || "";
+                    const isFilled = digit.length > 0;
                     return (
                       <motion.div
                         key={i}
-                        animate={error ? { x: [0, -4, 4, -4, 4, 0] } : {}}
+                        animate={error ? { x: [0, -6, 6, -4, 4, 0] } : isFilled ? { scale: [1, 1.05, 1] } : {}}
+                        transition={{ duration: 0.15, ease: "easeInOut" }}
                         className="relative flex-shrink-0"
                       >
                         <input
@@ -1160,121 +1359,172 @@ export function AuthForm({
                           maxLength={6}
                           inputMode="numeric"
                           pattern="[0-9]*"
-                          className="w-[42px] h-[48px] sm:w-[48px] sm:h-[54px] rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] focus:border-[#B99625] dark:focus:border-[#D7B33A] focus:bg-[#FFFDF5] dark:focus:bg-[#15191F] text-center text-lg sm:text-xl font-bold font-mono text-[#171A1F] dark:text-[#F3F4F6] outline-none transition-all duration-150 shadow-xs"
+                          className={`w-[42px] h-[48px] sm:w-[48px] sm:h-[54px] rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border ${
+                            isFilled
+                              ? "border-[#D7B33A] bg-[#FFFDF5] dark:bg-[#161A22] shadow-[0_0_12px_rgba(215,179,58,0.15)]"
+                              : "border-[#D9DDE3] dark:border-[#282E36]"
+                          } focus:border-[#D7B33A] focus:bg-[#FFFDF5] dark:focus:bg-[#161A22] text-center text-lg sm:text-xl font-bold font-mono text-[#171A1F] dark:text-[#F3F4F6] outline-none transition-all duration-150 shadow-xs`}
                           value={digit}
                           onChange={(e) => handleOtpChange(i, e.target.value)}
                           onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                          autoFocus={i === 0}
-                          disabled={loading || countdown === 0}
+                          disabled={loading || resendLimitReached}
                         />
                       </motion.div>
                     );
                   })}
                 </div>
 
-                {/* Timer & Resend */}
-                <div className="text-center pt-1">
-                  {countdown > 0 ? (
-                    <p className="text-xs text-[#69717D] dark:text-[#8B93A0]">
-                      Resend available in <span className="font-mono font-semibold text-[#171A1F] dark:text-[#F3F4F6]">00:{countdown.toString().padStart(2, '0')}</span>
-                    </p>
+                {/* 6-Dot Verification Progress Indicator */}
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                        i < otp.length
+                          ? "bg-[#D7B33A] scale-110 shadow-[0_0_6px_rgba(215,179,58,0.5)]"
+                          : "bg-[#D9DDE3] dark:bg-[#282E36]"
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                {/* Timer, Resend, or Resend Limit Reached UI */}
+                <div className="text-center pt-1 space-y-1.5">
+                  {resendLimitReached ? (
+                    <div className="max-w-xs mx-auto p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-1">
+                      <p className="font-bold uppercase tracking-wider text-[11px] text-amber-400">RESEND LIMIT REACHED</p>
+                      <p className="text-[11px] leading-relaxed text-amber-200/90">
+                        You've reached the maximum number of verification codes for this session. Please restart verification to receive a new code.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleRestartVerification}
+                        className="mt-1 text-xs font-bold text-[#D7B33A] hover:underline cursor-pointer inline-flex items-center gap-1"
+                      >
+                        Restart verification →
+                      </button>
+                    </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={handleResend}
-                      className="text-xs font-semibold text-[#B99625] dark:text-[#D7B33A] hover:underline flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" /> Resend code
-                    </button>
+                    <>
+                      {countdown > 0 ? (
+                        <p className="text-xs text-[#69717D] dark:text-[#8B93A0]">
+                          Resend available in <span className="font-mono font-semibold text-[#171A1F] dark:text-[#F3F4F6]">00:{countdown.toString().padStart(2, '0')}</span>
+                        </p>
+                      ) : resendLoading ? (
+                        <p className="text-xs text-[#D7B33A] flex items-center justify-center gap-1.5 font-semibold">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending new code...
+                        </p>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleResend}
+                          disabled={resendLoading || countdown > 0 || resendLimitReached}
+                          className="text-xs font-semibold text-[#B99625] dark:text-[#D7B33A] hover:underline flex items-center justify-center gap-1.5 mx-auto cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" /> Resend code →
+                        </button>
+                      )}
+                      <p className="text-[11px] font-mono text-[#69717D] dark:text-[#767E8C]">
+                        Resends remaining: <span className="font-semibold text-[#171A1F] dark:text-[#F3F4F6]">{remainingResends}</span>
+                      </p>
+                    </>
                   )}
                 </div>
               </div>
 
-              {/* Verify Button (Mobile-First Full Width, Anchored) */}
-              <div className="pt-4 flex items-center justify-between gap-3">
+              {/* 2-Column Action Grid ([← Back to sign in] vs [Verify code →]) */}
+              <div className="pt-4 grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setState("EMAIL_ENTRY")}
-                  className="text-xs font-semibold text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-colors px-1 py-2 cursor-pointer"
+                  onClick={handleRestartVerification}
+                  className="h-11 px-4 rounded-xl bg-[#F1F2F4] dark:bg-[#161B22] border border-[#D9DDE3] dark:border-[#252B35] text-xs font-semibold text-[#171A1F] dark:text-[#F3FFF0] hover:bg-[#E5E7EB] dark:hover:bg-[#1F2633] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  Back
+                  <ArrowLeft className="w-3.5 h-3.5 text-[#8E949E]" />
+                  <span>Back to sign in</span>
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || otp.length < 6 || countdown === 0}
-                  className="flex-1 sm:flex-initial sm:w-[160px] h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all disabled:bg-[#E5E1D2] dark:disabled:bg-[#332F24] disabled:text-[#92908A] dark:disabled:text-[#77736A] shadow-sm rounded-xl cursor-pointer group"
+                  disabled={loading || otp.length < 6 || resendLimitReached}
+                  className="h-11 px-4 rounded-xl bg-[#D4AF37] hover:bg-[#E3C45A] active:bg-[#B99524] text-[#0E1117] font-bold text-xs flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm cursor-pointer group"
                 >
                   {loading ? (
-                    <Loader2 className="animate-spin h-4 w-4 text-current" />
+                    <>
+                      <Loader2 className="animate-spin h-4 w-4 text-current" />
+                      <span>Verifying...</span>
+                    </>
                   ) : (
-                    <>Verify <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" /></>
+                    <>
+                      <span>Verify code</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-current group-hover:translate-x-0.5 transition-transform" />
+                    </>
                   )}
                 </button>
               </div>
             </motion.form>
-          )}          {state === "PASSWORD_CREATION" && (
+          )}
+
+          {(state === "PASSWORD" || state === "PASSWORD_CREATION" || state === "PASSWORD_CHANGE_REQUIRED") && (
             <motion.form
-              key="password"
+              key="password-setup"
               onSubmit={handlePasswordSubmit}
-              className="w-full max-w-[440px] sm:max-w-[520px] mx-auto relative pb-2 text-left flex flex-col justify-between space-y-4 sm:space-y-5"
+              className="w-full max-w-[440px] sm:max-w-[520px] mx-auto relative text-left flex flex-col justify-between space-y-3 sm:space-y-4"
             >
-              <div className="space-y-3 sm:space-y-4">
+              <div className="space-y-2.5 sm:space-y-3">
                 {/* Step Indicator */}
                 <div>
-                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase mb-1">
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#737B88] uppercase mb-1">
                     <span>CHANGE PASSWORD</span>
                     <span>03 / 07</span>
                   </div>
-                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
+                  <div className="w-full h-[1px] bg-[#20262F]" />
                 </div>
 
                 {/* Heading */}
-                <div className="space-y-1 pt-1">
-                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                <div className="space-y-0.5 pt-0.5">
+                  <h3 className="text-xl sm:text-2xl font-semibold text-[#F3FFF0] tracking-tight leading-tight">
                     Create your new password
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0]">
+                  <p className="text-xs text-[#9AA2AF] leading-relaxed">
                     Your temporary password has been verified. Choose a new password to secure your account.
                   </p>
                 </div>
 
                 {/* Form Controls */}
-                <div className="space-y-3 pt-1">
+                <div className="space-y-2.5 pt-0.5">
                   {/* New password */}
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] block">New password</label>
+                    <label className="text-xs font-medium text-[#F3FFF0] block">New password</label>
                     <div className="relative">
                       <input
                         type={showPassword ? "text" : "password"}
                         required
                         placeholder="Enter new password"
-                        className="w-full h-[50px] sm:h-[52px] rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] focus:border-[#B99625] dark:focus:border-[#D7B33A] focus:bg-[#FFFDF5] dark:focus:bg-[#15191F] px-4 pr-12 text-xs sm:text-sm font-medium text-[#171A1F] dark:text-[#F3F4F6] placeholder-[#9299A4] dark:placeholder-[#69717D] outline-none transition-all shadow-xs"
+                        className="w-full h-[48px] sm:h-[52px] rounded-[14px] bg-[#151A22] border border-[#29313B] focus:border-[#DDB52F] px-4 pr-12 text-xs sm:text-sm font-medium text-[#F3FFF0] placeholder-[#737B88] outline-none transition-all shadow-xs"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         autoComplete="new-password"
                         name="new-password-setup"
-                        autoFocus
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] cursor-pointer p-1"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#737B88] hover:text-[#F3FFF0] cursor-pointer p-1"
                         aria-label={showPassword ? "Hide password" : "Show password"}
                       >
-                        {showPassword ? <EyeOff className="w-4 h-4 text-[#B99625] dark:text-[#D7B33A]" /> : <Eye className="w-4 h-4" />}
+                        {showPassword ? <EyeOff className="w-4 h-4 text-[#DDB52F]" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
 
                   {/* Confirm password */}
-                  <div className="space-y-1 pt-1">
-                    <label className="text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] block">Confirm password</label>
+                  <div className="space-y-1 pt-0.5">
+                    <label className="text-xs font-medium text-[#F3FFF0] block">Confirm password</label>
                     <div className="relative">
                       <input
                         type={showPassword ? "text" : "password"}
                         required
                         placeholder="Confirm your new password"
-                        className="w-full h-[50px] sm:h-[52px] rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] focus:border-[#B99625] dark:focus:border-[#D7B33A] focus:bg-[#FFFDF5] dark:focus:bg-[#15191F] px-4 pr-12 text-xs sm:text-sm font-medium text-[#171A1F] dark:text-[#F3F4F6] placeholder-[#9299A4] dark:placeholder-[#69717D] outline-none transition-all shadow-xs"
+                        className="w-full h-[48px] sm:h-[52px] rounded-[14px] bg-[#151A22] border border-[#29313B] focus:border-[#DDB52F] px-4 pr-12 text-xs sm:text-sm font-medium text-[#F3FFF0] placeholder-[#737B88] outline-none transition-all shadow-xs"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         autoComplete="new-password"
@@ -1283,37 +1533,37 @@ export function AuthForm({
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] cursor-pointer p-1"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#737B88] hover:text-[#F3FFF0] cursor-pointer p-1"
                         aria-label={showPassword ? "Hide password" : "Show password"}
                       >
-                        {showPassword ? <EyeOff className="w-4 h-4 text-[#B99625] dark:text-[#D7B33A]" /> : <Eye className="w-4 h-4" />}
+                        {showPassword ? <EyeOff className="w-4 h-4 text-[#DDB52F]" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
 
                   {/* Compact 2-Column Password Requirements */}
-                  <div className="pt-2 space-y-1.5">
-                    <p className="text-[10px] font-mono uppercase tracking-wider text-[#69717D] dark:text-[#767E8C] font-semibold">
+                  <div className="pt-1.5 space-y-1">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-[#737B88] font-semibold">
                       Password requirements
                     </p>
                     <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-xs">
-                      <div className={`flex items-center gap-1.5 ${password.length >= 8 ? "text-[#2F7D4A] dark:text-[#10B981] font-semibold" : "text-[#69717D] dark:text-[#767E8C]"}`}>
+                      <div className={`flex items-center gap-1.5 ${password.length >= 8 ? "text-[#39D393] font-semibold" : "text-[#737B88]"}`}>
                         <span>{password.length >= 8 ? "✓" : "○"}</span>
                         <span>8+ characters</span>
                       </div>
-                      <div className={`flex items-center gap-1.5 ${/[A-Z]/.test(password) ? "text-[#2F7D4A] dark:text-[#10B981] font-semibold" : "text-[#69717D] dark:text-[#767E8C]"}`}>
+                      <div className={`flex items-center gap-1.5 ${/[A-Z]/.test(password) ? "text-[#39D393] font-semibold" : "text-[#737B88]"}`}>
                         <span>{/[A-Z]/.test(password) ? "✓" : "○"}</span>
                         <span>Uppercase</span>
                       </div>
-                      <div className={`flex items-center gap-1.5 ${/[a-z]/.test(password) ? "text-[#2F7D4A] dark:text-[#10B981] font-semibold" : "text-[#69717D] dark:text-[#767E8C]"}`}>
+                      <div className={`flex items-center gap-1.5 ${/[a-z]/.test(password) ? "text-[#39D393] font-semibold" : "text-[#737B88]"}`}>
                         <span>{/[a-z]/.test(password) ? "✓" : "○"}</span>
                         <span>Lowercase</span>
                       </div>
-                      <div className={`flex items-center gap-1.5 ${/[0-9]/.test(password) ? "text-[#2F7D4A] dark:text-[#10B981] font-semibold" : "text-[#69717D] dark:text-[#767E8C]"}`}>
+                      <div className={`flex items-center gap-1.5 ${/[0-9]/.test(password) ? "text-[#39D393] font-semibold" : "text-[#737B88]"}`}>
                         <span>{/[0-9]/.test(password) ? "✓" : "○"}</span>
                         <span>Number</span>
                       </div>
-                      <div className={`flex items-center gap-1.5 col-span-2 ${/[^A-Za-z0-9]/.test(password) ? "text-[#2F7D4A] dark:text-[#10B981] font-semibold" : "text-[#69717D] dark:text-[#767E8C]"}`}>
+                      <div className={`flex items-center gap-1.5 col-span-2 ${/[^A-Za-z0-9]/.test(password) ? "text-[#39D393] font-semibold" : "text-[#737B88]"}`}>
                         <span>{/[^A-Za-z0-9]/.test(password) ? "✓" : "○"}</span>
                         <span>Special character</span>
                       </div>
@@ -1322,15 +1572,31 @@ export function AuthForm({
                 </div>
               </div>
 
-              {/* Anchored Footer Actions */}
-              <div className="pt-4 flex items-center justify-between gap-3">
+              {/* Actions Grid: LEFT = ← Back (Resets to EMAIL_ENTRY), RIGHT = Continue → (Primary Gold) */}
+              <div className="pt-3 grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setState("OTP_VERIFICATION")}
-                  className="text-xs font-semibold text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-colors px-1 py-2 cursor-pointer"
+                  onClick={() => {
+                    setPassword("");
+                    setConfirmPassword("");
+                    setOtp("");
+                    setCountdown(0);
+                    setError("");
+                    setState("EMAIL_ENTRY");
+                    if (typeof window !== "undefined") {
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete("auth_step");
+                      url.searchParams.delete("token");
+                      url.searchParams.delete("error");
+                      window.history.replaceState({}, '', url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : ''));
+                    }
+                  }}
+                  className="w-full h-[52px] sm:h-[56px] rounded-[14px] bg-[#151A22] border border-[#29313B] text-[#9AA2AF] hover:bg-[#1B212A] hover:border-[#3A4350] hover:text-[#F3FFF0] active:bg-[#11161D] font-semibold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer group"
                 >
+                  <ArrowLeft className="mr-1.5 sm:mr-2 w-4 h-4 text-current transition-transform group-hover:-translate-x-1" />
                   Back
                 </button>
+
                 <button
                   type="submit"
                   disabled={
@@ -1343,24 +1609,126 @@ export function AuthForm({
                     !/[0-9]/.test(password) ||
                     !/[^A-Za-z0-9]/.test(password)
                   }
-                  className="flex-1 sm:flex-initial sm:w-[160px] h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all disabled:bg-[#E5E1D2] dark:disabled:bg-[#332F24] disabled:text-[#92908A] dark:disabled:text-[#77736A] shadow-sm rounded-xl cursor-pointer group"
+                  className="w-full h-[52px] sm:h-[56px] rounded-[14px] bg-[#DDB52F] hover:bg-[#E8C54A] active:bg-[#C9A224] text-[#080A0D] font-bold text-xs sm:text-sm flex items-center justify-center transition-all disabled:bg-[#11161D] disabled:border disabled:border-[#20262F] disabled:text-[#596270] disabled:cursor-not-allowed shadow-sm cursor-pointer group"
                 >
                   {loading ? (
-                    <Loader2 className="animate-spin h-4 w-4 text-current" />
+                    <span className="flex items-center gap-1.5 text-xs">
+                      <span className="w-2 h-2 rounded-full bg-[#080A0D] animate-pulse" />
+                      Saving...
+                    </span>
                   ) : (
-                    <>Continue <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" /></>
+                    <>
+                      Continue
+                      <ArrowRight className="ml-1.5 sm:ml-2 w-4 h-4 text-[#080A0D] group-hover:translate-x-1 transition-transform" />
+                    </>
                   )}
                 </button>
               </div>
             </motion.form>
           )}
 
-          {state === "FORGOT_PASSWORD" && (
-            <motion.form key="forgot-password" {...fadeSlideProps} onSubmit={handleForgotPasswordSubmit} className="space-y-4">
-              <div className="space-y-1.5 text-left">
-                <label htmlFor="recovery-email-input" className="text-xs font-semibold text-foreground dark:text-[#F5F5F2]">
-                  Email address
-                </label>
+          {state === "FORGOT_PASSWORD" && loadingState === "SENDING" ? (
+            <motion.div key="forgot-sending" {...fadeSlideProps} className="w-full max-w-[420px] mx-auto text-center space-y-5 py-2">
+              {/* 3D Mail Sending Emblem */}
+              <motion.div 
+                initial={{ scale: 0.85, opacity: 0, y: 10 }}
+                animate={{ scale: [0.95, 1.05, 0.95], opacity: 1, y: [0, -4, 0] }}
+                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                className="relative w-16 h-16 rounded-full bg-[#161B26] border border-[#D4AF37]/30 shadow-[0_8px_24px_rgba(212,175,55,0.15)] flex items-center justify-center mx-auto"
+              >
+                <div className="w-11 h-11 rounded-full bg-[#201C12] border border-[#D4AF37]/40 flex items-center justify-center shadow-inner">
+                  <Mail className="w-6 h-6 text-[#D4AF37] stroke-[2.2]" />
+                </div>
+              </motion.div>
+
+              {/* Status Text Area */}
+              <div className="space-y-1 text-center">
+                <p className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-[#D4AF37]">
+                  SENDING RESET LINK
+                </p>
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#F3FFF0]">
+                  Preparing your secure reset link...
+                </h2>
+                <p className="text-xs sm:text-sm text-[#8E949E] leading-relaxed pt-1 max-w-xs mx-auto">
+                  We're securely sending password reset instructions to
+                </p>
+              </div>
+
+              {/* Email Pill Badge */}
+              <div className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-[#161B26] border border-[#252B35] max-w-full">
+                <span className="text-xs font-mono font-semibold text-[#F3FFF0] truncate">
+                  {email}
+                </span>
+              </div>
+
+              {/* Pulse Loading Indicator */}
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <Loader2 className="w-4 h-4 text-[#D4AF37] animate-spin" />
+                <span className="text-xs font-medium text-[#8E949E]">Transmitting request…</span>
+              </div>
+            </motion.div>
+          ) : state === "FORGOT_PASSWORD" && loadingState === "ERROR" ? (
+            <motion.div key="forgot-error" {...fadeSlideProps} className="w-full max-w-[420px] mx-auto text-center space-y-5 py-2">
+              {/* 3D Error Emblem */}
+              <motion.div 
+                initial={{ scale: 0.85, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="relative w-16 h-16 rounded-full bg-[#161B26] border border-rose-500/30 shadow-[0_8px_24px_rgba(244,63,94,0.15)] flex items-center justify-center mx-auto"
+              >
+                <div className="w-11 h-11 rounded-full bg-[#2A1618] border border-rose-500/40 flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6 text-rose-400 stroke-[2.2]" />
+                </div>
+              </motion.div>
+
+              <div className="space-y-1 text-center">
+                <p className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-rose-400">
+                  DELIVERY FAILED
+                </p>
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#F3FFF0]">
+                  Unable to send reset link.
+                </h2>
+                <p className="text-xs sm:text-sm text-[#8E949E] leading-relaxed pt-1 max-w-xs mx-auto">
+                  {error || "Please check your email address and try again."}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5 pt-2 w-full">
+                <button
+                  type="button"
+                  onClick={() => setState("EMAIL_ENTRY")}
+                  className="h-[50px] rounded-[14px] bg-[#161B26] border border-[#252B35] hover:border-[#343B46] hover:bg-[#1C222F] text-[#8E949E] hover:text-[#D4AF37] font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to sign in</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setError(""); setLoadingState(""); }}
+                  className="h-[50px] rounded-[14px] bg-[#D4AF37] hover:bg-[#E3C45A] active:bg-[#B99524] text-[#0E1117] font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                >
+                  <span>Try again</span>
+                </button>
+              </div>
+            </motion.div>
+          ) : state === "FORGOT_PASSWORD" && (
+            <motion.form 
+              key="forgot-password" 
+              {...fadeSlideProps} 
+              onSubmit={handleForgotPasswordSubmit} 
+              className="w-full max-w-[420px] mx-auto text-center space-y-4"
+            >
+              {/* Centered Heading & Description Area */}
+              <div className="space-y-1 text-center mb-5">
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#F3FFF0] text-center">
+                  Forgot your password?
+                </h2>
+                <p className="text-xs sm:text-sm text-[#8E949E] leading-relaxed text-center">
+                  No worries. Enter your email and we'll help you reset it.
+                </p>
+              </div>
+
+              {/* Input Field (Full-width, Left-aligned text) */}
+              <div className="w-full">
                 <input
                   id="recovery-email-input"
                   type="email"
@@ -1369,77 +1737,127 @@ export function AuthForm({
                   enterKeyHint="send"
                   disabled={loadingState !== ""}
                   placeholder="name@company.com"
-                  className="w-full h-[56px] rounded-[14px] bg-background/60 dark:bg-[#151920] border border-border dark:border-[#282E38] px-4 text-sm text-foreground dark:text-[#F5F5F2] placeholder:text-muted-foreground dark:placeholder:text-[#7F8796] outline-none focus:outline-none focus:ring-0 focus:border-border-focus dark:focus:border-[#D4AF37] transition-all duration-200 shadow-xs"
+                  className="w-full h-[52px] rounded-[14px] bg-[#161B26] border border-[#252B35] px-4 text-sm text-[#F3FFF0] placeholder:text-[#626A75] text-left outline-none focus:outline-none focus:ring-0 focus:border-[#D4AF37] transition-all duration-200 shadow-xs"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
-                  autoFocus
                 />
               </div>
-              <motion.button
-                type="submit"
-                whileHover={loading || !email ? {} : { scale: 1.005 }}
-                whileTap={loading || !email ? {} : { scale: 0.99 }}
-                disabled={loadingState !== "" || !email}
-                className="w-full h-[56px] rounded-[14px] bg-[#D4AF37] hover:bg-[#E5C158] active:bg-[#C49F2B] text-[#0B0D11] font-bold text-sm flex items-center justify-center transition-all duration-200 disabled:opacity-50 shadow-sm mt-5 group cursor-pointer"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="animate-spin h-5 w-5 mr-2 text-[#0B0D11]" />
-                    <span>Sending reset link...</span>
-                  </>
-                ) : loadingState === "SENT" ? (
-                  <>
-                    <CheckCircle2 className="h-5 w-5 mr-2 text-[#0B0D11]" />
-                    <span>Reset link sent</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="mr-2">Send reset link</span>
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1 text-[#0B0D11]" />
-                  </>
-                )}
-              </motion.button>
 
-              <div className="flex justify-center mt-4">
+              {/* Two-Action Grid: Column 1 = Back to Sign In (Left), Column 2 = Send Reset Link (Right) */}
+              <div className="grid grid-cols-2 gap-2.5 pt-1 w-full">
+                {/* Column 1: Secondary Back Action (LEFT) */}
                 <button
                   type="button"
                   onClick={() => setState("EMAIL_ENTRY")}
-                  className="text-xs font-semibold text-muted-foreground dark:text-[#9299A8] hover:text-foreground dark:hover:text-[#F5F5F2] transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="h-[50px] rounded-[14px] bg-[#161B26] border border-[#252B35] hover:border-[#343B46] hover:bg-[#1C222F] text-[#8E949E] hover:text-[#D4AF37] font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" /> Back to sign in
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to sign in</span>
                 </button>
+
+                {/* Column 2: Primary Gold Action (RIGHT) */}
+                <motion.button
+                  type="submit"
+                  whileHover={loading || !email ? {} : { scale: 1.005 }}
+                  whileTap={loading || !email ? {} : { scale: 0.99 }}
+                  disabled={loadingState !== "" || !email}
+                  className="h-[50px] rounded-[14px] bg-[#D4AF37] hover:bg-[#E3C45A] active:bg-[#B99524] text-[#0E1117] font-bold text-xs flex items-center justify-center transition-all duration-200 disabled:opacity-50 shadow-sm group cursor-pointer"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="animate-spin h-4 w-4 mr-1.5 text-[#0E1117]" />
+                      <span>Sending...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Send reset link</span>
+                      <ArrowRight className="w-3.5 h-3.5 ml-1.5 transition-transform group-hover:translate-x-1 text-[#0E1117]" />
+                    </>
+                  )}
+                </motion.button>
               </div>
             </motion.form>
           )}
 
           {state === "RESET_SENT" && (
-            <motion.div key="reset-sent" {...fadeSlideProps} className="space-y-4 text-center py-2">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 flex items-center justify-center mx-auto mb-2">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-emerald-500">
+            <motion.div key="reset-sent" {...fadeSlideProps} className="w-full max-w-[420px] mx-auto text-center space-y-5 py-1">
+              {/* Premium 3D Verification Emblem */}
+              <motion.div 
+                initial={{ scale: 0.85, opacity: 0, y: 10 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                className="relative w-16 h-16 rounded-full bg-[#161B26] border border-[#252B35] shadow-[0_8px_24px_rgba(16,185,129,0.15)] flex items-center justify-center mx-auto"
+              >
+                <div className="w-11 h-11 rounded-full bg-[#14221D] border border-emerald-500/30 flex items-center justify-center shadow-inner">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-400 stroke-[2.5]" />
+                </div>
+              </motion.div>
+
+              {/* Verification Header Section */}
+              <div className="space-y-1 text-center">
+                <p className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-[#626A75]">
                   CHECK YOUR EMAIL
                 </p>
-                <h3 className="text-xl font-bold text-foreground dark:text-[#F5F5F2] tracking-tight">
-                  Check your inbox
-                </h3>
-                <p className="text-xs text-muted-foreground dark:text-[#9299A8] leading-relaxed max-w-xs mx-auto pt-1">
-                  If an account exists for <strong className="text-foreground dark:text-[#F5F5F2]">{email}</strong>, we've sent a secure password reset link.
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#F3FFF0]">
+                  Check your inbox.
+                </h2>
+                <p className="text-xs sm:text-sm text-[#8E949E] leading-relaxed pt-1 max-w-xs mx-auto">
+                  We've sent a secure verification link to
                 </p>
-                <p className="text-[11px] font-medium text-muted-foreground/80 dark:text-[#71717A] pt-2">
+              </div>
+
+              {/* Email Pill Badge */}
+              <div className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-[#161B26] border border-[#252B35] max-w-full">
+                <span className="text-xs font-mono font-semibold text-[#F3FFF0] truncate">
+                  {email || "your registered email"}
+                </span>
+              </div>
+
+              {/* Countdown Progress Area with SVG Ring */}
+              <div className="flex flex-col items-center justify-center space-y-2 pt-1">
+                <div className="relative w-10 h-10 flex items-center justify-center">
+                  <svg className="w-10 h-10 transform -rotate-90">
+                    <circle
+                      cx="20"
+                      cy="20"
+                      r="16"
+                      stroke="#252B35"
+                      strokeWidth="2.5"
+                      fill="transparent"
+                    />
+                    <circle
+                      cx="20"
+                      cy="20"
+                      r="16"
+                      stroke="#D4AF37"
+                      strokeWidth="2.5"
+                      fill="transparent"
+                      strokeDasharray={100}
+                      strokeDashoffset={100 - (resetSentCountdown / 5) * 100}
+                      className="transition-all duration-1000 ease-linear"
+                    />
+                  </svg>
+                  <span className="absolute text-xs font-mono font-bold text-[#F3FFF0]">
+                    {resetSentCountdown}
+                  </span>
+                </div>
+                <p className="text-[11px] font-medium text-[#8E949E]">
                   Returning to sign in in {resetSentCountdown} second{resetSentCountdown === 1 ? "" : "s"}…
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setState("EMAIL_ENTRY")}
-                className="w-full h-[56px] rounded-[14px] bg-[#D4AF37] hover:bg-[#E5C158] active:bg-[#C49F2B] text-[#0B0D11] font-bold text-sm flex items-center justify-center transition-all duration-200 shadow-sm cursor-pointer mt-4"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2 text-[#0B0D11]" />
-                <span>Back to sign in</span>
-              </button>
+
+              {/* Manual Back Action */}
+              <div className="pt-2 w-full">
+                <button
+                  type="button"
+                  onClick={() => setState("EMAIL_ENTRY")}
+                  className="w-full h-[50px] rounded-[14px] bg-[#161B26] border border-[#252B35] hover:border-[#343B46] hover:bg-[#1C222F] text-[#8E949E] hover:text-[#D4AF37] font-semibold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to sign in</span>
+                </button>
+              </div>
             </motion.div>
           )}
 
@@ -1465,7 +1883,6 @@ export function AuthForm({
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="new-password"
                   name="reset-password-field"
-                  autoFocus
                 />
                 <button
                   type="button"
@@ -1549,10 +1966,10 @@ export function AuthForm({
                     timezone: profile.timezone || "Asia/Kolkata",
                     batchNumber: profile.batchNumber,
                   }, {
-                    headers: { Authorization: `Bearer ${tempToken}` }
+                    headers: tempToken ? { Authorization: `Bearer ${tempToken}` } : {}
                   });
                   if (res.data.success) {
-                    setTempToken(res.data.tempToken);
+                    if (res.data.tempToken) setTempToken(res.data.tempToken);
                     if (res.data.nextStep === "ORGANIZATION_SETUP") {
                       setState("ORGANIZATION_SETUP");
                     } else if (res.data.nextStep === "REVIEW_SETUP") {
@@ -1569,70 +1986,94 @@ export function AuthForm({
                   setLoading(false);
                 }
               }}
-              className="w-full max-w-[440px] sm:max-w-[520px] mx-auto relative pb-2 text-left flex flex-col justify-between space-y-4 sm:space-y-5"
+              className="w-full max-w-[440px] sm:max-w-[520px] mx-auto relative text-left flex flex-col justify-between space-y-3 sm:space-y-4"
             >
-              <div className="space-y-3 sm:space-y-4">
+              <div className="space-y-2.5 sm:space-y-3">
                 {/* Step Indicator */}
                 <div>
-                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase mb-1">
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#737B88] uppercase mb-1">
                     <span>PERSONAL PROFILE</span>
                     <span>{userRole === "CEO" ? "04 / 07" : "04 / 06"}</span>
                   </div>
-                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
+                  <div className="w-full h-[1px] bg-[#20262F]" />
                 </div>
 
                 {/* Heading & Subtitle */}
-                <div className="space-y-1 pt-1">
-                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                <div className="space-y-0.5 pt-0.5">
+                  <h3 className="text-xl sm:text-2xl font-semibold text-[#F3FFF0] tracking-tight leading-tight">
                     Set up your profile
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0]">
+                  <p className="text-xs text-[#9AA2AF] leading-relaxed">
                     Choose the name you'll use across ManMadhan Progress.
                   </p>
                 </div>
 
-                {/* Display Name Input */}
-                <div className="space-y-1 pt-1">
-                  <label className="text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] block">Display name</label>
+                {/* Display Name Hero Input */}
+                <div className="space-y-1 pt-0.5">
+                  <label className="text-[10px] font-mono uppercase tracking-wider text-[#737B88] font-semibold block">DISPLAY NAME</label>
                   <input
                     type="text"
                     required
                     placeholder="Enter your display name"
-                    className="w-full h-[50px] sm:h-[52px] rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] focus:border-[#B99625] dark:focus:border-[#D7B33A] focus:bg-[#FFFDF5] dark:focus:bg-[#15191F] px-4 text-xs sm:text-sm font-medium text-[#171A1F] dark:text-[#F3F4F6] placeholder-[#9299A4] dark:placeholder-[#69717D] outline-none transition-all shadow-xs"
+                    className="w-full h-[48px] sm:h-[52px] rounded-[14px] bg-[#151A22] border border-[#29313B] focus:border-[#DDB52F] px-4 text-xs sm:text-sm font-medium text-[#F3FFF0] placeholder-[#737B88] outline-none transition-all shadow-xs"
                     value={profile.displayName}
                     onChange={(e) => setProfile({ ...profile, displayName: e.target.value })}
-                    autoFocus
                   />
-                  <p className="text-xs text-[#69717D] dark:text-[#8B93A0] pt-0.5">This is how you'll appear across ManMadhan Progress.</p>
+                  <p className="text-xs text-[#737B88] pt-0.5">This is how you'll appear across ManMadhan Progress.</p>
                 </div>
 
-                {/* Batch / Employee ID (Read-only Metadata) */}
-                <div className="pt-2">
-                  <p className="text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6]">Batch / Employee ID</p>
-                  <p className="text-xs text-[#69717D] dark:text-[#8B93A0] mt-0.5 font-mono">
-                    MK1603 · <span className="text-[#B99625] dark:text-[#D7B33A] font-semibold">Authorized</span>
-                  </p>
+                {/* Compact Live Profile Identity Preview Card */}
+                <div className="p-3.5 rounded-[14px] bg-[#11161D] border border-[#29313B] space-y-2">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-[#737B88] font-semibold block">
+                    PERSONAL IDENTITY
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-[#151A22] border border-[#DDB52F]/40 text-[#DDB52F] font-bold text-sm flex items-center justify-center font-mono shrink-0 shadow-xs">
+                      {getInitials(profile.displayName)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-xs sm:text-sm font-semibold text-[#F3FFF0] block truncate">
+                        {profile.displayName.trim() || "Your display name"}
+                      </span>
+                      <div className="flex items-center gap-2 text-[11px] font-mono text-[#9AA2AF] mt-0.5">
+                        <span>MK1603</span>
+                        <span>·</span>
+                        <span className="text-[#39D393] font-semibold flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#39D393] animate-pulse" />
+                          Authorized Member
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Anchored Footer Actions */}
-              <div className="pt-4 flex items-center justify-between gap-3">
+              {/* Actions Grid: LEFT = ← Back (Secondary), RIGHT = Continue → (Primary Gold) */}
+              <div className="pt-3 grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setState("PASSWORD_CREATION")}
-                  className="text-xs font-semibold text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-colors px-1 py-2 cursor-pointer"
+                  onClick={() => setState("PASSWORD")}
+                  className="w-full h-[52px] sm:h-[56px] rounded-[14px] bg-[#151A22] border border-[#29313B] text-[#9AA2AF] hover:bg-[#1B212A] hover:border-[#3A4350] hover:text-[#F3FFF0] active:bg-[#11161D] font-semibold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer group"
                 >
+                  <ArrowLeft className="mr-1.5 sm:mr-2 w-4 h-4 text-current transition-transform group-hover:-translate-x-1" />
                   Back
                 </button>
+
                 <button
                   type="submit"
                   disabled={loading || !profile.displayName.trim() || profile.displayName.trim().length < 2}
-                  className="flex-1 sm:flex-initial sm:w-[160px] h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all disabled:bg-[#E5E1D2] dark:disabled:bg-[#332F24] disabled:text-[#92908A] dark:disabled:text-[#77736A] shadow-sm rounded-xl cursor-pointer group"
+                  className="w-full h-[52px] sm:h-[56px] rounded-[14px] bg-[#DDB52F] hover:bg-[#E8C54A] active:bg-[#C9A224] text-[#080A0D] font-bold text-xs sm:text-sm flex items-center justify-center transition-all disabled:bg-[#11161D] disabled:border disabled:border-[#20262F] disabled:text-[#596270] disabled:cursor-not-allowed shadow-sm cursor-pointer group"
                 >
                   {loading ? (
-                    <Loader2 className="animate-spin h-4 w-4 text-current" />
+                    <span className="flex items-center gap-1.5 text-xs">
+                      <span className="w-2 h-2 rounded-full bg-[#080A0D] animate-pulse" />
+                      Saving...
+                    </span>
                   ) : (
-                    <>Continue <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" /></>
+                    <>
+                      Continue
+                      <ArrowRight className="ml-1.5 sm:ml-2 w-4 h-4 text-[#080A0D] group-hover:translate-x-1 transition-transform" />
+                    </>
                   )}
                 </button>
               </div>
@@ -1643,53 +2084,51 @@ export function AuthForm({
             <motion.form
               key="org"
               onSubmit={handleOrgSubmit}
-              className="w-full max-w-[440px] sm:max-w-[540px] mx-auto relative pb-2 text-left flex flex-col justify-between space-y-4 sm:space-y-5"
+              className="w-full max-w-[440px] sm:max-w-[540px] mx-auto relative text-left flex flex-col justify-between space-y-3 sm:space-y-4"
             >
-              <div className="space-y-3 sm:space-y-4">
+              <div className="space-y-2.5 sm:space-y-3">
                 {/* Step Indicator */}
                 <div>
-                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase mb-1">
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#737B88] uppercase mb-1">
                     <div className="flex items-center gap-2">
                       <span>ORGANIZATION</span>
-                      <span className="text-[9px] font-bold text-[#B99625] dark:text-[#D7B33A] px-1.5 py-0.5 rounded bg-[#F4E9BC] dark:bg-[#332B12] border border-[#B99625]/20 dark:border-[#D7B33A]/20">CEO SETUP</span>
+                      <span className="text-[9px] font-bold text-[#DDB52F] px-1.5 py-0.5 rounded bg-[#DDB52F]/15 border border-[#DDB52F]/30">CEO SETUP</span>
                     </div>
                     <span>05 / 07</span>
                   </div>
-                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
+                  <div className="w-full h-[1px] bg-[#20262F]" />
                 </div>
 
                 {/* Heading & Subtitle */}
-                <div className="space-y-1 pt-1">
-                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                <div className="space-y-0.5 pt-0.5">
+                  <h3 className="text-xl sm:text-2xl font-semibold text-[#F3FFF0] tracking-tight leading-tight">
                     Set up your organization
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0]">
+                  <p className="text-xs text-[#9AA2AF] leading-relaxed">
                     Configure the organization workspace for your team.
                   </p>
                 </div>
 
-                {/* Organization Logo (Compact Horizontal Upload Area) */}
-                <div className="space-y-1.5 pt-1">
-                  <label className="text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] block">Organization logo</label>
-                  <div className="p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] flex items-center gap-3.5 shadow-xs">
-                    {/* Logo Box */}
+                {/* Organization Logo */}
+                <div className="space-y-1 pt-0.5">
+                  <label className="text-xs font-medium text-[#F3FFF0] block">Organization logo</label>
+                  <div className="p-3 rounded-[14px] bg-[#151A22] border border-[#29313B] flex items-center gap-3.5 shadow-xs">
                     <div
                       onClick={() => logoInputRef.current?.click()}
-                      className="w-14 h-14 rounded-xl border border-[#D9DDE3] dark:border-[#2B313C] bg-[#F1F2F4] dark:bg-[#161B22] flex items-center justify-center overflow-hidden shrink-0 cursor-pointer hover:border-[#B99625] dark:hover:border-[#D7B33A] transition-colors"
+                      className="w-12 h-12 rounded-xl border border-[#29313B] bg-[#11161D] flex items-center justify-center overflow-hidden shrink-0 cursor-pointer hover:border-[#DDB52F] transition-colors"
                     >
                       {orgLogo ? (
                         <img src={orgLogo} alt="Logo preview" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-sm font-bold text-[#B99625] dark:text-[#D7B33A] font-mono">M</span>
+                        <span className="text-sm font-bold text-[#DDB52F] font-mono">M</span>
                       )}
                     </div>
 
-                    {/* Meta & Actions */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-[#171A1F] dark:text-[#F3F4F6] truncate">
+                      <p className="text-xs font-semibold text-[#F3FFF0] truncate">
                         {orgLogo ? "Logo uploaded" : "Upload logo"}
                       </p>
-                      <p className="text-[11px] text-[#69717D] dark:text-[#767E8C]">PNG, JPG or SVG · Max 2 MB</p>
+                      <p className="text-[11px] text-[#737B88]">PNG, JPG or SVG · Max 2 MB</p>
 
                       <input
                         type="file"
@@ -1703,7 +2142,7 @@ export function AuthForm({
                         <button
                           type="button"
                           onClick={() => logoInputRef.current?.click()}
-                          className="text-xs font-semibold text-[#B99625] dark:text-[#D7B33A] hover:underline cursor-pointer"
+                          className="text-xs font-semibold text-[#DDB52F] hover:underline cursor-pointer"
                         >
                           {orgLogo ? "Replace logo" : "Choose logo"}
                         </button>
@@ -1714,7 +2153,7 @@ export function AuthForm({
                               setOrgLogo("");
                               if (logoInputRef.current) logoInputRef.current.value = "";
                             }}
-                            className="text-xs font-semibold text-red-500 hover:underline cursor-pointer"
+                            className="text-xs font-semibold text-[#EF5B5B] hover:underline cursor-pointer"
                           >
                             Remove
                           </button>
@@ -1725,40 +2164,48 @@ export function AuthForm({
                 </div>
 
                 {/* Organization Name Input */}
-                <div className="space-y-1 pt-1">
-                  <label className="text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] block">Organization name</label>
+                <div className="space-y-1 pt-0.5">
+                  <label className="text-xs font-medium text-[#F3FFF0] block">Organization name</label>
                   <input
                     type="text"
                     required
                     placeholder="Enter organization name"
-                    className="w-full h-[50px] sm:h-[52px] rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] focus:border-[#B99625] dark:focus:border-[#D7B33A] focus:bg-[#FFFDF5] dark:focus:bg-[#15191F] px-4 text-xs sm:text-sm font-medium text-[#171A1F] dark:text-[#F3F4F6] placeholder-[#9299A4] dark:placeholder-[#69717D] outline-none transition-all shadow-xs"
+                    className="w-full h-[48px] sm:h-[52px] rounded-[14px] bg-[#151A22] border border-[#29313B] focus:border-[#DDB52F] px-4 text-xs sm:text-sm font-medium text-[#F3FFF0] placeholder-[#737B88] outline-none transition-all shadow-xs"
                     value={orgName}
                     onChange={(e) => setOrgName(e.target.value)}
                   />
-                  <p className="text-xs text-[#69717D] dark:text-[#8B93A0] pt-0.5">
+                  <p className="text-xs text-[#737B88] pt-0.5">
                     The name your team will see across ManMadhan Progress.
                   </p>
                 </div>
               </div>
 
-              {/* Anchored Footer Actions */}
-              <div className="pt-4 flex items-center justify-between gap-3">
+              {/* Actions Grid: LEFT = ← Back (Secondary), RIGHT = Continue → (Primary Gold) */}
+              <div className="pt-3 grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setState("PROFILE_SETUP")}
-                  className="text-xs font-semibold text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-colors px-1 py-2 cursor-pointer"
+                  className="w-full h-[52px] sm:h-[56px] rounded-[14px] bg-[#151A22] border border-[#29313B] text-[#9AA2AF] hover:bg-[#1B212A] hover:border-[#3A4350] hover:text-[#F3FFF0] active:bg-[#11161D] font-semibold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer group"
                 >
+                  <ArrowLeft className="mr-1.5 sm:mr-2 w-4 h-4 text-current transition-transform group-hover:-translate-x-1" />
                   Back
                 </button>
+
                 <button
                   type="submit"
                   disabled={loading || !orgName.trim() || orgName.trim().length < 2 || orgLoadingStep > 0}
-                  className="flex-1 sm:flex-initial sm:w-[160px] h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all disabled:bg-[#E5E1D2] dark:disabled:bg-[#332F24] disabled:text-[#92908A] dark:disabled:text-[#77736A] shadow-sm rounded-xl cursor-pointer group"
+                  className="w-full h-[52px] sm:h-[56px] rounded-[14px] bg-[#DDB52F] hover:bg-[#E8C54A] active:bg-[#C9A224] text-[#080A0D] font-bold text-xs sm:text-sm flex items-center justify-center transition-all disabled:bg-[#11161D] disabled:border disabled:border-[#20262F] disabled:text-[#596270] disabled:cursor-not-allowed shadow-sm cursor-pointer group"
                 >
                   {loading || orgLoadingStep > 0 ? (
-                    <Loader2 className="animate-spin h-4 w-4 text-current" />
+                    <span className="flex items-center gap-1.5 text-xs">
+                      <span className="w-2 h-2 rounded-full bg-[#080A0D] animate-pulse" />
+                      Saving...
+                    </span>
                   ) : (
-                    <>Continue <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" /></>
+                    <>
+                      Continue
+                      <ArrowRight className="ml-1.5 sm:ml-2 w-4 h-4 text-[#080A0D] group-hover:translate-x-1 transition-transform" />
+                    </>
                   )}
                 </button>
               </div>
@@ -1771,109 +2218,128 @@ export function AuthForm({
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.2 }}
-              className="w-full max-w-[440px] sm:max-w-[540px] mx-auto relative pb-2 text-left flex flex-col justify-between space-y-4 sm:space-y-5"
+              transition={{ duration: 0.16 }}
+              className="w-full max-w-[440px] sm:max-w-[540px] mx-auto relative text-left flex flex-col justify-between space-y-3 sm:space-y-4"
             >
-              <div className="space-y-3 sm:space-y-4">
+              <div className="space-y-2.5 sm:space-y-3">
                 {/* Step Indicator */}
                 <div>
-                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase mb-1">
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#737B88] uppercase mb-1">
                     <span>REVIEW</span>
                     <span>{userRole === "CEO" ? "06 / 07" : "05 / 06"}</span>
                   </div>
-                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
+                  <div className="w-full h-[1px] bg-[#20262F]" />
                 </div>
 
                 {/* Heading */}
-                <div className="space-y-1 pt-1">
-                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                <div className="space-y-0.5 pt-0.5">
+                  <h3 className="text-xl sm:text-2xl font-semibold text-[#F3FFF0] tracking-tight leading-tight">
                     Review your setup
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0]">
+                  <p className="text-xs text-[#9AA2AF] leading-relaxed">
                     Everything looks ready. Confirm your setup details below.
                   </p>
                 </div>
 
-                {/* Summary Rows */}
-                <div className="space-y-2.5 pt-1">
+                {/* Summary Cards */}
+                <div className="space-y-2 pt-0.5">
                   {/* Profile Section */}
-                  <div className="p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] flex items-center justify-between shadow-xs">
-                    <div>
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-[#69717D] dark:text-[#767E8C] block mb-0.5">PROFILE</span>
-                      <span className="text-xs font-semibold text-[#171A1F] dark:text-[#F3F4F6] block">{profile.displayName || "Sai Krishnan"}</span>
-                      <span className="text-[11px] text-[#69717D] dark:text-[#767E8C]">ID: MK1603 · Authorized</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setState("PROFILE_SETUP")}
-                      className="text-xs font-semibold text-[#B99625] dark:text-[#D7B33A] hover:underline cursor-pointer"
-                    >
-                      Edit
-                    </button>
-                  </div>
-
-                  {/* Personal Space Section */}
-                  <div className="p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] flex items-center justify-between shadow-xs">
-                    <div>
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-[#69717D] dark:text-[#767E8C] block mb-0.5">PERSONAL SPACE</span>
-                      <span className="text-xs font-semibold text-[#171A1F] dark:text-[#F3F4F6] block">Personal Workspace</span>
-                      <span className="text-[11px] text-[#69717D] dark:text-[#767E8C]">Created automatically · Private to you</span>
-                    </div>
-                  </div>
-
-                  {/* Organization Section (CEO only) */}
-                  {userRole === "CEO" && (
-                    <div className="p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] flex items-center justify-between shadow-xs">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg border border-[#D9DDE3] dark:border-[#2B313C] bg-[#F1F2F4] dark:bg-[#161B22] flex items-center justify-center overflow-hidden shrink-0">
-                          {orgLogo ? (
-                            <img src={orgLogo} alt="Logo" className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-xs font-bold text-[#B99625] dark:text-[#D7B33A] font-mono">M</span>
-                          )}
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-mono uppercase tracking-widest text-[#69717D] dark:text-[#767E8C] block mb-0.5">ORGANIZATION</span>
-                          <span className="text-xs font-semibold text-[#171A1F] dark:text-[#F3F4F6] block">{orgName || "ManMadhan Workspace"}</span>
-                          <span className="text-[11px] text-[#69717D] dark:text-[#767E8C]">Role: CEO · Full Authority</span>
-                        </div>
-                      </div>
+                  <div className="p-3.5 rounded-[14px] bg-[#11161D] border border-[#29313B] space-y-2 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-[#737B88] font-semibold">PROFILE</span>
                       <button
                         type="button"
-                        onClick={() => setState("ORGANIZATION_SETUP")}
-                        className="text-xs font-semibold text-[#B99625] dark:text-[#D7B33A] hover:underline cursor-pointer"
+                        onClick={() => setState("PROFILE_SETUP")}
+                        className="text-xs font-semibold text-[#DDB52F] hover:text-[#E8C54A] hover:underline cursor-pointer"
                       >
                         Edit
                       </button>
                     </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-[#151A22] border border-[#DDB52F]/40 text-[#DDB52F] font-bold text-xs flex items-center justify-center font-mono shrink-0">
+                        {getInitials(profile.displayName)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs sm:text-sm font-semibold text-[#F3FFF0] block truncate">
+                          {profile.displayName || "Sai Krishnan S"}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-[11px] font-mono text-[#9AA2AF] mt-0.5">
+                          <span>MK1603</span>
+                          <span>·</span>
+                          <span className="text-[#39D393] font-semibold flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#39D393]" />
+                            Authorized
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Personal Space Section */}
+                  <div className="p-3.5 rounded-[14px] bg-[#11161D] border border-[#29313B] shadow-xs">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#737B88] block mb-1 font-semibold">PERSONAL SPACE</span>
+                    <span className="text-xs font-semibold text-[#F3FFF0] block">Personal Workspace</span>
+                    <span className="text-[11px] text-[#9AA2AF]">Created automatically · Private to you</span>
+                  </div>
+
+                  {/* Organization Section (CEO only) */}
+                  {userRole === "CEO" && (
+                    <div className="p-3.5 rounded-[14px] bg-[#11161D] border border-[#29313B] shadow-xs">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-[#737B88] font-semibold">ORGANIZATION</span>
+                        <button
+                          type="button"
+                          onClick={() => setState("ORGANIZATION_SETUP")}
+                          className="text-xs font-semibold text-[#DDB52F] hover:text-[#E8C54A] hover:underline cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg border border-[#29313B] bg-[#151A22] flex items-center justify-center overflow-hidden shrink-0">
+                          {orgLogo ? (
+                            <img src={orgLogo} alt="Logo" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-bold text-[#DDB52F] font-mono">M</span>
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-xs font-semibold text-[#F3FFF0] block">{orgName || "ManMadhan Workspace"}</span>
+                          <span className="text-[11px] text-[#9AA2AF]">Role: CEO · Full Authority</span>
+                        </div>
+                      </div>
+                    </div>
                   )}
 
                   {/* Account Section */}
-                  <div className="p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] shadow-xs">
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-[#69717D] dark:text-[#767E8C] block mb-0.5">ACCOUNT</span>
-                    <span className="text-xs font-semibold text-[#171A1F] dark:text-[#F3F4F6] block font-mono">{email}</span>
+                  <div className="p-3.5 rounded-[14px] bg-[#11161D] border border-[#29313B] shadow-xs">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-[#737B88] block mb-1 font-semibold">ACCOUNT</span>
+                    <span className="text-xs font-semibold text-[#F3FFF0] block font-mono">{email}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Anchored Footer Actions */}
-              <div className="pt-4 flex items-center justify-between gap-3">
+              {/* Actions Grid: LEFT = ← Back (Secondary), RIGHT = Complete setup → (Primary Gold) */}
+              <div className="pt-3 grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setState(userRole === "CEO" ? "ORGANIZATION_SETUP" : "PROFILE_SETUP")}
-                  className="text-xs font-semibold text-[#69717D] dark:text-[#8B93A0] hover:text-[#171A1F] dark:hover:text-[#F3F4F6] transition-colors px-1 py-2 cursor-pointer"
+                  className="w-full h-[52px] sm:h-[56px] rounded-[14px] bg-[#151A22] border border-[#29313B] text-[#9AA2AF] hover:bg-[#1B212A] hover:border-[#3A4350] hover:text-[#F3FFF0] active:bg-[#11161D] font-semibold text-xs sm:text-sm flex items-center justify-center transition-all cursor-pointer group"
                 >
+                  <ArrowLeft className="mr-1.5 sm:mr-2 w-4 h-4 text-current transition-transform group-hover:-translate-x-1" />
                   Back
                 </button>
+
                 <button
                   type="button"
                   onClick={async () => {
+                    if (loading) return;
                     setLoading(true);
                     try {
                       const res = await apiClient.post("/auth/setup/complete", {}, {
-                        headers: { Authorization: `Bearer ${tempToken}` }
+                        headers: tempToken ? { Authorization: `Bearer ${tempToken}` } : {}
                       });
-                      if (res.data.success) {
+                      if (res.data?.success) {
                         setState("SETUP_COMPLETE");
                       } else {
                         handleError({ response: { data: res.data } });
@@ -1885,12 +2351,18 @@ export function AuthForm({
                     }
                   }}
                   disabled={loading}
-                  className="flex-1 sm:flex-initial sm:w-[180px] h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all disabled:bg-[#E5E1D2] dark:disabled:bg-[#332F24] disabled:text-[#92908A] dark:disabled:text-[#77736A] shadow-sm rounded-xl cursor-pointer group"
+                  className="w-full h-[52px] sm:h-[56px] rounded-[14px] bg-[#DDB52F] hover:bg-[#E8C54A] active:bg-[#C9A224] text-[#080A0D] font-bold text-xs sm:text-sm flex items-center justify-center transition-all disabled:bg-[#11161D] disabled:border disabled:border-[#20262F] disabled:text-[#596270] disabled:cursor-not-allowed shadow-sm cursor-pointer group"
                 >
                   {loading ? (
-                    <Loader2 className="animate-spin h-4 w-4 text-current" />
+                    <span className="flex items-center gap-1.5 text-xs">
+                      <span className="w-2 h-2 rounded-full bg-[#080A0D] animate-pulse" />
+                      Completing setup...
+                    </span>
                   ) : (
-                    <>Complete setup <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" /></>
+                    <>
+                      Complete setup
+                      <ArrowRight className="ml-1.5 sm:ml-2 w-4 h-4 text-[#080A0D] group-hover:translate-x-1 transition-transform" />
+                    </>
                   )}
                 </button>
               </div>
@@ -1902,68 +2374,107 @@ export function AuthForm({
               key="setup_complete"
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3 }}
-              className="w-full max-w-[440px] sm:max-w-[520px] mx-auto relative pb-2 text-left flex flex-col justify-between space-y-4 sm:space-y-5"
+              transition={{ duration: 0.25, type: "tween" }}
+              className="w-full max-w-[440px] sm:max-w-[520px] mx-auto relative text-left flex flex-col justify-between space-y-3 sm:space-y-4"
             >
               <div className="space-y-3 sm:space-y-4">
                 {/* Step Indicator */}
                 <div>
-                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#69717D] dark:text-[#767E8C] uppercase mb-1">
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-widest text-[#737B88] uppercase mb-1">
                     <span>COMPLETE</span>
                     <span>{userRole === "CEO" ? "07 / 07" : "06 / 06"}</span>
                   </div>
-                  <div className="w-full h-[1px] bg-[#E1E4E8] dark:bg-[#282E36]" />
+                  <div className="w-full h-[1px] bg-[#20262F]" />
+                </div>
+
+                {/* 3D Completion Emblem */}
+                <div className="relative flex items-center justify-center py-2">
+                  <motion.div
+                    initial={{ scale: 0.85, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.35, ease: "easeOut", type: "tween" }}
+                    className="relative w-20 h-20 rounded-2xl bg-gradient-to-b from-[#151A22] to-[#0D1015] border border-[#39D393]/40 shadow-[0_12px_32px_rgba(57,211,147,0.2),inset_0_1px_1px_rgba(255,255,255,0.08)] flex items-center justify-center"
+                  >
+                    <div className="w-12 h-12 rounded-full bg-[#39D393]/15 border border-[#39D393]/40 flex items-center justify-center shadow-[0_0_16px_rgba(57,211,147,0.3)]">
+                      <Check className="w-6 h-6 text-[#39D393] stroke-[3]" />
+                    </div>
+                  </motion.div>
                 </div>
 
                 {/* Heading */}
-                <div className="space-y-1 pt-1">
-                  <h3 className="text-2xl sm:text-[28px] font-semibold text-[#171A1F] dark:text-[#F3F4F6] tracking-tight leading-tight">
+                <div className="space-y-0.5 text-center">
+                  <h3 className="text-xl sm:text-2xl font-semibold text-[#F3FFF0] tracking-tight leading-tight">
                     You're all set.
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#69717D] dark:text-[#8B93A0]">
+                  <p className="text-xs text-[#9AA2AF] leading-relaxed max-w-xs mx-auto">
                     Your ManMadhan Progress account is ready. Sign in with your new password to activate your session.
                   </p>
                 </div>
 
                 {/* Status Items */}
-                <div className="space-y-2 pt-1">
-                  <div className="flex items-center gap-3 text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] shadow-xs">
-                    <CheckCircle2 className="w-4 h-4 text-[#B99625] dark:text-[#D7B33A] shrink-0" />
+                <div className="space-y-2 pt-0.5">
+                  <div className="flex items-center gap-3 text-xs font-medium text-[#F3FFF0] p-3 rounded-[14px] bg-[#11161D] border border-[#29313B] shadow-xs">
+                    <CheckCircle2 className="w-4 h-4 text-[#39D393] shrink-0" />
                     <span>Profile completed</span>
                   </div>
                   {userRole === "CEO" && (
-                    <div className="flex items-center gap-3 text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] shadow-xs">
-                      <CheckCircle2 className="w-4 h-4 text-[#B99625] dark:text-[#D7B33A] shrink-0" />
+                    <div className="flex items-center gap-3 text-xs font-medium text-[#F3FFF0] p-3 rounded-[14px] bg-[#11161D] border border-[#29313B] shadow-xs">
+                      <CheckCircle2 className="w-4 h-4 text-[#39D393] shrink-0" />
                       <span>Organization configured</span>
                     </div>
                   )}
-                  <div className="flex items-center gap-3 text-xs font-medium text-[#171A1F] dark:text-[#F3F4F6] p-3 rounded-xl bg-[#FFFFFF] dark:bg-[#111419] border border-[#D9DDE3] dark:border-[#282E36] shadow-xs">
-                    <CheckCircle2 className="w-4 h-4 text-[#B99625] dark:text-[#D7B33A] shrink-0" />
+                  <div className="flex items-center gap-3 text-xs font-medium text-[#F3FFF0] p-3 rounded-[14px] bg-[#11161D] border border-[#29313B] shadow-xs">
+                    <CheckCircle2 className="w-4 h-4 text-[#39D393] shrink-0" />
                     <span>Personal workspace created</span>
                   </div>
+                </div>
+
+                {/* Countdown Ring Indicator */}
+                <div className="flex flex-col items-center justify-center space-y-1.5 pt-1">
+                  <div className="relative w-10 h-10 flex items-center justify-center">
+                    <svg className="w-10 h-10 transform -rotate-90">
+                      <circle
+                        cx="20"
+                        cy="20"
+                        r="16"
+                        stroke="#20262F"
+                        strokeWidth="2.5"
+                        fill="transparent"
+                      />
+                      <motion.circle
+                        cx="20"
+                        cy="20"
+                        r="16"
+                        stroke="#DDB52F"
+                        strokeWidth="2.5"
+                        fill="transparent"
+                        strokeDasharray="100"
+                        initial={{ strokeDashoffset: 100 }}
+                        animate={{
+                          strokeDashoffset: 100 - (setupRedirectCountdown / 3) * 100,
+                        }}
+                        transition={{ duration: 0.3, ease: "linear", type: "tween" }}
+                      />
+                    </svg>
+                    <span className="absolute text-xs font-mono font-bold text-[#F3FFF0]">
+                      {setupRedirectCountdown}
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-medium text-[#737B88]">
+                    Returning to sign in in {setupRedirectCountdown} second{setupRedirectCountdown === 1 ? "" : "s"}…
+                  </p>
                 </div>
               </div>
 
               {/* Action: Return to Login */}
-              <div className="pt-4">
+              <div className="pt-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setTempToken("");
-                    setState("EMAIL_ENTRY");
-                    setPassword("");
-                    setError("");
-                    if (typeof window !== "undefined") {
-                      const url = new URL(window.location.href);
-                      url.searchParams.delete("auth_step");
-                      url.searchParams.delete("token");
-                      url.searchParams.set("activated", "true");
-                      window.history.replaceState({}, '', url.pathname + url.search);
-                    }
-                  }}
-                  className="w-full h-[52px] bg-[#B99625] dark:bg-[#D7B33A] hover:bg-[#A68520] dark:hover:bg-[#E4C35A] text-[#FFFFFF] dark:text-[#111419] font-bold text-xs flex items-center justify-center transition-all shadow-sm rounded-xl cursor-pointer group"
+                  onClick={handleReturnToLogin}
+                  className="w-full h-[52px] sm:h-[56px] rounded-[14px] bg-[#DDB52F] hover:bg-[#E8C54A] active:bg-[#C9A224] text-[#080A0D] font-bold text-xs sm:text-sm flex items-center justify-center transition-all shadow-sm cursor-pointer group"
                 >
-                  Return to login <ArrowRight className="ml-2 w-4 h-4 text-current group-hover:translate-x-1 transition-transform" />
+                  Return to login
+                  <ArrowRight className="ml-1.5 sm:ml-2 w-4 h-4 text-[#080A0D] group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>
             </motion.div>

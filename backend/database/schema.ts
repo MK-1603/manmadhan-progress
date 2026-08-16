@@ -77,6 +77,8 @@ export const otpCodes = pgTable("otp_codes", {
 	otpHash: text("otp_hash").notNull(),
 	attempts: integer("attempts").default(0).notNull(),
 	used: boolean("used").default(false).notNull(),
+	resendCount: integer("resend_count").default(0).notNull(),
+	lastResentAt: timestamp("last_resent_at"),
 	expiresAt: timestamp("expires_at").notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -1458,6 +1460,22 @@ export const calendarEvents = pgTable("calendar_events", {
 	createdById: text("created_by_id")
 		.notNull()
 		.references(() => users.id),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// User Sessions Table for Token Rotation & Session Management
+export const userSessions = pgTable("user_sessions", {
+	id: text("id").primaryKey(),
+	userId: text("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	refreshTokenHash: text("refresh_token_hash").notNull(),
+	deviceId: text("device_id"),
+	userAgent: text("user_agent"),
+	ipAddress: text("ip_address"),
+	status: text("status").default("ACTIVE").notNull(), // ACTIVE, REVOKED, EXPIRED, SUSPENDED
+	expiresAt: timestamp("expires_at").notNull(),
+	lastUsedAt: timestamp("last_used_at").defaultNow().notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -23,8 +23,8 @@ export function GoogleButton({
       whileTap={disabled ? {} : { scale: 0.99 }}
       className={`flex h-[54px] w-full items-center justify-center gap-3 rounded-[14px] border px-4 transition-all duration-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#D4AF37] ${
         disabled
-          ? "border-border/60 dark:border-[#282E38] bg-muted/30 dark:bg-[#151920]/60 text-muted-foreground dark:text-[#9299A8] cursor-not-allowed opacity-80"
-          : "border-border dark:border-[#2A303A] bg-card dark:bg-[#151920] hover:bg-accent dark:hover:bg-[#181C23] hover:border-border-hover dark:hover:border-[#3A4250] text-foreground dark:text-[#F5F5F2] cursor-pointer shadow-xs"
+          ? "border-border/60 dark:border-[#252B35] bg-muted/30 dark:bg-[#161B26]/60 text-muted-foreground dark:text-[#626A75] cursor-not-allowed opacity-80"
+          : "border-border dark:border-[#252B35] bg-card dark:bg-[#161B26] hover:bg-accent dark:hover:bg-[#1C222F] hover:border-border-hover dark:hover:border-[#343B46] text-foreground dark:text-[#F3FFF0] cursor-pointer shadow-xs"
       }`}
       aria-label="Continue with Google authentication"
     >
@@ -37,7 +37,7 @@ export function GoogleButton({
       <div className="flex flex-col items-center justify-center leading-tight">
         <span className="text-sm font-semibold">Continue with Google</span>
         {subtext && (
-          <span className="text-[10px] text-muted-foreground/80 dark:text-[#9299A8] font-normal mt-0.5">
+          <span className="text-[10px] text-muted-foreground/80 dark:text-[#8E949E] font-normal mt-0.5">
             {subtext}
           </span>
         )}

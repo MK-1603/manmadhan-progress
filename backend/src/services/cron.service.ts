@@ -9,9 +9,11 @@ import {
 import { logger } from "./logger.service";
 
 class CronService {
+	private tasks: any[] = [];
+
 	public start() {
 		// 11:00 PM System Off (Stop tracking active tasks, prepare end-of-day data)
-		cron.schedule("0 23 * * *", async () => {
+		const task1 = cron.schedule("0 23 * * *", async () => {
 			logger.info("[Cron] Running 11 PM System Off Job...");
 			try {
 				// Find all RUNNING focus sessions and pause them to stop tracking
@@ -60,29 +62,26 @@ class CronService {
 
 				if (activeOrgSessions.length > 0) {
 					const now = new Date();
-					for (const orgSession of activeOrgSessions) {
-						let dur = orgSession.durationSeconds || 0;
-						if (orgSession.status === "Active") {
-							const lastStart = orgSession.resumedAt || orgSession.startTime;
-							dur += Math.max(
-								0,
-								Math.floor(
-									(now.getTime() - new Date(lastStart).getTime()) / 1000,
-								),
+					for (const session of activeOrgSessions) {
+						let sessionSeconds = session.durationSeconds || 0;
+						if (session.status === "Active" && session.startTime) {
+							const elapsed = Math.floor(
+								(now.getTime() - new Date(session.startTime).getTime()) / 1000,
 							);
+							sessionSeconds += Math.max(0, elapsed);
 						}
 
 						await db
 							.update(timeTracking)
 							.set({
-								status: "SYSTEM_STOPPED",
+								status: "Stopped",
 								endTime: now,
-								durationSeconds: dur,
+								durationSeconds: sessionSeconds,
 							})
-							.where(eq(timeTracking.id, orgSession.id));
+							.where(eq(timeTracking.id, session.id));
 					}
 					logger.info(
-						`[Cron] Auto-stopped ${activeOrgSessions.length} active organization focus sessions at 11 PM.`,
+						`[Cron] Auto-stopped ${activeOrgSessions.length} org focus sessions at 11 PM.`,
 					);
 				}
 			} catch (error) {
@@ -90,12 +89,11 @@ class CronService {
 			}
 		});
 
-		// 04:00 AM Daily Reset (Prepare new plan, calculate carry-forward)
-		cron.schedule("0 4 * * *", async () => {
-			logger.info("[Cron] Running 4 AM Daily Reset Job...");
+		// 4:00 AM Reset & Carry-Forward (Daily Reset Engine)
+		const task2 = cron.schedule("0 4 * * *", async () => {
+			logger.info("[Cron] Running 4 AM Daily Reset & Carry-Forward Job...");
 			try {
 				const now = new Date();
-				const _yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
 				// Find tasks due yesterday that are not completed (Carry Forward)
 				const allTasks = await personalDb
@@ -134,6 +132,19 @@ class CronService {
 				logger.error(`[Cron] 4 AM Job Error: ${error}`);
 			}
 		});
+
+		this.tasks.push(task1, task2);
+	}
+
+	public stop() {
+		for (const t of this.tasks) {
+			try {
+				t.stop();
+			} catch (_e) {
+				// Suppress errors during stop
+			}
+		}
+		this.tasks = [];
 	}
 }
 

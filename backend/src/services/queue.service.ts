@@ -255,4 +255,18 @@ export const queueService = {
 			};
 		}
 	},
+
+	async close() {
+		try {
+			if (emailWorker) await emailWorker.close();
+			if (pushWorker) await pushWorker.close();
+			if (isRedisConnected) {
+				await emailQueue.close();
+				await pushQueue.close();
+				await redisConnection.quit();
+			}
+		} catch (_e) {
+			// Suppress errors during shutdown
+		}
+	},
 };

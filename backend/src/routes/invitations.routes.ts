@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, ne, or } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
@@ -206,8 +206,8 @@ invitationsRouter.post("/:token/setup", async (req: Request, res: Response) => {
 // The following routes require authentication
 invitationsRouter.use(authenticate);
 
-// Generate an invitation (Leadership Only)
-invitationsRouter.post("/send", async (req: Request, res: Response) => {
+// Handler for sending invitation (Leadership Only)
+const handleSendInvite = async (req: Request, res: Response) => {
 	try {
 		let {
 			email,
@@ -247,7 +247,7 @@ invitationsRouter.post("/send", async (req: Request, res: Response) => {
 		if (normRole === "MEMBER" && !managerId) {
 			return res.status(400).json({
 				success: false,
-				error: "Member invitations MUST have an assigned CO-CEO (managerId).",
+				error: "Member invitations MUST have an assigned CO-CEO. Add a CO-CEO before inviting a Member.",
 			});
 		}
 
@@ -333,19 +333,34 @@ invitationsRouter.post("/send", async (req: Request, res: Response) => {
 			.set({ status: finalStatus })
 			.where(eq(invitations.id, newInvite[0].id));
 
+		let assignedCoCeoName = null;
+		let assignedCoCeoEmail = null;
+		if (managerId) {
+			const coCeoUser = await db.query.users.findFirst({
+				where: eq(users.id, String(managerId)),
+			});
+			if (coCeoUser) {
+				assignedCoCeoName = coCeoUser.displayName || coCeoUser.name;
+				assignedCoCeoEmail = coCeoUser.email;
+			}
+		}
+
 		const responseData = {
 			...newInvite[0],
 			status: finalStatus,
+			assignedCoCeoName,
+			assignedCoCeoEmail,
 		};
 
 		// Socket notification — only emit INVITATION_SENT when email was actually accepted
 		// by the mail provider. Emit INVITATION_SEND_FAILED so the frontend can show the
 		// real state without a misleading "sent" indicator.
 		const socketEvent = emailSent ? "INVITATION_SENT" : "INVITATION_SEND_FAILED";
+		const { token: _broadcastToken, ...safeBroadcastPayload } = responseData;
 		socketService.emitToWorkspace(
 			String(workspaceId),
 			socketEvent,
-			responseData,
+			safeBroadcastPayload,
 		);
 
 		res.json({
@@ -360,7 +375,10 @@ invitationsRouter.post("/send", async (req: Request, res: Response) => {
 		logger.error(`Create Invitation Error: ${(error as Error).message}`);
 		res.status(500).json({ success: false, error: "Internal server error." });
 	}
-});
+};
+
+invitationsRouter.post("/send", handleSendInvite);
+invitationsRouter.post("/", handleSendInvite);
 
 // POST /api/v1/invitations/:id/resend — Resend invitation email
 invitationsRouter.post(
@@ -465,11 +483,21 @@ invitationsRouter.get("/", async (req: Request, res: Response) => {
 
 		if (workspaceId) {
 			allInvitations = await db.query.invitations.findMany({
-				where: eq(invitations.organizationId, workspaceId),
+				where: and(
+					eq(invitations.organizationId, workspaceId),
+					ne(invitations.status, "Accepted"),
+					ne(invitations.status, "Revoked"),
+					ne(invitations.status, "Cancelled"),
+				),
 				orderBy: (invitations, { desc }) => [desc(invitations.createdAt)],
 			});
 		} else {
 			allInvitations = await db.query.invitations.findMany({
+				where: and(
+					ne(invitations.status, "Accepted"),
+					ne(invitations.status, "Revoked"),
+					ne(invitations.status, "Cancelled"),
+				),
 				orderBy: (invitations, { desc }) => [desc(invitations.createdAt)],
 				limit: 50,
 			});
@@ -1008,5 +1036,52 @@ invitationsRouter.post("/webhook", async (req: Request, res: Response) => {
 	} catch (error: any) {
 		logger.error(`Webhook Error: ${error.message}`);
 		res.status(500).json({ success: false });
+	}
+});
+
+// DELETE /:id (Cancel pending invitation)
+invitationsRouter.delete("/:id", authenticate, async (req: Request, res: Response) => {
+	try {
+		const targetId = req.params.id;
+		const userId = (req as any).user?.id;
+
+		if (!userId) {
+			return res.status(401).json({
+				success: false,
+				code: "UNAUTHENTICATED",
+				error: "Authentication required",
+			});
+		}
+
+		const [inv] = await db
+			.select()
+			.from(invitations)
+			.where(eq(invitations.id, targetId))
+			.limit(1);
+
+		if (!inv) {
+			return res.status(404).json({
+				success: false,
+				code: "INVITATION_NOT_FOUND",
+				error: "Invitation not found or already cancelled.",
+			});
+		}
+
+		const workspaceId = inv.organizationId || String(req.query.workspaceId || "");
+		await db.delete(invitations).where(eq(invitations.id, inv.id));
+
+		if (workspaceId) {
+			socketService.emitToWorkspace(workspaceId, "INVITATION_CANCELLED", { invitationId: inv.id });
+		}
+		logger.info("Invitation cancelled");
+
+		return res.json({ success: true, message: "Invitation cancelled successfully." });
+	} catch (err: any) {
+		logger.error("Cancel invitation failed");
+		return res.status(500).json({
+			success: false,
+			code: "INTERNAL_ERROR",
+			error: "Unable to complete this action. Please try again.",
+		});
 	}
 });

@@ -5,8 +5,9 @@ import { users, workspaceMembers, workspaces } from "../database/schema";
 import { AuthService } from "../src/services/auth.service";
 
 // ─── CEO Bootstrap Credentials ────────────────────────────────────────────────
-const CEO_EMAIL    = "hemanthmm1107@gmail.com";
-const CEO_NAME     = "MM1107";
+const CEO_EMAIL    = "saikrishnanmk1603@gmail.com";
+const CEO_NAME     = "Sai Krishnan";
+const BATCH_NUMBER = "MK1603";
 const CEO_PASSWORD = "Welcome@123";
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,8 @@ async function seed() {
 				isOtpEnabled:  true,
 				isGoogleEnabled: false,
 				systemOwner:   true,
+				batchNumber:   BATCH_NUMBER,
+				employeeId:    BATCH_NUMBER,
 				passwordHash:  AuthService.hashPassword(CEO_PASSWORD),
 			})
 			.where(eq(users.email, CEO_EMAIL));
@@ -58,6 +61,8 @@ async function seed() {
 			isOtpEnabled:    true,
 			isInvited:       false,
 			systemOwner:     true,
+			batchNumber:     BATCH_NUMBER,
+			employeeId:      BATCH_NUMBER,
 			passwordHash:    AuthService.hashPassword(CEO_PASSWORD),
 		});
 		console.log(`✅ Created CEO account: ${CEO_EMAIL}`);

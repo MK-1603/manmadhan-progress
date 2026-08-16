@@ -33,7 +33,7 @@ export function InvitationPanel({ isOpen, onClose }: { isOpen: boolean; onClose:
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-background/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/60">
       <div className="w-full max-w-md h-full bg-layer-1 border-l border-border shadow-2xl animate-in slide-in-from-right flex flex-col">
         <div className="p-6 border-b border-border flex items-center justify-between">
           <h2 className="text-xl font-bold flex items-center gap-2">

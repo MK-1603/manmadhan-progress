@@ -26,33 +26,78 @@ import { socketService } from "../services/socket.service";
 export const orgTasksRouter = Router();
 orgTasksRouter.use(authenticate);
 
+// ─── Role Normalization & Permissions ─────────────────────────────────────────
+function normalizeRole(roleStr?: string): "CEO" | "CO-CEO" | "MEMBER" {
+	if (!roleStr) return "MEMBER";
+	const r = String(roleStr).toUpperCase().trim().replace("_", "-");
+	if (r === "CEO") return "CEO";
+	if (r === "CO-CEO" || r === "COCEO") return "CO-CEO";
+	return "MEMBER";
+}
+
+function canCreateTask(user: any, membership: any, payload: any): { allowed: boolean; reason?: string } {
+	const effectiveRole = normalizeRole(user?.role || membership?.role);
+
+	if (effectiveRole === "CEO" || effectiveRole === "CO-CEO") {
+		return { allowed: true };
+	}
+
+	// Members can create tasks assigned to themselves within their workspace
+	if (effectiveRole === "MEMBER") {
+		const targetAssignee = payload?.assigneeId;
+		if (!targetAssignee || targetAssignee === user?.id) {
+			return { allowed: true };
+		}
+		return {
+			allowed: false,
+			reason: "Members cannot assign organization tasks to other users.",
+		};
+	}
+
+	return { allowed: false, reason: "Insufficient permissions to create tasks." };
+}
+
 // ─── Middleware ───────────────────────────────────────────────────────────────
 const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 	try {
 		const userId = (req as any).user?.id;
+		if (!userId) {
+			return res
+				.status(401)
+				.json({ success: false, error: { code: "UNAUTHENTICATED", message: "Authentication required" } });
+		}
+
 		let workspaceId = String(
-			req.query.workspaceId || req.body.workspaceId || "",
+			req.query.workspaceId || req.body.workspaceId || req.headers["x-workspace-id"] || "",
 		).trim();
 
-		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
-			if (userId) {
-				const [m] = await db
-					.select()
-					.from(workspaceMembers)
-					.where(eq(workspaceMembers.userId, userId))
-					.limit(1);
-				if (m?.workspaceId) {
-					workspaceId = m.workspaceId;
-					req.body.workspaceId = workspaceId;
-					(req.query as any).workspaceId = workspaceId;
-				}
+		const [userMembership] = await db
+			.select()
+			.from(workspaceMembers)
+			.where(eq(workspaceMembers.userId, userId))
+			.limit(1);
+
+		if (userMembership?.workspaceId) {
+			if (
+				!workspaceId ||
+				workspaceId === "undefined" ||
+				workspaceId === "null" ||
+				workspaceId === "ManMadhan" ||
+				workspaceId === "default"
+			) {
+				workspaceId = userMembership.workspaceId;
+				req.body.workspaceId = workspaceId;
 			}
 		}
 
 		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
-			return res
-				.status(400)
-				.json({ success: false, error: "workspaceId is required" });
+			return res.status(400).json({
+				success: false,
+				error: {
+					code: "WORKSPACE_CONTEXT_REQUIRED",
+					message: "workspaceId is required to execute task operations",
+				},
+			});
 		}
 
 		(req as any).workspaceId = workspaceId;
@@ -62,24 +107,26 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 			"resolveWorkspace tasks error: " +
 				(err?.stack || err?.message || String(err)),
 		);
-		return res
-			.status(500)
-			.json({ success: false, error: "Failed to resolve workspace" });
+		return res.status(500).json({
+			success: false,
+			error: { code: "INTERNAL_ERROR", message: "Failed to resolve workspace" },
+		});
 	}
 };
 
 const requireMembership = async (req: Request, res: Response, next: any) => {
 	try {
 		const userId = (req as any).user?.id;
+		const userRole = normalizeRole((req as any).user?.role);
 		const workspaceId = (req as any).workspaceId;
 
 		if (!userId) {
 			return res
 				.status(401)
-				.json({ success: false, error: "Authentication required" });
+				.json({ success: false, error: { code: "UNAUTHENTICATED", message: "Authentication required" } });
 		}
 
-		const [m] = await db
+		let [m] = await db
 			.select()
 			.from(workspaceMembers)
 			.where(
@@ -91,12 +138,30 @@ const requireMembership = async (req: Request, res: Response, next: any) => {
 			.limit(1);
 
 		if (!m) {
-			return res
-				.status(403)
-				.json({ success: false, error: "Not a member of this workspace" });
+			const [anyMembership] = await db
+				.select()
+				.from(workspaceMembers)
+				.where(eq(workspaceMembers.userId, userId))
+				.limit(1);
+
+			if (anyMembership && (userRole === "CEO" || userRole === "CO-CEO")) {
+				m = anyMembership;
+				(req as any).workspaceId = anyMembership.workspaceId;
+			}
 		}
 
-		(req as any).membership = m;
+		if (!m) {
+			return res.status(403).json({
+				success: false,
+				error: {
+					code: "NOT_WORKSPACE_MEMBER",
+					message: "You are not a member of this workspace.",
+				},
+			});
+		}
+
+		const effectiveRole = normalizeRole(m.role || userRole);
+		(req as any).membership = { ...m, role: effectiveRole };
 		next();
 	} catch (err: any) {
 		logger.error(
@@ -632,259 +697,221 @@ orgTasksRouter.get(
 );
 
 // ─── Create Task ──────────────────────────────────────────────────────────────
-orgTasksRouter.post(
-	"/",
-	resolveWorkspace,
-	requireMembership,
-	async (req: Request, res: Response) => {
-		try {
-			const workspaceId = (req as any).workspaceId;
-			const userId = (req as any).user?.id;
-			const membership = (req as any).membership;
-			if (membership.role === "MEMBER")
-				return res
-					.status(403)
-					.json({ success: false, error: "Members cannot create tasks" });
+const createTaskHandler = async (req: Request, res: Response) => {
+	try {
+		const workspaceId = (req as any).workspaceId;
+		const userId = (req as any).user?.id;
+		const user = (req as any).user;
+		const membership = (req as any).membership;
 
-			const {
-				title,
-				description,
-				projectId,
-				milestoneId,
-				assigneeId,
-				priority,
-				deadline,
-				startTime,
-				endTime,
-				approvalRequired,
-				verificationRequired,
-				deliverable,
-				estimatedMinutes,
-				type,
-			} = req.body;
-			if (!title?.trim())
-				return res
-					.status(400)
-					.json({ success: false, error: "Task title is required" });
+		const permCheck = canCreateTask(user, membership, req.body);
+		if (!permCheck.allowed) {
+			return res.status(403).json({
+				success: false,
+				error: {
+					code: "TASK_CREATE_FORBIDDEN",
+					message: permCheck.reason || "You do not have permission to create this task.",
+				},
+			});
+		}
 
-			const cleanProjectId =
-				projectId && projectId !== "NONE" ? projectId : null;
-			const cleanMilestoneId =
-				cleanProjectId && milestoneId ? milestoneId : null;
+		const {
+			title,
+			description,
+			projectId,
+			milestoneId,
+			assigneeId,
+			priority,
+			deadline,
+			startTime,
+			endTime,
+			approvalRequired,
+			verificationRequired,
+			deliverable,
+			estimatedMinutes,
+			type,
+		} = req.body;
+		if (!title?.trim())
+			return res
+				.status(400)
+				.json({ success: false, error: "Task title is required" });
 
-			// Validate milestone cross-project linking rule
-			if (cleanMilestoneId && cleanProjectId) {
-				const [ms] = await db
-					.select()
-					.from(milestones)
-					.where(eq(milestones.id, cleanMilestoneId))
-					.limit(1);
-				const [msV2] = ms
-					? []
-					: await db
-							.select()
-							.from(projectMilestonesV2)
-							.where(eq(projectMilestonesV2.id, cleanMilestoneId))
-							.limit(1);
+		const cleanProjectId =
+			projectId && projectId !== "NONE" ? projectId : null;
+		const cleanMilestoneId =
+			cleanProjectId && milestoneId ? milestoneId : null;
 
-				const foundMs = ms || msV2;
-				if (foundMs && foundMs.projectId !== cleanProjectId) {
-					return res.status(400).json({
-						success: false,
-						error: "Milestone does not belong to the selected project",
-					});
-				}
+		// Validate milestone cross-project linking rule
+		if (cleanMilestoneId && cleanProjectId) {
+			const [ms] = await db
+				.select()
+				.from(milestones)
+				.where(eq(milestones.id, cleanMilestoneId))
+				.limit(1);
+			const [msV2] = ms
+				? []
+				: await db
+						.select()
+						.from(projectMilestonesV2)
+						.where(eq(projectMilestonesV2.id, cleanMilestoneId))
+						.limit(1);
+
+			const foundMs = ms || msV2;
+			if (foundMs && foundMs.projectId !== cleanProjectId) {
+				return res.status(400).json({
+					success: false,
+					error: "Milestone does not belong to the selected project",
+				});
 			}
+		}
 
-			const parseDateSafely = (val: any) => {
-				if (!val) return null;
-				const d = new Date(val);
-				if (!Number.isNaN(d.getTime())) return d;
-				if (typeof val === "string" && /^\d{1,2}:\d{2}/.test(val)) {
-					const todayStr = new Date().toISOString().split("T")[0];
-					const d2 = new Date(
-						`${todayStr}T${val.length === 5 ? val : `0${val}`}:00`,
-					);
-					if (!Number.isNaN(d2.getTime())) return d2;
-				}
-				return null;
-			};
+		const parseDateSafely = (val: any) => {
+			if (!val) return null;
+			const d = new Date(val);
+			if (!Number.isNaN(d.getTime())) return d;
+			if (typeof val === "string" && /^\d{1,2}:\d{2}/.test(val)) {
+				const todayStr = new Date().toISOString().split("T")[0];
+				const d2 = new Date(
+					`${todayStr}T${val.length === 5 ? val : `0${val}`}:00`,
+				);
+				if (!Number.isNaN(d2.getTime())) return d2;
+			}
+			return null;
+		};
 
-			// Resolve target assignee actual role if assigned
-			let targetRole = "MEMBER";
-			if (assigneeId) {
+		// Resolve target assignee actual role if assigned
+		let targetRole = "MEMBER";
+		if (assigneeId) {
+			const [assigneeUser] = await db
+				.select()
+				.from(users)
+				.where(eq(users.id, assigneeId))
+				.limit(1);
+			const [assigneeMember] = await db
+				.select()
+				.from(workspaceMembers)
+				.where(
+					and(
+						eq(workspaceMembers.workspaceId, workspaceId),
+						eq(workspaceMembers.userId, assigneeId),
+					),
+				)
+				.limit(1);
+
+			targetRole = (
+				assigneeUser?.role ||
+				assigneeMember?.role ||
+				"MEMBER"
+			).toUpperCase();
+			if (targetRole.includes("CO")) targetRole = "CO-CEO";
+			else if (targetRole !== "CEO") targetRole = "MEMBER";
+		}
+
+		const [task] = await db
+			.insert(tasks)
+			.values({
+				id: uuidv4(),
+				workspaceId,
+				projectId: cleanProjectId,
+				milestoneId: cleanMilestoneId,
+				title: title.trim(),
+				description: description || null,
+				priority: priority || "Medium",
+				status: assigneeId ? "PENDING_ACCEPTANCE" : "Draft",
+				assigneeId: assigneeId || null,
+				createdBy: userId || null,
+				deadline: parseDateSafely(deadline),
+				startTime: parseDateSafely(startTime),
+				endTime: parseDateSafely(endTime),
+				approvalRequired: Boolean(approvalRequired),
+				verificationRequired: Boolean(verificationRequired),
+				deliverable: deliverable || null,
+				estimatedMinutes: estimatedMinutes || 60,
+				type: type || "Task",
+				tags: [],
+				order: 0,
+			})
+			.returning();
+
+		// Record Task Assignment Tracker entry if assigned
+		let assignmentId: string | null = null;
+		if (assigneeId) {
+			assignmentId = uuidv4();
+			await db.insert(taskAssignmentTracker).values({
+				id: assignmentId,
+				taskId: task.id,
+				assigneeId,
+				assignedById: userId,
+				assigneeRole: targetRole,
+				status: "PENDING_ACCEPTANCE",
+				workspaceId,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			});
+		}
+
+		await db.insert(auditLogs).values({
+			id: uuidv4(),
+			userId,
+			workspaceId,
+			eventType: "TASK_CREATED",
+			details: `Task "${title}" created (Status: ${assigneeId ? "PENDING_ACCEPTANCE" : "Draft"})`,
+		});
+
+		if (projectId) {
+			await db.insert(activities).values({
+				id: uuidv4(),
+				workspaceId,
+				projectId,
+				taskId: task.id,
+				userId,
+				action: "Task created",
+				details: `Created task "${title}" (Assigned: ${assigneeId ? targetRole : "None"})`,
+			});
+		}
+
+		// Notify assignee via AssignmentDeliveryService
+		if (assigneeId) {
+			await AssignmentDeliveryService.dispatchWorkAssignment({
+				workspaceId,
+				entityType: "TASK_ASSIGNMENT",
+				entityId: task.id,
+				title: title.trim(),
+				description: description || undefined,
+				actorUserId: userId,
+				assigneeId,
+				deadline: deadline
+					? new Date(deadline).toISOString().split("T")[0]
+					: undefined,
+			});
+
+			// Create direct in-app notification with taskId & assignmentId payload
+			await db.insert(notifications).values({
+				id: uuidv4(),
+				userId: assigneeId,
+				workspaceId,
+				title: "TASK ASSIGNED",
+				message: `You have been assigned: "${title.trim()}" (Role: ${targetRole})`,
+				type: "TASK_ASSIGNMENT",
+				priority: "High",
+				isRead: false,
+			});
+
+			socketService.emitToUser(assigneeId, "notification.created", {
+				type: "TASK_ASSIGNMENT",
+				title: "TASK ASSIGNED",
+				message: `You have been assigned: "${title.trim()}"`,
+				taskId: task.id,
+				assignmentId,
+			});
+
+			// Dispatch real email notification asynchronously
+			try {
 				const [assigneeUser] = await db
 					.select()
 					.from(users)
 					.where(eq(users.id, assigneeId))
 					.limit(1);
-				const [assigneeMember] = await db
-					.select()
-					.from(workspaceMembers)
-					.where(
-						and(
-							eq(workspaceMembers.workspaceId, workspaceId),
-							eq(workspaceMembers.userId, assigneeId),
-						),
-					)
-					.limit(1);
-
-				targetRole = (
-					assigneeUser?.role ||
-					assigneeMember?.role ||
-					"MEMBER"
-				).toUpperCase();
-				if (targetRole.includes("CO")) targetRole = "CO-CEO";
-				else if (targetRole !== "CEO") targetRole = "MEMBER";
-			}
-
-			const [task] = await db
-				.insert(tasks)
-				.values({
-					id: uuidv4(),
-					workspaceId,
-					projectId: cleanProjectId,
-					milestoneId: cleanMilestoneId,
-					title: title.trim(),
-					description: description || null,
-					priority: priority || "Medium",
-					status: assigneeId ? "PENDING_ACCEPTANCE" : "Draft",
-					assigneeId: assigneeId || null,
-					createdBy: userId || null,
-					deadline: parseDateSafely(deadline),
-					startTime: parseDateSafely(startTime),
-					endTime: parseDateSafely(endTime),
-					approvalRequired: Boolean(approvalRequired),
-					verificationRequired: Boolean(verificationRequired),
-					deliverable: deliverable || null,
-					estimatedMinutes: estimatedMinutes || 60,
-					type: type || "Task",
-					tags: [],
-					order: 0,
-				})
-				.returning();
-
-			// Record Task Assignment Tracker entry if assigned
-			let assignmentId: string | null = null;
-			if (assigneeId) {
-				assignmentId = uuidv4();
-				await db.insert(taskAssignmentTracker).values({
-					id: assignmentId,
-					taskId: task.id,
-					assigneeId,
-					assignedById: userId,
-					assigneeRole: targetRole,
-					status: "PENDING_ACCEPTANCE",
-					workspaceId,
-					createdAt: new Date(),
-					updatedAt: new Date(),
-				});
-			}
-
-			await db.insert(auditLogs).values({
-				id: uuidv4(),
-				userId,
-				workspaceId,
-				eventType: "TASK_CREATED",
-				details: `Task "${title}" created (Status: ${assigneeId ? "PENDING_ACCEPTANCE" : "Draft"})`,
-			});
-
-			if (projectId) {
-				await db.insert(activities).values({
-					id: uuidv4(),
-					workspaceId,
-					projectId,
-					taskId: task.id,
-					userId,
-					action: "Task created",
-					details: `Created task "${title}" (Assigned: ${assigneeId ? targetRole : "None"})`,
-				});
-			}
-
-			// Notify assignee via AssignmentDeliveryService
-			if (assigneeId) {
-				await AssignmentDeliveryService.dispatchWorkAssignment({
-					workspaceId,
-					entityType: "TASK_ASSIGNMENT",
-					entityId: task.id,
-					title: title.trim(),
-					description: description || undefined,
-					actorUserId: userId,
-					assigneeId,
-					deadline: deadline
-						? new Date(deadline).toISOString().split("T")[0]
-						: undefined,
-				});
-
-				// Create direct in-app notification with taskId & assignmentId payload
-				await db.insert(notifications).values({
-					id: uuidv4(),
-					userId: assigneeId,
-					workspaceId,
-					title: "TASK ASSIGNED",
-					message: `You have been assigned: "${title.trim()}" (Role: ${targetRole})`,
-					type: "TASK_ASSIGNMENT",
-					priority: "High",
-					isRead: false,
-				});
-
-				socketService.emitToUser(assigneeId, "notification.created", {
-					type: "TASK_ASSIGNMENT",
-					title: "TASK ASSIGNED",
-					message: `You have been assigned: "${title.trim()}"`,
-					taskId: task.id,
-					assignmentId,
-				});
-
-				// Dispatch real email notification asynchronously
-				try {
-					const [assigneeUser] = await db
-						.select()
-						.from(users)
-						.where(eq(users.id, assigneeId))
-						.limit(1);
-					const [creatorUser] = await db
-						.select()
-						.from(users)
-						.where(eq(users.id, userId))
-						.limit(1);
-					let pName: string | null = null;
-					let msName: string | null = null;
-					if (cleanProjectId) {
-						const [p] = await db
-							.select()
-							.from(projects)
-							.where(eq(projects.id, cleanProjectId))
-							.limit(1);
-						if (p) pName = p.name;
-					}
-					if (cleanMilestoneId) {
-						const [ms] = await db
-							.select()
-							.from(projectMilestonesV2)
-							.where(eq(projectMilestonesV2.id, cleanMilestoneId))
-							.limit(1);
-						if (ms) msName = ms.name;
-					}
-					if (assigneeUser?.email) {
-						emailService
-							.sendTaskAssignmentEmail({
-								to: assigneeUser.email,
-								taskTitle: title.trim(),
-								projectName: pName,
-								milestoneName: msName,
-								assignerName:
-									creatorUser?.displayName || creatorUser?.name || "CEO",
-								role: targetRole,
-								deadline: deadline
-									? new Date(deadline).toISOString().split("T")[0]
-									: null,
-								taskId: task.id,
-							})
-							.catch((e) =>
-								logger.error(`Async assignment email error: ${e.message}`),
-							);
-					}
 				} catch (emailErr: any) {
 					logger.error(
 						`Failed to trigger assignment email: ${emailErr.message}`,
@@ -898,8 +925,10 @@ orgTasksRouter.post(
 			logger.error(`Create task error: ${err.stack || err.message}`);
 			res.status(500).json({ success: false, error: err.stack || err.message });
 		}
-	},
-);
+	};
+
+orgTasksRouter.post("/", resolveWorkspace, requireMembership, createTaskHandler);
+orgTasksRouter.post("/create", resolveWorkspace, requireMembership, createTaskHandler);
 
 // ─── Get Single Task ──────────────────────────────────────────────────────────
 orgTasksRouter.get(

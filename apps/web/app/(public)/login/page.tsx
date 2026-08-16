@@ -7,16 +7,17 @@ import { useAuth } from "@/components/auth/auth-context";
 function LoginContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { open, setAuthData } = useAuth();
+  const { open, setAuthData, authStatus, isLoading } = useAuth();
 
   useEffect(() => {
     const redirectParam = searchParams.get("redirect") || "";
     const errorParam = searchParams.get("error") || "";
     const tokenParam = searchParams.get("token") || "";
     const roleParam = searchParams.get("role") || "";
+    const emailParam = searchParams.get("email") || "";
     const stepParam = searchParams.get("auth_step") || "EMAIL_ENTRY";
 
-    setAuthData({ step: stepParam, token: tokenParam, role: roleParam, error: errorParam });
+    setAuthData({ step: stepParam, token: tokenParam, role: roleParam, error: errorParam, email: emailParam });
 
     // Build URL query params to trigger global AuthModal over the home page
     const params = new URLSearchParams();
@@ -25,21 +26,45 @@ function LoginContent() {
     if (errorParam) params.set("error", errorParam);
     if (tokenParam) params.set("token", tokenParam);
     if (roleParam) params.set("role", roleParam);
+    if (emailParam) params.set("email", emailParam);
 
     router.replace(`/?${params.toString()}`);
     open();
   }, [searchParams, router, setAuthData, open]);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center text-foreground text-xs font-mono">
-      Opening Secure Workspace Authentication...
+    <div className="min-h-screen bg-[#060806] flex flex-col items-center justify-center text-center p-6 space-y-4 select-none">
+      <div className="space-y-1">
+        <h1 className="text-xl font-bold text-[#F3FFF0] tracking-tight">ManMadhan Progress</h1>
+        <p className="text-xs font-mono text-[#DDB52F] uppercase tracking-widest">Secure Workspace Authentication</p>
+      </div>
+
+      <div className="flex items-center gap-2 pt-2">
+        <span className="w-2 h-2 rounded-full bg-[#DDB52F] animate-pulse" />
+        <p className="text-xs text-[#9AA2AF] font-mono">
+          {isLoading || authStatus === "initializing" ? "Checking secure session..." : "Opening authentication sheet..."}
+        </p>
+      </div>
     </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#060806] flex flex-col items-center justify-center text-center p-6 space-y-4 select-none">
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold text-[#F3FFF0] tracking-tight">ManMadhan Progress</h1>
+            <p className="text-xs font-mono text-[#DDB52F] uppercase tracking-widest">Secure Workspace Authentication</p>
+          </div>
+          <div className="flex items-center gap-2 pt-2">
+            <span className="w-2 h-2 rounded-full bg-[#DDB52F] animate-pulse" />
+            <p className="text-xs text-[#9AA2AF] font-mono">Initializing secure authentication...</p>
+          </div>
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );

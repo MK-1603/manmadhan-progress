@@ -1,301 +1,373 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
-  Mail, AlertCircle, Loader2, Check, X, Copy, CheckCircle2
+  Mail, AlertCircle, Loader2, Check, X, Copy, CheckCircle2, RefreshCw, Trash2, ChevronDown, ChevronUp, MessageSquare
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import apiClient from "@/lib/api-client";
-
-interface LifecycleStep {
-  label: string;
-  timestamp: string | null | undefined;
-  description: string;
-}
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 function formatDate(ts: string | null | undefined) {
-  if (!ts) return null;
-  return new Date(ts).toLocaleString("en-IN", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
+  if (!ts) return "—";
+  try {
+    return new Date(ts).toLocaleString("en-US", {
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+  } catch {
+    return String(ts);
+  }
 }
 
 interface InvitationDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
-  invitationId: string | null;
+  invitation: any | null;
+  onRefresh?: () => void;
 }
 
-export function InvitationDetailModal({ isOpen, onClose, invitationId }: InvitationDetailModalProps) {
-  const [inv, setInv] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+export function InvitationDetailModal({ isOpen, onClose, invitation, onRefresh }: InvitationDetailModalProps) {
+  const [mounted, setMounted] = useState(false);
+  useBodyScrollLock(isOpen);
+
+  const [inv, setInv] = useState<any>(invitation);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
-  const [cancelSuccess, setCancelSuccess] = useState("");
-  const [cancelError, setCancelError] = useState("");
+  const [toastMsg, setToastMsg] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionMsg, setActionMsg] = useState("");
 
-  const fetchInvitation = async () => {
-    if (!invitationId) return;
-    setLoading(true);
+  // Collapsible Accordion Sections
+  const [showDetails, setShowDetails] = useState(true);
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [showActions, setShowActions] = useState(true);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      setInv(invitation);
+      setError("");
+      setActionMsg("");
+      setToastMsg("");
+      setShowDetails(true);
+      setShowTimeline(false);
+      setShowActions(true);
+    }
+  }, [isOpen, invitation]);
+
+  if (!isOpen || !inv || !mounted) return null;
+
+  const handleCopyLink = () => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const link = `${origin}/invite/${inv.token || inv.id}`;
+    navigator.clipboard.writeText(link);
+    setCopied(true);
+    setToastMsg("Invitation link copied");
+    setTimeout(() => {
+      setCopied(false);
+      setToastMsg("");
+    }, 1800);
+  };
+
+  const handleWhatsAppShare = () => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const inviteUrl = `${origin}/invite/${inv.token || inv.id}`;
+    const roleText = (inv.role || "").toUpperCase().includes("CO") ? "CO-CEO" : "Member";
+
+    const msg = `Hello,\n\nYou've been invited to join ManMadhan Progress.\n\nOrganization: ManMadhan\nRole: ${roleText}\n\nPlease use the invitation link below to join:\n${inviteUrl}\n\nWe're looking forward to having you on the team.\n\n— ManMadhan Progress`;
+
+    const encodedMsg = encodeURIComponent(msg);
+    window.open(`https://api.whatsapp.com/send?text=${encodedMsg}`, "_blank");
+  };
+
+  const handleResend = async () => {
+    setActionLoading(true);
+    setActionMsg("");
     setError("");
     try {
       const workspaceId = localStorage.getItem("workspaceId");
-      const res = await apiClient.get(
-        `/organization/invitations/${invitationId}?workspaceId=${workspaceId}`
-      );
-      if (res.data.success) {
-        setInv(res.data.data);
+      const res = await apiClient.post(`/invitations/${inv.id}/resend`, { workspaceId });
+      if (res.data?.success) {
+        setActionMsg("Invitation email resent successfully!");
+        if (onRefresh) onRefresh();
       } else {
-        setError(res.data.error || "Failed to load invitation");
+        setError(res.data?.error || "Failed to resend invitation.");
       }
     } catch {
-      setError("Unable to load invitation details");
+      setError("Unable to resend invitation. Please try again.");
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (isOpen && invitationId) {
-      fetchInvitation();
-    } else {
-      setInv(null);
-      setError("");
-      setCancelSuccess("");
-      setCancelError("");
-    }
-  }, [isOpen, invitationId]);
-
-  const handleCancelInvitation = async () => {
-    if (!inv || !invitationId) return;
-    setCancelling(true);
-    setCancelError("");
+  const handleCancel = async () => {
+    setActionLoading(true);
+    setActionMsg("");
+    setError("");
     try {
       const workspaceId = localStorage.getItem("workspaceId");
-      const res = await apiClient.post(`/organization/invitations/cancel`, {
-        invitationId,
-        workspaceId,
-      });
-      if (res.data.success) {
-        setCancelSuccess("Invitation cancelled successfully.");
-        fetchInvitation();
-      } else {
-        setCancelError(res.data.error || "Failed to cancel invitation.");
-      }
+      await apiClient.delete(`/invitations/${inv.id}?workspaceId=${workspaceId}`);
+      setActionMsg("Invitation cancelled successfully.");
+      setTimeout(() => {
+        if (onRefresh) onRefresh();
+        onClose();
+      }, 1000);
     } catch {
-      setCancelError("Unable to cancel invitation. Try again.");
+      setError("Unable to cancel invitation. Please try again.");
     } finally {
-      setCancelling(false);
+      setActionLoading(false);
     }
   };
 
-  if (!isOpen) return null;
+  const isCoCeo = (inv.role || "").toUpperCase().includes("CO");
+  const roleText = isCoCeo ? "CO-CEO" : "MEMBER";
+  const assignedCoCeoText = isCoCeo
+    ? "Not applicable"
+    : inv.assignedCoCeoName
+    ? `${inv.assignedCoCeoName} (CO-CEO)`
+    : inv.assignedCoCeoEmail || inv.managerId || "Not assigned";
 
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <div className="flex items-center justify-center min-h-[300px]">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-        </div>
-      );
-    }
+  const statusLabel = inv.status || "Pending";
 
-    if (error || !inv) {
-      return (
-        <div className="p-6">
-          <div className="flex items-center gap-2 p-4 bg-card border border-border rounded-xl text-[13px] text-muted-foreground">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            {error || "Invitation not found."}
+  const contentJSX = (
+    <div className="space-y-3.5 text-[#17202A] dark:text-[#F2F4F7] text-[13px] select-none">
+      
+      {/* Header Bar */}
+      <div className="flex items-center justify-between pb-2.5 border-b border-[#E5E7EB] dark:border-[#272D36]">
+        <div className="min-w-0 pr-2">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#B28D18] dark:bg-[#C9A52A]" />
+            <h3 className="font-bold text-[15px] text-[#17202A] dark:text-[#F2F4F7] truncate">
+              {inv.email}
+            </h3>
           </div>
+          <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] mt-0.5">
+            {roleText} · <span className="text-amber-600 dark:text-amber-400 font-semibold">● {statusLabel}</span>
+          </p>
         </div>
-      );
-    }
-
-    const lifecycleSteps: LifecycleStep[] = [
-      { label: "Created", timestamp: inv.createdAt, description: "Invitation created by " + (inv.invitedBy?.name || "CEO") },
-      { label: "Sent", timestamp: inv.createdAt, description: "Sent to email" },
-      { label: "Waiting", timestamp: inv.createdAt, description: "Waiting for user action" },
-      { label: "Accepted", timestamp: inv.otpVerifiedAt, description: "OTP verified" },
-      { label: "Joined", timestamp: inv.workspaceAssignedAt, description: "Joined workspace" },
-      { label: "Profile", timestamp: inv.passwordCreatedAt, description: "Profile setup" },
-      { label: "Active", timestamp: inv.activatedAt, description: "Account active" },
-    ];
-
-    const isExpired = inv.expiresAt && new Date(inv.expiresAt) < new Date();
-    const isCancelled = inv.status === "Cancelled" || inv.status === "Revoked";
-    const isActive = inv.status === "Pending" || inv.status === "Delivered" || inv.status === "Sent";
-    const isCompleted = inv.status === "Activated" || inv.status === "Completed" || inv.activatedAt;
-
-    const statusColor = isCancelled
-      ? "bg-rose-500/10 text-rose-500 border-rose-500/20"
-      : isCompleted
-      ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-      : isExpired
-      ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
-      : "bg-blue-500/10 text-blue-500 border-blue-500/20";
-
-    return (
-      <div className="p-5 sm:p-6 space-y-6 max-h-[85vh] overflow-y-auto">
-        {/* Header */}
-        <div className="bg-card border border-border rounded-2xl p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-muted border border-border flex items-center justify-center shrink-0">
-                <Mail className="w-5 h-5 text-muted-foreground" />
-              </div>
-              <div>
-                <h1 className="text-[16px] sm:text-[18px] font-bold text-foreground leading-tight truncate max-w-[200px] sm:max-w-xs">{inv.email}</h1>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-purple-500/10 text-purple-500 border border-purple-500/20">
-                    {inv.role}
-                  </span>
-                  <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border ${statusColor}`}>
-                    {isExpired && !isCompleted && !isCancelled ? "EXPIRED" : inv.status}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Copy / Cancel actions for active invitations */}
-            {isActive && !isExpired && (
-              <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0">
-                <button
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(inv.email);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-card border border-border hover:border-primary rounded-xl text-[11px] font-semibold text-foreground transition-colors"
-                >
-                  {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span className="hidden sm:inline">{copied ? "Copied" : "Copy"}</span>
-                </button>
-                <button
-                  onClick={handleCancelInvitation}
-                  disabled={cancelling}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-rose-500/10 border border-rose-500/20 hover:border-rose-500 rounded-xl text-[11px] font-semibold text-rose-500 transition-colors disabled:opacity-50"
-                >
-                  {cancelling ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3.5 h-3.5" />}
-                  Cancel
-                </button>
-              </div>
-            )}
-          </div>
-
-          {cancelSuccess && (
-            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[12px] text-emerald-500">
-              <Check className="w-3.5 h-3.5" /> {cancelSuccess}
-            </div>
-          )}
-          {cancelError && (
-            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-rose-500/10 border border-rose-500/20 rounded-xl text-[12px] text-rose-500">
-              <AlertCircle className="w-3.5 h-3.5" /> {cancelError}
-            </div>
-          )}
-        </div>
-
-        {/* Lifecycle */}
-        <div className="bg-card border border-border rounded-2xl p-5">
-          <h2 className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-4">Invitation Lifecycle Journey</h2>
-          <div className="space-y-0">
-            {lifecycleSteps.map((step, idx) => {
-              const completed = !!step.timestamp;
-              const isLast = idx === lifecycleSteps.length - 1;
-              return (
-                <div key={step.label} className="flex gap-3">
-                  {/* Icon + connector line */}
-                  <div className="flex flex-col items-center">
-                    <div
-                      className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border-2 ${
-                        completed
-                          ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-500"
-                          : "bg-muted border-border text-muted-foreground"
-                      }`}
-                    >
-                      {completed ? (
-                        <Check className="w-3 h-3" />
-                      ) : (
-                        <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
-                      )}
-                    </div>
-                    {!isLast && (
-                      <div className={`w-0.5 h-8 my-0.5 ${completed ? "bg-emerald-500/30" : "bg-border"}`} />
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  <div className="pb-4 pt-0.5">
-                    <p className={`text-[13px] font-bold ${completed ? "text-foreground" : "text-muted-foreground"}`}>
-                      {step.label}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        
-        {/* Summary Boxes */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="px-4 py-3 bg-background border border-border rounded-xl">
-            <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest">Created Date</p>
-            <p className="text-[13px] font-semibold text-foreground mt-1">{formatDate(inv.createdAt)?.split(',')[0] || "—"}</p>
-          </div>
-          <div className="px-4 py-3 bg-background border border-border rounded-xl">
-            <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest">Expiry Status</p>
-            <p className={`text-[13px] font-semibold mt-1 ${isExpired && !isCompleted ? "text-rose-500" : "text-foreground"}`}>
-              {formatDate(inv.expiresAt)?.split(',')[0] || "—"}
-            </p>
-          </div>
-        </div>
-
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-lg text-[#667085] dark:text-[#8B95A5] hover:text-[#17202A] dark:hover:text-[#F2F4F7] hover:bg-[#F8F9FA] dark:hover:bg-[#07090D]"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
-    );
-  };
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
+      {toastMsg && (
+        <div className="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-[12px] font-medium flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-[12px] font-medium flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {actionMsg && (
+        <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[12px] font-medium flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{actionMsg}</span>
+        </div>
+      )}
+
+      {/* SECTION 1: INVITATION DETAILS (COLLAPSIBLE) */}
+      <div className="border border-[#E5E7EB] dark:border-[#272D36] rounded-[14px] overflow-hidden bg-[#FFFFFF] dark:bg-[#07090D]">
+        <button
+          type="button"
+          onClick={() => setShowDetails(!showDetails)}
+          className="w-full px-3.5 py-2.5 bg-[#F8F9FA] dark:bg-[#111419] flex items-center justify-between font-bold text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F0F2F5] dark:hover:bg-[#181D24] transition-colors"
+        >
+          <span>▾ Invitation</span>
+          {showDetails ? <ChevronUp className="w-4 h-4 text-[#667085] dark:text-[#8B95A5]" /> : <ChevronDown className="w-4 h-4 text-[#667085] dark:text-[#8B95A5]" />}
+        </button>
+
+        <AnimatePresence initial={false}>
+          {showDetails && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="divide-y divide-[#E5E7EB] dark:divide-[#1E242C] px-3.5"
+            >
+              <div className="py-2.5 flex justify-between items-center text-[12px]">
+                <span className="text-[#667085] dark:text-[#8B95A5]">Email</span>
+                <span className="font-semibold text-[#17202A] dark:text-[#F2F4F7] truncate max-w-[200px]">{inv.email}</span>
+              </div>
+              <div className="py-2.5 flex justify-between items-center text-[12px]">
+                <span className="text-[#667085] dark:text-[#8B95A5]">Employee / Batch ID</span>
+                <span className="font-mono font-semibold text-[#17202A] dark:text-[#F2F4F7]">
+                  {inv.batchNumber || inv.employeeId || inv.batchId || "—"}
+                </span>
+              </div>
+              <div className="py-2.5 flex justify-between items-center text-[12px]">
+                <span className="text-[#667085] dark:text-[#8B95A5]">Organization Role</span>
+                <span className="font-bold text-[#B28D18] dark:text-[#C9A52A]">{roleText}</span>
+              </div>
+              <div className="py-2.5 flex justify-between items-center text-[12px]">
+                <span className="text-[#667085] dark:text-[#8B95A5]">Assigned CO-CEO</span>
+                <span className="font-semibold text-[#17202A] dark:text-[#F2F4F7]">{assignedCoCeoText}</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* SECTION 2: TIMELINE (COLLAPSIBLE) */}
+      <div className="border border-[#E5E7EB] dark:border-[#272D36] rounded-[14px] overflow-hidden bg-[#FFFFFF] dark:bg-[#07090D]">
+        <button
+          type="button"
+          onClick={() => setShowTimeline(!showTimeline)}
+          className="w-full px-3.5 py-2.5 bg-[#F8F9FA] dark:bg-[#111419] flex items-center justify-between font-bold text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F0F2F5] dark:hover:bg-[#181D24] transition-colors"
+        >
+          <span>▾ Timeline</span>
+          {showTimeline ? <ChevronUp className="w-4 h-4 text-[#667085] dark:text-[#8B95A5]" /> : <ChevronDown className="w-4 h-4 text-[#667085] dark:text-[#8B95A5]" />}
+        </button>
+
+        <AnimatePresence initial={false}>
+          {showTimeline && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="divide-y divide-[#E5E7EB] dark:divide-[#1E242C] px-3.5"
+            >
+              <div className="py-2.5 flex justify-between items-center text-[12px]">
+                <span className="text-[#667085] dark:text-[#8B95A5]">Invitation Sent</span>
+                <span className="font-mono text-[#17202A] dark:text-[#F2F4F7]">{formatDate(inv.createdAt)}</span>
+              </div>
+              <div className="py-2.5 flex justify-between items-center text-[12px]">
+                <span className="text-[#667085] dark:text-[#8B95A5]">Expires Date</span>
+                <span className="font-mono text-[#667085] dark:text-[#8B95A5]">{formatDate(inv.expiresAt)}</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* SECTION 3: ACTIONS (COLLAPSIBLE) */}
+      <div className="border border-[#E5E7EB] dark:border-[#272D36] rounded-[14px] overflow-hidden bg-[#FFFFFF] dark:bg-[#07090D] p-3 space-y-2">
+        <button
+          type="button"
+          onClick={() => setShowActions(!showActions)}
+          className="w-full pb-1 flex items-center justify-between font-bold text-[12.5px] text-[#17202A] dark:text-[#F2F4F7]"
+        >
+          <span>▾ Actions</span>
+          {showActions ? <ChevronUp className="w-4 h-4 text-[#667085] dark:text-[#8B95A5]" /> : <ChevronDown className="w-4 h-4 text-[#667085] dark:text-[#8B95A5]" />}
+        </button>
+
+        {showActions && (
+          <div className="space-y-2 pt-1">
+            {/* Primary Actions Grid: Resend + WhatsApp */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={handleResend}
+                disabled={actionLoading}
+                className="h-[38px] rounded-[10px] bg-[#B28D18] dark:bg-[#C9A52A] text-white dark:text-[#0B0D10] text-[12px] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-40"
+              >
+                {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                <span>Resend</span>
+              </button>
+
+              <button
+                onClick={handleWhatsAppShare}
+                className="h-[38px] rounded-[10px] bg-[#B28D18] dark:bg-[#C9A52A] text-white dark:text-[#0B0D10] text-[12px] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>WhatsApp</span>
+              </button>
+            </div>
+
+            {/* Secondary Action: Copy Invite Link */}
+            <button
+              onClick={handleCopyLink}
+              className="w-full h-[38px] rounded-[10px] bg-[#F8F9FA] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] text-[12px] font-bold text-[#17202A] dark:text-[#F2F4F7] flex items-center justify-center gap-1.5 cursor-pointer hover:border-[#B28D18] dark:hover:border-[#C9A52A] transition-colors"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copied ? "✓ Copied" : "Copy invite link"}</span>
+            </button>
+
+            {/* Destructive Subtle Action: Cancel Invitation */}
+            <button
+              onClick={handleCancel}
+              disabled={actionLoading}
+              className="w-full py-1.5 text-center text-[12px] font-semibold text-rose-500 hover:underline cursor-pointer disabled:opacity-40 pt-1"
+            >
+              Cancel invitation
+            </button>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+
+  return createPortal(
+    <div className="fixed inset-0 z-[80]">
+      
+      {/* DESKTOP CENTERED DIALOG (`hidden md:flex`) */}
+      <div className="hidden md:flex fixed inset-0 items-center justify-center p-4">
+        {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-background/80 backdrop-blur-sm"
+          onClick={onClose}
+          className="fixed inset-0 bg-black/60 backdrop-blur-[2px] cursor-pointer"
+        />
+
+        {/* Modal Card */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 8 }}
+          transition={{ duration: 0.15 }}
+          className="relative z-10 w-full max-w-md bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] rounded-[20px] shadow-2xl p-5 overflow-y-auto max-h-[85vh] [scrollbar-width:thin]"
         >
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="w-full max-w-[600px] bg-background border border-border sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col relative"
-          >
-            {/* Top handle for mobile sheet look */}
-            <div className="w-full flex justify-center pt-3 pb-1 sm:hidden">
-              <div className="w-12 h-1.5 bg-border rounded-full" />
-            </div>
-
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 p-2 bg-muted/50 hover:bg-muted text-muted-foreground rounded-full transition-colors z-10"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            {renderContent()}
-
-            <div className="p-4 sm:p-5 border-t border-border bg-card flex justify-end">
-              <button
-                onClick={onClose}
-                className="px-5 py-2.5 bg-background border border-border hover:bg-muted text-[13px] font-semibold rounded-xl transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </motion.div>
+          {contentJSX}
         </motion.div>
-      )}
-    </AnimatePresence>
+      </div>
+
+      {/* MOBILE iOS-STYLE BOTTOM SHEET (`md:hidden`) */}
+      <div className="flex md:hidden fixed inset-0 items-end justify-center">
+        {/* Backdrop */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          onTouchMove={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-[2px] cursor-pointer"
+        />
+
+        {/* Bottom Sheet Card */}
+        <motion.div
+          initial={{ y: "100%" }}
+          animate={{ y: 0 }}
+          exit={{ y: "100%" }}
+          transition={{ type: "spring", stiffness: 320, damping: 32 }}
+          className="relative z-10 w-full max-h-[85dvh] bg-[#FFFFFF] dark:bg-[#15191F] border-t border-[#E5E7EB] dark:border-[#272D36] rounded-t-[24px] shadow-2xl p-5 flex flex-col overflow-y-auto pb-[calc(20px+env(safe-area-inset-bottom))]"
+        >
+          {/* Drag Handle */}
+          <div className="w-10 h-1 rounded-full bg-[#E5E7EB] dark:bg-[#3F4754] mx-auto mb-3 shrink-0" />
+          {contentJSX}
+        </motion.div>
+      </div>
+
+    </div>,
+    document.body
   );
 }

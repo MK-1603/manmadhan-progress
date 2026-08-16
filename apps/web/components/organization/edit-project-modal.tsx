@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { X, FolderKanban, Loader2, AlertCircle, ShieldCheck } from "lucide-react";
+import { FolderKanban, Loader2, AlertCircle, ShieldCheck } from "lucide-react";
 import apiClient from "@/lib/api-client";
+import { GlobalSheet } from "@/components/ui/global-sheet";
 
 interface EditProjectModalProps {
   isOpen: boolean;
@@ -16,7 +17,6 @@ export function EditProjectModal({ isOpen, project, onClose, onUpdated }: EditPr
   const [description, setDescription] = useState(project?.description || "");
   const [objective, setObjective] = useState(project?.objective || "");
   
-  // Format Date & Time strings
   const initialStart = project?.startDate ? new Date(project.startDate) : new Date();
   const initialEnd = project?.deadline ? new Date(project.deadline) : new Date(Date.now() + 30 * 24 * 3600 * 1000);
 
@@ -81,31 +81,39 @@ export function EditProjectModal({ isOpen, project, onClose, onUpdated }: EditPr
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-muted/10 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
-              <FolderKanban className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                Edit Project Mandate Details
-              </h2>
-              <p className="text-[11px] text-muted-foreground">
-                Update project metadata, start date & time, deadline, priority, and status
-              </p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-md text-muted-foreground hover:text-foreground">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+  const footer = (
+    <div className="flex items-center justify-end gap-2 w-full">
+      <button
+        type="button"
+        onClick={onClose}
+        className="px-3.5 py-1.5 border border-border text-xs font-semibold text-foreground rounded-xl hover:bg-muted transition-colors"
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        form="edit-project-form"
+        disabled={loading}
+        className="px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm inline-flex items-center gap-1.5"
+      >
+        {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save Changes"}
+      </button>
+    </div>
+  );
 
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
+  return (
+    <GlobalSheet
+      open={isOpen}
+      onClose={onClose}
+      title="Edit Project Mandate Details"
+      subtitle="UPDATE PROJECT METADATA, TIMELINE & STATUS"
+      icon={<FolderKanban className="w-4 h-4 text-primary" />}
+      footerActions={footer}
+      desktopMode="modal"
+      desktopMaxWidth="max-w-2xl"
+    >
+      <div className="space-y-4 text-xs select-text">
+        <form id="edit-project-form" onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="flex items-center gap-2 p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-500 text-xs">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -245,25 +253,8 @@ export function EditProjectModal({ isOpen, project, onClose, onUpdated }: EditPr
               className="w-full px-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground focus:border-primary outline-none"
             />
           </div>
-
-          <div className="pt-2 flex justify-end gap-2 border-t border-border shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-1.5 border border-border text-xs font-semibold text-foreground rounded-xl hover:bg-muted transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm inline-flex items-center gap-1.5"
-            >
-              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Save Changes"}
-            </button>
-          </div>
         </form>
       </div>
-    </div>
+    </GlobalSheet>
   );
 }

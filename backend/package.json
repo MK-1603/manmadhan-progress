@@ -13,6 +13,7 @@
 		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio",
 		"db:reset-dev": "tsx scripts/reset_dev_db.ts",
+		"reset:auth": "tsx scripts/reset_dev_auth.ts",
 		"test": "jest"
 	},
 	"dependencies": {

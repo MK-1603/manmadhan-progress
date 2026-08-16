@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Check, Building, User as UserIcon } from "lucide-react";
+import { ChevronDown, Check, Building, User as UserIcon, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useAuth } from "@/components/auth/auth-context";
 import { useSocket } from "@/components/providers/socket-provider";
 import apiClient from "@/lib/api-client";
@@ -26,9 +27,10 @@ function getPageTitle(pathname: string): string {
   if (pathname.match(/\/(ceo|co-ceo|member)\/tasks/)) return "Tasks";
   if (pathname.match(/\/(ceo|co-ceo|member)\/calendar/)) return "Calendar";
   if (pathname.match(/\/(ceo|co-ceo|member)\/timeline/)) return "Timeline";
-  if (pathname.includes("/co-ceos")) return "CO-CEOs";
-  if (pathname.match(/\/(ceo|co-ceo|member)\/members/)) return "Members";
-  if (pathname.includes("/invitations")) return "Invitations";
+  if (pathname.includes("/people")) return "People";
+  if (pathname.includes("/co-ceos")) return "People";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/members/)) return "People";
+  if (pathname.includes("/invitations")) return "People";
   if (pathname.match(/\/(ceo|co-ceo|member)\/graph/)) return "Organization Graph";
   if (pathname.match(/\/(ceo|co-ceo|member)\/leaderboard/)) return "Leaderboard";
   if (pathname.match(/\/(ceo|co-ceo|member)\/automation/)) return "Automation";
@@ -253,6 +255,9 @@ export function Header() {
 
       {/* 3. RIGHT SIDE — HEADER ACTIONS */}
       <div className="flex items-center justify-end gap-2 flex-1">
+        {/* Quick Theme Toggle Button */}
+        <ThemeToggleButton />
+
         {/* Notifications Button & Popover */}
         <NotificationDropdown
           activePopover={activePopover as any}
@@ -266,6 +271,35 @@ export function Header() {
         />
       </div>
     </header>
+  );
+}
+
+function ThemeToggleButton() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return <div className="w-10 h-10 rounded-full" />;
+
+  const isDark = theme === "dark";
+
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      aria-label="Toggle light and dark theme"
+      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+      className="w-10 h-10 rounded-full flex items-center justify-center border border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#0B0D10] text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5] transition-colors cursor-pointer focus:outline-none"
+    >
+      {isDark ? (
+        <Sun className="w-4 h-4 text-[#D4B12F]" />
+      ) : (
+        <Moon className="w-4 h-4 text-[#667085]" />
+      )}
+    </button>
   );
 }
 

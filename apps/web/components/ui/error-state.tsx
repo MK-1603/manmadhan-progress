@@ -406,10 +406,10 @@ export function ErrorState({
   };
 
   return (
-    <div className="min-h-[100dvh] lg:h-[100dvh] lg:overflow-hidden w-full bg-[#F4F4F5] dark:bg-[#080A0D] text-zinc-900 dark:text-zinc-100 font-sans selection:bg-[#D9A514]/30 selection:text-[#D9A514] relative overflow-x-hidden flex flex-col justify-between transition-colors duration-200">
+    <div className="min-h-[100dvh] w-full bg-[#F8F9FA] dark:bg-[#060806] text-[#17202A] dark:text-[#F2F4F7] font-sans selection:bg-[#D4AF37]/30 relative overflow-x-hidden flex flex-col items-center justify-between transition-colors duration-200">
       
       {/* Ambient Lighting & Grid Texture */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#D9A514]/15 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-[#D4AF37]/10 via-transparent to-transparent pointer-events-none" />
       <div 
         className="absolute inset-0 opacity-[0.03] dark:opacity-[0.025] pointer-events-none"
         style={{
@@ -419,7 +419,7 @@ export function ErrorState({
       />
 
       {/* Main Container Envelope */}
-      <div className="w-full max-w-[1280px] mx-auto px-4 sm:px-8 md:px-12 flex flex-col min-h-[100dvh] lg:h-full justify-between relative z-10 py-3 lg:py-4">
+      <div className="w-full max-w-[1280px] mx-auto px-4 sm:px-8 md:px-12 flex flex-col min-h-[100dvh] relative z-10 py-4 space-y-6">
         
         {/* ── HEADER BAR ── */}
         <header className="h-[56px] lg:h-[64px] shrink-0 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800/60">

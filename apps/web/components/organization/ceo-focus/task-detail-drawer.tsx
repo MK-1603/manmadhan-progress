@@ -18,7 +18,7 @@ export function TaskDetailDrawer({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-stretch sm:justify-end bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-stretch sm:justify-end bg-black/60 animate-in fade-in duration-200">
       {/* Drawer Container: Bottom Sheet on Mobile (rounded-t-2xl max-h-[85dvh]), Side Drawer on Desktop */}
       <div className="w-full sm:max-w-md bg-card border-t sm:border-t-0 sm:border-l border-border rounded-t-2xl sm:rounded-none max-h-[85dvh] sm:max-h-full h-auto sm:h-full flex flex-col shadow-2xl animate-in slide-in-from-bottom sm:slide-in-from-right duration-300">
         {/* Mobile Drag Handle */}

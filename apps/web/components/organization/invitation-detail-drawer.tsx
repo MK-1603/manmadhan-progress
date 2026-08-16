@@ -48,7 +48,7 @@ export function InvitationDetailDrawer({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex justify-end bg-background/60 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex justify-end bg-black/60">
         <motion.div
           initial={{ x: "100%" }}
           animate={{ x: 0 }}

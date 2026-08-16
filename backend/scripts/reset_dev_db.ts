@@ -81,22 +81,24 @@ async function resetDevDatabase() {
 	}
 
 	// 4. Re-create Seeded CEO Account & Clean Workspace for Real Onboarding
-	console.log("\nSeeding Bootstrap CEO Account: hemanthmm1107@gmail.com...");
+	console.log("\nSeeding Bootstrap CEO Account: saikrishnanmk1603@gmail.com...");
 	const ceoUserId = uuidv4();
 	const cleanWsId = uuidv4();
 	const passwordHash = AuthService.hashPassword("Welcome@123");
 
 	await db.insert(users).values({
 		id:              ceoUserId,
-		email:           "hemanthmm1107@gmail.com",
-		name:            "MM1107",
-		displayName:     "MM1107",
+		email:           "saikrishnanmk1603@gmail.com",
+		name:            "Sai Krishnan",
+		displayName:     "Sai Krishnan",
 		role:            "CEO",
 		status:          "Activated",
 		isVerified:      true,
 		isOtpEnabled:    true,
 		isGoogleEnabled: false,
 		systemOwner:     true,
+		batchNumber:     "MK1603",
+		employeeId:      "MK1603",
 		passwordHash,
 	});
 
@@ -116,8 +118,9 @@ async function resetDevDatabase() {
 	});
 
 	console.log("✅ Created Seeded CEO Account:");
-	console.log("   Email    : hemanthmm1107@gmail.com");
-	console.log("   Name     : MM1107");
+	console.log("   Email    : saikrishnanmk1603@gmail.com");
+	console.log("   Name     : Sai Krishnan");
+	console.log("   Batch    : MK1603");
 	console.log("   Password : Welcome@123");
 	console.log("   Role     : CEO");
 	console.log("   Status   : Activated");
@@ -150,7 +153,7 @@ async function resetDevDatabase() {
 	console.table(counts);
 
 	if (counts["projects"] === 0 && counts["tasks"] === 0 && counts["organization_prompts"] === 0) {
-		console.log("\n✅ RESET SUCCESSFUL: Database clean & seeded for CEO: hemanthmm1107@gmail.com (Password: Welcome@123)");
+		console.log("\n✅ RESET SUCCESSFUL: Database clean & seeded for CEO: saikrishnanmk1603@gmail.com (Batch: MK1603, Password: Welcome@123)");
 	} else {
 		console.warn("\n⚠️ WARNING: Some table counts are non-zero. Check table verification log above.");
 	}

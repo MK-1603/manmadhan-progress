@@ -14,6 +14,7 @@ import {
   Folder
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
+import { useRegisterRefresh } from "@/components/providers/global-refresh-provider";
 import { StartFocusModal } from "@/components/organization/ceo-focus/start-focus-modal";
 import { EndFocusModal } from "@/components/organization/ceo-focus/end-focus-modal";
 import { SessionDetailModal } from "@/components/organization/ceo-focus/session-detail-modal";
@@ -48,6 +49,9 @@ export default function CEOFocusPage() {
   const [history, setHistory] = useState<any[]>([]);
   const [weeklyData, setWeeklyData] = useState<any>(null);
   const [weekOffset, setWeekOffset] = useState(0);
+
+  // Countdown & Timer State Machine
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   // Loading & Error states
   const [loading, setLoading] = useState(true);
@@ -92,7 +96,7 @@ export default function CEOFocusPage() {
         setActiveSession(session);
         if (session && session.status === "Active") {
           const startTime = session.resumedAt || session.startTime;
-          const initialElapsed = (session.durationSeconds || 0) + Math.floor((Date.now() - new Date(startTime).getTime()) / 1000);
+          const initialElapsed = (session.durationSeconds || 0) + Math.max(0, Math.floor((Date.now() - new Date(startTime).getTime()) / 1000));
           setElapsed(initialElapsed);
         } else if (session && session.status === "Paused") {
           setElapsed(session.durationSeconds || 0);
@@ -120,15 +124,31 @@ export default function CEOFocusPage() {
     loadWorkspaceData();
   }, [loadWorkspaceData]);
 
-  // Real-time tick effect
+  // Register with Global Pull-to-Refresh system
+  useRegisterRefresh(loadWorkspaceData);
+
+  // Precision Timestamp-Driven Timer Engine
   useEffect(() => {
     if (activeSession?.status === "Active") {
-      timerRef.current = setInterval(() => {
-        setElapsed((prev) => prev + 1);
-      }, 1000);
+      const updatePrecisionElapsed = () => {
+        const startTime = activeSession.resumedAt || activeSession.startTime;
+        if (startTime) {
+          const activeMs = Date.now() - new Date(startTime).getTime();
+          const currentSegment = Math.max(0, Math.floor(activeMs / 1000));
+          setElapsed((activeSession.durationSeconds || 0) + currentSegment);
+        }
+      };
+
+      updatePrecisionElapsed();
+      timerRef.current = setInterval(updatePrecisionElapsed, 1000);
+    } else if (activeSession?.status === "Paused") {
+      setElapsed(activeSession.durationSeconds || 0);
+      clearInterval(timerRef.current);
     } else {
+      setElapsed(0);
       clearInterval(timerRef.current);
     }
+
     return () => clearInterval(timerRef.current);
   }, [activeSession]);
 
@@ -157,6 +177,27 @@ export default function CEOFocusPage() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const startCountdownSequence = async (pendingData: any): Promise<void> => {
+    if (!isWorkingHours()) {
+      setError("Focus is not available outside working hours (04:00 – 23:00)");
+      return;
+    }
+    setCountdown(3);
+    return new Promise<void>((resolve) => {
+      const cdTimer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev === null || prev <= 1) {
+            clearInterval(cdTimer);
+            handleStartSession(pendingData);
+            resolve();
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 800);
+    });
   };
 
   const handlePauseSession = async () => {
@@ -245,40 +286,44 @@ export default function CEOFocusPage() {
 
   const systemActive = isWorkingHours();
   const currentStatus = activeSession?.status || "Idle";
+  const targetSeconds = activeSession?.targetDurationSeconds || 1500;
+  const ringProgress = activeSession?.targetDurationSeconds
+    ? Math.min(100, (elapsed / targetSeconds) * 100)
+    : (elapsed % 3600) / 3600 * 100;
 
   return (
-    <div className="w-full h-full max-h-full flex flex-col justify-between overflow-hidden p-3 sm:p-4 md:p-6 bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] select-none">
+    <div className="w-full h-full flex flex-col justify-between overflow-y-auto sm:overflow-hidden bg-[#F9FAFB] dark:bg-[#060806] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none p-4 sm:p-5 md:px-8 md:py-4 pb-[calc(84px+env(safe-area-inset-bottom))] md:pb-4 max-w-[1600px] mx-auto space-y-3.5 box-border [scrollbar-width:none]">
       
       {/* 1. FOCUS HEADER BAR */}
-      <div className="flex items-center justify-between pb-2.5 border-b border-[#E4E7EC] dark:border-[#272D36] shrink-0">
-        <div className="space-y-0.5">
-          <h1 className="text-[18px] sm:text-[22px] md:text-[24px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
+      <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB] dark:border-[#272D36] shrink-0">
+        <div className="space-y-1">
+          <h1 className="text-[20px] sm:text-[24px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
             Focus
           </h1>
-          <p className="text-[12px] sm:text-[13px] text-[#667085] dark:text-[#8B95A5]">
-            Deep work session
+          <p className="text-[12px] text-[#667085] dark:text-[#8B95A5]">
+            Deep work execution instrument
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span
-            className={`text-[10.5px] sm:text-[11px] font-semibold px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full border flex items-center gap-1.5 ${
+            className={`text-[11px] sm:text-[12px] font-semibold px-3 py-1 rounded-full border flex items-center gap-1.5 ${
               systemActive
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                : "bg-amber-500/10 text-amber-400 border-amber-500/20"
             }`}
           >
-            <span className={`w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full ${systemActive ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
-            {systemActive ? "System Active · 04:00–23:00" : "System Off"}
+            <span className={`w-2 h-2 rounded-full ${systemActive ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+            {systemActive ? "System Active · 04:00–23:00" : "System Offline · 23:00–04:00"}
           </span>
         </div>
       </div>
 
       {/* Global Error Banner */}
       {error && (
-        <div className="my-1 p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-600 dark:text-rose-400 text-[12px] flex items-center justify-between shrink-0">
+        <div className="my-1 p-2 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-600 dark:text-rose-400 text-[11.5px] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">{error}</span>
           </div>
           <button onClick={() => setError("")} className="font-semibold underline cursor-pointer shrink-0 ml-2">
@@ -287,33 +332,102 @@ export default function CEOFocusPage() {
         </div>
       )}
 
-      {/* 2. UNIFIED PRIMARY FOCUS AREA (ZERO MAIN PAGE SCROLL) */}
-      <div className="flex-1 flex flex-col items-center justify-center py-2 sm:py-4 my-auto overflow-hidden">
-        <div className="w-full max-w-[440px] md:max-w-[480px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-4 sm:p-6 md:p-8 shadow-xs text-center flex flex-col items-center justify-between space-y-3 sm:space-y-5 my-auto shrink-0">
+      {/* 2. UNIFIED PHYSICAL 3D STOPWATCH INSTRUMENT */}
+      <div className="flex-1 flex flex-col items-center justify-center py-1 sm:py-2 my-auto">
+        
+        {/* Layer 2: Outer Stopwatch Body */}
+        <div style={{ width: "min(440px, calc(100vw - 24px))" }} className="mx-auto bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[22px] p-3 sm:p-4.5 shadow-[0_12px_32px_rgba(0,0,0,0.45),0_1px_2px_rgba(255,255,255,0.06)_inset] text-center flex flex-col items-center justify-between space-y-3 sm:space-y-3.5 my-auto shrink-0 relative transition-transform duration-300">
           
-          <span className="text-[10.5px] sm:text-[11px] font-bold uppercase tracking-[0.1em] text-[#667085] dark:text-[#8B95A5]">
-            CURRENT SESSION
-          </span>
+          {/* Top Metallic Bevel Crown Indicator */}
+          <div className="w-10 h-2 rounded-full bg-[#E4E7EC] dark:bg-[#222933] border border-[#D0D5DD] dark:border-[#2A323D] mx-auto shadow-inner -mt-1" />
 
-          {/* TIMER HERO DISPLAY */}
-          <div className="space-y-0.5 py-0.5">
-            <div className="text-[48px] sm:text-[64px] md:text-[72px] font-bold font-mono text-[#17202A] dark:text-[#F2F4F7] tracking-tighter leading-none select-all">
-              {formatDigitalTimer(elapsed)}
+          {/* Layer 3: Inner Bevel Surface */}
+          <div className="w-full rounded-[18px] bg-[#F8F9FB] dark:bg-[#11161D] border border-[#E4E7EC] dark:border-[#212933] p-2.5 sm:p-3.5 shadow-[inset_0_2px_6px_rgba(0,0,0,0.4)] relative">
+            
+            {/* Layer 4: Recessed Display Box */}
+            <div className="w-full rounded-[14px] bg-[#07090D] border border-[#19202A] p-3 sm:p-5 shadow-[inset_0_4px_16px_rgba(0,0,0,0.9)] flex flex-col items-center justify-center relative overflow-hidden">
+              
+              {/* Layer 5: SVG Progress Ring */}
+              <div className="relative w-[140px] h-[140px] sm:w-[175px] sm:h-[175px] flex items-center justify-center">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                  {/* Track Circle */}
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="42"
+                    stroke="#161C24"
+                    strokeWidth="6"
+                    fill="none"
+                  />
+                  {/* Active Progress Circle */}
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="42"
+                    stroke="#C9A52A"
+                    strokeWidth="6"
+                    fill="none"
+                    strokeDasharray={263.89}
+                    strokeDashoffset={263.89 - (263.89 * Math.min(100, ringProgress)) / 100}
+                    strokeLinecap="round"
+                    className="transition-all duration-500"
+                  />
+                </svg>
+
+                {/* Layer 6: Hero Timer & Status Centered Inside Ring */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-2">
+                  <span className="text-[8.5px] sm:text-[9px] font-bold uppercase tracking-[0.12em] text-[#8B95A5]">
+                    {countdown !== null
+                      ? "STARTING IN"
+                      : !systemActive
+                      ? "OFFLINE"
+                      : currentStatus === "Active"
+                      ? "FOCUSING"
+                      : currentStatus === "Paused"
+                      ? "PAUSED"
+                      : "STOPWATCH"}
+                  </span>
+
+                  {/* Hero Digital Timer */}
+                  <div className="text-[28px] sm:text-[36px] font-extrabold font-mono tabular-nums text-[#F2F4F7] tracking-tight leading-none my-1 select-all">
+                    {countdown !== null ? (
+                      <span className="text-[#C9A52A] dark:text-[#D4B12F]">{countdown}</span>
+                    ) : (
+                      formatDigitalTimer(elapsed)
+                    )}
+                  </div>
+
+                  {/* Status Indicator Pill */}
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        currentStatus === "Active"
+                          ? "bg-[#39D393] animate-pulse"
+                          : currentStatus === "Paused"
+                          ? "bg-amber-500"
+                          : systemActive
+                          ? "bg-[#C9A52A]"
+                          : "bg-rose-500"
+                      }`}
+                    />
+                    <span className="text-[10px] sm:text-[10.5px] font-semibold text-[#8B95A5] uppercase tracking-wider">
+                      {!systemActive ? "System Off" : currentStatus === "Active" ? "Active" : currentStatus === "Paused" ? "Paused" : "Ready"}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <p className="text-[12px] sm:text-[13px] font-semibold uppercase tracking-wider text-[#C9A52A] dark:text-[#D4B12F] pt-0.5">
-              {currentStatus === "Active" ? "FOCUSING" : currentStatus === "Paused" ? "PAUSED" : "READY TO FOCUS"}
-            </p>
           </div>
 
-          {/* SESSION CONTEXT & PRIORITY */}
-          <div className="w-full min-h-[42px] flex flex-col items-center justify-center text-center space-y-0.5 py-1 px-2.5 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px]">
+          {/* Session Context Display */}
+          <div className="w-full min-h-[38px] flex flex-col items-center justify-center text-center space-y-0.5 py-1 px-3 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px]">
             {activeSession ? (
               <>
-                <p className="text-[13px] sm:text-[13.5px] font-semibold text-[#17202A] dark:text-[#F2F4F7] truncate max-w-full">
+                <p className="text-[12.5px] sm:text-[13px] font-semibold text-[#17202A] dark:text-[#F2F4F7] truncate max-w-full">
                   {activeSession.title || activeSession.task?.title || "Executive Focus Session"}
                 </p>
                 {activeSession.project && (
-                  <p className="text-[11px] sm:text-[11.5px] text-[#667085] dark:text-[#8B95A5] flex items-center justify-center gap-1 truncate">
+                  <p className="text-[10.5px] sm:text-[11px] text-[#667085] dark:text-[#8B95A5] flex items-center justify-center gap-1 truncate">
                     <Folder className="w-3 h-3 text-[#667085] dark:text-[#8B95A5]" />
                     <span>{activeSession.project.name}</span>
                   </p>
@@ -321,39 +435,43 @@ export default function CEOFocusPage() {
               </>
             ) : priorities.length > 0 ? (
               <>
-                <p className="text-[12.5px] sm:text-[13px] font-medium text-[#17202A] dark:text-[#F2F4F7] truncate max-w-full">
+                <p className="text-[12px] sm:text-[12.5px] font-medium text-[#17202A] dark:text-[#F2F4F7] truncate max-w-full">
                   {priorities[0].title}
                 </p>
-                <p className="text-[10.5px] sm:text-[11px] text-[#667085] dark:text-[#8B95A5]">
+                <p className="text-[10px] sm:text-[10.5px] text-[#667085] dark:text-[#8B95A5]">
                   {priorities[0].priority || "High"} Priority
                 </p>
               </>
             ) : (
-              <p className="text-[12.5px] sm:text-[13px] font-normal text-[#667085] dark:text-[#8B95A5]">
-                No priority selected
+              <p className="text-[12px] font-medium text-[#667085] dark:text-[#8B95A5]">
+                No priority task selected
               </p>
             )}
           </div>
 
-          {/* PRIMARY FOCUS CONTROL BUTTONS */}
-          <div className="w-full max-w-[360px] space-y-2">
+          {/* Layer 7: Physical 3D Controls */}
+          <div className="w-full max-w-[340px] space-y-2 pt-1">
             {currentStatus === "Idle" && (
               <button
-                disabled={!systemActive || actionLoading}
+                disabled={!systemActive || actionLoading || countdown !== null}
                 onClick={() => {
-                  if (priorities.length > 0) {
-                    handleStartSession({
-                      sourceType: "TASK",
-                      taskId: priorities[0].id,
-                      title: priorities[0].title,
-                      priority: priorities[0].priority,
-                      category: "Technical",
-                    });
+                  const pendingData = priorities.length > 0
+                    ? {
+                        sourceType: "TASK",
+                        taskId: priorities[0].id,
+                        title: priorities[0].title,
+                        priority: priorities[0].priority,
+                        category: "Technical",
+                      }
+                    : null;
+
+                  if (pendingData) {
+                    startCountdownSequence(pendingData);
                   } else {
                     setShowStartModal(true);
                   }
                 }}
-                className="w-full h-[46px] sm:h-[50px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13.5px] sm:text-[14.5px] font-semibold hover:opacity-90 transition-opacity shadow-xs inline-flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
+                className="w-full h-[48px] rounded-[12px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13.5px] sm:text-[14px] font-bold shadow-[0_4px_0_#9E801B,0_6px_16px_rgba(0,0,0,0.25)] active:translate-y-[2px] active:shadow-[0_2px_0_#9E801B] hover:brightness-105 transition-all duration-100 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
               >
                 {actionLoading ? (
                   <Loader2 className="w-4.5 h-4.5 animate-spin" />
@@ -371,7 +489,7 @@ export default function CEOFocusPage() {
                 <button
                   disabled={actionLoading}
                   onClick={handlePauseSession}
-                  className="flex-1 h-[46px] sm:h-[50px] rounded-[10px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[13.5px] sm:text-[14px] font-semibold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 h-[48px] rounded-[12px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[13px] sm:text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] shadow-[0_4px_0_#1E2530] active:translate-y-[2px] active:shadow-[0_2px_0_#1E2530] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] transition-all duration-100 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Pause className="w-4 h-4" />
                   <span>PAUSE</span>
@@ -379,7 +497,7 @@ export default function CEOFocusPage() {
                 <button
                   disabled={actionLoading}
                   onClick={() => setShowEndModal(true)}
-                  className="flex-1 h-[46px] sm:h-[50px] rounded-[10px] bg-red-600 text-white text-[13.5px] sm:text-[14px] font-semibold hover:bg-red-700 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 h-[48px] rounded-[12px] bg-rose-600 text-white text-[13px] sm:text-[13.5px] font-bold shadow-[0_4px_0_#9F1239] active:translate-y-[2px] active:shadow-[0_2px_0_#9F1239] hover:bg-rose-700 transition-all duration-100 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
                   <span>END</span>
@@ -392,7 +510,7 @@ export default function CEOFocusPage() {
                 <button
                   disabled={!systemActive || actionLoading}
                   onClick={handleResumeSession}
-                  className="flex-1 h-[46px] sm:h-[50px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13.5px] sm:text-[14px] font-semibold hover:opacity-90 transition-opacity inline-flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 h-[48px] rounded-[12px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13px] sm:text-[13.5px] font-bold shadow-[0_4px_0_#9E801B] active:translate-y-[2px] active:shadow-[0_2px_0_#9E801B] hover:brightness-105 transition-all duration-100 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-current" />
                   <span>RESUME</span>
@@ -400,7 +518,7 @@ export default function CEOFocusPage() {
                 <button
                   disabled={actionLoading}
                   onClick={() => setShowEndModal(true)}
-                  className="flex-1 h-[46px] sm:h-[50px] rounded-[10px] bg-red-600 text-white text-[13.5px] sm:text-[14px] font-semibold hover:bg-red-700 transition-colors inline-flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 h-[48px] rounded-[12px] bg-rose-600 text-white text-[13px] sm:text-[13.5px] font-bold shadow-[0_4px_0_#9F1239] active:translate-y-[2px] active:shadow-[0_2px_0_#9F1239] hover:bg-rose-700 transition-all duration-100 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
                   <span>END</span>
@@ -459,7 +577,7 @@ export default function CEOFocusPage() {
         onClose={() => setShowStartModal(false)}
         tasks={allTasks}
         projects={allProjects}
-        onStartSession={handleStartSession}
+        onStartSession={(data) => startCountdownSequence(data)}
       />
 
       <EndFocusModal
@@ -477,7 +595,7 @@ export default function CEOFocusPage() {
         onClose={() => setShowNextSessionDrawer(false)}
         tasks={allTasks}
         onStartNextSession={(t) =>
-          handleStartSession({
+          startCountdownSequence({
             sourceType: "TASK",
             taskId: t.id,
             title: t.title,

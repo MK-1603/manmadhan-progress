@@ -76,20 +76,7 @@ export const ORGANIZATION_MOBILE_NAV = (role: RoleType): NavSection[] => {
     return `/ceo/${page}`;
   };
 
-  const peopleItems: NavItem[] = [
-    { label: "CO-CEOs", href: getHref("co-ceos"), icon: UserCheck, roles: ["CEO", "CO-CEO"] as RoleType[] },
-    { label: "Members", href: getHref("members"), icon: Users },
-    { label: "Invitations", href: getHref("invitations"), icon: UserPlus, roles: ["CEO", "CO-CEO"] as RoleType[] },
-  ];
-
-  const adminItems: NavItem[] = [
-    { label: "Automation", href: getHref("automation"), icon: Zap },
-    { label: "Organization", href: getHref("organization"), icon: Building },
-    { label: "Org Profile", href: getHref("org-profile"), icon: ShieldCheck },
-    { label: "Org Settings", href: getHref("settings"), icon: Settings, roles: ["CEO"] as RoleType[] },
-  ];
-
-  return [
+  const sections: NavSection[] = [
     {
       section: "OVERVIEW",
       items: [
@@ -106,22 +93,41 @@ export const ORGANIZATION_MOBILE_NAV = (role: RoleType): NavSection[] => {
         { label: "Timeline", href: getHref("timeline"), icon: History },
       ],
     },
-    {
+  ];
+
+  // PEOPLE & PERFORMANCE are for Leadership (CEO & CO-CEO)
+  if (role === "CEO" || role === "CO-CEO") {
+    sections.push({
       section: "PEOPLE",
-      items: peopleItems.filter(item => !item.roles || item.roles.includes(role)),
-    },
-    {
+      items: [
+        { label: "People", href: getHref("people"), icon: Users },
+      ],
+    });
+
+    sections.push({
       section: "PERFORMANCE",
       items: [
-        { label: "Org Graph", href: getHref("graph"), icon: Network },
+        { label: "Organization Graph", href: getHref("graph"), icon: Network },
         { label: "Leaderboard", href: getHref("leaderboard"), icon: Trophy },
+        { label: "Performance", href: getHref("performance"), icon: BarChart },
       ],
-    },
-    {
+    });
+  }
+
+  // ADMINISTRATION is strictly for Organization CEO
+  if (role === "CEO") {
+    sections.push({
       section: "ADMINISTRATION",
-      items: adminItems.filter(item => !item.roles || item.roles.includes(role)),
-    },
-  ];
+      items: [
+        { label: "Automation", href: getHref("automation"), icon: Zap },
+        { label: "Organization", href: getHref("organization"), icon: Building },
+        { label: "Org Profile", href: getHref("org-profile"), icon: ShieldCheck },
+        { label: "Org Settings", href: getHref("settings"), icon: Settings },
+      ],
+    });
+  }
+
+  return sections;
 };
 
 export const MORE_SHEET_SHORTCUTS = (workspace: "personal" | "organization", role: RoleType = "CEO") => {
@@ -137,16 +143,28 @@ export const MORE_SHEET_SHORTCUTS = (workspace: "personal" | "organization", rol
     ];
   }
 
-  const getHref = (page: string) => {
-    if (role === "CO-CEO") return `/co-ceo/${page}`;
-    if (role === "MEMBER") return `/member/${page}`;
-    return `/ceo/${page}`;
-  };
+  if (role === "MEMBER") {
+    return [
+      { label: "My Work", href: "/member/my-work", icon: CheckSquare },
+      { label: "Calendar", href: "/member/calendar", icon: Cal },
+      { label: "Timeline", href: "/member/timeline", icon: History },
+      { label: "Command", href: "/member/ai-builder", icon: Brain },
+    ];
+  }
+
+  if (role === "CO-CEO") {
+    return [
+      { label: "People", href: "/co-ceo/people", icon: Users },
+      { label: "Org Graph", href: "/co-ceo/graph", icon: Network },
+      { label: "Leaderboard", href: "/co-ceo/leaderboard", icon: Trophy },
+      { label: "Performance", href: "/co-ceo/performance", icon: BarChart },
+    ];
+  }
 
   return [
-    { label: "Automation", href: getHref("automation"), icon: Zap },
-    { label: "Organization", href: getHref("organization"), icon: Building },
-    { label: "Org Profile", href: getHref("org-profile"), icon: ShieldCheck },
-    { label: "Org Settings", href: getHref("settings"), icon: Settings },
+    { label: "Automation", href: "/ceo/automation", icon: Zap },
+    { label: "Organization", href: "/ceo/organization", icon: Building },
+    { label: "Org Profile", href: "/ceo/profile", icon: ShieldCheck },
+    { label: "Org Settings", href: "/ceo/settings", icon: Settings },
   ];
 };

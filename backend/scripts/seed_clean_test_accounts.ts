@@ -116,44 +116,6 @@ async function seedCleanTestAccounts() {
 		role: "CEO",
 	});
 
-	// 5. Seed SECOND ACCOUNT: Seeded Member Account
-	const secondUserId = uuidv4();
-	const secondEmail = "member.mk1603@manmadhan.internal";
-	const hashedSecondPassword = AuthService.hashPassword(defaultPassword);
-
-	console.log("\nSeeding SECOND TEST ACCOUNT (MEMBER):");
-	console.log(`   Email   : ${secondEmail}`);
-	console.log(`   Role    : MEMBER`);
-	console.log(`   Batch   : MK1603`);
-	console.log(`   First Login Completed : false`);
-	console.log(`   Is Google Enabled     : false`);
-
-	await db.insert(users).values({
-		id: secondUserId,
-		email: secondEmail,
-		name: "Member MK1603",
-		displayName: "Member MK1603",
-		role: "MEMBER",
-		status: "Created",
-		batchNumber: "MK1603",
-		employeeId: "MK1603-002",
-		passwordHash: hashedSecondPassword,
-		isVerified: true,
-		isInvited: true,
-		systemOwner: false,
-		isGoogleEnabled: false,
-		firstLoginCompleted: false,
-		managerId: ceoUserId,
-		googleId: null,
-	});
-
-	await db.insert(workspaceMembers).values({
-		id: uuidv4(),
-		workspaceId,
-		userId: secondUserId,
-		role: "MEMBER",
-	});
-
 	// Re-associate main business entities to newly seeded CEO account
 	await safecall(`UPDATE projects SET created_by = '${ceoUserId}' WHERE created_by IS NULL;`);
 	await safecall(`UPDATE tasks SET created_by = '${ceoUserId}' WHERE created_by IS NULL;`);

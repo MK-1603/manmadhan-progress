@@ -10,6 +10,7 @@ import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
 import { useAuth } from "@/components/auth/auth-context";
 import Link from "next/link";
+import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -36,6 +37,8 @@ function timeAgo(d: string) {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
+
+import { useRegisterRefresh } from "@/components/providers/global-refresh-provider";
 
 export default function MemberDashboard() {
   const { user }   = useAuth();
@@ -69,6 +72,8 @@ export default function MemberDashboard() {
     finally   { setLoading(false); }
   }, [user?.id]);
 
+  useRegisterRefresh(fetchAll);
+
   useEffect(() => { if (user?.id) fetchAll(); }, [fetchAll, user?.id]);
   useEffect(() => {
     if (!socket) return;
@@ -100,14 +105,9 @@ export default function MemberDashboard() {
     .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
     .slice(0, 4);
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-full bg-background">
-      <LoaderCircle className="w-5 h-5 text-gold animate-spin" />
-    </div>
-  );
-
   return (
-    <div className="px-5 md:px-8 xl:px-10 pt-7 pb-16 max-w-[1200px] mx-auto space-y-6">
+    <PullToRefresh onRefresh={fetchAll}>
+      <div className="px-5 md:px-8 xl:px-10 pt-7 pb-16 max-w-[1200px] mx-auto space-y-6">
 
       {/* ── header ── */}
       <div className="flex items-start justify-between gap-4">
@@ -295,55 +295,58 @@ export default function MemberDashboard() {
             </div>
           </div>
 
-          {/* upcoming deadlines */}
-          <div className="bg-card border border-border rounded-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">Deadlines</span>
-              <Link href="/member/my-work" className="text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors">View all</Link>
+          <div className="space-y-6">
+            {/* Upcoming Deadlines */}
+            <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-sm">
+              <h2 className="text-[15px] font-bold text-foreground">Upcoming Deadlines</h2>
+              <div className="space-y-2.5">
+                {upcomingDeadlines.length === 0 ? (
+                  <p className="text-[12.5px] text-muted-foreground text-center py-4">No upcoming deadlines.</p>
+                ) : (
+                  upcomingDeadlines.map((t: any) => {
+                    const days = daysLeft(t.deadline);
+                    return (
+                      <div key={t.id} className="p-3 rounded-lg border border-border/60 bg-muted/20 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[12.5px] font-semibold text-foreground truncate">{t.title}</p>
+                          <p className="text-[11px] text-muted-foreground">{new Date(t.deadline).toLocaleDateString()}</p>
+                        </div>
+                        <span className={`text-[10.5px] font-mono font-bold px-2 py-0.5 rounded shrink-0 ${
+                          days < 0 ? "text-red-500 bg-red-500/10" : days <= 1 ? "text-amber-500 bg-amber-500/10" : "text-muted-foreground bg-muted"
+                        }`}>
+                          {days < 0 ? "Overdue" : days === 0 ? "Today" : `${days}d left`}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
-            <div className="divide-y divide-border">
-              {upcomingDeadlines.length === 0 ? (
-                <p className="px-5 py-4 text-[12px] text-muted-foreground">No upcoming deadlines.</p>
-              ) : (
-                upcomingDeadlines.map(t => {
-                  const dl = daysLeft(t.deadline);
-                  const ov = isOverdue(t.deadline, t.status);
-                  return (
-                    <div key={t.id} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition-colors">
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ov ? "bg-foreground" : dl <= 1 ? "bg-foreground/60" : "bg-muted-foreground/30"}`} />
-                      <p className="flex-1 text-[12px] font-medium text-foreground truncate">{t.title}</p>
-                      <span className={`text-[11px] font-semibold shrink-0 ${ov ? "text-foreground" : "text-muted-foreground"}`}>
-                        {ov ? `${Math.abs(dl)}d late` : dl === 0 ? "Today" : dl === 1 ? "Tomorrow" : `${dl}d`}
-                      </span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
 
-          {/* notifications preview */}
-          {notifications.length > 0 && (
-            <div className="bg-card border border-border rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                  <Bell className="w-3.5 h-3.5" /> Unread
-                </span>
-                <Link href="/member/notifications" className="text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors">All →</Link>
+            {/* Unread Notifications */}
+            {notifications.length > 0 && (
+              <div className="rounded-xl border border-border bg-card p-5 space-y-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px] font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Bell className="w-3.5 h-3.5 text-amber-500" /> Unread
+                  </span>
+                  <Link href="/member/notifications" className="text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors">All →</Link>
+                </div>
+                <div className="divide-y divide-border">
+                  {notifications.map(n => (
+                    <div key={n.id} className="px-4 py-3 hover:bg-muted/20 transition-colors">
+                      <p className="text-[12px] font-semibold text-foreground truncate">{n.title}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{n.message}</p>
+                      <p className="text-[10px] text-muted-foreground/60 mt-1">{timeAgo(n.createdAt)}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="divide-y divide-border">
-                {notifications.map(n => (
-                  <div key={n.id} className="px-5 py-3.5 hover:bg-muted/20 transition-colors">
-                    <p className="text-[12px] font-semibold text-foreground truncate">{n.title}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{n.message}</p>
-                    <p className="text-[10px] text-muted-foreground/60 mt-1">{timeAgo(n.createdAt)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
-  );
+  </PullToRefresh>
+);
 }

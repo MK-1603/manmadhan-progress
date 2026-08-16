@@ -167,7 +167,7 @@ export function MilestoneWorkspace({
   const canSubmit  = ["IN_PROGRESS", "DRAFT", "AVAILABLE"].includes(rawState) && milestone.document;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4">
 
       {/* backdrop click */}
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />

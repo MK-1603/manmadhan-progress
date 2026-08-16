@@ -1,7 +1,14 @@
 "use client";
 
-import { OrgSettingsView } from "@/components/organization/settings/org-settings-view";
+import React from "react";
+import { AccessRestricted } from "@/components/ui/access-restricted";
 
-export default function COCEOSettingsPage() {
-	return <OrgSettingsView userRole="CO-CEO" basePath="/co-ceo" />;
+export default function CoCeoSettingsPage() {
+  return (
+    <AccessRestricted
+      title="Access Restricted"
+      description="Organization Settings and Owner Controls are restricted to the Organization CEO."
+      dashboardHref="/co-ceo/dashboard"
+    />
+  );
 }

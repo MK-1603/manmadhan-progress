@@ -211,7 +211,7 @@ class StartupLoggerClass {
 							: entry.level === "WARN"
 								? "\x1b[33mWARN\x1b[0m"
 								: "\x1b[31mERR \x1b[0m";
-					const phaseTag = `\x1b[36m[${entry.phase.padEnd(14)}]\x1b[0m`;
+					const phaseTag = `\x1b[36m${entry.phase.padEnd(14)}\x1b[0m`;
 					const logLine = `\x1b[90m[${entry.timestamp}]\x1b[0m ${levelColor} ${phaseTag} ${entry.message}`;
 					box += makeRow(logLine);
 				}

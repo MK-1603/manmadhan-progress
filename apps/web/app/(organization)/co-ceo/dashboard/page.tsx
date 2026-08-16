@@ -11,6 +11,7 @@ import { useSocket } from "@/components/providers/socket-provider";
 import { useAuth } from "@/components/auth/auth-context";
 import Link from "next/link";
 import { TaskCreateModal } from "@/components/organization/task-create-modal";
+import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 
 function isOverdue(deadline: string | null, status: string) {
   if (!deadline) return false;
@@ -30,6 +31,8 @@ function getGreeting() {
   if (h < 17) return "Good afternoon";
   return "Good evening";
 }
+
+import { useRegisterRefresh } from "@/components/providers/global-refresh-provider";
 
 export default function CoCeoDashboard() {
   const { user }   = useAuth();
@@ -60,6 +63,8 @@ export default function CoCeoDashboard() {
     finally  { setLoading(false); }
   }, [user?.id]);
 
+  useRegisterRefresh(fetchAll);
+
   useEffect(() => { if (user?.id) fetchAll(); }, [fetchAll, user?.id]);
   useEffect(() => {
     if (!socket) return;
@@ -89,49 +94,44 @@ export default function CoCeoDashboard() {
     unread:      notifications.filter(n => !n.isRead).length,
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-full bg-background">
-      <LoaderCircle className="w-5 h-5 text-gold animate-spin" />
-    </div>
-  );
-
   return (
-    <div className="px-5 md:px-8 xl:px-10 pt-7 pb-16 max-w-[1440px] mx-auto space-y-6">
+    <PullToRefresh onRefresh={fetchAll}>
+      <div className="px-5 md:px-8 xl:px-10 pt-7 pb-16 max-w-[1440px] mx-auto space-y-6">
 
-      {/* ── header ── */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[10.5px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">
-            ManMadhan · CO-CEO
-          </p>
-          <h1 className="text-[26px] sm:text-[28px] font-bold text-foreground tracking-tight leading-none">
-            {getGreeting()}, {user?.displayName || user?.name || "CO-CEO"}
-          </h1>
-          <p className="text-[12px] text-muted-foreground mt-2">
-            {new Date().toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" })}
-          </p>
+        {/* ── header ── */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10.5px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">
+              ManMadhan · CO-CEO
+            </p>
+            <h1 className="text-[26px] sm:text-[28px] font-bold text-foreground tracking-tight leading-none">
+              {getGreeting()}, {user?.displayName || user?.name || "CO-CEO"}
+            </h1>
+            <p className="text-[12px] text-muted-foreground mt-2">
+              {new Date().toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" })}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gold hover:bg-gold-hover text-[#111827] text-[12px] font-bold transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" /> Assign Task
+            </button>
+            <button onClick={fetchAll} className="p-2 rounded-xl border border-border bg-card hover:bg-muted transition-colors cursor-pointer" aria-label="Refresh">
+              <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gold hover:bg-gold-hover text-[#111827] text-[12px] font-bold transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" /> Assign Task
-          </button>
-          <button onClick={fetchAll} className="p-2 rounded-xl border border-border bg-card hover:bg-muted transition-colors" aria-label="Refresh">
-            <RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
-          </button>
-        </div>
-      </div>
 
-      {error && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-card border border-border rounded-xl text-[12px] text-muted-foreground">
-          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
-        </div>
-      )}
+        {error && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-card border border-border rounded-xl text-[12px] text-muted-foreground">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" /> {error}
+          </div>
+        )}
 
-      {/* ── KPI strip ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* ── KPI strip ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: "My Active Tasks",  value: kpis.myActive,   href: "/co-ceo/my-work" },
           { label: "Members Working",  value: kpis.membersOn,  href: "/co-ceo/members" },
@@ -310,6 +310,7 @@ export default function CoCeoDashboard() {
       </div>
 
       <TaskCreateModal isOpen={showCreate} onClose={() => setShowCreate(false)} onCreated={fetchAll} role="CO-CEO" />
-    </div>
+      </div>
+    </PullToRefresh>
   );
 }

@@ -15,13 +15,19 @@ export const authenticate = (
 			const decoded = jwt.verify(token, env.JWT_SECRET) as any;
 			(req as any).user = decoded;
 			return next();
-		} catch (_e) {
-			// Invalid token, fall through
+		} catch (err: any) {
+			if (err?.name === "TokenExpiredError") {
+				return res.status(401).json({
+					success: false,
+					code: "ACCESS_TOKEN_EXPIRED",
+					error: "Access token expired",
+				});
+			}
 		}
 	}
 	return res
 		.status(401)
-		.json({ success: false, error: "Authentication required" });
+		.json({ success: false, code: "UNAUTHORIZED", error: "Authentication required" });
 };
 
 // Strict auth explicitly rejects 'setup' tokens
@@ -38,10 +44,17 @@ export const strictAuth = (req: Request, res: Response, next: NextFunction) => {
 			throw new Error("Setup token cannot be used for strict auth");
 		(req as any).user = decoded;
 		return next();
-	} catch (_err) {
+	} catch (err: any) {
+		if (err?.name === "TokenExpiredError") {
+			return res.status(401).json({
+				success: false,
+				code: "ACCESS_TOKEN_EXPIRED",
+				error: "Access token expired",
+			});
+		}
 		return res
 			.status(401)
-			.json({ success: false, error: "Invalid or expired token" });
+			.json({ success: false, code: "UNAUTHORIZED", error: "Invalid token" });
 	}
 };
 

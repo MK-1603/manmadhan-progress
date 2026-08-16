@@ -502,4 +502,114 @@ orgReportsRouter.get(
 	},
 );
 
+// ─── Organization Hierarchy Tree Report ──────────────────────────────────────
+orgReportsRouter.get(
+	"/tree",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+
+			const members = await db
+				.select({
+					userId: workspaceMembers.userId,
+					role: workspaceMembers.role,
+					managerId: users.managerId,
+					displayName: users.displayName,
+					name: users.name,
+					email: users.email,
+				})
+				.from(workspaceMembers)
+				.innerJoin(users, eq(workspaceMembers.userId, users.id))
+				.where(eq(workspaceMembers.workspaceId, workspaceId));
+
+			const ceoMember =
+				members.find((m) => String(m.role).toUpperCase() === "CEO") ||
+				members[0];
+
+			const ceoNode = ceoMember
+				? {
+						id: ceoMember.userId,
+						name: ceoMember.displayName || ceoMember.name || "CEO",
+						email: ceoMember.email || "",
+						role: "CEO",
+						status: "Active",
+						projectsCount: 0,
+						tasksCount: 0,
+						completedTasks: 0,
+						inProgressTasks: 0,
+						overdueTasks: 0,
+						onTimeRate: 100,
+						approvalRate: 100,
+						recentWork: [],
+					}
+				: null;
+
+			const coCeoNodes = members
+				.filter(
+					(m) =>
+						String(m.role).toUpperCase().includes("CO") &&
+						m.userId !== ceoNode?.id,
+				)
+				.map((m) => ({
+					id: m.userId,
+					name: m.displayName || m.name || "CO-CEO",
+					email: m.email || "",
+					role: "CO-CEO",
+					status: "Active",
+					projectsCount: 0,
+					tasksCount: 0,
+					completedTasks: 0,
+					inProgressTasks: 0,
+					overdueTasks: 0,
+					onTimeRate: 100,
+					approvalRate: 100,
+					recentWork: [],
+				}));
+
+			const memberNodes = members
+				.filter(
+					(m) =>
+						String(m.role).toUpperCase() === "MEMBER" &&
+						m.userId !== ceoNode?.id,
+				)
+				.map((m) => ({
+					id: m.userId,
+					name: m.displayName || m.name || "Member",
+					email: m.email || "",
+					role: "MEMBER",
+					status: "Active",
+					managerId: m.managerId || null,
+					supervisor: null,
+					projectsCount: 0,
+					tasksCount: 0,
+					completedTasks: 0,
+					inProgressTasks: 0,
+					overdueTasks: 0,
+					onTimeRate: 100,
+					approvalRate: 100,
+					recentWork: [],
+				}));
+
+			return res.json({
+				success: true,
+				data: {
+					id: `tree-${workspaceId}`,
+					name: "Organization Graph",
+					preview: false,
+					ceoNode,
+					coCeoNodes,
+					memberNodes,
+				},
+			});
+		} catch (error: any) {
+			logger.error(`Error in /org/reports/tree: ${error?.message || error}`);
+			return res
+				.status(500)
+				.json({ success: false, error: "Failed to generate organization tree" });
+		}
+	},
+);
+
 export default orgReportsRouter;

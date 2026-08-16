@@ -60,11 +60,11 @@ class EmailService {
 		
 		if (this.provider === "resend" && process.env.RESEND_API_KEY) {
 			this.resend = new Resend(process.env.RESEND_API_KEY);
-			logger.debug("EmailService: Resend Primary Provider configured");
+			logger.info("Email service ready");
 		} else {
 			this.provider = "smtp";
 			this.nodemailerTransport = this.buildNodemailerTransport();
-			logger.debug("EmailService: Gmail SMTP Primary Provider configured");
+			logger.info("Email service ready");
 		}
 	}
 
@@ -104,7 +104,6 @@ class EmailService {
 	// ── Connection verification ──────────────────────────────────────────────
 	public async verifyConnection(): Promise<boolean> {
 		if (this.provider === "resend") {
-			logger.debug("EmailService: Resend active");
 			return true;
 		}
 
@@ -118,13 +117,9 @@ class EmailService {
 					setTimeout(() => reject(new Error("SMTP verification timeout")), 6000),
 				),
 			]);
-			logger.debug("EmailService: Gmail SMTP Primary Provider verified");
 			return true;
 		} catch (err: any) {
-			logger.warn(
-				{ error: err?.message || String(err) },
-				"EmailService: Gmail SMTP Primary Provider connection check failed",
-			);
+			logger.warn("Email service connection check failed");
 			return false;
 		}
 	}
@@ -155,7 +150,6 @@ class EmailService {
 		// ── Direct execution for configured provider ──────────────────────────
 		if (this.provider === "resend" && this.resend) {
 			try {
-				logger.info({ to: maskEmail(options.to) }, "[EMAIL] Resend delivery started");
 				const { data, error } = await this.resend.emails.send({
 					from: fromAddress,
 					to: [options.to],
@@ -165,31 +159,20 @@ class EmailService {
 				});
 
 				if (!error && data?.id) {
-					logger.info(
-						{ messageId: data.id, to: maskEmail(options.to) },
-						"[EMAIL] Resend delivery successful",
-					);
+					logger.info("Email dispatched");
 					return { success: true, messageId: data.id };
 				}
 
-				logger.error(
-					{ error: error?.message, to: maskEmail(options.to) },
-					"[EMAIL] Resend delivery failed",
-				);
+				logger.error("Email delivery failed");
 				return { success: false, error: error?.message || "Resend email delivery failed" };
 			} catch (resendErr: any) {
-				logger.error(
-					{ error: resendErr.message, to: maskEmail(options.to) },
-					"[EMAIL] Resend delivery exception",
-				);
+				logger.error("Email delivery failed");
 				return { success: false, error: resendErr.message };
 			}
 		}
 
-		// ── Gmail SMTP Primary Provider Execution ──────────────────────────────
+		// ── Gmail SMTP Execution ──────────────────────────────────────────────
 		try {
-			logger.info({ to: maskEmail(options.to) }, "[EMAIL] Gmail SMTP delivery started");
-
 			if (!this.nodemailerTransport) {
 				this.nodemailerTransport = this.buildNodemailerTransport();
 			}
@@ -210,16 +193,10 @@ class EmailService {
 				),
 			]);
 
-			logger.info(
-				{ messageId: info.messageId, to: maskEmail(options.to) },
-				"[EMAIL] Gmail SMTP delivery successful",
-			);
+			logger.info("Email dispatched");
 			return { success: true, messageId: info.messageId };
 		} catch (err: any) {
-			logger.error(
-				{ error: err.message, to: maskEmail(options.to) },
-				"[EMAIL] Gmail SMTP delivery error",
-			);
+			logger.error("Email delivery failed");
 			return {
 				success: false,
 				error: "We couldn't send the verification code. Please try again.",

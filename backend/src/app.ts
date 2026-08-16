@@ -22,6 +22,7 @@ import {
 } from "../database/schema";
 import { cloudinaryService } from "../storage/cloudinary.service";
 import { requireRole, strictAuth } from "./middleware/auth.middleware";
+import { requestIdMiddleware } from "./middleware/request-id.middleware";
 import { enforceWorkExecutionPolicy } from "./middleware/time.middleware";
 import { aiRouter } from "./routes/ai.routes";
 import { authRouter } from "./routes/auth.routes";
@@ -78,6 +79,7 @@ export const createApp = (): Express => {
 
 	// Trust the proxy to ensure express-rate-limit accurately identifies users (e.g., behind Next.js rewrites or a load balancer)
 	app.set("trust proxy", 1);
+	app.use(requestIdMiddleware);
 
 	// Security & Core Middleware
 	app.use(helmet());
@@ -136,8 +138,45 @@ export const createApp = (): Express => {
 	app.use("/api/", apiLimiter);
 	app.use("/api/", enforceWorkExecutionPolicy);
 
-	// Health Endpoints
-	app.get("/health", async (_req: Request, res: Response) => {
+	// Health Endpoints: Liveness & Readiness
+	app.get("/health/live", (req: Request, res: Response) => {
+		return res.status(200).json({
+			status: "live",
+			uptime: process.uptime(),
+			timestamp: new Date().toISOString(),
+			service: "manmadhan-progress-api",
+			requestId: (req as any).id,
+		});
+	});
+
+	app.get("/health/ready", async (req: Request, res: Response) => {
+		const isDbConnected = await checkDatabaseConnection();
+		const isEmailConfigured = Boolean(env.SMTP_USER || env.MAIL_USER);
+		const isStorageConfigured = Boolean(env.CLOUDINARY_CLOUD_NAME);
+		const isAiConfigured = Boolean(env.GROQ_API_KEY || env.GEMINI_API_KEY);
+
+		const services = {
+			database: isDbConnected ? "HEALTHY" : "FAILED",
+			authentication: "READY",
+			email: isEmailConfigured ? "HEALTHY" : "CONFIGURED",
+			realtime: "RUNNING",
+			queue: "RUNNING",
+			storage: isStorageConfigured ? "HEALTHY" : "DISABLED",
+			ai: isAiConfigured ? "READY" : "CONFIGURED",
+		};
+
+		const isReady = isDbConnected;
+		const statusCode = isReady ? 200 : 503;
+
+		return res.status(statusCode).json({
+			status: isReady ? "ready" : "degraded",
+			service: "manmadhan-progress-api",
+			requestId: (req as any).id,
+			services,
+		});
+	});
+
+	app.get("/health", async (req: Request, res: Response) => {
 		const isDbConnected = await checkDatabaseConnection();
 		const status = isDbConnected ? "ok" : "degraded";
 		const statusCode = isDbConnected ? 200 : 503;
@@ -145,22 +184,17 @@ export const createApp = (): Express => {
 		return res.status(statusCode).json({
 			status,
 			service: "manmadhan-progress-api",
+			requestId: (req as any).id,
 			database: isDbConnected ? "connected" : "unavailable",
 			services: {
-				database: isDbConnected,
-				redis: true,
-				storage: true,
-				email: true,
+				database: isDbConnected ? "HEALTHY" : "FAILED",
+				authentication: "READY",
+				email: "HEALTHY",
+				realtime: "RUNNING",
+				queue: "RUNNING",
+				storage: "HEALTHY",
 			},
 		});
-	});
-
-	app.get("/health/ready", async (_req: Request, res: Response) => {
-		const isDbConnected = await checkDatabaseConnection();
-		if (!isDbConnected) {
-			return res.status(503).json({ status: "unavailable", database: false });
-		}
-		return res.status(200).json({ status: "ready", database: true });
 	});
 
 	// Mount Routers
@@ -211,10 +245,12 @@ export const createApp = (): Express => {
 	app.use("/api/v1/org/my-work", orgMyWorkRouter);
 	app.use("/api/org/my-work", orgMyWorkRouter);
 	app.use("/api/v1/org/reports", orgReportsRouter);
+	app.use("/api/org/reports", orgReportsRouter);
 	app.use("/api/v1/org/approvals", orgApprovalsRouter);
 	app.use("/api/v1/org/requests", requestsRouter);
 	app.use("/api/v1/org/focus", orgFocusRouter);
 	app.use("/api/v1/org/timeline", orgTimelineRouter);
+	app.use("/api/org/timeline", orgTimelineRouter);
 	app.use("/api/v1/org/graph", organizationRouter);
 	app.use("/api/v1/org/co-ceos", organizationRouter);
 	app.use("/api/v1/org/members", organizationRouter);
@@ -594,7 +630,7 @@ export const createApp = (): Express => {
 				const dbUser = userRecords[0];
 
 				if (!dbUser) {
-					return res.redirect(`${env.CLIENT_URL}/login?error=account_not_found`);
+					return res.redirect(`${env.CLIENT_URL}/login?error=account_not_found&email=${encodeURIComponent(cleanEmail)}`);
 				}
 
 				if (!dbUser.firstLoginCompleted && dbUser.status !== "Activated") {
@@ -604,7 +640,7 @@ export const createApp = (): Express => {
 						"Google login rejected: first login must be completed with email and password",
 						req.ip || "",
 					);
-					return res.redirect(`${env.CLIENT_URL}/login?error=first_login_required`);
+					return res.redirect(`${env.CLIENT_URL}/login?error=first_login_required&email=${encodeURIComponent(cleanEmail)}`);
 				}
 
 				// Fully set up user, go straight to dashboard
@@ -615,7 +651,19 @@ export const createApp = (): Express => {
 					os: "Unknown",
 					ipAddress: req.ip || "0.0.0.0",
 				});
-				SessionService.issueTokens(res, dbUser, deviceId);
+				try {
+					await SessionService.issueTokens(
+						res,
+						dbUser,
+						deviceId,
+						req.headers["user-agent"],
+						req.ip,
+					);
+				} catch (sessionErr) {
+					return res.redirect(
+						`${env.CLIENT_URL}/login?error=session_creation_failed`,
+					);
+				}
 				await AuditService.logEvent(
 					dbUser.id,
 					"LOGIN_SUCCESS",
@@ -748,36 +796,55 @@ export const createApp = (): Express => {
 	// (Old auth profile endpoints replaced by authRouter)
 
 	// Global Error Handler
-	app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
-		logger.error({ err, url: req.url }, "Unhandled Application Exception");
+	app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+		const requestId = (req as any).id || `req-${Date.now()}`;
+		logger.error({ errName: err.name, errCode: err.code, url: req.url, requestId }, "Unhandled Application Exception");
 
-		const causeMsg = String((err as any).cause?.message || "");
-		const isDbError =
-			err.name === "DrizzleQueryError" ||
-			(err as any).type === "DrizzleQueryError" ||
-			err.message?.includes("Connection terminated") ||
-			err.message?.includes("connection timeout") ||
-			err.message?.includes("ETIMEDOUT") ||
+		const causeMsg = String(err?.cause?.message || "");
+		const isDbConnError =
+			err?.name === "DrizzleQueryError" ||
+			err?.type === "DrizzleQueryError" ||
+			err?.message?.includes("Connection terminated") ||
+			err?.message?.includes("connection timeout") ||
+			err?.message?.includes("ETIMEDOUT") ||
 			causeMsg.includes("Connection terminated") ||
 			causeMsg.includes("connection timeout") ||
 			causeMsg.includes("ETIMEDOUT") ||
-			(err as any).code === "ETIMEDOUT" ||
-			(err as any).code === "ECONNREFUSED";
+			err?.code === "ETIMEDOUT" ||
+			err?.code === "ECONNREFUSED";
 
-		if (isDbError) {
+		if (isDbConnError) {
 			return res.status(503).json({
 				success: false,
-				error:
-					"We couldn't connect to the workspace right now. Please try again in a moment.",
+				error: {
+					code: "DATABASE_UNAVAILABLE",
+					message: "We couldn't connect to the workspace right now. Please try again in a moment.",
+					requestId,
+				},
 			});
 		}
 
-		res.status(500).json({
+		const status = typeof err?.status === "number" && err.status >= 400 && err.status < 600 ? err.status : 500;
+		const code = err?.code || "INTERNAL_ERROR";
+		const rawMsg = err?.message || "";
+		const containsSensitiveDbText =
+			rawMsg.includes("insert into") ||
+			rawMsg.includes("select ") ||
+			rawMsg.includes("postgres") ||
+			rawMsg.includes("column") ||
+			rawMsg.includes("table");
+
+		const safeMessage = !containsSensitiveDbText && rawMsg
+			? rawMsg
+			: "An unexpected error occurred. Please try again.";
+
+		return res.status(status).json({
 			success: false,
-			error:
-				process.env.NODE_ENV === "production"
-					? "Internal Server Error"
-					: err.message || "Internal Server Error",
+			error: {
+				code,
+				message: safeMessage,
+				requestId,
+			},
 		});
 	});
 

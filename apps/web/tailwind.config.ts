@@ -33,6 +33,8 @@ const config: Config = {
         },
         primary: {
           DEFAULT: "var(--primary)",
+          hover: "var(--primary-hover)",
+          pressed: "var(--primary-pressed)",
           foreground: "var(--primary-foreground)",
         },
         secondary: {
@@ -49,10 +51,18 @@ const config: Config = {
         },
         destructive: {
           DEFAULT: "var(--destructive)",
+          hover: "var(--destructive-hover)",
+          muted: "var(--destructive-muted)",
           foreground: "var(--destructive-foreground)",
+        },
+        danger: {
+          DEFAULT: "var(--destructive)",
+          hover: "var(--destructive-hover)",
+          muted: "var(--destructive-muted)",
         },
         border: {
           DEFAULT: "var(--border)",
+          strong: "var(--border-strong)",
           subtle: "var(--border-subtle)",
           hover: "var(--border-hover)",
           focus: "var(--border-focus)",
@@ -74,14 +84,16 @@ const config: Config = {
         brand: {
           DEFAULT: "var(--gold)",
           hover: "var(--gold-hover)",
-          soft: "rgba(216,165,43,0.10)",
-          border: "rgba(216,165,43,0.30)",
+          pressed: "var(--gold-pressed)",
+          soft: "rgba(212,175,55,0.10)",
+          border: "rgba(212,175,55,0.30)",
         },
         input: "var(--input)",
         ring: "var(--ring)",
         gold: {
           DEFAULT: "var(--gold)",
           hover: "var(--gold-hover)",
+          pressed: "var(--gold-pressed)",
         },
       },
       borderColor: {
@@ -96,7 +108,7 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["Geist", "SF Pro Display", "Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-inter)", "Inter", "-apple-system", "BlinkMacSystemFont", "system-ui", "sans-serif"],
       },
       fontWeight: {
         normal: "400",

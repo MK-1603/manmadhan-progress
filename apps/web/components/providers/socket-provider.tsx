@@ -11,6 +11,7 @@ import React, {
 } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "@/components/auth/auth-context";
+import { resetGlobalSheetState } from "@/components/ui/global-sheet";
 
 interface SocketContextType {
   socket: Socket | null;
@@ -159,6 +160,11 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     const SOCKET_URL = resolveSocketUrl();
     const token = readStoredToken();
 
+    if (!token || !token.trim()) {
+      // Do NOT attempt socket connection with an empty token
+      return;
+    }
+
     const socketInstance = io(SOCKET_URL, {
       path: "/socket.io/",
       withCredentials: true,
@@ -230,6 +236,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
 
     // ── Server-initiated session invalidation ─────────────────────────────
     const handleForceLogout = () => {
+      resetGlobalSheetState();
       destroySocket();
       if (typeof window !== "undefined") {
         localStorage.clear();

@@ -50,7 +50,7 @@ export function PasswordResetMobile({ error }: { error: string | null }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60">
       {/* Bottom Sheet */}
       <motion.div
         initial={{ y: "100%" }}

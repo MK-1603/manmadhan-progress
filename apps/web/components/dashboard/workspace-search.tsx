@@ -8,6 +8,7 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import apiClient from "@/lib/api-client";
+import { useAuth } from "@/components/auth/auth-context";
 
 interface SearchResultItem {
   id: string;
@@ -131,10 +132,13 @@ export function WorkspaceSearch({
     return () => clearTimeout(delayDebounce);
   }, [query]);
 
+  const { user } = useAuth();
+  const userRole = (user?.role || "CEO").toUpperCase();
+
   // Group configurations
   const groupConfig = [
-    { key: "tasks", label: "Tasks", icon: CheckSquare, path: (id: string) => isPersonal ? `/personal/tasks` : `/ceo/tasks` },
-    { key: "projects", label: "Projects", icon: FolderKanban, path: (id: string) => isPersonal ? `/personal/projects` : `/ceo/projects` },
+    { key: "tasks", label: "Tasks", icon: CheckSquare, path: (id: string) => isPersonal ? `/personal/tasks` : userRole === "MEMBER" ? `/member/tasks` : userRole === "CO-CEO" ? `/co-ceo/tasks` : `/ceo/tasks` },
+    { key: "projects", label: "Projects", icon: FolderKanban, path: (id: string) => isPersonal ? `/personal/projects` : userRole === "MEMBER" ? `/member/projects` : userRole === "CO-CEO" ? `/co-ceo/projects` : `/ceo/projects` },
     { key: "notes", label: "Notes", icon: FileText, path: (id: string) => `/personal/notes` },
     { key: "journals", label: "Journal", icon: Book, path: (id: string) => `/personal/journal` },
     { key: "ideas", label: "Ideas", icon: Book, path: (id: string) => `/personal/notes` },
@@ -142,7 +146,7 @@ export function WorkspaceSearch({
     { key: "files", label: "Files", icon: FileText, path: (id: string) => `/personal/documents` },
     { key: "reminders", label: "Reminders", icon: Bell, path: (id: string) => `/personal/reminders` },
     { key: "habits", label: "Habits", icon: Activity, path: (id: string) => `/personal/focus` },
-    { key: "members", label: "Members", icon: Users, path: (id: string) => `/ceo/members` },
+    ...(userRole !== "MEMBER" ? [{ key: "members", label: "Members", icon: Users, path: (id: string) => userRole === "CO-CEO" ? `/co-ceo/people` : `/ceo/people` }] : []),
   ];
 
   // Flatten results for keyboard navigation
@@ -164,7 +168,7 @@ export function WorkspaceSearch({
     });
 
     return items;
-  }, [results, isPersonal]);
+  }, [results, isPersonal, userRole]);
 
   // Arrow navigation
   useEffect(() => {
@@ -351,3 +355,4 @@ export function WorkspaceSearch({
     </div>
   );
 }
+

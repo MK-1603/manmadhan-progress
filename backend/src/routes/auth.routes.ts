@@ -61,6 +61,17 @@ authRouter.post("/login/password", async (req, res, next) => {
 		const { email, password } = req.body;
 		const cleanEmail = String(email || "").trim().toLowerCase();
 
+		// 1. Email format validation
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+			return res.status(400).json({
+				success: false,
+				code: "INVALID_EMAIL",
+				error: "Enter a valid email address.",
+			});
+		}
+
+		// 2. Account existence check
 		const userList = await db
 			.select()
 			.from(users)
@@ -68,16 +79,54 @@ authRouter.post("/login/password", async (req, res, next) => {
 			.limit(1);
 
 		if (userList.length === 0) {
-			return res
-				.status(404)
-				.json({ success: false, error: "Account not found" });
+			const errorMode = process.env.AUTH_ERROR_MODE || "PRIVATE_APP";
+			if (errorMode === "PUBLIC_APP") {
+				return res.status(401).json({
+					success: false,
+					code: "INVALID_CREDENTIALS",
+					error: "Invalid email or password.",
+				});
+			}
+			return res.status(404).json({
+				success: false,
+				code: "ACCOUNT_NOT_FOUND",
+				error: "Account not found",
+				details: "We couldn't find an account with this email address.",
+			});
 		}
 
 		const user = userList[0];
 
-		// Verify password (either temporary seed password or updated master password)
+		// 3. Account status & setup state validation
+		const userStatus = (user.status || "").toLowerCase();
+		if (userStatus === "suspended" || userStatus === "disabled" || userStatus === "locked") {
+			return res.status(403).json({
+				success: false,
+				code: "ACCOUNT_SUSPENDED",
+				error: "Account suspended",
+				details: "Your ManMadhan Progress account has been suspended.",
+			});
+		}
+		if (userStatus === "deleted") {
+			return res.status(403).json({
+				success: false,
+				code: "ACCOUNT_DELETED",
+				error: "Account unavailable",
+				details: "This account is no longer available.",
+			});
+		}
+		if (user.isInvited && (!user.passwordHash || !user.firstLoginCompleted)) {
+			return res.status(400).json({
+				success: false,
+				code: "ACCOUNT_PENDING_SETUP",
+				error: "Complete your account setup",
+				details: "Your organization invitation is waiting for you.",
+			});
+		}
+
+		// 4. Password verification (bcrypt / scrypt per-password salt)
 		const isValidPassword = AuthService.verifyPassword(
-			password,
+			password || "",
 			user.passwordHash || "",
 		);
 
@@ -88,12 +137,15 @@ authRouter.post("/login/password", async (req, res, next) => {
 				"Invalid password attempt",
 				req.ip || "",
 			);
-			return res
-				.status(401)
-				.json({ success: false, error: "Invalid password" });
+			return res.status(401).json({
+				success: false,
+				code: "INVALID_PASSWORD",
+				error: "Invalid password",
+				details: "The password you entered is incorrect.",
+			});
 		}
 
-		// Check if first-login onboarding is required
+		// 5. First-login onboarding OTP flow check
 		if (!user.firstLoginCompleted || user.onboardingStatus !== "COMPLETED") {
 			await OtpService.sendOTP(cleanEmail, {
 				isFirstLogin: true,
@@ -118,15 +170,22 @@ authRouter.post("/login/password", async (req, res, next) => {
 			});
 		}
 
-		// Normal returning user login (after first-login onboarding completion)
+		// 6. Normal returning user login — Issue session & tokens
 		const now = new Date();
 		await db
 			.update(users)
 			.set({ lastLoginAt: now, lastActiveAt: now })
 			.where(eq(users.id, user.id));
 
-		const deviceId = req.ip || "unknown-device";
-		const token = SessionService.issueTokens(res, user, deviceId);
+		const deviceId = req.ip || "web-default";
+		const tokens = await SessionService.issueTokens(
+			res,
+			user,
+			deviceId,
+			req.headers["user-agent"],
+			req.ip,
+		);
+
 		await AuditService.logEvent(
 			user.id,
 			"LOGIN_SUCCESS",
@@ -151,7 +210,8 @@ authRouter.post("/login/password", async (req, res, next) => {
 			success: true,
 			nextStep: "DASHBOARD",
 			role: user.role,
-			accessToken: token,
+			accessToken: tokens.accessToken,
+			user,
 		});
 	} catch (error) {
 		next(error);
@@ -212,6 +272,20 @@ authRouter.post("/forgot-password", async (req, res, next) => {
 	}
 });
 
+// GET /otp-status
+authRouter.get("/otp-status", async (req, res, next) => {
+	try {
+		const email = String(req.query.email || "").trim().toLowerCase();
+		if (!email) {
+			return res.status(400).json({ success: false, error: "Email is required" });
+		}
+		const status = await OtpService.getOTPStatus(email);
+		return res.json({ success: true, ...status });
+	} catch (error) {
+		next(error);
+	}
+});
+
 // POST /resend-otp
 authRouter.post("/resend-otp", async (req, res, next) => {
 	try {
@@ -236,22 +310,38 @@ authRouter.post("/resend-otp", async (req, res, next) => {
 		const isResetPassword = purpose === "reset_password";
 		const isFirstLogin = !user.firstLoginCompleted || user.onboardingStatus !== "COMPLETED";
 
-		await OtpService.sendOTP(cleanEmail, {
+		const resendResult = await OtpService.resendOTP(cleanEmail, {
 			isFirstLogin: !isResetPassword && isFirstLogin,
 			isResetPassword,
 			userName: user.displayName || user.name || cleanEmail.split("@")[0],
 		});
 
+		if (!resendResult.success) {
+			const statusCode = resendResult.error === "RESEND_LIMIT_REACHED" ? 429 : 400;
+			return res.status(statusCode).json({
+				success: false,
+				error: resendResult.error,
+				message: resendResult.message,
+				resendCount: resendResult.resendCount,
+				remainingResends: resendResult.remainingResends,
+				cooldownSeconds: resendResult.cooldownSeconds,
+			});
+		}
+
 		await AuditService.logEvent(
 			user.id,
 			"OTP_RESENT",
-			`OTP code resent for purpose: ${purpose || "login"}`,
+			`OTP code resent (#${resendResult.resendCount}) for purpose: ${purpose || "login"}`,
 			req.ip || "",
 		);
 
 		return res.json({
 			success: true,
-			message: "A new verification code has been dispatched to your email.",
+			message: resendResult.message,
+			resendCount: resendResult.resendCount,
+			remainingResends: resendResult.remainingResends,
+			cooldownSeconds: resendResult.cooldownSeconds,
+			nextResendAt: resendResult.nextResendAt,
 		});
 	} catch (error) {
 		next(error);
@@ -889,5 +979,89 @@ authRouter.get("/me", strictAuth, async (req, res) => {
 	}
 
 	const user = userRecords[0];
-	return res.json({ success: true, authenticated: true, user });
+
+	let workspaceId = null;
+	const userMember = await db.query.workspaceMembers.findFirst({
+		where: eq(workspaceMembers.userId, user.id),
+	});
+	if (userMember) {
+		workspaceId = userMember.workspaceId;
+	}
+
+	return res.json({ success: true, authenticated: true, user, workspaceId });
+});
+
+// POST /logout
+authRouter.post("/logout", async (req, res, next) => {
+	try {
+		const authHeader = req.headers.authorization;
+		if (authHeader && authHeader.startsWith("Bearer ")) {
+			try {
+				const token = authHeader.split(" ")[1];
+				const decoded = jwt.verify(token, env.JWT_SECRET) as any;
+				if (decoded?.id) {
+					await SessionService.revokeUserSessions(decoded.id);
+					await AuditService.logEvent(
+						decoded.id,
+						"LOGOUT",
+						"User signed out successfully",
+						req.ip || "",
+					);
+				}
+			} catch (e) {}
+		}
+
+		SessionService.clearTokens(res);
+		return res.json({
+			success: true,
+			message: "Logged out successfully",
+		});
+	} catch (error) {
+		SessionService.clearTokens(res);
+		next(error);
+	}
+});
+
+// POST /refresh
+authRouter.post("/refresh", async (req, res) => {
+	try {
+		const refreshTokenInput =
+			req.cookies?.refresh_token ||
+			req.body?.refreshToken ||
+			req.body?.token ||
+			(req.headers["x-refresh-token"] as string);
+
+		if (!refreshTokenInput) {
+			SessionService.clearTokens(res);
+			return res.status(401).json({
+				success: false,
+				code: "REFRESH_TOKEN_MISSING",
+				error: "No refresh token provided",
+			});
+		}
+
+		const result = await SessionService.rotateSession(
+			refreshTokenInput,
+			res,
+			req.headers["user-agent"],
+			req.ip,
+		);
+
+		return res.json({
+			success: true,
+			accessToken: result.accessToken,
+			user: result.user,
+		});
+	} catch (err: any) {
+		SessionService.clearTokens(res);
+		const status = err.status || 401;
+		const code = err.code || "REFRESH_SESSION_EXPIRED";
+		const message = err.message || "Invalid or expired refresh token";
+
+		return res.status(status).json({
+			success: false,
+			code,
+			error: message,
+		});
+	}
 });

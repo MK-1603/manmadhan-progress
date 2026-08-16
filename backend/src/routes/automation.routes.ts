@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { strictAuth } from "../middleware/auth.middleware";
 import { AutomationService } from "../services/automation.service";
 import { db } from "../../database/client";
-import { automations } from "../../database/schema";
+import { automations, workspaceMembers } from "../../database/schema";
 import { eq, and } from "drizzle-orm";
 
 export const automationRouter = Router();
@@ -41,6 +41,20 @@ automationRouter.post("/interpret-prompt", strictAuth, async (req: Request, res:
   }
 });
 
+// Helper function to resolve workspace ID
+async function resolveWorkspaceId(userId: string, targetId?: any): Promise<string | null> {
+  let wsId = targetId ? String(targetId).trim() : "";
+  if (!wsId || wsId === "undefined" || wsId === "null") {
+    const member = await db.query.workspaceMembers.findFirst({
+      where: eq(workspaceMembers.userId, userId),
+    });
+    if (member?.workspaceId) {
+      wsId = member.workspaceId;
+    }
+  }
+  return wsId && wsId !== "undefined" && wsId !== "null" ? wsId : null;
+}
+
 // POST /api/v1/automation/create
 automationRouter.post("/create", strictAuth, async (req: Request, res: Response) => {
   try {
@@ -62,12 +76,15 @@ automationRouter.post("/create", strictAuth, async (req: Request, res: Response)
     if (!name || !triggerType || !actionType) {
       return res.status(400).json({
         success: false,
-        error: "Name, triggerType, and actionType are required.",
+        code: "VALIDATION_FAILED",
+        error: "Automation name, trigger, and action are required.",
       });
     }
 
+    const resolvedWsId = await resolveWorkspaceId(authUser.id, workspaceId);
+
     const created = await AutomationService.createAutomation({
-      workspaceId: workspaceId || null,
+      workspaceId: resolvedWsId || undefined,
       createdByUserId: authUser.id,
       name: name.trim(),
       description: description || "",
@@ -88,7 +105,8 @@ automationRouter.post("/create", strictAuth, async (req: Request, res: Response)
   } catch (err: any) {
     return res.status(500).json({
       success: false,
-      error: err.message || "Failed to create automation.",
+      code: "AUTOMATION_CREATE_FAILED",
+      error: "Unable to create automation. Please try again.",
     });
   }
 });
@@ -97,9 +115,9 @@ automationRouter.post("/create", strictAuth, async (req: Request, res: Response)
 automationRouter.get("/list", strictAuth, async (req: Request, res: Response) => {
   try {
     const authUser = (req as any).user;
-    const workspaceId = req.query.workspaceId ? String(req.query.workspaceId) : undefined;
+    const resolvedWsId = await resolveWorkspaceId(authUser.id, req.query.workspaceId);
 
-    const list = await AutomationService.listAutomations(authUser.id, workspaceId);
+    const list = await AutomationService.listAutomations(authUser.id, resolvedWsId || undefined);
 
     return res.json({
       success: true,
@@ -108,7 +126,8 @@ automationRouter.get("/list", strictAuth, async (req: Request, res: Response) =>
   } catch (err: any) {
     return res.status(500).json({
       success: false,
-      error: err.message || "Failed to list automations.",
+      code: "AUTOMATION_LIST_FAILED",
+      error: "Unable to load automations. Please try again.",
     });
   }
 });

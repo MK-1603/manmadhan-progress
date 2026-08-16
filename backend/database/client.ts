@@ -73,6 +73,54 @@ export const checkDatabaseConnection = async (): Promise<boolean> => {
 	try {
 		authClient = await authPool.connect();
 		await authClient.query("SELECT 1");
+		await authClient.query(`
+			CREATE TABLE IF NOT EXISTS user_sessions (
+				id TEXT PRIMARY KEY,
+				user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+				refresh_token_hash TEXT NOT NULL,
+				device_id TEXT,
+				user_agent TEXT,
+				ip_address TEXT,
+				status TEXT DEFAULT 'ACTIVE' NOT NULL,
+				expires_at TIMESTAMP NOT NULL,
+				last_used_at TIMESTAMP DEFAULT NOW() NOT NULL,
+				created_at TIMESTAMP DEFAULT NOW() NOT NULL
+			);
+
+			CREATE TABLE IF NOT EXISTS automations (
+				id TEXT PRIMARY KEY,
+				workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+				created_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+				name TEXT NOT NULL,
+				description TEXT,
+				creation_mode TEXT DEFAULT 'PROMPT' NOT NULL,
+				original_prompt TEXT,
+				trigger_type TEXT NOT NULL,
+				trigger_config JSONB DEFAULT '{}'::jsonb NOT NULL,
+				condition_config JSONB DEFAULT '{}'::jsonb NOT NULL,
+				action_type TEXT NOT NULL,
+				action_config JSONB DEFAULT '{}'::jsonb NOT NULL,
+				status TEXT DEFAULT 'ACTIVE' NOT NULL,
+				requires_confirmation BOOLEAN DEFAULT FALSE NOT NULL,
+				last_run_at TIMESTAMP,
+				next_run_at TIMESTAMP,
+				run_count INTEGER DEFAULT 0 NOT NULL,
+				created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+				updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+			);
+
+			CREATE TABLE IF NOT EXISTS automation_logs (
+				id TEXT PRIMARY KEY,
+				automation_id TEXT NOT NULL REFERENCES automations(id) ON DELETE CASCADE,
+				workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+				user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+				status TEXT NOT NULL,
+				triggered_by TEXT NOT NULL,
+				execution_details JSONB DEFAULT '{}'::jsonb NOT NULL,
+				error_message TEXT,
+				executed_at TIMESTAMP DEFAULT NOW() NOT NULL
+			);
+		`);
 		authClient.release();
 		authClient = undefined;
 

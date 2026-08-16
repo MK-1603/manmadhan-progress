@@ -1200,7 +1200,7 @@ export function OrgControlCenterView({ basePath }: OrgControlCenterViewProps) {
 
 			{/* Document View Modal */}
 			{selectedDocument && (
-				<div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+				<div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
 					<div className="w-full max-w-lg bg-card border border-border p-6 rounded-2xl shadow-2xl space-y-4">
 						<div className="flex items-center justify-between border-b border-border/40 pb-3">
 							<div className="flex items-center gap-2">
@@ -1228,7 +1228,7 @@ export function OrgControlCenterView({ basePath }: OrgControlCenterViewProps) {
 
 			{/* Use Template Modal */}
 			{selectedTemplate && (
-				<div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+				<div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
 					<div className="w-full max-w-md bg-card border border-border p-5 rounded-xl shadow-2xl space-y-4">
 						<div className="flex items-center justify-between border-b border-border/40 pb-3">
 							<h3 className="text-sm font-bold text-foreground">Use Template: {selectedTemplate.name}</h3>

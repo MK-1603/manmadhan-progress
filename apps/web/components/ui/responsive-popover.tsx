@@ -108,7 +108,7 @@ export function ResponsivePopover({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setIsOpen(false)}
-                className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[10000]"
+                className="fixed inset-0 bg-black/60 z-[10000]"
               />
               
               {/* Sheet */}

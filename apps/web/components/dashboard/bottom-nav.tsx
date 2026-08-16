@@ -10,6 +10,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "../auth/auth-context";
 import { SinglePromptModal } from "../personal/single-prompt-modal";
 import { MORE_SHEET_SHORTCUTS } from "@/config/mobile-nav.config";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+
+import { useSetRefreshDisabled } from "@/components/providers/global-refresh-provider";
 
 type BottomNavProps = {
   workspace: "personal" | "organization";
@@ -23,6 +26,9 @@ export function BottomNav({ workspace, role }: BottomNavProps) {
 
   const [aiCaptureOpen, setAiCaptureOpen] = useState(false);
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
+
+  useBodyScrollLock(moreSheetOpen || aiCaptureOpen);
+  useSetRefreshDisabled(moreSheetOpen || aiCaptureOpen);
 
   const isPersonal = workspace === "personal";
   const userRole = (role || (user?.role || "CEO")).toUpperCase() as "CEO" | "CO-CEO" | "MEMBER";
@@ -159,7 +165,7 @@ export function BottomNav({ workspace, role }: BottomNavProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMoreSheetOpen(false)}
-              className="fixed inset-0 bg-black/45 dark:bg-black/60 backdrop-blur-xs z-[10000]"
+              className="fixed inset-0 bg-black/60 z-[10000]"
             />
 
             {/* Compact Bottom Sheet */}

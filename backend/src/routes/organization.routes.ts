@@ -783,33 +783,6 @@ organizationRouter.get(
 				});
 			}
 
-			// Add invitations if not already listed
-			for (const invite of coCeoInvites) {
-				const lowerEmail = invite.email.toLowerCase();
-				if (!seenEmails.has(lowerEmail)) {
-					seenEmails.add(lowerEmail);
-					coCeosList.push({
-						id: invite.id,
-						email: invite.email,
-						name: invite.email,
-						displayName: invite.email,
-						avatar: null,
-						role: "CO-CEO",
-						status:
-							invite.status === "Accepted" ? "ACTIVE" : "PENDING INVITATION",
-						joinedAt: invite.createdAt,
-						projectsCount: 0,
-						tasksCount: 0,
-						completedTasks: 0,
-						overdueTasks: 0,
-						membersCount: 0,
-						focusHours: "0h",
-						pendingApprovals: 0,
-						currentWork: null,
-					});
-				}
-			}
-
 			const summary = {
 				totalCount: coCeosList.length,
 				activeCount: coCeosList.filter((c) => c.status === "ACTIVE").length,
@@ -1807,5 +1780,97 @@ organizationRouter.get(
 		}
 	},
 );
+
+// DELETE /members/:id (Remove active member or cancel pending invitation)
+organizationRouter.delete("/members/:id", async (req: Request, res: Response) => {
+	try {
+		const targetId = req.params.id;
+		const { membership, userId } = await getOrganizationMembership(req);
+
+		if (!membership) {
+			return res.status(403).json({
+				success: false,
+				code: "FORBIDDEN",
+				error: "Organization membership required.",
+			});
+		}
+
+		const userRole = (membership.role || (req as any).user?.role || "").toUpperCase();
+		if (userRole !== "CEO" && userRole !== "CO-CEO") {
+			return res.status(403).json({
+				success: false,
+				code: "FORBIDDEN",
+				error: "You don't have permission to perform this action.",
+			});
+		}
+
+		const workspaceId = membership.workspaceId;
+
+		// Check if target is a workspaceMember by id or userId
+		const [targetMember] = await db
+			.select()
+			.from(workspaceMembers)
+			.where(
+				and(
+					eq(workspaceMembers.workspaceId, workspaceId),
+					or(eq(workspaceMembers.id, targetId), eq(workspaceMembers.userId, targetId)),
+				),
+			)
+			.limit(1);
+
+		if (!targetMember) {
+			// Check if target is a pending invitation
+			const [inv] = await db
+				.select()
+				.from(invitations)
+				.where(and(eq(invitations.organizationId, workspaceId), eq(invitations.id, targetId)))
+				.limit(1);
+
+			if (inv) {
+				await db.delete(invitations).where(eq(invitations.id, inv.id));
+				socketService.emitToWorkspace(workspaceId, "INVITATION_CANCELLED", { invitationId: inv.id });
+				logger.info("Invitation cancelled");
+				return res.json({ success: true, message: "Invitation cancelled successfully." });
+			}
+
+			return res.status(404).json({
+				success: false,
+				code: "MEMBER_NOT_FOUND",
+				error: "Member or invitation not found in this organization.",
+			});
+		}
+
+		// Prevent removing self
+		if (targetMember.userId === userId) {
+			return res.status(400).json({
+				success: false,
+				code: "CANNOT_REMOVE_SELF",
+				error: "You cannot remove yourself from the organization.",
+			});
+		}
+
+		// Delete workspace member record and any corresponding invitations from database
+		await db.delete(workspaceMembers).where(eq(workspaceMembers.id, targetMember.id));
+		const [targetUser] = await db.select().from(users).where(eq(users.id, targetMember.userId)).limit(1);
+		if (targetUser?.email) {
+			await db.delete(invitations).where(and(eq(invitations.organizationId, workspaceId), eq(invitations.email, targetUser.email)));
+		}
+
+		socketService.emitToWorkspace(workspaceId, "MEMBER_REMOVED", {
+			memberId: targetMember.id,
+			userId: targetMember.userId,
+		});
+
+		logger.info("Member removed");
+		return res.json({ success: true, message: "Member removed successfully." });
+	} catch (err: any) {
+		logger.error("Delete organization member failed");
+		return res.status(500).json({
+			success: false,
+			code: "INTERNAL_ERROR",
+			error: "Unable to complete this action. Please try again.",
+		});
+	}
+});
 
 export default organizationRouter;

@@ -14,8 +14,25 @@ const baseOptions: LoggerOptions = {
 			"token",
 			"accessToken",
 			"refreshToken",
+			"refreshTokenHash",
 			"authorization",
 			"cookie",
+			"sessionToken",
+			"oauthToken",
+			"clientSecret",
+			"inviteToken",
+			"resetToken",
+			"verificationToken",
+			"googleId",
+			"email",
+			"userId",
+			"workspaceId",
+			"organizationId",
+			"messageId",
+			"actionUrl",
+			"sql",
+			"query",
+			"params",
 		],
 		censor: "[REDACTED]",
 	},
@@ -28,6 +45,12 @@ const baseOptions: LoggerOptions = {
 	formatters: {
 		level(label) {
 			return { level: label };
+		},
+		log(object) {
+			if (object.msg && typeof object.msg === "string") {
+				object.msg = object.msg.replace(/^\[(INFO|WARN|ERROR|DEBUG|REALTIME|SYSTEM|DATABASE|AUTH|EMAIL|APPLICATION)\]\s*/i, "");
+			}
+			return object;
 		},
 	},
 	...(isProduction

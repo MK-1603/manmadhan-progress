@@ -419,7 +419,7 @@ export default function OrganizationPeoplePage() {
           setSelectedInvitationId(null);
           fetchData(); // Refresh if cancelled/updated
         }}
-        invitationId={selectedInvitationId}
+        invitation={selectedInvitationId ? { id: selectedInvitationId } : null}
       />
     </div>
   );

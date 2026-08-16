@@ -7,6 +7,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import apiClient from "@/lib/api-client";
+import { GlobalSheet } from "@/components/ui/global-sheet";
 
 type Tab = "profile" | "projects" | "tasks" | "members" | "performance";
 
@@ -289,46 +290,15 @@ export function CoCeoDetailModal({ isOpen, onClose, personId }: CoCeoDetailModal
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-background/80 backdrop-blur-sm"
-        >
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="w-full max-w-[600px] bg-background border border-border sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col relative"
-          >
-            {/* Top handle for mobile sheet look */}
-            <div className="w-full flex justify-center pt-3 pb-1 sm:hidden">
-              <div className="w-12 h-1.5 bg-border rounded-full" />
-            </div>
-
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 p-2 bg-muted/50 hover:bg-muted text-muted-foreground rounded-full transition-colors z-10"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            {renderContent()}
-
-            <div className="p-4 sm:p-5 border-t border-border bg-card flex justify-end">
-              <button
-                onClick={onClose}
-                className="px-5 py-2.5 bg-background border border-border hover:bg-muted text-[13px] font-semibold rounded-xl transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <GlobalSheet
+      open={isOpen}
+      onClose={onClose}
+      showHandle={true}
+      showClose={true}
+      desktopMode="modal"
+      desktopMaxWidth="max-w-[600px]"
+    >
+      {renderContent()}
+    </GlobalSheet>
   );
 }

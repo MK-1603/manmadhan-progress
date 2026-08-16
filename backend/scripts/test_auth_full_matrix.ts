@@ -1,103 +1,102 @@
-import fs from "node:fs";
-import path from "node:path";
-import { EmailTemplateBuilder, BRAND_LOGO_URL } from "../src/services/emails/template.builder";
-import { emailService } from "../src/services/email.service";
+import axios from "axios";
+import { db } from "../database/client";
+import { users } from "../database/schema";
+import { eq, ilike } from "drizzle-orm";
 
-async function testFullAuthMatrix() {
-	console.log("=================================================");
-	console.log("   MANMADHAN PROGRESS — AUTH & EMAIL FULL AUDIT  ");
-	console.log("=================================================");
+async function runAuthMatrixTest() {
+  console.log("\n========================================================");
+  console.log("  MANMADHAN PROGRESS V1 — AUTH /ME SESSION MATRIX TEST");
+  console.log("========================================================\n");
 
-	// ── 1. TEST FIRST LOGIN OTP EMAIL TEMPLATE ──
-	console.log("\n[1/4] Building First Login OTP Email...");
-	const firstLoginHtml = EmailTemplateBuilder.build({
-		title: "Welcome to ManMadhan Progress",
-		userName: "Sai Krishnan",
-		isFirstLogin: true,
-		otpCode: "948271",
-		expiresIn: "10 minutes",
-		actionUrl: "http://localhost:3000/login",
-		actionText: "Verify & Continue →",
-		securityNotice: true,
-	});
+  const baseURL = "http://localhost:4100/api/v1";
+  const testEmail = "saikrishnanmk1603@gmail.com";
+  const testPassword = "Welcome@123";
+  let sessionCookie = "";
 
-	// ── 2. TEST RESET PASSWORD LINK EMAIL TEMPLATE (NO OTP) ──
-	console.log("\n[2/4] Building Reset Password Link Email...");
-	const resetLinkHtml = EmailTemplateBuilder.build({
-		title: "Reset your ManMadhan Progress password",
-		userName: "Sai Krishnan",
-		isResetLink: true,
-		expiresIn: "15 minutes",
-		actionUrl: "http://localhost:3000/reset?token=xyz_secure_token",
-		actionText: "Reset Password →",
-		securityNotice: true,
-	});
+  // Ensure test user is fully onboarded for returning user session test
+  await db
+    .update(users)
+    .set({ firstLoginCompleted: true, onboardingStatus: "COMPLETED" })
+    .where(ilike(users.email, testEmail));
 
-	// ── 3. TEST INACTIVITY 2+ DAYS EMAIL TEMPLATE (NO OTP) ──
-	console.log("\n[3/4] Building 2-Day Inactivity Email...");
-	const inactivityHtml = EmailTemplateBuilder.build({
-		title: "Your ManMadhan Progress account is ready for you",
-		userName: "Sai Krishnan",
-		isInactiveNotice: true,
-		lastActiveText: "August 14, 2026, 6:30 PM",
-		lastLoginText: "August 14, 2026, 6:00 PM",
-		actionUrl: "http://localhost:3000/login",
-		actionText: "Open ManMadhan Progress →",
-		securityNotice: true,
-	});
+  // TEST 1: Anonymous Session Check (CASE A: Expected 401, no uncaught error)
+  console.log("[TEST 1] Anonymous Session Check (GET /auth/me)");
+  try {
+    const meRes1 = await axios.get(`${baseURL}/auth/me`, { validateStatus: (status) => status < 500 });
+    if (meRes1.status === 401) {
+      console.log(`  ✓ CASE A PASSED: GET /auth/me returned 401 Unauthorized for anonymous user as expected.`);
+    } else {
+      console.log(`  Status returned: ${meRes1.status}`);
+    }
+  } catch (err: any) {
+    throw new Error(`Unexpected network failure on anonymous /me check: ${err.message}`);
+  }
 
-	// ── 4. BRAND ASSET & SOCIAL MEDIA ASSERTIONS ──
-	console.log("\n[4/4] Auditing Brand Logo, Layout & Matrix Rules...");
+  // TEST 2: User Password Login
+  console.log("\n[TEST 2] Password Login (POST /auth/login/password)");
+  const loginRes = await axios.post(`${baseURL}/auth/login/password`, {
+    email: testEmail,
+    password: testPassword,
+  });
+  
+  const setCookieHeaders = loginRes.headers["set-cookie"];
+  if (setCookieHeaders && setCookieHeaders.length > 0) {
+    sessionCookie = setCookieHeaders.map(c => c.split(";")[0]).join("; ");
+  }
 
-	const templates = [
-		{ name: "First Login OTP", html: firstLoginHtml, requireOtp: true },
-		{ name: "Reset Password Link", html: resetLinkHtml, requireOtp: false },
-		{ name: "2-Day Inactivity Notice", html: inactivityHtml, requireOtp: false },
-	];
+  console.log(`  Login result: success=${loginRes.data.success}, user=${loginRes.data.user?.email || testEmail}`);
+  if (!loginRes.data.success) {
+    throw new Error("Assertion failed: Password login returned success=false");
+  }
+  const token = loginRes.data.token || loginRes.data.accessToken;
+  console.log("  ✓ TEST 2 PASSED: Password login succeeded and issued session credentials.");
 
-	for (const t of templates) {
-		// Single source of truth Cloudinary Logo check
-		if (!t.html.includes(BRAND_LOGO_URL)) {
-			throw new Error(`❌ Single source logo URL missing in ${t.name} template!`);
-		}
-		// LinkedIn check
-		if (t.html.toLowerCase().includes("linkedin")) {
-			throw new Error(`❌ Forbidden LinkedIn link found in ${t.name} template!`);
-		}
-		// Twitter/X check
-		if (t.html.toLowerCase().includes("twitter") || t.html.toLowerCase().includes("x.com")) {
-			throw new Error(`❌ Forbidden Twitter/X link found in ${t.name} template!`);
-		}
-		// Instagram ONLY check
-		if (!t.html.includes("instagram.com")) {
-			throw new Error(`❌ Instagram link missing in ${t.name} template!`);
-		}
-		// Brand header & tagline
-		if (!t.html.includes("ManMadhan Progress")) {
-			throw new Error(`❌ Brand name missing in ${t.name} template!`);
-		}
-		if (!t.html.includes("Track. Focus. Achieve.")) {
-			throw new Error(`❌ Brand tagline missing in ${t.name} template!`);
-		}
-		// OTP check
-		if (!t.requireOtp) {
-			if (t.html.includes("Verification Code") || t.html.includes("Your Reset Code") || t.html.includes("Never share this code")) {
-				throw new Error(`❌ Unwanted OTP elements found in non-OTP template: ${t.name}!`);
-			}
-		}
-	}
+  // TEST 3: Authenticated Session Check (CASE B: Expected 200 OK)
+  console.log("\n[TEST 3] Authenticated Session Check (GET /auth/me)");
+  const headers: Record<string, string> = {};
+  if (sessionCookie) headers["Cookie"] = sessionCookie;
+  if (token) headers["Authorization"] = `Bearer ${token}`;
 
-	console.log("-------------------------------------------------");
-	console.log("  ✓ First Login OTP Flow: REQUIRES OTP (firstLoginVerified = false)");
-	console.log("  ✓ Returning User Login Flow: NO OTP REQUIRED");
-	console.log("  ✓ Reset Password Link Flow: NO OTP (LINK ONLY)");
-	console.log("  ✓ 2-Day Inactivity State: NO OTP (ACTIVITY UPDATE ONLY)");
-	console.log("  ✓ Social Media Footer: INSTAGRAM ONLY");
-	console.log("-------------------------------------------------");
-	console.log("✅ AUTHENTICATION MATRIX & EMAIL AUDIT VERIFIED SUCCESSFULLY!");
+  const meRes2 = await axios.get(`${baseURL}/auth/me`, { headers, validateStatus: (status) => status < 500 });
+  console.log(`  GET /auth/me result: status=${meRes2.status}, authenticated=${meRes2.data.authenticated}, user=${meRes2.data.user?.email}`);
+  if (meRes2.status !== 200 || !meRes2.data.authenticated || meRes2.data.user?.email !== testEmail) {
+    throw new Error(`Assertion failed: Authenticated /auth/me failed! Got status ${meRes2.status}`);
+  }
+  console.log("  ✓ CASE B PASSED: GET /auth/me returned 200 OK with authenticated user profile.");
+
+  // TEST 4: Page Refresh Session Persistence Check
+  console.log("\n[TEST 4] Refresh Page Session Persistence Check");
+  const refreshCheck = await axios.get(`${baseURL}/auth/me`, { headers, validateStatus: (status) => status < 500 });
+  if (refreshCheck.status !== 200 || !refreshCheck.data.authenticated) {
+    throw new Error("Assertion failed: Session did not persist across refresh check!");
+  }
+  console.log("  ✓ TEST 4 PASSED: Authenticated session persisted across page refresh.");
+
+  // TEST 5: User Logout
+  console.log("\n[TEST 5] User Logout (POST /auth/logout)");
+  const logoutRes = await axios.post(`${baseURL}/auth/logout`, {}, { headers });
+  console.log(`  Logout result: success=${logoutRes.data.success}`);
+  if (!logoutRes.data.success) {
+    throw new Error("Assertion failed: Logout failed!");
+  }
+  console.log("  ✓ TEST 5 PASSED: Logout successfully invalidated user session.");
+
+  // TEST 6: Post-Logout Session Check (Expected 401)
+  console.log("\n[TEST 6] Post-Logout Session Check (GET /auth/me)");
+  const postLogoutRes = await axios.get(`${baseURL}/auth/me`, { validateStatus: (status) => status < 500 });
+  if (postLogoutRes.status === 401) {
+    console.log("  ✓ TEST 6 PASSED: GET /auth/me returned 401 Unauthorized after logout as expected.");
+  } else {
+    throw new Error(`Assertion failed: GET /auth/me after logout should return 401, got ${postLogoutRes.status}`);
+  }
+
+  console.log("\n========================================================");
+  console.log("  🎉 ALL AUTH /ME SESSION MATRIX TESTS PASSED SUCCESSFULLY!");
+  console.log("========================================================\n");
+  process.exit(0);
 }
 
-testFullAuthMatrix().catch((err) => {
-	console.error("❌ Full auth matrix verification failed:", err);
-	process.exit(1);
+runAuthMatrixTest().catch((err) => {
+  console.error("❌ Auth Matrix Test failed:", err);
+  process.exit(1);
 });

@@ -1,39 +1,42 @@
 "use client";
 
 import { useEffect, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "./auth-context";
 
 function Handler() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { open, setAuthData } = useAuth();
+  const searchParamsString = searchParams ? searchParams.toString() : "";
 
   useEffect(() => {
     const step = searchParams.get("auth_step");
     const redirectParam = searchParams.get("redirect");
-    
-    if (step || redirectParam) {
+    const errorMsg = searchParams.get("error");
+    const emailParam = searchParams.get("email");
+
+    if (step || redirectParam || errorMsg || emailParam) {
       const token = searchParams.get("token") || "";
       const role = searchParams.get("role") || "";
-      const errorMsg = searchParams.get("error") || "";
-      
-      setAuthData({ step: step || "EMAIL_ENTRY", token, role, error: errorMsg });
-      
-      // Clean up the URL so it looks nice, but preserve redirect if any.
-      // Avoid infinite loop by only replacing if there's actually a step, token, or error to clear.
-      if (step || token || errorMsg || role) {
-        if (redirectParam) {
-          router.replace(`/?redirect=${encodeURIComponent(redirectParam)}`, { scroll: false });
-        } else {
-          router.replace("/", { scroll: false });
-        }
+      const email = emailParam || "";
+
+      setAuthData({ step: step || "EMAIL_ENTRY", token, role, error: errorMsg || "", email });
+
+      // Clean up the URL query parameters safely without dispatching uninitialized App Router actions
+      if (typeof window !== "undefined" && (step || token || errorMsg || role || email)) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("auth_step");
+        url.searchParams.delete("token");
+        url.searchParams.delete("role");
+        url.searchParams.delete("error");
+        url.searchParams.delete("email");
+        window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
       }
-      
+
       // Open the global AuthModal
       open();
     }
-  }, [searchParams, open, setAuthData, router]);
+  }, [searchParamsString, open, setAuthData]);
 
   return null;
 }

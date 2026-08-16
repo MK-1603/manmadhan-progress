@@ -94,6 +94,67 @@ orgTimelineRouter.get(
 
 			const projectMap = new Map(workspaceProjects.map((p) => [p.id, p.name]));
 
+function humanizeTitle(rawType: string): string {
+	if (!rawType) return "System Activity";
+	const upper = rawType.toUpperCase();
+	switch (upper) {
+		case "PROJECT_CREATED": return "Project created";
+		case "PROJECT_UPDATED": return "Project updated";
+		case "PROJECT_DELETED": return "Project deleted";
+		case "TASK_CREATED": return "Task created";
+		case "TASK_ASSIGNED": return "Task assigned";
+		case "TASK_ACCEPTED": return "Task accepted";
+		case "TASK_COMPLETED": return "Task completed";
+		case "TASK_UPDATED": return "Task updated";
+		case "TASK_DELETED": return "Task deleted";
+		case "PEOPLE_INVITED":
+		case "INVITATION_SENT": return "Invitation sent";
+		case "INVITATION_ACCEPTED": return "Invitation accepted";
+		case "INVITATION_CANCELLED": return "Invitation cancelled";
+		case "APPROVAL_REQUESTED": return "Approval requested";
+		case "WORK_APPROVED": return "Work approved";
+		case "WORK_REJECTED": return "Work rejected";
+		case "AUTOMATION_CREATED": return "Automation created";
+		case "AUTOMATION_UPDATED": return "Automation updated";
+		case "AUTOMATION_PAUSED": return "Automation paused";
+		case "AUTOMATION_RESUMED": return "Automation resumed";
+		case "FOCUS_STARTED": return "Focus session started";
+		case "FOCUS_COMPLETED": return "Focus session completed";
+		default: {
+			return upper
+				.replace(/_/g, " ")
+				.toLowerCase()
+				.replace(/\b\w/g, (c) => c.toUpperCase());
+		}
+	}
+}
+
+function humanizeDetails(details: any, eventType: string): string {
+	if (!details) return humanizeTitle(eventType);
+
+	let str = typeof details === "object" ? JSON.stringify(details) : String(details).trim();
+
+	if (str.startsWith("{") && str.endsWith("}")) {
+		try {
+			const parsed = JSON.parse(str);
+			if (parsed.name || parsed.title || parsed.projectName || parsed.taskTitle) {
+				return String(parsed.name || parsed.title || parsed.projectName || parsed.taskTitle);
+			}
+			if (parsed.message) return String(parsed.message);
+		} catch {}
+		return humanizeTitle(eventType);
+	}
+
+	str = str
+		.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "")
+		.replace(/["'{}\[\]]/g, "")
+		.replace(/\s+/g, " ")
+		.trim();
+
+	if (!str || str.length < 2) return humanizeTitle(eventType);
+	return str;
+}
+
 			// Sanitize and format raw audit logs into human-readable executive sentences
 			const formattedEvents = logs.map((l) => {
 				const rawDetails = l.details || "";
@@ -118,21 +179,9 @@ orgTimelineRouter.get(
 					cat = "Approvals";
 				else if (rawType.includes("AUTOMATION")) cat = "Automation";
 
-				// Clean raw UUID references in text details
-				let cleanDetails = rawDetails;
-				projectMap.forEach((name, pid) => {
-					cleanDetails = cleanDetails.replace(pid, `"${name}"`);
-				});
-				// Strip leftover raw UUID patterns
-				cleanDetails = cleanDetails
-					.replace(
-						/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
-						"",
-					)
-					.replace(/\s+/g, " ")
-					.trim();
-
-				const actorName = l.userName || l.userEmail || "System Automation";
+				const title = humanizeTitle(rawType);
+				const details = humanizeDetails(rawDetails, rawType);
+				const actorName = l.userName || l.userEmail || "System";
 
 				return {
 					id: l.id,
@@ -144,8 +193,8 @@ orgTimelineRouter.get(
 						email: l.userEmail || "",
 						avatar: l.userAvatar || null,
 					},
-					title: rawType.replace(/_/g, " "),
-					details: cleanDetails || rawType.replace(/_/g, " "),
+					title,
+					details,
 					createdAt: l.createdAt,
 					isToday: new Date(l.createdAt) >= todayStart,
 				};

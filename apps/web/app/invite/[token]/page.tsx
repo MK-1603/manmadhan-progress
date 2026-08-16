@@ -379,7 +379,7 @@ export default function InvitePage() {
     }`}>
       
       {/* MOBILE DIMMED BACKDROP OVERLAY */}
-      <div className={`lg:hidden fixed inset-0 backdrop-blur-sm z-10 ${isLight ? "bg-black/30" : "bg-black/60"}`} />
+      <div className={`lg:hidden fixed inset-0 z-10 ${isLight ? "bg-black/30" : "bg-black/60"}`} />
 
       {/* ============================================================== */}
       {/* DESKTOP POPUP CARD (lg: min-h 580px) / MOBILE BOTTOM SHEET (< lg h-auto max-h 92dvh) */}

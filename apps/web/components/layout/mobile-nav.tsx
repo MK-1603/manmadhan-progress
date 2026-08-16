@@ -155,7 +155,7 @@ export function MobileNav({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMoreOpen(false)}
-              className="absolute inset-0 bg-background/80 backdrop-blur-xs"
+              className="absolute inset-0 bg-black/60"
             />
 
             {/* Bottom Sheet Drawer */}

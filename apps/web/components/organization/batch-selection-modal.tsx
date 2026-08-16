@@ -65,7 +65,7 @@ export function BatchSelectionModal({ isOpen, onClose, onSelectBatch }: BatchSel
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-card border border-border text-card-foreground rounded-2xl max-w-md w-full p-6 space-y-6 shadow-2xl">
         <div className="text-center space-y-1">
           <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">

@@ -6,6 +6,7 @@ import { aiService } from "./ai.service";
 import { NotificationService } from "./notification.service";
 import { env } from "../../config/env.config";
 import { socketService } from "./socket.service";
+import { logger } from "./logger.service";
 
 export interface ParsedAutomation {
   name: string;
@@ -219,7 +220,13 @@ Respond ONLY in valid JSON matching this schema:
     const id = uuidv4();
     const newAutomation = {
       id,
-      workspaceId: data.workspaceId || null,
+      workspaceId:
+        data.workspaceId &&
+        String(data.workspaceId).trim() !== "" &&
+        String(data.workspaceId) !== "undefined" &&
+        String(data.workspaceId) !== "null"
+          ? String(data.workspaceId).trim()
+          : null,
       createdByUserId: data.createdByUserId,
       name: data.name,
       description: data.description || "",
@@ -336,18 +343,26 @@ Respond ONLY in valid JSON matching this schema:
    * Lists automations for a user or workspace.
    */
   public static async listAutomations(userId: string, workspaceId?: string) {
-    if (workspaceId) {
-      return db
-        .select()
-        .from(automations)
-        .where(eq(automations.workspaceId, workspaceId))
-        .orderBy(desc(automations.createdAt));
+    try {
+      if (workspaceId && workspaceId !== "undefined" && workspaceId !== "null") {
+        return await db
+          .select()
+          .from(automations)
+          .where(eq(automations.workspaceId, workspaceId))
+          .orderBy(desc(automations.createdAt));
+      }
+      if (userId) {
+        return await db
+          .select()
+          .from(automations)
+          .where(eq(automations.createdByUserId, userId))
+          .orderBy(desc(automations.createdAt));
+      }
+      return [];
+    } catch (err: any) {
+      logger.warn({ msg: err?.message }, "[WARN] Failed to list automations");
+      return [];
     }
-    return db
-      .select()
-      .from(automations)
-      .where(eq(automations.createdByUserId, userId))
-      .orderBy(desc(automations.createdAt));
   }
 
   /**

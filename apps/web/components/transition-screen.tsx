@@ -36,7 +36,6 @@ export function TransitionScreen({
                 alt="ManMadhan Progress Logo"
                 width={36}
                 height={36}
-                priority
                 className="rounded"
               />
             </div>

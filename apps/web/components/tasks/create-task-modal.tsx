@@ -358,7 +358,7 @@ export function CreateTaskModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[4px] flex items-center justify-center p-4 overflow-y-auto font-sans">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 overflow-y-auto font-sans">
       <div className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7] rounded-[14px] max-w-lg w-full p-5 space-y-4 shadow-2xl">
         <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-3">
           <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7] flex items-center gap-2">

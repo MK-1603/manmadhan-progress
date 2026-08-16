@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { X, CheckCircle2, AlertTriangle, Clock, ShieldAlert } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Clock, ShieldAlert } from "lucide-react";
+import { GlobalSheet } from "@/components/ui/global-sheet";
 
 interface EndFocusModalProps {
   isOpen: boolean;
@@ -88,41 +89,46 @@ export function EndFocusModal({
     }
   };
 
+  const footer = (
+    <div className="flex items-center justify-end gap-2 w-full">
+      <button
+        type="button"
+        onClick={onClose}
+        className="px-3.5 py-1.5 border border-border text-xs font-semibold text-foreground rounded-xl hover:bg-muted transition-colors"
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        form="end-focus-form"
+        disabled={loading}
+        className="px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm"
+      >
+        Save Record
+      </button>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-200">
-      {/* Adaptive Sheet: Bottom Sheet on Mobile (rounded-t-2xl max-h-[80dvh]), Modal on Desktop */}
-      <div className="w-full sm:max-w-[500px] bg-card border-t sm:border border-border rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[80dvh] sm:max-h-[85vh] flex flex-col animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
-        {/* Mobile Drag Handle */}
-        <div className="sm:hidden pt-3 pb-1 flex justify-center">
-          <div className="w-12 h-1 rounded-full bg-muted-foreground/30" />
-        </div>
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/10 shrink-0">
-          <div>
-            <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">End Focus Session</h2>
-            <p className="text-xs text-muted-foreground truncate max-w-[320px] font-semibold mt-0.5">
-              {session.title || "Executive Focus"}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Duration Header */}
-        <div className="px-5 py-2.5 bg-muted/20 border-b border-border flex items-center justify-between text-xs shrink-0">
+    <GlobalSheet
+      open={isOpen}
+      onClose={onClose}
+      title="End Focus Session"
+      subtitle={(session.title || "EXECUTIVE FOCUS").toUpperCase()}
+      footerActions={footer}
+      desktopMode="modal"
+      desktopMaxWidth="max-w-[500px]"
+    >
+      <div className="space-y-4 text-xs select-text">
+        {/* Duration Header Banner */}
+        <div className="px-4 py-2.5 bg-muted/20 border border-border rounded-xl flex items-center justify-between text-xs">
           <span className="text-muted-foreground">Focused Duration:</span>
           <span className="font-mono font-bold text-foreground text-sm">
             {formatDuration(elapsedSeconds)}
           </span>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 flex-1">
+        <form id="end-focus-form" onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-500 text-xs">
               {error}
@@ -209,26 +215,8 @@ export function EndFocusModal({
               </div>
             </div>
           )}
-
-          {/* Form Actions */}
-          <div className="pt-2 flex items-center justify-end gap-2 border-t border-border shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-1.5 border border-border text-xs font-semibold text-foreground rounded-xl hover:bg-muted transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:bg-primary/90 disabled:opacity-50 transition-colors shadow-sm"
-            >
-              Save Record
-            </button>
-          </div>
         </form>
       </div>
-    </div>
+    </GlobalSheet>
   );
 }

@@ -153,7 +153,7 @@ export function ProjectPromptModal({ isOpen, onClose, onCreated }: ProjectPrompt
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={handleClose}
-          className="absolute inset-0 bg-black/60 backdrop-blur-xs"
+          className="absolute inset-0 bg-black/60"
         />
         <motion.div
           initial={{ opacity: 0, scale: 0.98, y: 6 }}

@@ -405,7 +405,7 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate }: TaskDetailM
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[4px] flex items-center justify-center p-4 overflow-y-auto font-sans">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 overflow-y-auto font-sans">
       <div className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7] rounded-[14px] max-w-xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
         <div className="px-5 py-3.5 border-b border-[#E4E7EC] dark:border-[#272D36] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">

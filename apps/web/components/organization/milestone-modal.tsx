@@ -84,7 +84,7 @@ export function MilestoneModal({ isOpen, projectId, projectDeadline, milestone, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden p-5 space-y-4">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <div className="flex items-center gap-2">
