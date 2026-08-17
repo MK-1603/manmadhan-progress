@@ -46,7 +46,7 @@ export default function OrganizationLayout({ children }: { children: React.React
             data-lenis-prevent
             className={`flex-1 min-h-0 w-full max-w-full flex flex-col overflow-x-hidden ${
               isFixedViewportPage
-                ? "overflow-hidden pb-[calc(60px+env(safe-area-inset-bottom))] md:pb-0"
+                ? "overflow-hidden pb-[calc(76px+env(safe-area-inset-bottom))] md:pb-0"
                 : "overflow-y-auto pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-0"
             } [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`}
           >

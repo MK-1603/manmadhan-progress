@@ -590,7 +590,7 @@ export default function TasksPage() {
       </div>
 
       {/* ── TASK EXECUTION WORKSPACE (Fills Viewport Space Above Bottom Nav) ─── */}
-      <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col pb-20 md:pb-0">
+      <div className="flex-1 min-h-0 w-full overflow-y-auto flex flex-col pb-6 md:pb-0">
         {error ? (
           <div className="p-8 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[16px] border border-rose-500/20 space-y-3 max-w-md mx-auto my-auto shadow-sm">
             <AlertCircle className="w-10 h-10 text-rose-500 mx-auto" />
@@ -622,7 +622,7 @@ export default function TasksPage() {
           </div>
         ) : filteredTasks.length === 0 ? (
           /* LARGE DESKTOP & MOBILE WORKSPACE EMPTY STATE */
-          <div className="w-full h-full min-h-[320px] rounded-[16px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] flex flex-col items-center justify-center p-8 text-center space-y-4 my-auto">
+          <div className="w-full rounded-[16px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] flex flex-col items-center justify-center p-6 text-center space-y-4 my-auto max-w-md mx-auto shadow-2xs">
             <div className="w-14 h-14 rounded-full bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center border border-[#C9A52A]/20">
               <Check className="w-7 h-7 stroke-[3]" />
             </div>
