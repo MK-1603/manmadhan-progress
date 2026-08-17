@@ -588,6 +588,15 @@ export const createApp = (): Express => {
 	);
 
 	// Google OAuth Routes
+	const getGoogleCallbackUrl = (req: Request) => {
+		if (process.env.GOOGLE_AUTH_CALLBACK_URL) return process.env.GOOGLE_AUTH_CALLBACK_URL;
+		if (process.env.GOOGLE_CALLBACK_URL) return process.env.GOOGLE_CALLBACK_URL;
+		if (process.env.SERVER_URL) return `${process.env.SERVER_URL.replace(/\/$/, "")}/api/v1/auth/google/callback`;
+		const host = req.get("host") || `localhost:${env.PORT || 4100}`;
+		const proto = (req.headers["x-forwarded-proto"] as string) || req.protocol || "http";
+		return `${proto}://${host}/api/v1/auth/google/callback`;
+	};
+
 	app.get(
 		"/api/v1/auth/google",
 		(req: Request, res: Response, next: NextFunction) => {
@@ -597,19 +606,25 @@ export const createApp = (): Express => {
 					error: "Google Client ID / Secret not configured in backend/.env",
 				});
 			}
+			const callbackURL = getGoogleCallbackUrl(req);
 			passport.authenticate("google", {
 				scope: ["profile", "email"],
 				session: false,
+				callbackURL,
 			})(req, res, next);
 		},
 	);
 
 	app.get(
 		"/api/v1/auth/google/callback",
-		passport.authenticate("google", {
-			failureRedirect: `${env.CLIENT_URL}/login?error=account_not_found`,
-			session: false,
-		}),
+		(req: Request, res: Response, next: NextFunction) => {
+			const callbackURL = getGoogleCallbackUrl(req);
+			passport.authenticate("google", {
+				failureRedirect: `${(env.CLIENT_URL || "http://localhost:3000").replace(/\/$/, "")}/login?error=account_not_found`,
+				session: false,
+				callbackURL,
+			})(req, res, next);
+		},
 		async (req: Request, res: Response) => {
 			const user = req.user as any;
 			if (user?.email) {
