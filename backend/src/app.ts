@@ -611,7 +611,7 @@ export const createApp = (): Express => {
 				scope: ["profile", "email"],
 				session: false,
 				callbackURL,
-			})(req, res, next);
+			} as any)(req, res, next);
 		},
 	);
 
@@ -623,7 +623,7 @@ export const createApp = (): Express => {
 				failureRedirect: `${(env.CLIENT_URL || "http://localhost:3000").replace(/\/$/, "")}/login?error=account_not_found`,
 				session: false,
 				callbackURL,
-			})(req, res, next);
+			} as any)(req, res, next);
 		},
 		async (req: Request, res: Response) => {
 			const user = req.user as any;
