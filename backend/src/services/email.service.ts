@@ -58,14 +58,14 @@ class EmailService {
 	constructor() {
 		this.provider = (env.EMAIL_PROVIDER || "smtp").toLowerCase() as "smtp" | "resend";
 		
-		if (this.provider === "resend" && process.env.RESEND_API_KEY) {
-			this.resend = new Resend(process.env.RESEND_API_KEY);
-			logger.info("Email service ready");
-		} else {
-			this.provider = "smtp";
-			this.nodemailerTransport = this.buildNodemailerTransport();
-			logger.info("Email service ready");
+		if (process.env.RESEND_API_KEY || env.RESEND_API_KEY) {
+			this.resend = new Resend(process.env.RESEND_API_KEY || env.RESEND_API_KEY);
 		}
+
+		if (this.provider === "smtp") {
+			this.nodemailerTransport = this.buildNodemailerTransport();
+		}
+		logger.info("Email service initialized");
 	}
 
 	// ── Nodemailer transport factory ─────────────────────────────────────────
@@ -103,7 +103,7 @@ class EmailService {
 
 	// ── Connection verification ──────────────────────────────────────────────
 	public async verifyConnection(): Promise<boolean> {
-		if (this.provider === "resend") {
+		if (this.provider === "resend" && this.resend) {
 			return true;
 		}
 
@@ -119,6 +119,11 @@ class EmailService {
 			]);
 			return true;
 		} catch (err: any) {
+			if (this.resend) {
+				logger.warn({ err: err?.message || err }, "SMTP connection blocked by cloud host network. Falling back to Resend API ✓");
+				this.provider = "resend";
+				return true;
+			}
 			logger.warn({ err: err?.message || err }, "Email service connection check failed");
 			return false;
 		}
@@ -196,6 +201,24 @@ class EmailService {
 			logger.info("Email dispatched");
 			return { success: true, messageId: info.messageId };
 		} catch (err: any) {
+			if (this.resend) {
+				try {
+					logger.warn({ err: err?.message || err }, "SMTP dispatch failed/timed out. Auto-retrying via Resend API...");
+					const { data, error } = await this.resend.emails.send({
+						from: fromAddress,
+						to: [options.to],
+						subject: cleanSubject,
+						html: finalHtml,
+						text: options.text,
+					});
+					if (!error && data?.id) {
+						logger.info("Email dispatched via Resend fallback ✓");
+						return { success: true, messageId: data.id };
+					}
+				} catch (resendFallbackErr: any) {
+					logger.error({ err: resendFallbackErr?.message }, "Resend fallback dispatch failed");
+				}
+			}
 			logger.error("Email delivery failed");
 			return {
 				success: false,
