@@ -7,7 +7,7 @@ import { useAuth, getDashboardPathForRole, syncTokenCookie } from "./auth-contex
 function Handler() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { open, setAuthData, checkSession } = useAuth();
+  const { open, close, setAuthData, checkSession } = useAuth();
   const searchParamsString = searchParams ? searchParams.toString() : "";
 
   useEffect(() => {
@@ -19,6 +19,7 @@ function Handler() {
     const role = searchParams.get("role") || "";
 
     if (token && step === "OAUTH_SUCCESS") {
+      close(true);
       if (typeof window !== "undefined") {
         localStorage.setItem("auth_token", token);
         localStorage.setItem("token", token);
@@ -31,7 +32,7 @@ function Handler() {
       }
       checkSession();
       const targetDash = getDashboardPathForRole(role);
-      router.push(targetDash);
+      router.replace(targetDash);
       return;
     }
 

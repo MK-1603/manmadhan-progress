@@ -2,12 +2,12 @@
 
 import { useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useAuth } from "@/components/auth/auth-context";
+import { useAuth, getDashboardPathForRole, syncTokenCookie } from "@/components/auth/auth-context";
 
 function LoginContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { open, setAuthData, authStatus, isLoading } = useAuth();
+  const { open, close, setAuthData, checkSession, authStatus, isLoading } = useAuth();
 
   useEffect(() => {
     const redirectParam = searchParams.get("redirect") || "";
@@ -16,6 +16,19 @@ function LoginContent() {
     const roleParam = searchParams.get("role") || "";
     const emailParam = searchParams.get("email") || "";
     const stepParam = searchParams.get("auth_step") || "EMAIL_ENTRY";
+
+    if (tokenParam && stepParam === "OAUTH_SUCCESS") {
+      close();
+      if (typeof window !== "undefined") {
+        localStorage.setItem("auth_token", tokenParam);
+        localStorage.setItem("token", tokenParam);
+        syncTokenCookie(tokenParam);
+      }
+      checkSession();
+      const targetDash = getDashboardPathForRole(roleParam);
+      router.replace(targetDash);
+      return;
+    }
 
     setAuthData({ step: stepParam, token: tokenParam, role: roleParam, error: errorParam, email: emailParam });
 
@@ -30,7 +43,7 @@ function LoginContent() {
 
     router.replace(`/?${params.toString()}`);
     open();
-  }, [searchParams, router, setAuthData, open]);
+  }, [searchParams, router, setAuthData, open, close, checkSession]);
 
   return (
     <div className="min-h-screen bg-[#060806] flex flex-col items-center justify-center text-center p-6 space-y-4 select-none">
