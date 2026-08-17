@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   CheckSquare, Search, Loader2, AlertCircle, User, Trash2, Plus, FolderKanban,
   RefreshCw, ChevronRight, BookOpen, Sparkles, Zap, Flame, Filter, LayoutGrid,
-  List, Play, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Check, X
+  List, Play, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Check, X, MoreVertical, SlidersHorizontal
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
 import { CreateTaskModal } from "@/components/tasks/create-task-modal";
 import { TaskDetailModal } from "@/components/tasks/task-detail-modal";
+import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { useAuth } from "@/components/auth/auth-context";
 import { useRouter } from "next/navigation";
 
@@ -27,7 +28,16 @@ const STATUS_STYLE: Record<string, string> = {
   "Blocked": "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
 };
 
-const TASK_TYPE_TABS = ["All", "PROJECT WORK", "PERSONAL WORK", "LEARNING", "DOCUMENTATION", "RESEARCH", "SUBMISSION", "REVIEW"];
+const TASK_TYPE_CHIPS = [
+  { id: "All", label: "All" },
+  { id: "PROJECT WORK", label: "Project" },
+  { id: "PERSONAL WORK", label: "Personal" },
+  { id: "LEARNING", label: "Learning" },
+  { id: "DOCUMENTATION", label: "Docs" },
+  { id: "RESEARCH", label: "Research" },
+  { id: "SUBMISSION", label: "Submission" },
+  { id: "REVIEW", label: "Review" },
+];
 
 const PRIORITY_OPTIONS = [
   { value: "All", label: "All Priorities" },
@@ -38,10 +48,10 @@ const PRIORITY_OPTIONS = [
 ];
 
 const KANBAN_COLUMNS = [
-  { id: "Not Started", title: "Not Started", color: "border-slate-500/30" },
-  { id: "In Progress", title: "In Progress", color: "border-blue-500/30" },
-  { id: "Blocked", title: "Blocked", color: "border-rose-500/30" },
-  { id: "Completed", title: "Completed", color: "border-emerald-500/30" },
+  { id: "Not Started", title: "Not Started" },
+  { id: "In Progress", title: "In Progress" },
+  { id: "Blocked", title: "Blocked" },
+  { id: "Completed", title: "Completed" },
 ];
 
 export default function TasksPage() {
@@ -56,15 +66,18 @@ export default function TasksPage() {
   const [search, setSearch] = useState("");
   const [activeTypeTab, setActiveTypeTab] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  // Modals & Sheets
   const [showCreate, setShowCreate] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
+  const [actionTaskSheet, setActionTaskSheet] = useState<any | null>(null);
 
-  // Bulk Action State
+  // Bulk Actions
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
-
-  const isCEOorCOCEO = user?.role === "CEO" || user?.role === "CO_CEO";
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -118,18 +131,21 @@ export default function TasksPage() {
         priorityFilter === "All" ||
         (t.priority || "").toLowerCase() === priorityFilter.toLowerCase();
 
-      return matchSearch && matchType && matchPriority;
+      const matchStatus =
+        statusFilter === "All" ||
+        (t.status || "").toLowerCase() === statusFilter.toLowerCase();
+
+      return matchSearch && matchType && matchPriority && matchStatus;
     });
-  }, [tasks, search, activeTypeTab, priorityFilter]);
+  }, [tasks, search, activeTypeTab, priorityFilter, statusFilter]);
 
   // Summary Metrics
   const summaryMetrics = useMemo(() => {
     const total = tasks.length;
-    const inProgress = tasks.filter((t) => ["In Progress", "Accepted", "Assigned"].includes(t.status)).length;
+    const active = tasks.filter((t) => ["In Progress", "Accepted", "Assigned"].includes(t.status)).length;
     const completed = tasks.filter((t) => ["Completed", "Approved"].includes(t.status)).length;
-    const blocked = tasks.filter((t) => t.status === "Blocked").length;
     const overdue = tasks.filter((t) => t.deadline && new Date(t.deadline) < new Date() && !["Completed", "Approved"].includes(t.status)).length;
-    return { total, inProgress, completed, blocked, overdue };
+    return { total, active, completed, overdue };
   }, [tasks]);
 
   // Checkbox Selection
@@ -146,7 +162,6 @@ export default function TasksPage() {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
   };
 
-  // Status Change
   const handleUpdateStatus = async (taskId: string, newStatus: string) => {
     try {
       const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
@@ -160,7 +175,6 @@ export default function TasksPage() {
     }
   };
 
-  // Bulk Delete Execution
   const handleExecuteBulkDelete = async () => {
     setIsBulkProcessing(true);
     try {
@@ -180,35 +194,41 @@ export default function TasksPage() {
     }
   };
 
-  // Start Focus session integration
   const handleStartFocus = (taskId: string) => {
     router.push(`/ceo/focus?taskId=${taskId}`);
   };
 
   return (
-    <div className="w-full h-full max-h-full flex flex-col justify-between overflow-hidden px-4 sm:px-6 md:px-10 py-4 sm:py-5 max-w-[1400px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans space-y-4">
-      {/* ── Header Region ────────────────────────────────────────────── */}
-      <div className="shrink-0 space-y-3 sm:space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E4E7EC] dark:border-[#272D36]">
+    <div className="w-full min-h-dvh flex flex-col justify-between overflow-x-hidden px-3 sm:px-6 md:px-10 py-3 sm:py-5 max-w-[1400px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans pb-24 md:pb-6 space-y-3.5">
+      
+      {/* ── HEADER REGION ──────────────────────────────────────────────── */}
+      <div className="shrink-0 space-y-3">
+        
+        {/* Title Bar */}
+        <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-[#E4E7EC] dark:border-[#272D36]">
           <div>
             <div className="flex items-center gap-2">
               <CheckSquare className="w-5 h-5 text-[#C9A52A] dark:text-[#D4B12F]" />
-              <h1 className="text-[22px] sm:text-[26px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
-                Tasks & Execution Control Center
+              <h1 className="text-[20px] sm:text-[26px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
+                Tasks
               </h1>
             </div>
-            <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5] mt-1">
+            {/* Subtitles: Compact on Mobile, Full on Desktop */}
+            <p className="text-[12px] sm:text-[12.5px] text-[#667085] dark:text-[#8B95A5] mt-1 hidden sm:block">
               Track and manage execution across your organization projects, learning plans, and personal work.
+            </p>
+            <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] mt-0.5 sm:hidden">
+              Execution workspace
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5 self-start sm:self-auto">
-            {/* View Mode Toggle */}
-            <div className="flex items-center p-0.5 rounded-[9px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36]">
+          <div className="flex items-center gap-2">
+            {/* View Switcher: List vs Board */}
+            <div className="flex items-center p-0.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36]">
               <button
                 type="button"
                 onClick={() => setViewMode("TABLE")}
-                className={`px-3 h-[32px] rounded-[7px] text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-2.5 h-[30px] rounded-[6px] text-[11.5px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
                   viewMode === "TABLE"
                     ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
                     : "text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
@@ -216,34 +236,36 @@ export default function TasksPage() {
               >
                 <List className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Table</span>
+                <span className="sm:hidden">List</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode("BOARD")}
-                className={`px-3 h-[32px] rounded-[7px] text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-2.5 h-[30px] rounded-[6px] text-[11.5px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
                   viewMode === "BOARD"
                     ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
                     : "text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
                 }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Board</span>
+                <span>Board</span>
               </button>
             </div>
 
             <button
               type="button"
               onClick={fetchTasks}
-              className="p-2 rounded-[9px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7] transition-colors cursor-pointer"
-              title="Refresh tasks"
+              className="p-1.5 rounded-[8px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] hover:text-[#17202A] transition-colors cursor-pointer"
+              title="Refresh"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-3.5 h-3.5" />
             </button>
 
+            {/* Desktop Only Primary Create Button */}
             <button
               type="button"
               onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-1.5 px-4 h-[38px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer shrink-0"
+              className="hidden md:inline-flex items-center gap-1.5 px-4 h-[38px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer shrink-0"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Create Task</span>
@@ -251,89 +273,119 @@ export default function TasksPage() {
           </div>
         </div>
 
-        {/* KPI Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {/* ── DESKTOP KPI CARDS (Hidden on Mobile) ────────────────────── */}
+        <div className="hidden md:grid grid-cols-5 gap-3">
           <div className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1">
             <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Total Tasks</div>
             <div className="text-[20px] font-bold text-[#17202A] dark:text-[#F2F4F7]">{summaryMetrics.total}</div>
           </div>
           <div className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1">
-            <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">In Progress</div>
-            <div className="text-[20px] font-bold text-blue-600 dark:text-blue-400">{summaryMetrics.inProgress}</div>
+            <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Active</div>
+            <div className="text-[20px] font-bold text-blue-600 dark:text-blue-400">{summaryMetrics.active}</div>
           </div>
           <div className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1">
             <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Completed</div>
             <div className="text-[20px] font-bold text-emerald-600 dark:text-emerald-400">{summaryMetrics.completed}</div>
           </div>
           <div className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1">
-            <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Blocked</div>
-            <div className="text-[20px] font-bold text-rose-600 dark:text-rose-400">{summaryMetrics.blocked}</div>
-          </div>
-          <div className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 col-span-2 sm:col-span-1">
             <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Overdue</div>
             <div className="text-[20px] font-bold text-amber-600 dark:text-amber-400">{summaryMetrics.overdue}</div>
           </div>
+          <div className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1">
+            <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Filtered</div>
+            <div className="text-[20px] font-bold text-[#C9A52A] dark:text-[#D4B12F]">{filteredTasks.length}</div>
+          </div>
         </div>
 
-        {/* Toolbar & Filters */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
-            {TASK_TYPE_TABS.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTypeTab(tab)}
-                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  activeTypeTab === tab
-                    ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
-                    : "bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] dark:text-[#8B95A5] border border-[#E4E7EC] dark:border-[#272D36] hover:text-[#17202A]"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
+        {/* ── MOBILE COMPACT SUMMARY STRIP (Visible only on Mobile) ─────── */}
+        <div className="md:hidden flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none]">
+          <div className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-bold shrink-0 flex items-center gap-1.5">
+            <span className="text-[#667085]">Total:</span>
+            <span className="text-[#17202A] dark:text-[#F2F4F7]">{summaryMetrics.total}</span>
           </div>
+          <div className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-bold shrink-0 flex items-center gap-1.5">
+            <span className="text-[#667085]">Active:</span>
+            <span className="text-blue-600 dark:text-blue-400">{summaryMetrics.active}</span>
+          </div>
+          <div className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-bold shrink-0 flex items-center gap-1.5">
+            <span className="text-[#667085]">Done:</span>
+            <span className="text-emerald-600 dark:text-emerald-400">{summaryMetrics.completed}</span>
+          </div>
+          <div className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-bold shrink-0 flex items-center gap-1.5">
+            <span className="text-[#667085]">Due:</span>
+            <span className="text-amber-600 dark:text-amber-400">{summaryMetrics.overdue}</span>
+          </div>
+        </div>
 
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 md:w-56">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#667085]" />
-              <input
-                type="text"
-                placeholder="Search tasks..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 h-[36px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[8px] text-[12px] text-[#17202A] dark:text-[#F2F4F7] outline-none"
-              />
-            </div>
-
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="h-[36px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[8px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
+        {/* ── FILTER CHIPS ROW (Horizontal Scrollable) ────────────────── */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] whitespace-nowrap">
+          {TASK_TYPE_CHIPS.map((chip) => (
+            <button
+              key={chip.id}
+              onClick={() => setActiveTypeTab(chip.id)}
+              className={`px-3 py-1 rounded-[7px] text-[11.5px] font-bold transition-all cursor-pointer shrink-0 ${
+                activeTypeTab === chip.id
+                  ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
+                  : "bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] dark:text-[#8B95A5] border border-[#E4E7EC] dark:border-[#272D36]"
+              }`}
             >
-              {PRIORITY_OPTIONS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
+              {chip.label}
+            </button>
+          ))}
+        </div>
+
+        {/* ── SEARCH & FILTER TRIGGER ─────────────────────────────────── */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#667085]" />
+            <input
+              type="text"
+              placeholder="Search tasks..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8 pr-3 h-[36px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[8px] text-[12px] text-[#17202A] dark:text-[#F2F4F7] outline-none"
+            />
           </div>
+
+          {/* Desktop Select Filters */}
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value)}
+            className="hidden md:block h-[36px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[8px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
+          >
+            {PRIORITY_OPTIONS.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+
+          {/* Mobile Filter Sheet Button */}
+          <button
+            type="button"
+            onClick={() => setShowFilterSheet(true)}
+            className="md:hidden h-[36px] px-3 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-bold text-[#17202A] dark:text-[#F2F4F7] flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-[#C9A52A]" />
+            <span>Filter</span>
+          </button>
         </div>
       </div>
 
-      {/* ── Bulk Actions Floating Toolbar ──────────────────────────────── */}
+      {/* ── BULK ACTIONS BAR ───────────────────────────────────────────── */}
       {selectedIds.length > 0 && (
         <div className="shrink-0 p-3 rounded-[12px] bg-[#17202A] dark:bg-[#15191F] text-white flex items-center justify-between shadow-lg border border-[#C9A52A]/40 animate-in fade-in duration-200">
-          <div className="text-[13px] font-bold flex items-center gap-2">
+          <div className="text-[12.5px] font-bold flex items-center gap-2">
             <span className="w-5 h-5 rounded-full bg-[#C9A52A] text-[#0B0D10] font-mono text-[11px] flex items-center justify-center">
               {selectedIds.length}
             </span>
-            <span>tasks selected</span>
+            <span>selected</span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowBulkDeleteModal(true)}
-              className="px-3 h-[32px] rounded-[7px] bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[12px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+              className="px-3 h-[32px] rounded-[7px] bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[11.5px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Delete Selected</span>
+              <span>Delete</span>
             </button>
             <button
               onClick={() => setSelectedIds([])}
@@ -345,144 +397,193 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* ── Scrollable Body Region ──────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-y-auto pb-6">
+      {/* ── BODY REGION: DESKTOP & MOBILE RESPONSIVE ───────────────────── */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {error ? (
-          /* REAL ERROR STATE */
-          <div className="p-8 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-rose-500/20 space-y-3 max-w-md mx-auto my-6">
-            <AlertCircle className="w-10 h-10 text-rose-500 mx-auto" />
+          <div className="p-6 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-rose-500/20 space-y-3 max-w-md mx-auto my-6">
+            <AlertCircle className="w-9 h-9 text-rose-500 mx-auto" />
             <div className="space-y-1">
-              <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
-                Tasks couldn't be loaded
+              <h3 className="text-[14.5px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+                Couldn't load tasks
               </h3>
-              <p className="text-[12px] text-[#667085] dark:text-[#8B95A5]">{error}</p>
+              <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5]">{error}</p>
             </div>
             <button
               onClick={fetchTasks}
-              className="px-4 h-[36px] rounded-[8px] bg-[#C9A52A] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity cursor-pointer inline-flex items-center gap-1.5"
+              className="px-4 h-[34px] rounded-[8px] bg-[#C9A52A] text-[#0B0D10] text-[12px] font-bold hover:opacity-90 transition-opacity cursor-pointer inline-flex items-center gap-1.5"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Retry</span>
             </button>
           </div>
         ) : loading ? (
-          <div className="p-12 flex items-center justify-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-[#E4E7EC] dark:border-[#272D36]">
-            <Loader2 className="w-7 h-7 animate-spin text-[#C9A52A] dark:text-[#D4B12F]" />
+          <div className="p-10 flex items-center justify-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-[#E4E7EC] dark:border-[#272D36]">
+            <Loader2 className="w-6 h-6 animate-spin text-[#C9A52A] dark:text-[#D4B12F]" />
           </div>
         ) : filteredTasks.length === 0 ? (
-          /* REAL EMPTY STATE */
-          <div className="p-10 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-[#E4E7EC] dark:border-[#272D36] space-y-4 max-w-lg mx-auto my-8">
-            <CheckSquare className="w-12 h-12 text-[#C9A52A] dark:text-[#D4B12F] mx-auto opacity-70" />
-            <div className="space-y-1.5">
-              <h3 className="text-[16.5px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
-                No active work yet
+          <div className="p-8 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-[#E4E7EC] dark:border-[#272D36] space-y-3 max-w-md mx-auto my-6">
+            <CheckSquare className="w-10 h-10 text-[#C9A52A] dark:text-[#D4B12F] mx-auto opacity-70" />
+            <div className="space-y-1">
+              <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+                No active work
               </h3>
-              <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5] leading-relaxed">
-                Create a task to start tracking execution, assigning responsibilities, and measuring progress.
+              <p className="text-[12px] text-[#667085] dark:text-[#8B95A5]">
+                Your assigned tasks will appear here.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-1.5 px-5 h-[40px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer mt-2"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Create Task</span>
-            </button>
           </div>
         ) : viewMode === "TABLE" ? (
-          /* DENSE EXECUTIVE TABLE VIEW */
-          <div className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] overflow-hidden shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-[12.5px]">
-                <thead className="bg-[#F8F9FB] dark:bg-[#111419] border-b border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">
-                  <tr>
-                    <th className="p-3 w-10 text-center">
-                      <input
-                        type="checkbox"
-                        checked={isAllSelected}
-                        onChange={toggleSelectAll}
-                        className="rounded border-gray-300 text-[#C9A52A] focus:ring-[#C9A52A]"
-                      />
-                    </th>
-                    <th className="p-3">Task</th>
-                    <th className="p-3">Type</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3">Priority</th>
-                    <th className="p-3">Assignee</th>
-                    <th className="p-3">Project / Source</th>
-                    <th className="p-3">Due Date</th>
-                    <th className="p-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E4E7EC]/60 dark:divide-[#272D36]/60">
-                  {filteredTasks.map((t) => (
-                    <tr
-                      key={t.id}
-                      onClick={() => setSelectedTask(t)}
-                      className="hover:bg-[#F8F9FB] dark:hover:bg-[#111419] transition-colors cursor-pointer"
-                    >
-                      <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+          <>
+            {/* DESKTOP DENSE TABLE VIEW (Hidden on Mobile) */}
+            <div className="hidden md:block bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-[12.5px]">
+                  <thead className="bg-[#F8F9FB] dark:bg-[#111419] border-b border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">
+                    <tr>
+                      <th className="p-3 w-10 text-center">
                         <input
                           type="checkbox"
-                          checked={selectedIds.includes(t.id)}
-                          onChange={() => toggleSelectId(t.id)}
-                          className="rounded border-gray-300 text-[#C9A52A] focus:ring-[#C9A52A]"
+                          checked={isAllSelected}
+                          onChange={toggleSelectAll}
+                          className="rounded border-gray-300 text-[#C9A52A]"
                         />
-                      </td>
-                      <td className="p-3 font-semibold text-[#17202A] dark:text-[#F2F4F7]">
-                        <div className="flex items-center gap-2">
-                          <span>{t.title}</span>
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20 uppercase">
-                          {t.type || "Task"}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
-                          {t.status}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <span className="font-semibold text-[12px]">{t.priority || "Medium"}</span>
-                      </td>
-                      <td className="p-3 font-medium text-[#17202A] dark:text-[#F2F4F7]">
-                        {t.assigneeName || "Unassigned"}
-                      </td>
-                      <td className="p-3 text-[#667085] dark:text-[#8B95A5]">
-                        {t.projectName || t.sourceType || "General Workspace"}
-                      </td>
-                      <td className="p-3 font-mono text-[11.5px] text-[#667085]">
-                        {t.deadline ? new Date(t.deadline).toLocaleDateString() : "Flexible"}
-                      </td>
-                      <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleStartFocus(t.id)}
-                            className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36] text-[#C9A52A] transition-colors"
-                            title="Start Focus Session"
-                          >
-                            <Play className="w-3.5 h-3.5 fill-current" />
-                          </button>
-                          <button
-                            onClick={() => setSelectedTask(t)}
-                            className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36] text-[#667085] transition-colors"
-                          >
-                            <ChevronRight className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
+                      </th>
+                      <th className="p-3">Task</th>
+                      <th className="p-3">Type</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3">Priority</th>
+                      <th className="p-3">Assignee</th>
+                      <th className="p-3">Project / Source</th>
+                      <th className="p-3">Due Date</th>
+                      <th className="p-3 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-[#E4E7EC]/60 dark:divide-[#272D36]/60">
+                    {filteredTasks.map((t) => (
+                      <tr
+                        key={t.id}
+                        onClick={() => setSelectedTask(t)}
+                        className="hover:bg-[#F8F9FB] dark:hover:bg-[#111419] transition-colors cursor-pointer"
+                      >
+                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(t.id)}
+                            onChange={() => toggleSelectId(t.id)}
+                            className="rounded border-gray-300 text-[#C9A52A]"
+                          />
+                        </td>
+                        <td className="p-3 font-semibold text-[#17202A] dark:text-[#F2F4F7]">
+                          {t.title}
+                        </td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20 uppercase">
+                            {t.type || "Task"}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
+                            {t.status}
+                          </span>
+                        </td>
+                        <td className="p-3 font-semibold text-[12px]">
+                          {t.priority || "Medium"}
+                        </td>
+                        <td className="p-3 font-medium text-[#17202A] dark:text-[#F2F4F7]">
+                          {t.assigneeName || "Unassigned"}
+                        </td>
+                        <td className="p-3 text-[#667085] dark:text-[#8B95A5]">
+                          {t.projectName || t.sourceType || "General Workspace"}
+                        </td>
+                        <td className="p-3 font-mono text-[11.5px] text-[#667085]">
+                          {t.deadline ? new Date(t.deadline).toLocaleDateString() : "Flexible"}
+                        </td>
+                        <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleStartFocus(t.id)}
+                              className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36] text-[#C9A52A] transition-colors"
+                              title="Start Focus Session"
+                            >
+                              <Play className="w-3.5 h-3.5 fill-current" />
+                            </button>
+                            <button
+                              onClick={() => setSelectedTask(t)}
+                              className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36] text-[#667085] transition-colors"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+
+            {/* MOBILE COMPACT TASK CARDS VIEW (Visible only on Mobile) */}
+            <div className="md:hidden space-y-2.5">
+              {filteredTasks.map((t) => (
+                <div
+                  key={t.id}
+                  onClick={() => setSelectedTask(t)}
+                  className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] active:scale-[0.99] transition-transform space-y-2.5 shadow-2xs"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-snug">
+                        {t.title}
+                      </h4>
+                      <div className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5] mt-0.5 flex items-center gap-1.5">
+                        <span className="uppercase text-[#C9A52A] font-bold">{t.type || "Task"}</span>
+                        <span>•</span>
+                        <span>{t.projectName || "Workspace"}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setActionTaskSheet(t); }}
+                      className="p-1 text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
+                    >
+                      <MoreVertical className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11.5px]">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10.5px] font-bold px-2 py-0.5 rounded bg-[#C9A52A]/10 text-[#C9A52A] border border-[#C9A52A]/20 uppercase">
+                        ● {t.priority || "Medium"}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
+                        {t.status}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-[#667085] font-mono">
+                      {t.deadline ? new Date(t.deadline).toLocaleDateString([], { month: "short", day: "numeric" }) : "Flexible"}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 pt-1">
+                    <div className="flex items-center justify-between text-[10.5px] font-mono text-[#667085]">
+                      <span>Assignee: {t.assigneeName || "Unassigned"}</span>
+                      <span>{t.progressPercent || (t.status === "Completed" ? 100 : 0)}%</span>
+                    </div>
+                    <div className="h-1 w-full bg-[#E4E7EC] dark:bg-[#272D36] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[#C9A52A] dark:bg-[#D4B12F] rounded-full"
+                        style={{ width: `${t.progressPercent || (t.status === "Completed" ? 100 : 0)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         ) : (
-          /* KANBAN BOARD VIEW */
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          /* KANBAN BOARD VIEW (Scrollable on Mobile) */
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             {KANBAN_COLUMNS.map((col) => {
               const colTasks = filteredTasks.filter((t) => {
                 if (col.id === "Not Started") return ["Draft", "Not Started", "Pending"].includes(t.status);
@@ -495,10 +596,10 @@ export default function TasksPage() {
               return (
                 <div
                   key={col.id}
-                  className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] p-4 flex flex-col space-y-3"
+                  className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] p-3.5 flex flex-col space-y-2.5"
                 >
                   <div className="flex items-center justify-between pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
-                    <h4 className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+                    <h4 className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
                       {col.title}
                     </h4>
                     <span className="w-5 h-5 rounded-full bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-mono font-bold text-[#667085] flex items-center justify-center">
@@ -506,35 +607,28 @@ export default function TasksPage() {
                     </span>
                   </div>
 
-                  <div className="flex-1 space-y-2.5 min-h-[200px]">
+                  <div className="space-y-2 min-h-[120px]">
                     {colTasks.map((t) => (
                       <div
                         key={t.id}
                         onClick={() => setSelectedTask(t)}
-                        className="p-3.5 rounded-[12px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] hover:border-[#C9A52A]/50 transition-all cursor-pointer space-y-2.5 shadow-2xs"
+                        className="p-3 rounded-[10px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] space-y-2 cursor-pointer"
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <h5 className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-tight">
+                        <div className="flex items-start justify-between gap-1.5">
+                          <h5 className="text-[12.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-tight">
                             {t.title}
                           </h5>
-                          <span className="px-2 py-0.5 rounded text-[9.5px] font-bold bg-[#C9A52A]/10 text-[#C9A52A] border border-[#C9A52A]/20 uppercase shrink-0">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#C9A52A]/10 text-[#C9A52A] uppercase shrink-0">
                             {t.priority}
                           </span>
                         </div>
-
-                        {t.description && (
-                          <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] line-clamp-2">
-                            {t.description}
-                          </p>
-                        )}
-
-                        <div className="flex items-center justify-between text-[11px] text-[#667085] pt-2 border-t border-[#E4E7EC]/60 dark:border-[#272D36]/60">
+                        <div className="flex items-center justify-between text-[10.5px] text-[#667085]">
                           <span>{t.assigneeName || "Unassigned"}</span>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleUpdateStatus(t.id, col.id === "Completed" ? "In Progress" : "Completed"); }}
-                            className="text-[#C9A52A] hover:underline font-bold"
+                            className="text-[#C9A52A] font-bold"
                           >
-                            {col.id === "Completed" ? "Reopen" : "Complete"}
+                            {col.id === "Completed" ? "Reopen" : "Done"}
                           </button>
                         </div>
                       </div>
@@ -546,6 +640,112 @@ export default function TasksPage() {
           </div>
         )}
       </div>
+
+      {/* ── MOBILE PRIMARY FLOATING CREATION BUTTON (56px Circle) ─────── */}
+      <button
+        type="button"
+        onClick={() => setShowCreate(true)}
+        className="md:hidden fixed bottom-20 right-5 z-40 w-14 h-14 rounded-full bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] shadow-xl flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+        aria-label="Create Task"
+      >
+        <Plus className="w-7 h-7 stroke-[2.5]" />
+      </button>
+
+      {/* ── MOBILE FILTER BOTTOM SHEET ─────────────────────────────────── */}
+      <MobileSheet
+        isOpen={showFilterSheet}
+        onClose={() => setShowFilterSheet(false)}
+        title="Filter Tasks"
+      >
+        <div className="space-y-4 p-4 text-[13px]">
+          <div className="space-y-1.5">
+            <label className="font-bold text-[#17202A] dark:text-[#F2F4F7]">Task Type</label>
+            <select
+              value={activeTypeTab}
+              onChange={(e) => setActiveTypeTab(e.target.value)}
+              className="w-full h-[40px] px-3 rounded-[9px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] outline-none"
+            >
+              {TASK_TYPE_CHIPS.map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="font-bold text-[#17202A] dark:text-[#F2F4F7]">Priority</label>
+            <select
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              className="w-full h-[40px] px-3 rounded-[9px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] outline-none"
+            >
+              {PRIORITY_OPTIONS.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="font-bold text-[#17202A] dark:text-[#F2F4F7]">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full h-[40px] px-3 rounded-[9px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] outline-none"
+            >
+              <option value="All">All Statuses</option>
+              <option value="Not Started">Not Started</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Blocked">Blocked</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 pt-3">
+            <button
+              onClick={() => { setActiveTypeTab("All"); setPriorityFilter("All"); setStatusFilter("All"); setShowFilterSheet(false); }}
+              className="flex-1 h-[40px] rounded-[10px] border border-[#E4E7EC] dark:border-[#272D36] font-bold text-[#667085]"
+            >
+              Reset
+            </button>
+            <button
+              onClick={() => setShowFilterSheet(false)}
+              className="flex-1 h-[40px] rounded-[10px] bg-[#C9A52A] text-[#0B0D10] font-bold"
+            >
+              Apply Filters
+            </button>
+          </div>
+        </div>
+      </MobileSheet>
+
+      {/* ── MOBILE QUICK TASK ACTIONS SHEET ───────────────────────────── */}
+      <MobileSheet
+        isOpen={!!actionTaskSheet}
+        onClose={() => setActionTaskSheet(null)}
+        title={actionTaskSheet?.title}
+      >
+        <div className="space-y-2 p-4 text-[13.5px]">
+          <button
+            onClick={() => { const id = actionTaskSheet?.id; setActionTaskSheet(null); handleStartFocus(id); }}
+            className="w-full p-3 rounded-[10px] bg-[#C9A52A]/10 text-[#C9A52A] font-bold flex items-center gap-2"
+          >
+            <Play className="w-4 h-4 fill-current" />
+            <span>Start Focus Session</span>
+          </button>
+          <button
+            onClick={() => { const id = actionTaskSheet?.id; setActionTaskSheet(null); handleUpdateStatus(id, "Completed"); }}
+            className="w-full p-3 rounded-[10px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] font-semibold text-emerald-600 flex items-center gap-2"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Mark as Completed</span>
+          </button>
+          <button
+            onClick={() => { const t = actionTaskSheet; setActionTaskSheet(null); setSelectedTask(t); }}
+            className="w-full p-3 rounded-[10px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] font-semibold text-[#17202A] dark:text-[#F2F4F7] flex items-center gap-2"
+          >
+            <ChevronRight className="w-4 h-4" />
+            <span>View Task Details</span>
+          </button>
+        </div>
+      </MobileSheet>
 
       {/* Create Task Modal */}
       <CreateTaskModal
