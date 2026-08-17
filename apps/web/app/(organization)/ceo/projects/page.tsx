@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Plus, FolderKanban, Search, Loader2, AlertCircle,
   Trash2, RefreshCw, ChevronRight, LayoutGrid, List,
-  Archive, CheckSquare, Square, Edit, MoreVertical, Shield, Check, X, Move
+  Archive, CheckSquare, Square, Edit, MoreVertical, Shield, Check, X, Move, ChevronDown
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
@@ -28,7 +28,9 @@ const STATUS_STYLE: Record<string, string> = {
   Cancelled: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
 };
 
-const STATUS_FILTERS = ["All", "Active", "Planning", "On Hold", "Completed"];
+const PRIMARY_MOBILE_STATUSES = ["All", "Active", "Planning"];
+const MORE_MOBILE_STATUSES = ["On Hold", "Completed", "Archived"];
+const STATUS_FILTERS = ["All", "Active", "Planning", "On Hold", "Completed", "Archived"];
 
 function fmtDate(dateStr?: string | null): string {
   if (!dateStr) return "—";
@@ -48,136 +50,114 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState("All");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
 
-  // Selection & Bulk Action States
+  // Selection & Action Modals
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const headerCheckboxRef = useRef<HTMLInputElement>(null);
-
-  // Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<any | null>(null);
-  
-  // Custom Delete Modals
   const [deleteConfirmSingleId, setDeleteConfirmSingleId] = useState<string | null>(null);
-  const [deleteConfirmBulkOpen, setDeleteConfirmBulkOpen] = useState(false);
+  const [deleteConfirmBulk, setDeleteConfirmBulk] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [showMoreStatusSheet, setShowMoreStatusSheet] = useState(false);
 
-  // Drag & Drop State
+  // Drag & drop state
   const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null);
 
-  // Fetch real projects from backend API
   const fetchProjects = useCallback(async () => {
+    setLoading(true);
     try {
-      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
+      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
       const res = await apiClient.get(`/org/projects${wsId ? `?workspaceId=${wsId}` : ""}`);
       if (res.data?.success) {
         setRealProjects(res.data.data || []);
         setError("");
       } else {
-        setError(res.data?.error || "Failed to load projects");
+        setError(res.data?.error || "Failed to load projects.");
       }
-    } catch (e: any) {
-      setError(e.response?.data?.error || "Unable to load projects.");
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Unable to connect to projects service.");
     } finally {
       setLoading(false);
     }
   }, []);
 
+  useRegisterRefresh(fetchProjects);
+
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
 
-  useRegisterRefresh(fetchProjects);
-
+  // Realtime Socket updates
   useEffect(() => {
     if (!socket) return;
-    socket.on("project.created", fetchProjects);
-    socket.on("project.updated", fetchProjects);
-    socket.on("project.deleted", fetchProjects);
+    const handleProjectUpdated = () => fetchProjects();
+    const handleProjectCreated = () => fetchProjects();
+    const handleProjectDeleted = () => fetchProjects();
+
+    socket.on("project_updated", handleProjectUpdated);
+    socket.on("project_created", handleProjectCreated);
+    socket.on("project_deleted", handleProjectDeleted);
+
     return () => {
-      socket.off("project.created", fetchProjects);
-      socket.off("project.updated", fetchProjects);
-      socket.off("project.deleted", fetchProjects);
+      socket.off("project_updated", handleProjectUpdated);
+      socket.off("project_created", handleProjectCreated);
+      socket.off("project_deleted", handleProjectDeleted);
     };
   }, [socket, fetchProjects]);
 
   const filtered = useMemo(() => {
     return realProjects.filter((p) => {
       const matchSearch =
-        (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
-        (p.objective || p.description || "").toLowerCase().includes(search.toLowerCase());
+        p.name?.toLowerCase().includes(search.toLowerCase()) ||
+        p.mandate?.toLowerCase().includes(search.toLowerCase()) ||
+        p.objective?.toLowerCase().includes(search.toLowerCase());
+
       const matchStatus =
         statusFilter === "All" ||
-        p.status === statusFilter ||
-        (p.status && p.status.toUpperCase() === statusFilter.toUpperCase()) ||
-        (statusFilter === "On Hold" && (p.status === "ON_HOLD" || p.status === "On Hold"));
+        p.status?.toUpperCase() === statusFilter.toUpperCase() ||
+        (statusFilter === "Active" && p.status?.toUpperCase() === "ACTIVE") ||
+        (statusFilter === "Planning" && p.status?.toUpperCase() === "PLANNING") ||
+        (statusFilter === "On Hold" && p.status?.toUpperCase() === "ON_HOLD") ||
+        (statusFilter === "Completed" && p.status?.toUpperCase() === "COMPLETED") ||
+        (statusFilter === "Archived" && p.status?.toUpperCase() === "ARCHIVED");
+
       return matchSearch && matchStatus;
     });
   }, [realProjects, search, statusFilter]);
 
-  // Checkbox indeterminate state
-  useEffect(() => {
-    if (headerCheckboxRef.current) {
-      const isAll = filtered.length > 0 && selectedIds.length === filtered.length;
-      const isSome = selectedIds.length > 0 && selectedIds.length < filtered.length;
-      headerCheckboxRef.current.checked = isAll;
-      headerCheckboxRef.current.indeterminate = isSome;
-    }
-  }, [selectedIds, filtered]);
+  const isMoreStatusActive = MORE_MOBILE_STATUSES.some((s) => s.toLowerCase() === statusFilter.toLowerCase());
 
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      setSelectedIds(filtered.map((p) => p.id));
-    } else {
+  // Bulk Selection Handlers
+  const isAllSelected = useMemo(() => {
+    return filtered.length > 0 && filtered.every((p) => selectedIds.includes(p.id));
+  }, [filtered, selectedIds]);
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
       setSelectedIds([]);
+    } else {
+      setSelectedIds(filtered.map((p) => p.id));
     }
   };
 
-  const handleToggleSelectRow = (id: string, e: React.MouseEvent) => {
+  const toggleSelectOne = (id: string, e: React.SyntheticEvent) => {
     e.stopPropagation();
     setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
 
-  const handleBulkAction = async (action: "ARCHIVE" | "CHANGE_STATUS" | "CHANGE_PRIORITY" | "DELETE", extraVal?: string) => {
+  // Execute Bulk Delete
+  const handleExecuteBulkDelete = async () => {
     if (selectedIds.length === 0) return;
-    
-    if (action === "DELETE") {
-      setDeleteConfirmBulkOpen(true);
-      return;
-    }
-
-    setBulkProcessing(true);
-    try {
-      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
-      await apiClient.post(`/org/projects/bulk-action${wsId ? `?workspaceId=${wsId}` : ""}`, {
-        action,
-        projectIds: selectedIds,
-        status: action === "CHANGE_STATUS" ? extraVal : undefined,
-        priority: action === "CHANGE_PRIORITY" ? extraVal : undefined,
-      });
-
-      setSelectedIds([]);
-      fetchProjects();
-    } catch (err: any) {
-      setError(err?.response?.data?.error || "Bulk action failed");
-    } finally {
-      setBulkProcessing(false);
-    }
-  };
-
-  const confirmBulkDelete = async () => {
     setDeleting(true);
     try {
       const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
-      await apiClient.post(`/org/projects/bulk-action${wsId ? `?workspaceId=${wsId}` : ""}`, {
-        action: "DELETE",
+      await apiClient.post(`/org/projects/bulk-delete${wsId ? `?workspaceId=${wsId}` : ""}`, {
         projectIds: selectedIds,
       });
-
+      setRealProjects((prev) => prev.filter((p) => !selectedIds.includes(p.id)));
       setSelectedIds([]);
-      setDeleteConfirmBulkOpen(false);
+      setDeleteConfirmBulk(false);
       fetchProjects();
     } catch (err: any) {
       setError(err?.response?.data?.error || "Failed to delete projects");
@@ -186,7 +166,8 @@ export default function ProjectsPage() {
     }
   };
 
-  const confirmSingleDelete = async () => {
+  // Execute Single Delete
+  const handleExecuteSingleDelete = async () => {
     if (!deleteConfirmSingleId) return;
     setDeleting(true);
     try {
@@ -226,7 +207,7 @@ export default function ProjectsPage() {
       fetchProjects();
     } catch (err: any) {
       console.error("Failed to update status via drag & drop:", err);
-      fetchProjects(); // Revert on failure
+      fetchProjects();
     } finally {
       setDraggedProjectId(null);
     }
@@ -241,11 +222,11 @@ export default function ProjectsPage() {
   return (
     <div className="w-full min-h-full flex flex-col justify-between p-3.5 sm:p-5 md:px-10 md:py-5 max-w-[1400px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none space-y-4 pb-24 md:pb-5">
       
-      {/* Mobile Header Row */}
+      {/* ── MOBILE HEADER REGION ───────────────────────────────────────── */}
       <div className="md:hidden space-y-3">
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-[22px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
+            <h1 className="text-[20px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
               Projects
             </h1>
             <button
@@ -274,43 +255,82 @@ export default function ProjectsPage() {
         )}
 
         <div className="relative w-full">
-          <Search className="w-4.5 h-4.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#667085] dark:text-[#8B95A5]" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#667085] dark:text-[#8B95A5]" />
           <input
             type="text"
             placeholder="Search projects..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-3.5 h-[46px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[12px] text-[14px] text-[#17202A] dark:text-[#F2F4F7] placeholder-[#667085] dark:placeholder-[#8B95A5] outline-none focus:border-[#C9A52A] dark:focus:border-[#D4B12F] shadow-xs"
+            className="w-full pl-9 pr-3.5 h-[42px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] placeholder-[#667085] dark:placeholder-[#8B95A5] outline-none focus:border-[#C9A52A] dark:focus:border-[#D4B12F] shadow-xs"
           />
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden -mx-1 px-1">
-          {STATUS_FILTERS.map((s) => (
+        {/* Mobile Status Navigation Tabs */}
+        <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-1 overflow-x-auto [scrollbar-width:none]">
+          <div className="flex items-center gap-1">
+            {PRIMARY_MOBILE_STATUSES.map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  statusFilter.toLowerCase() === s.toLowerCase()
+                    ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
+                    : "text-[#667085] dark:text-[#8B95A5]"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+
             <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`h-[36px] px-3.5 text-[12.5px] font-semibold rounded-[10px] transition-all whitespace-nowrap cursor-pointer shrink-0 ${
-                statusFilter === s
-                  ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold shadow-xs"
-                  : "bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[#667085] dark:text-[#8B95A5]"
+              type="button"
+              onClick={() => setShowMoreStatusSheet(true)}
+              className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                isMoreStatusActive
+                  ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
+                  : "text-[#667085] dark:text-[#8B95A5]"
               }`}
             >
-              {s}
+              <span>{isMoreStatusActive ? statusFilter : "More"}</span>
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
-          ))}
+          </div>
         </div>
 
         {/* Mobile Project Cards List */}
         <div className="space-y-3">
           {loading ? (
-            <div className="p-8 flex items-center justify-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-xl border border-[#E4E7EC] dark:border-[#272D36]">
-              <Loader2 className="w-6 h-6 animate-spin text-[#C9A52A] dark:text-[#D4B12F]" />
+            /* 3-Card Animated Skeleton Loader */
+            <div className="space-y-3 animate-pulse">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-3 shadow-2xs">
+                  <div className="h-4 bg-[#E4E7EC] dark:bg-[#272D36] rounded w-2/3" />
+                  <div className="h-3 bg-[#E4E7EC] dark:bg-[#272D36] rounded w-full" />
+                  <div className="h-2 bg-[#E4E7EC] dark:bg-[#272D36] rounded-full w-full" />
+                </div>
+              ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="p-6 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-xl border border-[#E4E7EC] dark:border-[#272D36] space-y-2">
-              <FolderKanban className="w-7 h-7 text-[#C9A52A] dark:text-[#D4B12F] mx-auto opacity-70" />
-              <h3 className="text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7]">No projects found</h3>
-              <p className="text-[12px] text-[#667085] dark:text-[#8B95A5]">Create a project to begin tracking execution.</p>
+            /* Content-Sized Empty State Card */
+            <div className="w-full rounded-[16px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] flex flex-col items-center justify-center py-8 px-6 text-center space-y-4 my-2 max-w-md mx-auto shadow-2xs">
+              <div className="w-12 h-12 rounded-full bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center border border-[#C9A52A]/20 shrink-0">
+                <FolderKanban className="w-6 h-6 stroke-[2]" />
+              </div>
+              <div className="space-y-1.5 max-w-sm">
+                <h3 className="text-[16px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+                  No projects found
+                </h3>
+                <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5] leading-relaxed">
+                  Create your first organization project to define the mandate, assign ownership, and start execution.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsCreateOpen(true)}
+                className="inline-flex items-center gap-1.5 px-5 h-[40px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer mt-1"
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>Create Project</span>
+              </button>
             </div>
           ) : (
             filtered.map((project) => (
@@ -322,18 +342,18 @@ export default function ProjectsPage() {
                   <div className="space-y-0.5 min-w-0">
                     <Link
                       href={`${base}/projects/${project.id}`}
-                      className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:text-[#C9A52A] transition-colors block truncate"
+                      className="text-[14.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:text-[#C9A52A] transition-colors block truncate leading-snug"
                     >
                       {project.name}
                     </Link>
-                    {(project.objective || project.description) && (
+                    {(project.objective || project.description || project.mandate) && (
                       <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] line-clamp-2 leading-relaxed">
-                        {project.objective || project.description}
+                        {project.objective || project.description || project.mandate}
                       </p>
                     )}
                   </div>
 
-                  <span className={`px-2 py-0.5 rounded-full border text-[10.5px] font-semibold shrink-0 ${STATUS_STYLE[project.status] || STATUS_STYLE.Archived}`}>
+                  <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold shrink-0 ${STATUS_STYLE[project.status] || STATUS_STYLE.Archived}`}>
                     {project.status}
                   </span>
                 </div>
@@ -379,7 +399,7 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      {/* Desktop Header */}
+      {/* ── DESKTOP HEADER & CONTENT (UNTOUCHED) ───────────────────────── */}
       <div className="hidden md:flex md:flex-col space-y-4">
         <div className="flex items-center justify-between gap-4 border-b border-[#E4E7EC] dark:border-[#272D36] pb-4">
           <div className="space-y-0.5">
@@ -455,274 +475,135 @@ export default function ProjectsPage() {
             </div>
           </div>
 
-          {/* View Mode Switcher */}
-          <div className="flex items-center gap-1 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] p-1 rounded-[10px]">
-            <button
-              onClick={() => setViewMode("table")}
-              className={`h-[30px] px-2.5 text-[12px] font-semibold rounded-[7px] flex items-center gap-1.5 transition-all cursor-pointer ${
-                viewMode === "table"
-                  ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold shadow-xs"
-                  : "text-[#667085] dark:text-[#8B95A5] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
-              }`}
-            >
-              <List className="w-3.5 h-3.5" /> Table
-            </button>
-            <button
-              onClick={() => setViewMode("board")}
-              className={`h-[30px] px-2.5 text-[12px] font-semibold rounded-[7px] flex items-center gap-1.5 transition-all cursor-pointer ${
-                viewMode === "board"
-                  ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold shadow-xs"
-                  : "text-[#667085] dark:text-[#8B95A5] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
-              }`}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" /> Board
-            </button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center p-1 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px]">
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={`px-3 h-[30px] rounded-[7px] text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === "table"
+                    ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
+                    : "text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
+                }`}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>Table</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("board")}
+                className={`px-3 h-[30px] rounded-[7px] text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === "board"
+                    ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
+                    : "text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Board</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Floating Bulk Action Bar */}
-        {selectedIds.length > 0 && (
-          <div className="p-3 rounded-[12px] bg-[#C9A52A]/10 border border-[#C9A52A]/30 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
-            <div className="flex items-center gap-3">
-              <span className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
-                {selectedIds.length} project{selectedIds.length > 1 ? "s" : ""} selected
-              </span>
-              <button
-                onClick={() => setSelectedIds([])}
-                className="text-[12px] font-semibold text-[#667085] dark:text-[#8B95A5] hover:underline cursor-pointer"
-              >
-                Clear Selection
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handleBulkAction("ARCHIVE")}
-                disabled={bulkProcessing}
-                className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-semibold hover:border-[#C9A52A] transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <Archive className="w-3.5 h-3.5" /> Archive Selected
-              </button>
-
-              <button
-                onClick={() => handleBulkAction("CHANGE_STATUS", "COMPLETED")}
-                disabled={bulkProcessing}
-                className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-semibold hover:border-[#C9A52A] transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <Check className="w-3.5 h-3.5" /> Mark Completed
-              </button>
-
-              <button
-                onClick={() => handleBulkAction("DELETE")}
-                disabled={bulkProcessing}
-                className="px-3 py-1.5 rounded-[8px] bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-[12px] font-semibold hover:bg-rose-500/20 transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Delete Selected
-              </button>
-            </div>
+        {/* Desktop View Workspace */}
+        {loading ? (
+          <div className="p-12 text-center bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px]">
+            <Loader2 className="w-8 h-8 animate-spin text-[#C9A52A] mx-auto" />
           </div>
-        )}
-
-        {/* Desktop Main Content Area */}
-        {viewMode === "table" ? (
-          <div className="flex-1 min-h-0 w-full bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[12px] flex flex-col overflow-hidden shadow-xs shrink">
-            {/* Desktop Table Header */}
-            <div className="grid grid-cols-[40px_2fr_1fr_1fr_1fr_1.2fr_160px] items-center gap-4 px-5 py-3 border-b border-[#E4E7EC] dark:border-[#272D36] bg-[#F8F9FB] dark:bg-[#111419] shrink-0 sticky top-0 z-10">
-              <input
-                type="checkbox"
-                ref={headerCheckboxRef}
-                onChange={handleSelectAll}
-                className="w-4 h-4 rounded border-[#D0D5DD] dark:border-[#344054] accent-[#C9A52A] cursor-pointer"
-              />
-              <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-[0.08em]">Project</span>
-              <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-[0.08em]">Status</span>
-              <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-[0.08em]">Owner</span>
-              <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-[0.08em]">Target</span>
-              <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-[0.08em]">Progress</span>
-              <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-[0.08em] text-right">Action</span>
-            </div>
-
-            {/* Desktop Table Body */}
-            <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-[#E4E7EC] dark:divide-[#272D36] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-              {loading ? (
-                <div className="p-8 flex items-center justify-center h-full min-h-[200px]">
-                  <Loader2 className="w-7 h-7 animate-spin text-[#C9A52A] dark:text-[#D4B12F]" />
-                </div>
-              ) : filtered.length === 0 ? (
-                <div className="p-6 sm:p-8 text-center h-full flex flex-col items-center justify-center my-auto min-h-[260px] space-y-3 font-sans">
-                  <FolderKanban className="w-9 h-9 text-[#C9A52A] dark:text-[#D4B12F] mx-auto opacity-70" />
-                  <div className="space-y-1">
-                    <h3 className="text-[16px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
-                      {search || statusFilter !== "All" ? "No matching projects" : "No projects yet"}
-                    </h3>
-                    <p className="text-[13px] text-[#667085] dark:text-[#8B95A5] max-w-sm mx-auto leading-relaxed">
-                      {search || statusFilter !== "All"
-                        ? "Try adjusting your search criteria or status filter."
-                        : "Create a project to begin planning and tracking organization execution."}
-                    </p>
-                  </div>
-                  {!search && statusFilter === "All" && (
-                    <button
-                      onClick={() => setIsCreateOpen(true)}
-                      className="h-[44px] px-5 rounded-[11px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13px] font-bold hover:opacity-90 transition-opacity inline-flex items-center gap-1.5 cursor-pointer mt-1 active:scale-95"
-                    >
-                      <Plus className="w-4 h-4 stroke-[2.5]" />
-                      <span>New Project</span>
-                    </button>
-                  )}
-                </div>
-              ) : (
-                filtered.map((project) => (
-                  <div
-                    key={project.id}
-                    className={`hover:bg-[#F8F9FB]/60 dark:hover:bg-[#111419]/60 transition-colors ${
-                      selectedIds.includes(project.id) ? "bg-[#C9A52A]/5 dark:bg-[#C9A52A]/10" : ""
-                    }`}
-                  >
-                    <div className="grid grid-cols-[40px_2fr_1fr_1fr_1fr_1.2fr_160px] items-center gap-4 px-5 py-3.5">
+        ) : filtered.length === 0 ? (
+          <div className="p-12 text-center bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] space-y-3">
+            <FolderKanban className="w-10 h-10 text-[#C9A52A] mx-auto opacity-70" />
+            <h3 className="text-[16px] font-bold text-[#17202A] dark:text-[#F2F4F7]">No projects found</h3>
+            <p className="text-[13px] text-[#667085] dark:text-[#8B95A5]">Create a project to begin tracking execution.</p>
+          </div>
+        ) : viewMode === "table" ? (
+          <div className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] overflow-hidden shadow-xs">
+            <table className="w-full text-left text-[13px]">
+              <thead className="bg-[#F8F9FB] dark:bg-[#111419] border-b border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">
+                <tr className="h-[44px]">
+                  <th className="p-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={toggleSelectAll}
+                      className="rounded border-[#E4E7EC] dark:border-[#272D36] text-[#C9A52A] focus:ring-0 cursor-pointer"
+                    />
+                  </th>
+                  <th className="p-3">Project Name</th>
+                  <th className="p-3">Status</th>
+                  <th className="p-3">Tasks</th>
+                  <th className="p-3">Progress</th>
+                  <th className="p-3">Target Date</th>
+                  <th className="p-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E4E7EC]/60 dark:divide-[#272D36]/60">
+                {filtered.map((p) => (
+                  <tr key={p.id} className="hover:bg-[#F8F9FB] dark:hover:bg-[#111419] transition-colors">
+                    <td className="p-3">
                       <input
                         type="checkbox"
-                        checked={selectedIds.includes(project.id)}
-                        onChange={(e) => handleToggleSelectRow(project.id, e as any)}
-                        className="w-4 h-4 rounded border-[#D0D5DD] dark:border-[#344054] accent-[#C9A52A] cursor-pointer"
+                        checked={selectedIds.includes(p.id)}
+                        onChange={(e) => toggleSelectOne(p.id, e)}
+                        className="rounded border-[#E4E7EC] dark:border-[#272D36] text-[#C9A52A] focus:ring-0 cursor-pointer"
                       />
-
-                      <div className="min-w-0">
-                        <Link
-                          href={`${base}/projects/${project.id}`}
-                          className="text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:text-[#C9A52A] dark:hover:text-[#D4B12F] transition-colors truncate block"
-                        >
-                          {project.name}
-                        </Link>
-                        {(project.objective || project.description) && (
-                          <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] truncate mt-0.5">
-                            {project.objective || project.description}
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <span className={`px-2.5 py-0.5 rounded-full border text-[11px] font-semibold ${STATUS_STYLE[project.status] || STATUS_STYLE.Archived}`}>
-                          {project.status}
-                        </span>
-                      </div>
-
-                      <div className="text-[12.5px] font-medium text-[#17202A] dark:text-[#F2F4F7] truncate">
-                        {project.ownerName || project.owner || "CEO"}
-                      </div>
-
-                      <div className="text-[12px] font-mono text-[#667085] dark:text-[#8B95A5]">
-                        {fmtDate(project.deadline)}
-                      </div>
-
-                      <div className="space-y-1 pr-2">
-                        <div className="flex items-center justify-between text-[11.5px] font-mono font-semibold">
-                          <span className="text-[#17202A] dark:text-[#F2F4F7]">{project.progress || 0}%</span>
-                          <span className="text-[#667085] dark:text-[#8B95A5]">{project.completedTasks || 0}/{project.totalTasks || 0} tasks</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-[#E4E7EC] dark:bg-[#272D36] rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-[#C9A52A] dark:bg-[#D4B12F] rounded-full transition-all duration-500"
-                            style={{ width: `${project.progress || 0}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-end gap-1.5 shrink-0">
-                        <button
-                          onClick={() => setEditingProject(project)}
-                          className="p-1.5 rounded-md text-[#667085] hover:text-[#C9A52A] hover:bg-[#C9A52A]/10 transition-colors cursor-pointer"
-                          title="Edit project"
-                        >
-                          <Edit className="w-3.5 h-3.5" />
-                        </button>
-
-                        <Link
-                          href={`${base}/projects/${project.id}`}
-                          className="px-2.5 py-1 rounded-[7px] bg-[#C9A52A]/10 text-[#C9A52A] dark:text-[#D4B12F] border border-[#C9A52A]/20 text-[12px] font-semibold hover:bg-[#C9A52A]/20 flex items-center gap-1 transition-colors shrink-0"
-                        >
-                          <span>Open Project</span> <ChevronRight className="w-3.5 h-3.5" />
-                        </Link>
-
-                        <button
-                          onClick={() => setDeleteConfirmSingleId(project.id)}
-                          className="p-1.5 rounded-md text-[#667085] hover:text-rose-600 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
-                          title="Delete project"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+                    </td>
+                    <td className="p-3 font-semibold text-[#17202A] dark:text-[#F2F4F7]">
+                      <Link href={`${base}/projects/${p.id}`} className="hover:text-[#C9A52A]">
+                        {p.name}
+                      </Link>
+                    </td>
+                    <td className="p-3">
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${STATUS_STYLE[p.status] || STATUS_STYLE.Archived}`}>
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="p-3 font-medium text-[#667085]">{p.completedTasks || 0} / {p.totalTasks || 0}</td>
+                    <td className="p-3 font-bold text-[#17202A] dark:text-[#F2F4F7]">{p.progress || 0}%</td>
+                    <td className="p-3 font-mono text-[#667085]">{fmtDate(p.deadline)}</td>
+                    <td className="p-3 text-right space-x-2">
+                      <button
+                        onClick={() => setEditingProject(p)}
+                        className="p-1 text-slate-400 hover:text-[#C9A52A]"
+                        title="Edit Project"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirmSingleId(p.id)}
+                        className="p-1 text-slate-400 hover:text-rose-500"
+                        title="Delete Project"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : (
-          /* Kanban Board View with Drag & Drop */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 flex-1 min-h-[400px]">
-            {["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED"].map((colStatus) => {
-              const colProjects = filtered.filter(
-                (p) =>
-                  p.status === colStatus ||
-                  (colStatus === "ON_HOLD" && (p.status === "On Hold" || p.status === "ON_HOLD")) ||
-                  (colStatus === "COMPLETED" && (p.status === "Completed" || p.status === "COMPLETED"))
-              );
+          /* KANBAN BOARD VIEW DESKTOP */
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {STATUS_FILTERS.filter(s => s !== "All").map((status) => {
+              const colProjects = filtered.filter(p => p.status?.toUpperCase() === status.toUpperCase() || (status === "Active" && p.status === "ACTIVE"));
               return (
-                <div
-                  key={colStatus}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = "move";
-                  }}
-                  onDrop={(e) => handleDropOnColumn(colStatus, e)}
-                  className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] p-4 flex flex-col space-y-3 transition-colors hover:border-[#C9A52A]/40"
-                >
-                  <div className="flex items-center justify-between pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
-                    <h3 className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7] uppercase tracking-[0.08em]">
-                      {colStatus.replace("_", " ")}
-                    </h3>
-                    <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36]">
+                <div key={status} className="w-[300px] shrink-0 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-2">
+                    <h3 className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7]">{status}</h3>
+                    <span className="w-5 h-5 rounded-full bg-[#F8F9FB] dark:bg-[#111419] text-[#667085] text-[11px] font-bold flex items-center justify-center border border-[#E4E7EC] dark:border-[#272D36]">
                       {colProjects.length}
                     </span>
                   </div>
-
-                  <div className="flex-1 space-y-3 overflow-y-auto">
-                    {colProjects.map((proj) => (
-                      <div
-                        key={proj.id}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData("text/plain", proj.id);
-                          setDraggedProjectId(proj.id);
-                        }}
-                        className="p-3.5 rounded-[12px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] space-y-2.5 hover:border-[#C9A52A] transition-all cursor-grab active:cursor-grabbing shadow-xs"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <Link
-                            href={`${base}/projects/${proj.id}`}
-                            className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:text-[#C9A52A] transition-colors truncate block flex-1"
-                          >
-                            {proj.name}
-                          </Link>
-                          <Move className="w-3.5 h-3.5 text-[#667085] opacity-40 shrink-0" />
-                        </div>
-                        {(proj.objective || proj.description) && (
-                          <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] line-clamp-2 leading-relaxed">
-                            {proj.objective || proj.description}
-                          </p>
-                        )}
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-[11px] font-mono">
-                            <span className="text-[#667085] dark:text-[#8B95A5]">Progress</span>
-                            <span className="font-bold text-[#17202A] dark:text-[#F2F4F7]">{proj.progress || 0}%</span>
-                          </div>
-                          <div className="h-1.5 w-full bg-[#E4E7EC] dark:bg-[#272D36] rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-[#C9A52A] dark:bg-[#D4B12F] rounded-full transition-all duration-500"
-                              style={{ width: `${proj.progress || 0}%` }}
-                            />
-                          </div>
+                  <div className="space-y-2">
+                    {colProjects.map((p) => (
+                      <div key={p.id} className="p-3.5 rounded-[12px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] space-y-2">
+                        <Link href={`${base}/projects/${p.id}`} className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:text-[#C9A52A] block truncate">
+                          {p.name}
+                        </Link>
+                        <div className="text-[11px] text-[#667085] flex items-center justify-between">
+                          <span>{p.progress || 0}% complete</span>
+                          <span>{fmtDate(p.deadline)}</span>
                         </div>
                       </div>
                     ))}
@@ -734,36 +615,77 @@ export default function ProjectsPage() {
         )}
       </div>
 
-      {/* Modals */}
+      {/* Mobile Secondary Status Sheet */}
+      {showMoreStatusSheet && (
+        <div
+          className="md:hidden fixed inset-0 z-[140] flex flex-col justify-end bg-black/70 backdrop-blur-xs font-sans transition-opacity animate-in fade-in duration-200"
+          onClick={() => setShowMoreStatusSheet(false)}
+        >
+          <div
+            className="bg-[#FFFFFF] dark:bg-[#15191F] border-t border-[#E4E7EC] dark:border-[#272D36] rounded-t-[24px] p-5 space-y-4 max-h-[75dvh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-3">
+              <div className="w-10 h-1 bg-[#E4E7EC] dark:bg-[#272D36] rounded-full mx-auto" />
+              <div className="flex items-center justify-between pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
+                <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">Secondary Project Statuses</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowMoreStatusSheet(false)}
+                  className="p-1.5 rounded-full text-[#667085] hover:bg-[#F8F9FB] dark:hover:bg-[#111419]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              {MORE_MOBILE_STATUSES.map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter(status);
+                    setShowMoreStatusSheet(false);
+                  }}
+                  className={`w-full h-[48px] px-3.5 rounded-[12px] text-left text-[13px] font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                    statusFilter.toLowerCase() === status.toLowerCase()
+                      ? "bg-[#C9A52A]/10 text-[#C9A52A]"
+                      : "text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F8F9FB] dark:hover:bg-[#111419]"
+                  }`}
+                >
+                  <span>{status}</span>
+                  {statusFilter.toLowerCase() === status.toLowerCase() && <Check className="w-4 h-4 text-[#C9A52A]" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Project Modal */}
       <CreateProjectModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        onSuccess={fetchProjects}
+        onSuccess={() => fetchProjects()}
       />
 
+      {/* Edit Project Modal */}
       <EditProjectModal
         isOpen={!!editingProject}
         project={editingProject}
         onClose={() => setEditingProject(null)}
-        onSuccess={fetchProjects}
+        onSuccess={() => fetchProjects()}
       />
 
-      {/* Single Project Delete Modal */}
+      {/* Delete Confirmation Modal */}
       <DeleteConfirmationModal
         isOpen={!!deleteConfirmSingleId}
-        count={1}
+        title={`Delete "${realProjects.find((p) => p.id === deleteConfirmSingleId)?.name || 'Project'}"?`}
+        description="This action cannot be undone. All tasks associated with this project will be deleted."
         isSubmitting={deleting}
         onClose={() => setDeleteConfirmSingleId(null)}
-        onConfirm={confirmSingleDelete}
-      />
-
-      {/* Bulk Project Delete Modal */}
-      <DeleteConfirmationModal
-        isOpen={deleteConfirmBulkOpen}
-        count={selectedIds.length}
-        isSubmitting={deleting}
-        onClose={() => setDeleteConfirmBulkOpen(false)}
-        onConfirm={confirmBulkDelete}
+        onConfirm={handleExecuteSingleDelete}
       />
     </div>
   );

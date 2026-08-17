@@ -372,11 +372,10 @@ export default function TasksPage() {
               <button
                 type="button"
                 onClick={() => setShowCreate(true)}
-                className="px-3.5 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold text-[12px] flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+                className="hidden md:inline-flex items-center gap-1.5 px-3.5 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold text-[12px] cursor-pointer shadow-xs shrink-0"
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
-                <span className="hidden sm:inline">Create Task</span>
-                <span className="sm:hidden">New Task</span>
+                <span>Create Task</span>
               </button>
             </div>
           </div>
@@ -861,6 +860,16 @@ export default function TasksPage() {
           </button>
         </div>
       </MobileSheet>
+
+      {/* Fixed Mobile-Only Task Creation FAB (Single entry point on mobile) */}
+      <button
+        type="button"
+        onClick={() => setShowCreate(true)}
+        className="md:hidden fixed bottom-[calc(72px+env(safe-area-inset-bottom)+12px)] right-4 z-40 w-14 h-14 rounded-full bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] shadow-xl flex items-center justify-center cursor-pointer active:scale-95 transition-transform"
+        title="Create Task"
+      >
+        <Plus className="w-6 h-6 stroke-[3]" />
+      </button>
 
       {/* Create Task Modal */}
       <CreateTaskModal
