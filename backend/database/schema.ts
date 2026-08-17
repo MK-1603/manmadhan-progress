@@ -1348,16 +1348,17 @@ export const automations = pgTable("automations", {
 	description: text("description"),
 	creationMode: text("creation_mode").default("PROMPT").notNull(), // PROMPT, VISUAL
 	originalPrompt: text("original_prompt"),
-	triggerType: text("trigger_type").notNull(), // SCHEDULE, TASK_ASSIGNED, TASK_ACCEPTED, TASK_COMPLETED, TASK_OVERDUE, PROGRESS_UPDATED
+	triggerType: text("trigger_type").notNull(),
 	triggerConfig: jsonb("trigger_config").default({}).notNull(),
 	conditionConfig: jsonb("condition_config").default({}).notNull(),
-	actionType: text("action_type").notNull(), // NOTIFICATION, TASK_UPDATE, SCHEDULER, PROGRESS_UPDATE
+	actionType: text("action_type").notNull(),
 	actionConfig: jsonb("action_config").default({}).notNull(),
 	status: text("status").default("ACTIVE").notNull(), // DRAFT, ACTIVE, PAUSED, FAILED, COMPLETED, DISABLED
 	requiresConfirmation: boolean("requires_confirmation").default(false).notNull(),
 	lastRunAt: timestamp("last_run_at"),
 	nextRunAt: timestamp("next_run_at"),
 	runCount: integer("run_count").default(0).notNull(),
+	failureCount: integer("failure_count").default(0).notNull(),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -1371,10 +1372,11 @@ export const automationLogs = pgTable("automation_logs", {
 		onDelete: "cascade",
 	}),
 	userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
-	status: text("status").notNull(), // SUCCESS, FAILED, PENDING_CONFIRMATION
-	triggeredBy: text("triggered_by").notNull(), // CRON, EVENT_TASK, EVENT_PROGRESS
+	status: text("status").notNull(), // COMPLETED, FAILED, SKIPPED, PENDING
+	triggeredBy: text("triggered_by").notNull(),
 	executionDetails: jsonb("execution_details").default({}).notNull(),
 	errorMessage: text("error_message"),
+	reason: text("reason"),
 	executedAt: timestamp("executed_at").defaultNow().notNull(),
 });
 
@@ -1590,7 +1592,34 @@ export const learningActivities = pgTable("learning_activities", {
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const motivations = pgTable("motivations", {
+	id: text("id").primaryKey(),
+	workspaceId: text("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+	createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "cascade" }),
+	message: text("message").notNull(),
+	category: text("category").default("FOCUS").notNull(),
+	tone: text("tone").default("PROFESSIONAL").notNull(),
+	active: boolean("active").default(true).notNull(),
+	usageCount: integer("usage_count").default(0).notNull(),
+	lastUsedAt: timestamp("last_used_at"),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const motivationDeliveries = pgTable("motivation_deliveries", {
+	id: text("id").primaryKey(),
+	motivationId: text("motivation_id").references(() => motivations.id, { onDelete: "cascade" }),
+	workspaceId: text("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+	userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+	automationId: text("automation_id").references(() => automations.id, { onDelete: "set null" }),
+	deliveredAt: timestamp("delivered_at").defaultNow().notNull(),
+	channel: text("channel").default("WEB_PUSH").notNull(),
+	status: text("status").default("DELIVERED").notNull(),
+});
+
 export * from "./schema/personal.schema";
+
+
 
 
 

@@ -81,12 +81,21 @@ export function CreateTaskModal({
 
     async function loadData() {
       try {
-        const [memRes, projRes] = await Promise.all([
-          apiClient.get("/organization/members").catch(() => ({ data: { data: [] } })),
-          apiClient.get("/org/projects").catch(() => ({ data: { data: [] } })),
+        const [dirRes, memRes, projRes] = await Promise.all([
+          apiClient.get("/org/directory").catch(() => null),
+          apiClient.get("/organization/members").catch(() => null),
+          apiClient.get("/org/projects").catch(() => null),
         ]);
-        if (memRes.data?.data) setMembers(memRes.data.data);
-        if (projRes.data?.data && Array.isArray(projRes.data.data)) setProjects(projRes.data.data);
+
+        let loadedMembers: any[] = [];
+        if (dirRes?.data?.success && Array.isArray(dirRes.data.data)) {
+          loadedMembers = dirRes.data.data;
+        } else if (memRes?.data?.data && Array.isArray(memRes.data.data)) {
+          loadedMembers = memRes.data.data;
+        }
+
+        if (loadedMembers.length > 0) setMembers(loadedMembers);
+        if (projRes?.data?.data && Array.isArray(projRes.data.data)) setProjects(projRes.data.data);
       } catch (e) {
         console.error("Failed to load task creation data:", e);
       }
@@ -127,7 +136,6 @@ export function CreateTaskModal({
         onSuccess(res.data.data.task);
         onClose();
       } else {
-        // Fallback for UI responsiveness
         onSuccess({
           id: `task-${Date.now()}`,
           title: title.trim(),
@@ -135,29 +143,16 @@ export function CreateTaskModal({
           type: taskType,
           priority,
           energyLevel,
-          assigneeName: members.find((m) => m.id === assigneeId)?.name || "CEO",
+          assigneeName: members.find((m) => m.id === assigneeId)?.name || "Unassigned",
           projectName: taskType === "PROJECT WORK" ? "ManMadhan Progress V1" : "Standalone Task",
-          deadline: deadline || "2026-08-20",
+          deadline: deadline || null,
           progress: 0,
           status: "Pending",
         });
         onClose();
       }
     } catch (err: any) {
-      onSuccess({
-        id: `task-${Date.now()}`,
-        title: title.trim(),
-        description: description.trim(),
-        type: taskType,
-        priority,
-        energyLevel,
-        assigneeName: "CEO",
-        projectName: taskType === "PROJECT WORK" ? "ManMadhan Progress V1" : "Standalone Task",
-        deadline: deadline || "2026-08-20",
-        progress: 0,
-        status: "Pending",
-      });
-      onClose();
+      setError(err.response?.data?.error || "Failed to create task.");
     } finally {
       setIsSubmitting(false);
     }
@@ -187,17 +182,35 @@ export function CreateTaskModal({
         />
       </div>
 
-      {/* Task Type Select */}
-      <div>
-        <label className="block text-[10.5px] font-bold uppercase text-[#17202A] dark:text-[#F2F4F7] mb-1">
-          Task Type *
-        </label>
-        <CustomSelect
-          value={taskType}
-          onChange={setTaskType}
-          options={TASK_TYPE_OPTIONS}
-          placeholder="Select Task Type"
-        />
+      {/* Task Type & Project Association Row */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-[10.5px] font-bold uppercase text-[#17202A] dark:text-[#F2F4F7] mb-1">
+            Task Type *
+          </label>
+          <CustomSelect
+            value={taskType}
+            onChange={setTaskType}
+            options={TASK_TYPE_OPTIONS}
+            placeholder="Select Type"
+          />
+        </div>
+
+        <div>
+          <label className="block text-[10.5px] font-bold uppercase text-[#17202A] dark:text-[#F2F4F7] mb-1">
+            Project
+          </label>
+          <CustomSelect
+            value={projectId || ""}
+            onChange={setProjectId}
+            options={[
+              { value: "", label: "Standalone (No Project)" },
+              ...projects.map((p) => ({ value: p.id, label: p.title || p.name })),
+            ]}
+            placeholder="Select Project"
+            disabled={taskType !== "PROJECT WORK" && projects.length === 0}
+          />
+        </div>
       </div>
 
       {/* Dynamic Fields Based on Task Type */}
@@ -237,23 +250,6 @@ export function CreateTaskModal({
               className="w-full h-[36px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[7px] text-[11.5px] text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
             />
           </div>
-        </div>
-      )}
-
-      {taskType === "PROJECT WORK" && (
-        <div>
-          <label className="block text-[10.5px] font-bold uppercase text-[#17202A] dark:text-[#F2F4F7] mb-1">
-            Project Association
-          </label>
-          <CustomSelect
-            value={projectId || ""}
-            onChange={setProjectId}
-            options={[
-              { value: "", label: "Standalone Task (No Project)" },
-              ...projects.map((p) => ({ value: p.id, label: p.title || p.name })),
-            ]}
-            placeholder="Select Project"
-          />
         </div>
       )}
 

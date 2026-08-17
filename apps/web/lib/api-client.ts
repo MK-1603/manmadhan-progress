@@ -13,6 +13,7 @@ const baseURL = getBaseUrl();
 const apiClient = axios.create({
   baseURL,
   withCredentials: true,
+  timeout: 8000,
 });
 
 // ── Request interceptor ──────────────────────────────────────────────────────

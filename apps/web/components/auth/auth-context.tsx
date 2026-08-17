@@ -163,15 +163,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthStatus("initializing");
     try {
       if (!sessionPromiseRef.current) {
-        sessionPromiseRef.current = apiClient.get("/auth/me").catch((err) => {
-          // Handle 401 Unauthorized as expected anonymous state
+        sessionPromiseRef.current = apiClient.get("/auth/me", { timeout: 4000 }).catch((err) => {
           if (err?.response?.status === 401) {
             return { data: { authenticated: false, user: null } };
           }
           return { data: { authenticated: false, user: null } };
         });
       }
-      const res = await sessionPromiseRef.current;
+
+      const timeoutPromise = new Promise((resolve) =>
+        setTimeout(() => resolve({ data: { authenticated: false, user: null } }), 4000)
+      );
+
+      const res: any = await Promise.race([sessionPromiseRef.current, timeoutPromise]);
+
       if (res?.data?.authenticated && res?.data?.user) {
         setUser(res.data.user);
         setAuthStatus("authenticated");

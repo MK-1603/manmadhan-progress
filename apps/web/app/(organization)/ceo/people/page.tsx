@@ -210,7 +210,19 @@ export default function CEOPeoplePage() {
 
       if (membersRes?.data?.success) setMembers(membersRes.data.data || []);
       if (coCeosRes?.data?.success) setCoCeos(coCeosRes.data.data || []);
-      if (invRes?.data?.success) setInvitations(invRes.data.data || []);
+      if (invRes?.data?.success) {
+        const serverInvs: any[] = invRes.data.data || [];
+        // Merge: keep any optimistic entries (temp IDs) not yet confirmed by server
+        setInvitations((prev) => {
+          const serverIds = new Set(serverInvs.map((i: any) => i.id));
+          const serverEmails = new Set(serverInvs.map((i: any) => (i.email || "").toLowerCase()));
+          // Preserve optimistic entries that aren't in the server response yet
+          const optimisticOnly = prev.filter(
+            (p) => !serverIds.has(p.id) && !serverEmails.has((p.email || "").toLowerCase())
+          );
+          return [...serverInvs, ...optimisticOnly];
+        });
+      }
 
       setError("");
     } catch {
@@ -239,11 +251,15 @@ export default function CEOPeoplePage() {
     socket.on("member.removed", fetchData);
     socket.on("member.updated", fetchData);
     socket.on("invitation.updated", fetchData);
+    socket.on("INVITATION_SENT", fetchData);
+    socket.on("INVITATION_SEND_FAILED", fetchData);
     return () => {
       socket.off("member.invited", fetchData);
       socket.off("member.removed", fetchData);
       socket.off("member.updated", fetchData);
       socket.off("invitation.updated", fetchData);
+      socket.off("INVITATION_SENT", fetchData);
+      socket.off("INVITATION_SEND_FAILED", fetchData);
     };
   }, [socket, fetchData]);
 
@@ -255,6 +271,8 @@ export default function CEOPeoplePage() {
         id: newInv.id || `inv_${Date.now()}`,
         status: newInv.status || "Sent",
       };
+
+      // Optimistic UI update — add or merge into the list immediately
       setInvitations((prev) => {
         const exists = prev.some(
           (inv) =>
@@ -277,8 +295,18 @@ export default function CEOPeoplePage() {
       });
       setActiveTab("INVITATIONS");
       setExpandedInviteId(normalizedInv.id);
+
+      // Delay the server refresh so the DB write has fully committed before
+      // we replace the optimistic entry. Without this delay the fetchData()
+      // can return a snapshot that doesn't yet contain the new invite,
+      // making it disappear from the UI immediately after creation.
+      setTimeout(() => {
+        fetchData();
+      }, 1500);
+    } else {
+      // No new invite data — just refresh normally
+      fetchData();
     }
-    fetchData();
   };
 
   // Handle Copy Link
@@ -454,7 +482,7 @@ export default function CEOPeoplePage() {
         workspaceId,
         email: leftFormEmail.trim(),
         role: leftFormRole,
-        batchId: leftFormBatchId.trim() || undefined,
+        batchNumber: leftFormBatchId.trim() || undefined,
         managerId: leftFormRole === "MEMBER" && leftFormManagerId ? leftFormManagerId : undefined,
       });
 
@@ -625,9 +653,15 @@ export default function CEOPeoplePage() {
                 <input
                   type="text"
                   placeholder="e.g. MK1603"
+                  maxLength={6}
                   value={leftFormBatchId}
-                  onChange={(e) => setLeftFormBatchId(e.target.value)}
-                  className="w-full h-[40px] px-3 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[10px] text-[#17202A] dark:text-[#F2F4F7] placeholder-[#667085] dark:placeholder-[#8B95A5] outline-none focus:border-[#B28D18] dark:focus:border-[#C9A52A]"
+                  onChange={(e) => {
+                    const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                    const letters = raw.replace(/[^A-Z]/g, "").slice(0, 2);
+                    const digits = raw.replace(/[^0-9]/g, "").slice(0, 4);
+                    setLeftFormBatchId(letters + digits);
+                  }}
+                  className="w-full h-[40px] px-3 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[10px] text-[#17202A] dark:text-[#F2F4F7] placeholder-[#667085] dark:placeholder-[#8B95A5] outline-none focus:border-[#B28D18] dark:focus:border-[#C9A52A] font-mono tracking-widest uppercase"
                 />
               </div>
 

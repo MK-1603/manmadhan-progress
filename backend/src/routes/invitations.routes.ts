@@ -128,12 +128,18 @@ invitationsRouter.post("/:token/setup", async (req: Request, res: Response) => {
 						timezone: finalTimezone,
 						role: invitation.role,
 						status: "Activated",
+						// Invited users skip OTP / first-login flow — account is pre-verified
+						isVerified: true,
+						isInvited: true,
+						firstLoginCompleted: true,
+						onboardingStatus: "COMPLETED",
 					})
 					.returning()
 			)[0];
 		}
 
 		// Hash password and save profile details
+		// Also mark firstLoginCompleted so invited users bypass OTP/first-login on next sign-in
 		const passwordHash = await AuthService.hashPassword(password);
 		await db
 			.update(users)
@@ -145,6 +151,10 @@ invitationsRouter.post("/:token/setup", async (req: Request, res: Response) => {
 				passwordHash,
 				status: "Activated",
 				role: invitation.role,
+				isVerified: true,
+				isInvited: true,
+				firstLoginCompleted: true,
+				onboardingStatus: "COMPLETED",
 			})
 			.where(eq(users.id, user.id));
 
@@ -186,16 +196,23 @@ invitationsRouter.post("/:token/setup", async (req: Request, res: Response) => {
 			);
 		}
 
-		// Issue tokens for automatic login
+		// Issue tokens for automatic login (await so cookies are set BEFORE res.json() sends the response)
 		const deviceId = req.ip || "unknown-device";
-		SessionService.issueTokens(res, user, deviceId);
+		let sessionTokens: any = null;
+		try {
+			sessionTokens = await SessionService.issueTokens(res, user, deviceId);
+		} catch (tokenErr: any) {
+			logger.warn(`Session token issue failed after invitation setup: ${tokenErr?.message}`);
+			// Continue — the user account is set up, they can log in manually
+		}
 
-		res.json({
+		return res.json({
 			success: true,
 			message: "Account setup successful.",
 			nextStep: "DASHBOARD",
 			role: invitation.role || user.role,
 			workspaceId: invitation.organizationId,
+			token: sessionTokens?.accessToken || undefined,
 		});
 	} catch (error: any) {
 		logger.error(`Setup Invitation Error: ${(error as Error).message}`);

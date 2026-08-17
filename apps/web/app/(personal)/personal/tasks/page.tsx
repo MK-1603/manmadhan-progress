@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import apiClient from "@/lib/api-client";
 import {
   CheckCircle2,
@@ -12,27 +12,55 @@ import {
   X,
   AlertCircle,
   ArrowRight,
-  Filter,
+  List,
+  LayoutGrid,
+  RefreshCw,
+  ChevronDown,
+  Check
 } from "lucide-react";
 import { useSocket } from "@/components/providers/socket-provider";
 import { useConfirm } from "@/hooks/use-confirm";
 
-export default function TasksPage() {
+const PRIMARY_DESKTOP_TABS = [
+  { id: "All", label: "All" },
+  { id: "Project", label: "Project" },
+  { id: "Personal", label: "Personal" },
+  { id: "Learning", label: "Learning" },
+];
+
+const MORE_DESKTOP_CATEGORIES = [
+  { id: "DOCUMENTATION", label: "Documentation" },
+  { id: "RESEARCH", label: "Research" },
+  { id: "SUBMISSION", label: "Submission" },
+  { id: "REVIEW", label: "Review" },
+];
+
+const STATUS_STYLE: Record<string, string> = {
+  "Pending": "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  "TODO": "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  "In Progress": "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  "Completed": "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  "COMPLETED": "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  "Blocked": "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+};
+
+export default function PersonalTasksPage() {
   const { confirm } = useConfirm();
   const { socket, isConnected } = useSocket();
 
+  const [viewMode, setViewMode] = useState<"TABLE" | "BOARD">("TABLE");
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [error, setError] = useState("");
 
-  // Integrated Prompt Creation
-  const [promptInput, setPromptInput] = useState("");
-  const [isInterpreting, setIsInterpreting] = useState(false);
+  const [showMoreDropdown, setShowMoreDropdown] = useState(false);
+  const moreDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Manual Form
+  // Manual Form & Prompt Form
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
@@ -50,10 +78,19 @@ export default function TasksPage() {
       const response = await apiClient.get("/personal/tasks");
       if (response.data?.success && Array.isArray(response.data.data)) {
         setTasks(response.data.data);
+      } else {
+        setError(response.data?.error || "Unable to load tasks.");
       }
     } catch (err: any) {
       console.error(err);
-      setError("Failed to fetch tasks.");
+      const status = err?.response?.status;
+      if (status === 401) {
+        setError("Session expired. Please log in again.");
+      } else if (status === 403) {
+        setError("Access denied.");
+      } else {
+        setError(err.response?.data?.error || "Unable to load tasks.");
+      }
     } finally {
       setLoading(false);
     }
@@ -62,6 +99,16 @@ export default function TasksPage() {
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (moreDropdownRef.current && !moreDropdownRef.current.contains(event.target as Node)) {
+        setShowMoreDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (!socket || !isConnected) return;
@@ -97,31 +144,6 @@ export default function TasksPage() {
     }
   };
 
-  const handlePromptCreate = async () => {
-    if (!promptInput.trim()) return;
-    setIsInterpreting(true);
-    setError("");
-    try {
-      const title = promptInput.replace(/create a task to|create task|tomorrow at 7 pm/gi, "").trim() || promptInput;
-      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-      const res = await apiClient.post("/personal/tasks", {
-        title: title.charAt(0).toUpperCase() + title.slice(1),
-        priority: "High",
-        deadline: tomorrow.toISOString(),
-      });
-
-      if (res.data?.success) {
-        setPromptInput("");
-        await fetchTasks();
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to create task from prompt.");
-    } finally {
-      setIsInterpreting(false);
-    }
-  };
-
   const handleManualCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) return;
@@ -134,7 +156,6 @@ export default function TasksPage() {
       };
       if (form.description.trim()) payload.description = form.description.trim();
       if (form.deadline) payload.deadline = new Date(form.deadline).toISOString();
-      if (form.estimatedMinutes) payload.estimatedMinutes = parseInt(form.estimatedMinutes, 10);
 
       const res = await apiClient.post("/personal/tasks", payload);
       if (res.data?.success) {
@@ -149,248 +170,369 @@ export default function TasksPage() {
     }
   };
 
-  const filteredTasks = tasks.filter((t) => {
-    if (search.trim() && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
-    if (priorityFilter !== "All" && (t.priority || "").toLowerCase() !== priorityFilter.toLowerCase()) return false;
-    const isComp = t.status === "COMPLETED" || t.status === "Completed";
-    if (activeTab === "Active" && isComp) return false;
-    if (activeTab === "Completed" && !isComp) return false;
-    if (activeTab === "Today" && t.deadline) {
-      const today = new Date().toDateString();
-      const dDate = new Date(t.deadline).toDateString();
-      if (today !== dDate) return false;
-    }
-    return true;
-  });
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      const searchLower = search.toLowerCase().trim();
+      if (searchLower && !(t.title || "").toLowerCase().includes(searchLower)) return false;
+      if (priorityFilter !== "All" && (t.priority || "").toLowerCase() !== priorityFilter.toLowerCase()) return false;
 
-  const totalCount = tasks.length;
-  const activeCount = tasks.filter((t) => t.status !== "COMPLETED" && t.status !== "Completed").length;
-  const completedCount = tasks.filter((t) => t.status === "COMPLETED" || t.status === "Completed").length;
-  const overdueCount = tasks.filter((t) => {
-    const isComp = t.status === "COMPLETED" || t.status === "Completed";
-    return !isComp && t.deadline && new Date(t.deadline) < new Date();
-  }).length;
+      const isComp = t.status === "COMPLETED" || t.status === "Completed";
+      if (statusFilter === "Completed" && !isComp) return false;
+      if (statusFilter === "Pending" && isComp) return false;
+
+      const typeUpper = (t.type || t.taskType || "").toUpperCase();
+      if (activeTab === "Project") return !!t.projectId || typeUpper === "PROJECT WORK";
+      if (activeTab === "Personal") return !t.projectId && typeUpper !== "LEARNING";
+      if (activeTab === "Learning") return typeUpper === "LEARNING";
+      if (activeTab !== "All") return typeUpper === activeTab.toUpperCase();
+
+      return true;
+    });
+  }, [tasks, search, priorityFilter, statusFilter, activeTab]);
+
+  const isMoreCategoryActive = MORE_DESKTOP_CATEGORIES.some((c) => c.id === activeTab);
+
+  const renderPriorityBadge = (priority?: string) => {
+    const p = (priority || "Medium").toLowerCase();
+    if (p === "urgent" || p === "critical") return <span className="text-rose-600 font-bold">• Urgent</span>;
+    if (p === "high") return <span className="text-amber-600 font-semibold">• High</span>;
+    if (p === "low") return <span className="text-slate-500 font-medium">• Low</span>;
+    return <span className="text-[#C9A52A] font-medium">• Medium</span>;
+  };
 
   return (
-    <div className="w-full min-h-full flex flex-col p-4 sm:p-6 md:p-8 space-y-6">
-      {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Tasks</h1>
-          <p className="text-xs text-muted-foreground font-medium mt-0.5">
-            Operational task backlog and execution workspace.
-          </p>
-        </div>
+    <div className="w-full h-full flex flex-col overflow-hidden bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none">
+      
+      {/* ── 1. TASK PAGE HEADER ────────────────────────────────────────── */}
+      <div className="shrink-0 px-4 md:px-6 py-3.5 border-b border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F]">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-6 h-6 text-[#C9A52A] dark:text-[#D4B12F] shrink-0" />
+              <h1 className="text-[24px] md:text-[28px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
+                Tasks
+              </h1>
+            </div>
+            <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5] mt-1 font-medium">
+              Execution workspace
+            </p>
+          </div>
 
-        <button
-          type="button"
-          onClick={() => setShowCreate(true)}
-          className="px-4 h-9 rounded-xl bg-primary text-primary-foreground font-bold text-xs hover:bg-primary/90 transition-all flex items-center gap-1.5 shrink-0 shadow-xs self-start sm:self-auto"
-        >
-          <Plus className="w-3.5 h-3.5" /> New Task
-        </button>
-      </header>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center p-0.5 rounded-[9px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36]">
+              <button
+                type="button"
+                onClick={() => setViewMode("TABLE")}
+                className={`px-3.5 h-[32px] rounded-[7px] text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === "TABLE"
+                    ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] shadow-2xs"
+                    : "text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
+                }`}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>Table</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("BOARD")}
+                className={`px-3.5 h-[32px] rounded-[7px] text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  viewMode === "BOARD"
+                    ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] shadow-2xs"
+                    : "text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Board</span>
+              </button>
+            </div>
 
-      {/* Compact Metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3.5 rounded-xl border border-border bg-card shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">TOTAL</span>
-          <p className="text-lg font-bold text-foreground mt-0.5">{totalCount}</p>
-        </div>
-        <div className="p-3.5 rounded-xl border border-border bg-card shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">ACTIVE</span>
-          <p className="text-lg font-bold text-blue-600 dark:text-blue-400 mt-0.5">{activeCount}</p>
-        </div>
-        <div className="p-3.5 rounded-xl border border-border bg-card shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">COMPLETED</span>
-          <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{completedCount}</p>
-        </div>
-        <div className="p-3.5 rounded-xl border border-border bg-card shadow-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">OVERDUE</span>
-          <p className="text-lg font-bold text-rose-600 dark:text-rose-400 mt-0.5">{overdueCount}</p>
+            <button
+              type="button"
+              onClick={fetchTasks}
+              className="p-2 h-[34px] w-[34px] flex items-center justify-center rounded-[8px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7] transition-colors cursor-pointer"
+              title="Refresh Tasks"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold text-[12.5px] cursor-pointer shadow-2xs hover:opacity-90 transition-opacity shrink-0"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>Create Task</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Prompt Creation */}
-      <section className="p-4 rounded-2xl border border-border bg-card space-y-3 shadow-xs">
-        <div>
-          <h2 className="text-xs font-bold text-foreground">Create Task with Prompt</h2>
-          <p className="text-[11px] text-muted-foreground font-medium">
-            Describe what you need done and when.
-          </p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-center gap-2">
-          <input
-            type="text"
-            placeholder="e.g. Create a task to finish the GraphQL API tomorrow at 7 PM..."
-            value={promptInput}
-            onChange={(e) => setPromptInput(e.target.value)}
-            className="w-full h-10 px-3.5 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-foreground/30"
-          />
-          <button
-            type="button"
-            onClick={handlePromptCreate}
-            disabled={isInterpreting || !promptInput.trim()}
-            className="w-full sm:w-auto px-4 h-10 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs transition-all flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-40"
-          >
-            Create Task <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </section>
-
-      {/* Toolbar & Filters */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 hide-scrollbar">
-          {["All", "Active", "Today", "Completed"].map((tab) => (
+      {/* ── 2. TASK CATEGORY NAVIGATION ────────────────────────────────── */}
+      <div className="shrink-0 px-4 md:px-6 py-2 border-b border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF]/60 dark:bg-[#15191F]/60">
+        <div className="flex items-center gap-1">
+          {PRIMARY_DESKTOP_TABS.map((tab) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
-                activeTab === tab
-                  ? "bg-foreground text-background shadow-xs"
-                  : "bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === tab.id
+                  ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] shadow-2xs"
+                  : "text-[#667085] dark:text-[#8B95A5] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
               }`}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
-        </div>
 
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <div className="relative inline-block" ref={moreDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setShowMoreDropdown(!showMoreDropdown)}
+              className={`px-3.5 py-1.5 rounded-[8px] text-[12.5px] font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                isMoreCategoryActive
+                  ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] shadow-2xs"
+                  : "text-[#667085] dark:text-[#8B95A5] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
+              }`}
+            >
+              <span>{isMoreCategoryActive ? MORE_DESKTOP_CATEGORIES.find((c) => c.id === activeTab)?.label : "More"}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showMoreDropdown ? "rotate-180" : ""}`} />
+            </button>
+
+            {showMoreDropdown && (
+              <div className="absolute top-full left-0 mt-1 w-44 rounded-xl border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] shadow-xl p-1.5 z-50 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+                {MORE_DESKTOP_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(cat.id);
+                      setShowMoreDropdown(false);
+                    }}
+                    className={`w-full px-3 py-2 rounded-lg text-left text-[12px] font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                      activeTab === cat.id
+                        ? "bg-[#C9A52A]/10 text-[#C9A52A]"
+                        : "text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F8F9FB] dark:hover:bg-[#111419]"
+                    }`}
+                  >
+                    <span>{cat.label}</span>
+                    {activeTab === cat.id && <Check className="w-3.5 h-3.5 text-[#C9A52A]" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. SEARCH + FILTER TOOLBAR ─────────────────────────────────── */}
+      <div className="shrink-0 px-4 md:px-6 py-2.5 border-b border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F]">
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1 min-w-[280px] md:min-w-[320px]">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#667085]" />
             <input
               type="text"
               placeholder="Search tasks..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-foreground/30"
+              className="w-full pl-9 pr-3 h-[42px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A] transition-colors"
             />
           </div>
 
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
-            className="h-9 px-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none"
+            className="h-[42px] px-3.5 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[12.5px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none cursor-pointer hover:border-[#C9A52A]/50 transition-colors"
           >
             <option value="All">All Priorities</option>
-            <option value="Urgent">Urgent</option>
-            <option value="High">High</option>
-            <option value="Medium">Medium</option>
-            <option value="Low">Low</option>
+            <option value="Low">Low Priority</option>
+            <option value="Medium">Medium Priority</option>
+            <option value="High">High Priority</option>
+            <option value="Urgent">Urgent Priority</option>
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="h-[42px] px-3.5 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[12.5px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none cursor-pointer hover:border-[#C9A52A]/50 transition-colors"
+          >
+            <option value="All">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Completed">Completed</option>
           </select>
         </div>
       </div>
 
-      {error && (
-        <div className="p-3.5 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
-        </div>
-      )}
-
-      {/* Task List / Table */}
-      <section className="flex-1 min-h-0">
-        {loading ? (
-          <div className="py-12 text-center text-xs text-muted-foreground font-medium">
-            Loading tasks...
+      {/* ── 4. TASK CONTENT REGION ─────────────────────────────────────── */}
+      <div className="flex-1 min-h-0 p-4 md:p-6 overflow-y-auto">
+        {error ? (
+          <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[16px] border border-rose-500/20 space-y-3 max-w-md mx-auto shadow-2xs">
+            <AlertCircle className="w-10 h-10 text-rose-500 shrink-0" />
+            <div className="space-y-1">
+              <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+                Unable to load tasks
+              </h3>
+              <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5]">{error}</p>
+            </div>
+            <button
+              onClick={fetchTasks}
+              className="px-4 h-[36px] rounded-[9px] bg-[#C9A52A] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity cursor-pointer inline-flex items-center gap-1.5 mt-2"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry</span>
+            </button>
+          </div>
+        ) : loading ? (
+          <div className="w-full bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-4 space-y-3 animate-pulse">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-[56px] w-full bg-[#F8F9FB] dark:bg-[#111419] rounded-[10px] flex items-center justify-between px-4">
+                <div className="w-1/3 h-4 bg-slate-200 dark:bg-[#272D36] rounded" />
+                <div className="w-1/6 h-4 bg-slate-200 dark:bg-[#272D36] rounded" />
+                <div className="w-1/6 h-4 bg-slate-200 dark:bg-[#272D36] rounded" />
+              </div>
+            ))}
           </div>
         ) : filteredTasks.length === 0 ? (
-          <div className="p-8 text-center rounded-2xl border border-dashed border-border bg-card space-y-2">
-            <CheckCircle2 className="w-8 h-8 text-muted-foreground mx-auto opacity-50" />
-            <p className="text-xs font-bold text-foreground">No tasks found</p>
-            <p className="text-[11px] text-muted-foreground max-w-sm mx-auto font-medium">
-              Describe what you want to do above to create your first task.
-            </p>
+          <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[16px] border border-[#E4E7EC] dark:border-[#272D36] space-y-4 shadow-2xs">
+            <div className="w-12 h-12 rounded-full bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center border border-[#C9A52A]/20 shrink-0">
+              <Check className="w-6 h-6 stroke-[3]" />
+            </div>
+            <div className="space-y-1 max-w-sm">
+              <h3 className="text-[16px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+                No tasks yet
+              </h3>
+              <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5] leading-relaxed">
+                Your assigned work will appear here. Create a task to begin execution.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-1.5 px-5 h-[38px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-2xs cursor-pointer mt-1"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>Create Task</span>
+            </button>
+          </div>
+        ) : viewMode === "TABLE" ? (
+          <div className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] shadow-2xs overflow-hidden h-full flex flex-col">
+            <div className="flex-1 overflow-y-auto">
+              <table className="w-full text-left text-[13px]">
+                <thead className="sticky top-0 bg-[#F8F9FB] dark:bg-[#111419] border-b border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider z-10">
+                  <tr className="h-[44px]">
+                    <th className="p-3 pl-4">TASK</th>
+                    <th className="p-3">STATUS</th>
+                    <th className="p-3">PRIORITY</th>
+                    <th className="p-3">DUE DATE</th>
+                    <th className="p-3 text-right pr-4">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E4E7EC]/60 dark:divide-[#272D36]/60">
+                  {filteredTasks.map((t) => {
+                    const isComp = t.status === "COMPLETED" || t.status === "Completed";
+                    return (
+                      <tr
+                        key={t.id}
+                        className="h-[58px] hover:bg-[#F8F9FB] dark:hover:bg-[#111419] transition-colors"
+                      >
+                        <td className="p-3 pl-4 font-semibold text-[#17202A] dark:text-[#F2F4F7]">
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleToggle(t)}
+                              className={`shrink-0 transition-colors ${
+                                isComp ? "text-emerald-500" : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              {isComp ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                            </button>
+                            <span className={isComp ? "line-through text-muted-foreground" : ""}>
+                              {t.title}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
+                            {isComp ? "COMPLETED" : "PENDING"}
+                          </span>
+                        </td>
+                        <td className="p-3 text-[12px]">
+                          {renderPriorityBadge(t.priority)}
+                        </td>
+                        <td className="p-3 text-[12px] text-[#667085] dark:text-[#8B95A5]">
+                          {t.deadline ? (
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />
+                              {new Date(t.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td className="p-3 text-right pr-4">
+                          <button
+                            type="button"
+                            onClick={(e) => handleDelete(t.id, e)}
+                            className="p-1.5 rounded-md text-[#667085] hover:text-rose-600 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
-          <div className="divide-y divide-border rounded-2xl border border-border bg-card overflow-hidden shadow-xs">
-            {/* Header Row */}
-            <div className="hidden sm:grid grid-cols-12 px-4 py-2.5 bg-muted/30 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-              <span className="col-span-6">TASK TITLE</span>
-              <span className="col-span-2">PRIORITY</span>
-              <span className="col-span-2">DUE DATE</span>
-              <span className="col-span-2 text-right">ACTIONS</span>
-            </div>
+          <div className="flex gap-3 overflow-x-auto pb-4 h-full [scrollbar-width:none]">
+            {["Pending", "Completed"].map((statusKey) => {
+              const colTasks = filteredTasks.filter((t) => {
+                const isComp = t.status === "COMPLETED" || t.status === "Completed";
+                return statusKey === "Completed" ? isComp : !isComp;
+              });
 
-            {/* Rows */}
-            {filteredTasks.map((t) => {
-              const isComp = t.status === "COMPLETED" || t.status === "Completed";
               return (
-                <div
-                  key={t.id}
-                  className="p-3.5 sm:p-4 sm:grid sm:grid-cols-12 sm:items-center flex flex-col gap-2 hover:bg-muted/20 transition-colors group"
-                >
-                  <div className="col-span-6 flex items-center gap-3 min-w-0">
-                    <button
-                      onClick={() => handleToggle(t)}
-                      className={`shrink-0 transition-colors ${
-                        isComp ? "text-emerald-500" : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      {isComp ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
-                    </button>
-                    <span
-                      className={`text-xs font-bold truncate ${
-                        isComp ? "line-through text-muted-foreground" : "text-foreground"
-                      }`}
-                    >
-                      {t.title}
+                <div key={statusKey} className="w-[320px] shrink-0 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-3.5 space-y-3 shadow-2xs flex flex-col h-full">
+                  <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-2 shrink-0">
+                    <h3 className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7]">{statusKey}</h3>
+                    <span className="w-5 h-5 rounded-full bg-[#F8F9FB] dark:bg-[#111419] text-[#667085] text-[11px] font-bold flex items-center justify-center border border-[#E4E7EC] dark:border-[#272D36]">
+                      {colTasks.length}
                     </span>
                   </div>
 
-                  <div className="col-span-2 flex items-center gap-2">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        t.priority === "Urgent"
-                          ? "bg-rose-500/10 text-rose-600"
-                          : t.priority === "High"
-                          ? "bg-orange-500/10 text-orange-600"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {t.priority || "Normal"}
-                    </span>
-                  </div>
-
-                  <div className="col-span-2 text-xs text-muted-foreground font-medium flex items-center gap-1">
-                    {t.deadline && (
-                      <>
-                        <Clock className="w-3 h-3" />
-                        {new Date(t.deadline).toLocaleDateString()}
-                      </>
-                    )}
-                  </div>
-
-                  <div className="col-span-2 flex items-center justify-end gap-1">
-                    <button
-                      onClick={(e) => handleDelete(t.id, e)}
-                      className="p-1 rounded-lg text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                  <div className="space-y-2 flex-1 overflow-y-auto pr-0.5">
+                    {colTasks.map((t) => (
+                      <div
+                        key={t.id}
+                        className="p-3 rounded-[12px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] space-y-2"
+                      >
+                        <h4 className="text-[12.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] line-clamp-2">{t.title}</h4>
+                        <div className="flex items-center justify-between text-[10.5px] text-[#667085]">
+                          <span>{t.priority || "Medium"}</span>
+                          {t.deadline && <span>{new Date(t.deadline).toLocaleDateString()}</span>}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
             })}
           </div>
         )}
-      </section>
+      </div>
 
       {/* Manual Create Modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <form
             onSubmit={handleManualCreate}
-            className="bg-card border border-border text-card-foreground rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl"
+            className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7] rounded-[14px] max-w-md w-full p-5 space-y-4 shadow-2xl"
           >
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="text-sm font-bold text-foreground">New Task</h3>
+            <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-3">
+              <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">Create Task</h3>
               <button
                 type="button"
                 onClick={() => setShowCreate(false)}
-                className="p-1 text-muted-foreground hover:text-foreground"
+                className="p-1 rounded-[7px] text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -398,55 +540,57 @@ export default function TasksPage() {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-bold text-foreground mb-1">TASK TITLE *</label>
+                <label className="block text-[10.5px] font-bold uppercase text-[#17202A] dark:text-[#F2F4F7] mb-1">TASK TITLE *</label>
                 <input
                   type="text"
                   placeholder="e.g. Complete API integration"
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="w-full h-10 px-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
+                  className="w-full h-[38px] px-3 rounded-[8px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-medium text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
                 />
               </div>
 
-              <div>
-                <label className="block font-bold text-foreground mb-1">PRIORITY</label>
-                <select
-                  value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                  className="w-full h-10 px-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
-                >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Urgent">Urgent</option>
-                </select>
-              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10.5px] font-bold uppercase text-[#17202A] dark:text-[#F2F4F7] mb-1">PRIORITY</label>
+                  <select
+                    value={form.priority}
+                    onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                    className="w-full h-[38px] px-3 rounded-[8px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-medium text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Urgent">Urgent</option>
+                  </select>
+                </div>
 
-              <div>
-                <label className="block font-bold text-foreground mb-1">DUE DATE</label>
-                <input
-                  type="date"
-                  value={form.deadline}
-                  onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-                  className="w-full h-10 px-3 rounded-xl bg-background border border-border text-xs font-medium text-foreground focus:outline-none focus:border-gold"
-                />
+                <div>
+                  <label className="block text-[10.5px] font-bold uppercase text-[#17202A] dark:text-[#F2F4F7] mb-1">DUE DATE</label>
+                  <input
+                    type="date"
+                    value={form.deadline}
+                    onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+                    className="w-full h-[38px] px-3 rounded-[8px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-medium text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E4E7EC] dark:border-[#272D36]">
               <button
                 type="button"
                 onClick={() => setShowCreate(false)}
-                className="px-4 py-2 rounded-xl border border-border text-xs font-bold text-muted-foreground"
+                className="px-4 h-[36px] rounded-[8px] border border-[#E4E7EC] dark:border-[#272D36] text-xs font-semibold text-[#667085]"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={creating || !form.title.trim()}
-                className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs disabled:opacity-50"
+                className="px-5 h-[36px] rounded-[8px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-xs font-bold shadow-2xs disabled:opacity-50"
               >
-                {creating ? "Saving..." : "Save Task"}
+                {creating ? "Saving..." : "Create Task"}
               </button>
             </div>
           </form>

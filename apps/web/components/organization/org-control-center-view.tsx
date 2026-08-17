@@ -92,16 +92,16 @@ export function OrgControlCenterView({ basePath }: OrgControlCenterViewProps) {
 		try {
 			const workspaceId = localStorage.getItem("workspaceId");
 			const [wsRes, statsRes, projRes] = await Promise.all([
-				apiClient.get("/workspaces"),
-				apiClient.get(`/organization/stats?workspaceId=${workspaceId || "default"}`),
+				apiClient.get("/workspaces").catch(() => ({ data: { success: false, data: [] } })),
+				apiClient.get(`/organization/stats?workspaceId=${workspaceId || "default"}`).catch(() => ({ data: { success: false, data: null } })),
 				apiClient.get(`/org/projects${workspaceId ? `?workspaceId=${workspaceId}` : ""}`).catch(() => ({ data: { success: false, data: [] } })),
 			]);
 
-			if (wsRes.data.success && wsRes.data.data?.length > 0) {
+			if (wsRes.data?.success && Array.isArray(wsRes.data.data) && wsRes.data.data.length > 0) {
 				const found = wsRes.data.data.find((w: any) => w.id === workspaceId) || wsRes.data.data[0];
 				setWorkspace(found);
 			}
-			if (statsRes.data.success) {
+			if (statsRes.data?.success && statsRes.data.data) {
 				setStats(statsRes.data.data);
 			}
 			if (projRes.data?.success && Array.isArray(projRes.data?.data)) {

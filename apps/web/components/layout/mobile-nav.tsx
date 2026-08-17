@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home,
-  Focus,
   Plus,
   History,
   Trophy,
@@ -23,6 +22,7 @@ import {
   LogOut,
   X,
 } from "lucide-react";
+import { FocusIcon } from "@/components/ui/focus-icon";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/components/auth/auth-context";
 
@@ -47,14 +47,14 @@ export function MobileNav({
   const navItems = isPersonal
     ? [
         { label: "Home", href: "/personal/dashboard", icon: Home },
-        { label: "Focus", href: "/personal/focus", icon: Focus },
+        { label: "Focus", href: "/personal/focus", icon: FocusIcon },
         { label: "Create", href: "#create", icon: Plus, isAction: true },
         { label: "Timeline", href: "/personal/timeline", icon: History },
         { label: "More", href: "#more", icon: MoreHorizontal, isMore: true },
       ]
     : [
         { label: "Home", href: `${basePath}/dashboard`, icon: Home },
-        { label: "Focus", href: `${basePath}/focus`, icon: Focus },
+        { label: "Focus", href: `${basePath}/focus`, icon: FocusIcon },
         { label: "Create", href: "#create", icon: Plus, isAction: true },
         { label: "Progress", href: `${basePath}/leaderboard`, icon: Trophy },
         { label: "More", href: "#more", icon: MoreHorizontal, isMore: true },

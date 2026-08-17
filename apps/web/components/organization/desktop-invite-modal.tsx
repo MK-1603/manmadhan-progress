@@ -65,7 +65,7 @@ export function DesktopInviteModal({ isOpen, onClose, onSuccess, coCeos }: Deskt
         "/invitations/send",
         {
           email: email.trim(),
-          name: batchId.trim() || undefined,
+          batchNumber: batchId.trim() || undefined,
           role,
           managerId: role === "MEMBER" && managerId ? managerId : undefined,
           workspaceId,
@@ -200,9 +200,15 @@ export function DesktopInviteModal({ isOpen, onClose, onSuccess, coCeos }: Deskt
               type="text"
               disabled={dispatchState !== "READY" && dispatchState !== "FAILED"}
               placeholder="e.g. MK1603"
+              maxLength={6}
               value={batchId}
-              onChange={(e) => setBatchId(e.target.value)}
-              className="w-full h-[42px] px-3.5 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[11px] text-[13px] text-[#17202A] dark:text-[#F2F4F7] placeholder-[#667085] dark:placeholder-[#8B95A5] outline-none focus:border-[#B28D18] dark:focus:border-[#C9A52A] transition-colors disabled:opacity-50"
+              onChange={(e) => {
+                const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                const letters = raw.replace(/[^A-Z]/g, "").slice(0, 2);
+                const digits = raw.replace(/[^0-9]/g, "").slice(0, 4);
+                setBatchId(letters + digits);
+              }}
+              className="w-full h-[42px] px-3.5 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[11px] text-[13px] text-[#17202A] dark:text-[#F2F4F7] placeholder-[#667085] dark:placeholder-[#8B95A5] outline-none focus:border-[#B28D18] dark:focus:border-[#C9A52A] transition-colors disabled:opacity-50 font-mono tracking-widest uppercase"
             />
           </div>
 

@@ -423,13 +423,13 @@ authRouter.post("/verify-otp", async (req, res, next) => {
 
 		// Handle Returning User Login Flow
 		const deviceId = req.ip || "unknown-device";
-		const accessToken = SessionService.issueTokens(res, user, deviceId);
+		const sessionTokens = await SessionService.issueTokens(res, user, deviceId);
 
 		return res.json({
 			success: true,
 			nextStep: "DASHBOARD",
 			role: user.role,
-			accessToken,
+			accessToken: sessionTokens?.accessToken,
 		});
 	} catch (error) {
 		next(error);

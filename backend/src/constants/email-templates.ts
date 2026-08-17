@@ -210,4 +210,18 @@ export const AppEvents: Record<string, NotificationTemplate> = {
 		actionText: "Upgrade Plan",
 		getDefaultActionUrl: (_data, url) => `${url}/settings/billing`,
 	},
+
+	// --- AUTOMATION ---
+	AUTOMATION_ALERT: {
+		type: "AUTOMATION_ALERT",
+		mode: "alert",
+		icon: "bell",
+		subjectTemplate: (data) => (data.title ? String(data.title) : "Automation Alert"),
+		titleTemplate: (data) => (data.title ? String(data.title) : "Automation Alert"),
+		bodyTemplate: (data) => [
+			String(data.message || "An automated execution workflow was triggered."),
+		],
+		actionText: "View Automation",
+		getDefaultActionUrl: (_data, url) => `${url}/ceo/automation`,
+	},
 };

@@ -77,27 +77,38 @@ orgApprovalsRouter.get(
 			const _userId = (req as any).user?.id;
 			const _membership = (req as any).membership;
 
-			// Tasks in Review state
-			const pendingTasks = await db
+			// Fetch tasks in review or with approval history
+			const allTasks = await db
 				.select({
 					id: tasks.id,
 					title: tasks.title,
+					description: tasks.description,
 					status: tasks.status,
 					assigneeId: tasks.assigneeId,
 					assigneeName: users.displayName,
 					projectId: tasks.projectId,
 					projectName: projects.name,
 					submittedAt: tasks.submittedAt,
+					approvedAt: tasks.approvedAt,
 					deadline: tasks.deadline,
 					priority: tasks.priority,
+					rejectionFeedback: tasks.rejectionFeedback,
 				})
 				.from(tasks)
 				.leftJoin(users, eq(tasks.assigneeId, users.id))
 				.leftJoin(projects, eq(tasks.projectId, projects.id))
 				.where(
-					and(eq(tasks.workspaceId, workspaceId), eq(tasks.status, "Review")),
+					and(
+						eq(tasks.workspaceId, workspaceId),
+						sql`(${tasks.status} IN ('Review', 'Approved', 'Completed') OR ${tasks.rejectionFeedback} IS NOT NULL)`
+					)
 				)
 				.orderBy(desc(tasks.submittedAt));
+
+			const pendingTasks = allTasks.filter((t) => (t.status || "").toLowerCase() === "review");
+			const approvedTasks = allTasks.filter((t) => ["approved", "completed"].includes((t.status || "").toLowerCase()));
+			const rejectedTasks = allTasks.filter((t) => (t.status || "").toLowerCase() === "rejected");
+			const changesRequestedTasks = allTasks.filter((t) => (t.status || "").toLowerCase() === "in progress" && Boolean(t.rejectionFeedback));
 
 			// Deadline extension requests
 			const pendingExtensions = await db
@@ -149,13 +160,20 @@ orgApprovalsRouter.get(
 			res.json({
 				success: true,
 				data: {
-					tasks: pendingTasks,
+					tasks: allTasks,
+					pendingTasks,
+					approvedTasks,
+					rejectedTasks,
+					changesRequestedTasks,
 					extensions: pendingExtensions,
 					leaves: pendingLeaves,
-					total:
-						pendingTasks.length +
-						pendingExtensions.length +
-						pendingLeaves.length,
+					summary: {
+						pendingCount: pendingTasks.length + pendingExtensions.length + pendingLeaves.length,
+						approvedCount: approvedTasks.length,
+						rejectedCount: rejectedTasks.length,
+						changesRequestedCount: changesRequestedTasks.length,
+						total: allTasks.length + pendingExtensions.length + pendingLeaves.length,
+					},
 				},
 			});
 		} catch (err: any) {
@@ -247,73 +265,76 @@ orgApprovalsRouter.post(
 	},
 );
 
-orgApprovalsRouter.post(
-	"/tasks/:taskId/reject",
-	resolveWorkspace,
-	requireMembership,
-	requireLeadership,
-	async (req: Request, res: Response) => {
-		try {
-			const workspaceId = (req as any).workspaceId;
-			const userId = (req as any).user?.id;
-			const taskId = req.params.taskId as string;
-			const { feedback } = req.body;
-			if (!feedback)
-				return res.status(400).json({
-					success: false,
-					error: "Feedback/reason is required for rejection",
-				});
+const handleRejectOrChanges = async (req: Request, res: Response) => {
+	try {
+		const workspaceId = (req as any).workspaceId;
+		const userId = (req as any).user?.id;
+		const taskId = req.params.taskId as string;
+		const { feedback, reason, comment } = req.body;
+		const finalFeedback = (feedback || reason || comment || "").trim();
 
-			const task = await db.query.tasks.findFirst({
-				where: and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId)),
+		if (!finalFeedback)
+			return res.status(400).json({
+				success: false,
+				error: "Feedback/reason is required",
 			});
-			if (!task)
-				return res
-					.status(404)
-					.json({ success: false, error: "Task not found" });
 
-			const [updated] = await db
-				.update(tasks)
-				.set({ status: "In Progress", rejectionFeedback: feedback })
-				.where(eq(tasks.id, taskId))
-				.returning();
+		const task = await db.query.tasks.findFirst({
+			where: and(eq(tasks.id, taskId), eq(tasks.workspaceId, workspaceId)),
+		});
+		if (!task)
+			return res
+				.status(404)
+				.json({ success: false, error: "Task not found" });
 
-			if (task.assigneeId) {
-				await db.insert(notifications).values({
-					id: uuidv4(),
-					userId: task.assigneeId,
-					workspaceId,
-					title: "Task Rejected",
-					message: `Your task "${task.title}" was rejected: ${feedback}`,
-					type: "task_rejected",
-					priority: "High",
-				});
-				socketService.emitToUser(task.assigneeId, "notification.created", {
-					type: "task_rejected",
-					title: "Task Rejected",
-					message: feedback,
-				});
-			}
+		const [updated] = await db
+			.update(tasks)
+			.set({ status: "In Progress", rejectionFeedback: finalFeedback })
+			.where(eq(tasks.id, taskId))
+			.returning();
 
-			await db.insert(auditLogs).values({
+		if (task.assigneeId) {
+			await db.insert(notifications).values({
 				id: uuidv4(),
-				userId,
+				userId: task.assigneeId,
 				workspaceId,
-				eventType: "TASK_REJECTED",
-				details: `Task "${task.title}" rejected: ${feedback}`,
+				title: "Changes Requested",
+				message: `Your task "${task.title}" needs changes: ${finalFeedback}`,
+				type: "task_rejected",
+				priority: "High",
 			});
-			socketService.emitToWorkspace(workspaceId, "approval.updated", {
-				type: "task",
-				id: taskId,
-				status: "Rejected",
+			socketService.emitToUser(task.assigneeId, "notification.created", {
+				type: "task_rejected",
+				title: "Changes Requested",
+				message: finalFeedback,
 			});
-			res.json({ success: true, data: updated });
-		} catch (err: any) {
-			logger.error(`Reject task error: ${err.message}`);
-			res.status(500).json({ success: false, error: "Internal server error" });
 		}
-	},
-);
+
+		await db.insert(auditLogs).values({
+			id: uuidv4(),
+			userId,
+			workspaceId,
+			eventType: "TASK_REJECTED",
+			details: `Task "${task.title}" changes requested: ${finalFeedback}`,
+		});
+		socketService.emitToWorkspace(workspaceId, "approval.updated", {
+			type: "task",
+			id: taskId,
+			status: "Changes Requested",
+		});
+		res.json({ success: true, data: updated });
+	} catch (err: any) {
+		logger.error(`Reject/Request changes task error: ${err.message}`);
+		res.status(500).json({ success: false, error: "Internal server error" });
+	}
+};
+
+orgApprovalsRouter.post("/tasks/:taskId/reject", resolveWorkspace, requireMembership, requireLeadership, handleRejectOrChanges);
+orgApprovalsRouter.post("/tasks/:taskId/request_changes", resolveWorkspace, requireMembership, requireLeadership, handleRejectOrChanges);
+orgApprovalsRouter.post("/tasks/:taskId/request-changes", resolveWorkspace, requireMembership, requireLeadership, handleRejectOrChanges);
+orgApprovalsRouter.post("/:taskId/reject", resolveWorkspace, requireMembership, requireLeadership, handleRejectOrChanges);
+orgApprovalsRouter.post("/:taskId/request_changes", resolveWorkspace, requireMembership, requireLeadership, handleRejectOrChanges);
+orgApprovalsRouter.post("/:taskId/request-changes", resolveWorkspace, requireMembership, requireLeadership, handleRejectOrChanges);
 
 // ─── Approve/Reject Deadline Extension ───────────────────────────────────────
 orgApprovalsRouter.post(

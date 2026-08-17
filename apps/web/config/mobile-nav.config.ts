@@ -1,16 +1,17 @@
 import {
-  LayoutDashboard, Focus, FolderKanban, CheckSquare, Calendar as Cal,
+  LayoutDashboard, FolderKanban, CheckSquare, Calendar as Cal,
   History, PenSquare, BookOpen, Headphones, GraduationCap, FileText,
   Archive, Brain, Sparkles, Zap, Bell, BarChart, Settings, UserCheck,
   Users, UserPlus, Network, Trophy, Building, ShieldCheck, LucideIcon
 } from "lucide-react";
+import { FocusIcon, Focus } from "@/components/ui/focus-icon";
 
 export type RoleType = "CEO" | "CO-CEO" | "MEMBER";
 
 export type NavItem = {
   label: string;
   href: string;
-  icon: LucideIcon;
+  icon: any;
   roles?: RoleType[];
 };
 
@@ -24,7 +25,7 @@ export const PERSONAL_MOBILE_NAV: NavSection[] = [
     section: "OVERVIEW",
     items: [
       { label: "Dashboard", href: "/personal/dashboard", icon: LayoutDashboard },
-      { label: "Focus", href: "/personal/focus", icon: Focus },
+      { label: "Focus", href: "/personal/focus", icon: FocusIcon },
     ],
   },
   {
@@ -81,7 +82,7 @@ export const ORGANIZATION_MOBILE_NAV = (role: RoleType): NavSection[] => {
       section: "OVERVIEW",
       items: [
         { label: "Dashboard", href: getHref("dashboard"), icon: LayoutDashboard },
-        { label: "Focus", href: getHref("focus"), icon: Focus },
+        { label: "Focus", href: getHref("focus"), icon: FocusIcon },
       ],
     },
     {

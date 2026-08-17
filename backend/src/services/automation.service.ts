@@ -1,9 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { db } from "../../database/client";
-import { automations, automationLogs, users } from "../../database/schema";
+import { automations, automationLogs, users, tasks, motivations, motivationDeliveries } from "../../database/schema";
 import { aiService } from "./ai.service";
 import { NotificationService } from "./notification.service";
+import { AuditService } from "./audit.service";
 import { env } from "../../config/env.config";
 import { socketService } from "./socket.service";
 import { logger } from "./logger.service";
@@ -11,7 +12,7 @@ import { logger } from "./logger.service";
 export interface ParsedAutomation {
   name: string;
   description: string;
-  triggerType: "SCHEDULE" | "TASK_ASSIGNED" | "TASK_ACCEPTED" | "TASK_COMPLETED" | "TASK_OVERDUE" | "PROGRESS_UPDATED";
+  triggerType: "SCHEDULE" | "TASK_CREATED" | "TASK_ASSIGNED" | "TASK_STARTED" | "TASK_STATUS_CHANGED" | "TASK_DEADLINE_APPROACHING" | "TASK_OVERDUE" | "TASK_COMPLETED" | "TASK_BLOCKED" | "DAILY_MOTIVATION";
   triggerConfig: Record<string, any>;
   conditionConfig: Record<string, any>;
   actionType: "NOTIFICATION" | "TASK_UPDATE" | "SCHEDULER" | "PROGRESS_UPDATE";
@@ -26,15 +27,14 @@ export class AutomationService {
   /**
    * Interprets natural language prompt into a structured automation definition.
    */
-  public static async interpretPrompt(prompt: string, workspaceType: "personal" | "organization" = "personal"): Promise<ParsedAutomation> {
+  public static async interpretPrompt(prompt: string, workspaceType: "personal" | "organization" = "organization"): Promise<ParsedAutomation> {
     const text = prompt.trim().toLowerCase();
 
-    // 1. Safety & Supported Capability Check
+    // 1. Safety Check
     if (
       text.includes("delete database") ||
       text.includes("drop table") ||
       text.includes("bulk delete") ||
-      text.includes("change org setting") ||
       text.includes("rewrite code") ||
       text.includes("shutdown server")
     ) {
@@ -47,40 +47,42 @@ export class AutomationService {
         actionType: "NOTIFICATION",
         actionConfig: {},
         requiresConfirmation: true,
-        explanation: "This automation involves administrative or destructive operations that are not supported.",
+        explanation: "Dangerous operations are not supported by the automation engine.",
         isSupported: false,
-        unsupportedReason: "Dangerous or destructive operations are not supported by the automation engine.",
+        unsupportedReason: "Dangerous or destructive operations are prohibited.",
       };
     }
 
-    // 2. Try Smart AI Interpretation
+    // 2. AI Smart Failover Interpretation
     const systemPrompt = `You are the ManMadhan Automation Interpreter. Convert the user's workflow prompt into a strict JSON object with zero markdown wrappers.
 
 SUPPORTED TRIGGERS:
-- SCHEDULE (cron / recurring time e.g. "every weekday at 9 AM", "every Friday at 5 PM")
+- SCHEDULE (recurring cron / time e.g. "every weekday at 9 AM")
 - TASK_ASSIGNED (when a task is assigned)
-- TASK_ACCEPTED (when a user accepts a task)
+- TASK_STARTED (when a task starts / moves to In Progress)
+- TASK_DEADLINE_APPROACHING (1 hour, 3 hours, 24 hours before deadline)
+- TASK_OVERDUE (when deadline passes and task is incomplete)
 - TASK_COMPLETED (when a task is completed)
-- TASK_OVERDUE (when a task becomes overdue)
-- PROGRESS_UPDATED (when workspace progress changes)
+- TASK_BLOCKED (when a task is blocked)
+- DAILY_MOTIVATION (daily morning focus & priority summary)
 
 SUPPORTED ACTIONS:
-- NOTIFICATION (send notification / alert to user)
-- TASK_UPDATE (change task status, priority, or deadline)
-- SCHEDULER (trigger scheduled digest or reminder)
+- NOTIFICATION (send in-app/push notification)
+- TASK_UPDATE (update priority or status)
+- SCHEDULER (trigger scheduled digest)
 - PROGRESS_UPDATE (recalculate progress)
 
-Respond ONLY in valid JSON matching this schema:
+Respond ONLY in valid JSON:
 {
   "name": "short descriptive name",
-  "description": "human readable explanation",
-  "triggerType": "SCHEDULE | TASK_ASSIGNED | TASK_ACCEPTED | TASK_COMPLETED | TASK_OVERDUE | PROGRESS_UPDATED",
-  "triggerConfig": { "cron": "0 9 * * 1-5", "time": "09:00", "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] },
-  "conditionConfig": { "priority": "High" },
+  "description": "human readable description",
+  "triggerType": "SCHEDULE | TASK_ASSIGNED | TASK_STARTED | TASK_DEADLINE_APPROACHING | TASK_OVERDUE | TASK_COMPLETED | TASK_BLOCKED | DAILY_MOTIVATION",
+  "triggerConfig": { "time": "09:00", "days": ["Mon", "Tue", "Wed", "Thu", "Fri"], "leadMinutes": 60 },
+  "conditionConfig": { "statusNotIn": ["Completed"], "priority": "High" },
   "actionType": "NOTIFICATION | TASK_UPDATE | SCHEDULER | PROGRESS_UPDATE",
-  "actionConfig": { "message": "Review priorities", "priority": "High" },
+  "actionConfig": { "message": "Review priorities", "priority": "High", "channel": "IN_APP_NOTIFICATION" },
   "requiresConfirmation": false,
-  "explanation": "Human readable summary of WHEN and DO behavior",
+  "explanation": "Summary of WHEN and DO behavior",
   "isSupported": true
 }`;
 
@@ -105,88 +107,72 @@ Respond ONLY in valid JSON matching this schema:
         };
       }
     } catch (e) {
-      // Fall through to deterministic rule-based parser fallback
+      // Fall through to deterministic rules
     }
 
-    // 3. Fallback Deterministic Rule-Based Parsing
-    if (text.includes("weekday at 9") || text.includes("every day at 9") || text.includes("9 am")) {
+    // 3. Fallback Deterministic Rule-Based Parser
+    if (text.includes("weekday at 9") || text.includes("9 am") || text.includes("motivation")) {
       return {
-        name: "Daily 9 AM Priorities Review",
-        description: "Sends a reminder notification every weekday morning at 9:00 AM.",
-        triggerType: "SCHEDULE",
+        name: "Daily Morning Focus & Priority Digest",
+        description: "Sends a daily priority digest every weekday morning at 9:00 AM.",
+        triggerType: "DAILY_MOTIVATION",
         triggerConfig: { time: "09:00", days: ["Mon", "Tue", "Wed", "Thu", "Fri"] },
         conditionConfig: {},
         actionType: "NOTIFICATION",
-        actionConfig: { message: "Review your daily priorities and focus tasks." },
+        actionConfig: { message: "Review your daily focus tasks and top priority objectives.", channel: "IN_APP_NOTIFICATION" },
         requiresConfirmation: false,
-        explanation: "WHEN Every weekday at 9:00 AM DO Send notification: 'Review your daily priorities and focus tasks.'",
+        explanation: "WHEN Every weekday at 9:00 AM DO Send priority summary notification.",
         isSupported: true,
       };
     }
 
-    if (text.includes("task is assigned") || text.includes("assigned to me")) {
+    if (text.includes("assigned")) {
       return {
         name: "New Task Assignment Alert",
-        description: "Notifies immediately when a new task is assigned.",
+        description: "Notifies immediately when a task is assigned to a user.",
         triggerType: "TASK_ASSIGNED",
         triggerConfig: { event: "TASK_ASSIGNED" },
         conditionConfig: {},
         actionType: "NOTIFICATION",
-        actionConfig: { message: "A new task has been assigned to you." },
+        actionConfig: { message: "A new execution task has been assigned to you.", channel: "IN_APP_NOTIFICATION" },
         requiresConfirmation: false,
-        explanation: "WHEN A task is assigned to you DO Send immediate notification.",
+        explanation: "WHEN A task is assigned DO Send instant notification to assignee.",
+        isSupported: true,
+      };
+    }
+
+    if (text.includes("deadline") || text.includes("remind me")) {
+      return {
+        name: "1-Hour Task Deadline Reminder",
+        description: "Sends an urgent alert 1 hour before a task deadline.",
+        triggerType: "TASK_DEADLINE_APPROACHING",
+        triggerConfig: { leadMinutes: 60 },
+        conditionConfig: { statusNotIn: ["Completed"] },
+        actionType: "NOTIFICATION",
+        actionConfig: { message: "Task deadline is approaching in 1 hour.", priority: "High" },
+        requiresConfirmation: false,
+        explanation: "WHEN Task deadline is 1 hour away AND status is incomplete DO Send urgent reminder.",
         isSupported: true,
       };
     }
 
     if (text.includes("overdue")) {
       return {
-        name: "Overdue Task Alert & High Priority Escalation",
-        description: "Sends an alert notification and flags task as High priority when overdue.",
+        name: "Overdue Task Escalation Alert",
+        description: "Notifies assignee when a task passes its deadline.",
         triggerType: "TASK_OVERDUE",
         triggerConfig: { event: "TASK_OVERDUE" },
-        conditionConfig: {},
+        conditionConfig: { statusNotIn: ["Completed"] },
         actionType: "NOTIFICATION",
-        actionConfig: { message: "Task is overdue! Action required.", setPriority: "High" },
+        actionConfig: { message: "Task deadline has passed and is marked overdue.", priority: "Urgent" },
         requiresConfirmation: false,
-        explanation: "WHEN A task becomes overdue DO Send alert notification and escalate priority to High.",
+        explanation: "WHEN Task deadline passes AND task is incomplete DO Send overdue escalation alert.",
         isSupported: true,
       };
     }
 
-    if (text.includes("friday at 5") || text.includes("weekly progress")) {
-      return {
-        name: "Friday Weekly Progress Summary",
-        description: "Generates weekly execution summary every Friday at 5:00 PM.",
-        triggerType: "SCHEDULE",
-        triggerConfig: { time: "17:00", days: ["Friday"] },
-        conditionConfig: {},
-        actionType: "SCHEDULER",
-        actionConfig: { message: "Create weekly progress summary report." },
-        requiresConfirmation: false,
-        explanation: "WHEN Every Friday at 5:00 PM DO Generate weekly progress summary.",
-        isSupported: true,
-      };
-    }
-
-    if (text.includes("complete a task") || text.includes("completed")) {
-      return {
-        name: "Task Completion Progress Sync",
-        description: "Automatically recalculates overall progress when a task is completed.",
-        triggerType: "TASK_COMPLETED",
-        triggerConfig: { event: "TASK_COMPLETED" },
-        conditionConfig: {},
-        actionType: "PROGRESS_UPDATE",
-        actionConfig: { recalculateProgress: true },
-        requiresConfirmation: false,
-        explanation: "WHEN A task is completed DO Automatically update overall progress.",
-        isSupported: true,
-      };
-    }
-
-    // Generic fallback for valid prompts
     return {
-      name: "Custom Workflow Rule",
+      name: "Custom Workflow Automation",
       description: prompt,
       triggerType: "SCHEDULE",
       triggerConfig: { time: "09:00" },
@@ -194,13 +180,13 @@ Respond ONLY in valid JSON matching this schema:
       actionType: "NOTIFICATION",
       actionConfig: { message: prompt },
       requiresConfirmation: false,
-      explanation: `WHEN Prompt trigger occurs DO Execute notification action: "${prompt}"`,
+      explanation: `WHEN Custom schedule occurs DO Send notification: "${prompt}"`,
       isSupported: true,
     };
   }
 
   /**
-   * Creates and activates an automation in the database.
+   * Creates a new automation in DB.
    */
   public static async createAutomation(data: {
     workspaceId?: string;
@@ -218,19 +204,17 @@ Respond ONLY in valid JSON matching this schema:
     requiresConfirmation?: boolean;
   }) {
     const id = uuidv4();
+    const wsId = data.workspaceId && String(data.workspaceId).trim() !== "" && String(data.workspaceId) !== "undefined" && String(data.workspaceId) !== "null"
+      ? String(data.workspaceId).trim()
+      : null;
+
     const newAutomation = {
       id,
-      workspaceId:
-        data.workspaceId &&
-        String(data.workspaceId).trim() !== "" &&
-        String(data.workspaceId) !== "undefined" &&
-        String(data.workspaceId) !== "null"
-          ? String(data.workspaceId).trim()
-          : null,
+      workspaceId: wsId,
       createdByUserId: data.createdByUserId,
       name: data.name,
       description: data.description || "",
-      creationMode: data.creationMode || "PROMPT",
+      creationMode: data.creationMode || "VISUAL",
       originalPrompt: data.originalPrompt || null,
       triggerType: data.triggerType,
       triggerConfig: data.triggerConfig || {},
@@ -240,32 +224,43 @@ Respond ONLY in valid JSON matching this schema:
       status: data.status || "ACTIVE",
       requiresConfirmation: Boolean(data.requiresConfirmation),
       lastRunAt: null,
-      nextRunAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      nextRunAt: new Date(Date.now() + 60 * 1000),
       runCount: 0,
+      failureCount: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
     await db.insert(automations).values(newAutomation);
 
-    // Socket.IO notification for real-time client updates
+    // Audit log
+    await AuditService.logEvent(
+      data.createdByUserId,
+      "AUTOMATION_CREATED",
+      `Created automation: "${data.name}" (${data.triggerType} -> ${data.actionType})`,
+      null,
+      wsId
+    );
+
     try {
       socketService.emitToUser(data.createdByUserId, "automation.created", newAutomation);
-    } catch (e) {
-      // Ignore socket emit error
-    }
+    } catch (e) {}
 
     return newAutomation;
   }
 
   /**
-   * Executes event-driven automations dynamically (e.g. TASK_ASSIGNED, TASK_COMPLETED, TASK_OVERDUE).
+   * Triggers event-driven automations (e.g. TASK_ASSIGNED, TASK_STARTED, TASK_DEADLINE_APPROACHING, TASK_OVERDUE, TASK_COMPLETED).
    */
   public static async triggerEvent(
-    eventType: "TASK_ASSIGNED" | "TASK_ACCEPTED" | "TASK_COMPLETED" | "TASK_OVERDUE" | "PROGRESS_UPDATED",
-    payload: { userId: string; workspaceId?: string; taskId?: string; taskTitle?: string; details?: any }
+    eventType: string,
+    payload: { userId?: string; workspaceId?: string; taskId?: string; taskTitle?: string; status?: string; details?: any }
   ) {
     try {
+      const wsId = payload.workspaceId || null;
+      const targetUserId = payload.userId || null;
+
+      // Fetch matching active automations for workspace or user
       const matchingAutomations = await db
         .select()
         .from(automations)
@@ -277,70 +272,295 @@ Respond ONLY in valid JSON matching this schema:
         );
 
       for (const auto of matchingAutomations) {
-        // Execute Action
+        if (wsId && auto.workspaceId && auto.workspaceId !== wsId) continue;
+
+        const now = new Date();
+        const hour = now.getHours();
+
+        // 1. Off-hours System Restriction Check (11:00 PM to 4:00 AM)
+        if (hour >= 23 || hour < 4) {
+          const logId = uuidv4();
+          await db.insert(automationLogs).values({
+            id: logId,
+            automationId: auto.id,
+            workspaceId: wsId,
+            userId: targetUserId,
+            status: "SKIPPED",
+            triggeredBy: `EVENT_${eventType}`,
+            executionDetails: payload,
+            reason: "Deferred because execution window was outside working hours (11:00 PM - 4:00 AM).",
+            executedAt: now,
+          });
+          logger.info(`[Automation] Skipped ${auto.name}: Off working hours window`);
+          continue;
+        }
+
+        // 2. Condition Evaluation
+        const cond = (auto.conditionConfig || {}) as Record<string, any>;
+        if (cond.statusNotIn && Array.isArray(cond.statusNotIn) && payload.status) {
+          if (cond.statusNotIn.includes(payload.status)) {
+            const logId = uuidv4();
+            await db.insert(automationLogs).values({
+              id: logId,
+              automationId: auto.id,
+              workspaceId: wsId,
+              userId: targetUserId,
+              status: "SKIPPED",
+              triggeredBy: `EVENT_${eventType}`,
+              executionDetails: payload,
+              reason: `Task status "${payload.status}" matched excluded status filter (${cond.statusNotIn.join(", ")}).`,
+              executedAt: now,
+            });
+            continue;
+          }
+        }
+
+        // 3. Idempotency Key check: automationId + taskId + triggerType + hour
+        if (payload.taskId) {
+          const hourKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}`;
+          const existingLogs = await db
+            .select()
+            .from(automationLogs)
+            .where(
+              and(
+                eq(automationLogs.automationId, auto.id),
+                eq(automationLogs.status, "COMPLETED")
+              )
+            )
+            .limit(10);
+
+          const isDuplicate = existingLogs.some((l) => {
+            const details = (l.executionDetails || {}) as any;
+            return details.taskId === payload.taskId && details.hourKey === hourKey;
+          });
+
+          if (isDuplicate) {
+            const logId = uuidv4();
+            await db.insert(automationLogs).values({
+              id: logId,
+              automationId: auto.id,
+              workspaceId: wsId,
+              userId: targetUserId,
+              status: "SKIPPED",
+              triggeredBy: `EVENT_${eventType}`,
+              executionDetails: { ...payload, hourKey },
+              reason: "Skipped duplicate execution in the same idempotency time window.",
+              executedAt: now,
+            });
+            continue;
+          }
+        }
+
+        // 4. Action Execution
         const logId = uuidv4();
-        let status = "SUCCESS";
-        let errorMsg = null;
+        let execStatus = "COMPLETED";
+        let errorMsg: string | null = null;
+        const hourKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}`;
 
         try {
-          if (auto.actionType === "NOTIFICATION") {
-            const actionCfg = (auto.actionConfig || {}) as Record<string, any>;
-            const message = actionCfg.message || `Automation Triggered: ${auto.name}`;
+          const actionCfg = (auto.actionConfig || {}) as Record<string, any>;
+          const msg = actionCfg.message || `Automation Action: ${auto.name}`;
+          const recipientId = targetUserId || auto.createdByUserId;
+
+          if (auto.actionType === "NOTIFICATION" && recipientId) {
             await NotificationService.dispatch({
               type: "AUTOMATION_ALERT",
-              userId: payload.userId,
+              userId: recipientId,
               clientUrl: env.CLIENT_URL,
               data: {
                 title: auto.name,
-                message: `${message} (${payload.taskTitle || "Task update"})`,
+                message: `${msg} (${payload.taskTitle || "Task event"})`,
               },
             });
           }
 
-          // Update automation stats
+          // Update Run Count & Timestamp
           await db
             .update(automations)
             .set({
-              lastRunAt: new Date(),
+              lastRunAt: now,
               runCount: (auto.runCount || 0) + 1,
-              updatedAt: new Date(),
+              updatedAt: now,
             })
             .where(eq(automations.id, auto.id));
+
+          // Log Timeline Event
+          await AuditService.logEvent(
+            recipientId,
+            "AUTOMATION_EXECUTED",
+            `Automation "${auto.name}" executed successfully: ${msg}`,
+            null,
+            wsId
+          );
         } catch (err: any) {
-          status = "FAILED";
+          execStatus = "FAILED";
           errorMsg = err.message || "Failed to execute action";
+          await db
+            .update(automations)
+            .set({
+              failureCount: (auto.failureCount || 0) + 1,
+              status: auto.failureCount && auto.failureCount >= 5 ? "FAILED" : auto.status,
+              updatedAt: now,
+            })
+            .where(eq(automations.id, auto.id));
         }
 
-        // Record Execution Log in DB
+        // 5. Record Execution History
         await db.insert(automationLogs).values({
           id: logId,
           automationId: auto.id,
-          workspaceId: auto.workspaceId || payload.workspaceId || null,
-          userId: payload.userId,
-          status,
+          workspaceId: wsId,
+          userId: targetUserId || auto.createdByUserId,
+          status: execStatus,
           triggeredBy: `EVENT_${eventType}`,
-          executionDetails: payload,
+          executionDetails: { ...payload, hourKey },
           errorMessage: errorMsg,
-          executedAt: new Date(),
+          reason: execStatus === "COMPLETED" ? "Executed successfully." : errorMsg,
+          executedAt: now,
         });
 
-        // Broadcast Real-Time Socket Event
         try {
-          socketService.emitToUser(payload.userId, "automation.triggered", {
-            automationId: auto.id,
-            name: auto.name,
-            status,
-            executedAt: new Date(),
-          });
+          if (targetUserId) {
+            socketService.emitToUser(targetUserId, "automation.triggered", {
+              automationId: auto.id,
+              name: auto.name,
+              status: execStatus,
+              executedAt: now,
+            });
+          }
         } catch (e) {}
       }
     } catch (e) {
-      console.error("Error evaluating event automation:", e);
+      logger.error(`Error executing event automation: ${e}`);
     }
   }
 
   /**
-   * Lists automations for a user or workspace.
+   * Background tick runner for scheduled and deadline automations.
+   */
+  public static async runScheduledTick() {
+    try {
+      const now = new Date();
+      const hour = now.getHours();
+
+      // Skip background tick during system off-hours (11 PM - 4 AM)
+      if (hour >= 23 || hour < 4) return;
+
+      // 1. Process Task Deadline Approaching & Overdue Tasks
+      const allActiveTasks = await db
+        .select()
+        .from(tasks)
+        .where(
+          and(
+            sql`${tasks.status} NOT IN ('Completed', 'Archived')`,
+            sql`${tasks.deadline} IS NOT NULL`
+          )
+        )
+        .limit(100);
+
+      for (const t of allActiveTasks) {
+        if (!t.deadline) continue;
+        const deadlineTime = new Date(t.deadline).getTime();
+        const diffMinutes = Math.floor((deadlineTime - now.getTime()) / (60 * 1000));
+
+        // Approaching deadline (0 to 60 minutes)
+        if (diffMinutes > 0 && diffMinutes <= 60) {
+          await this.triggerEvent("TASK_DEADLINE_APPROACHING", {
+            taskId: t.id,
+            taskTitle: t.title,
+            workspaceId: t.workspaceId,
+            userId: t.assigneeId || undefined,
+            status: t.status,
+            details: { leadMinutes: diffMinutes },
+          });
+        }
+        // Overdue deadline
+        else if (diffMinutes < 0) {
+          await this.triggerEvent("TASK_OVERDUE", {
+            taskId: t.id,
+            taskTitle: t.title,
+            workspaceId: t.workspaceId,
+            userId: t.assigneeId || undefined,
+            status: t.status,
+            details: { overdueMinutes: Math.abs(diffMinutes) },
+          });
+        }
+      }
+
+      // 2. Process Scheduled Automations Due for Execution
+      const dueAutomations = await db
+        .select()
+        .from(automations)
+        .where(
+          and(
+            eq(automations.status, "ACTIVE"),
+            sql`${automations.triggerType} IN ('SCHEDULE', 'DAILY_MOTIVATION')`,
+            sql`(${automations.nextRunAt} IS NULL OR ${automations.nextRunAt} <= ${now})`
+          )
+        );
+
+      for (const auto of dueAutomations) {
+        const logId = uuidv4();
+        let status = "COMPLETED";
+        let errorMsg = null;
+
+        try {
+          const actionCfg = (auto.actionConfig || {}) as Record<string, any>;
+          const msg = actionCfg.message || `Scheduled Digest: ${auto.name}`;
+
+          await NotificationService.dispatch({
+            type: "AUTOMATION_ALERT",
+            userId: auto.createdByUserId,
+            clientUrl: env.CLIENT_URL,
+            data: {
+              title: auto.name,
+              message: msg,
+            },
+          });
+
+          await AuditService.logEvent(
+            auto.createdByUserId,
+            "AUTOMATION_EXECUTED",
+            `Scheduled automation "${auto.name}" executed: ${msg}`,
+            null,
+            auto.workspaceId
+          );
+        } catch (err: any) {
+          status = "FAILED";
+          errorMsg = err.message || "Failed to execute scheduled action";
+        }
+
+        const nextRun = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours later
+        await db
+          .update(automations)
+          .set({
+            lastRunAt: now,
+            nextRunAt: nextRun,
+            runCount: (auto.runCount || 0) + 1,
+            updatedAt: now,
+          })
+          .where(eq(automations.id, auto.id));
+
+        await db.insert(automationLogs).values({
+          id: logId,
+          automationId: auto.id,
+          workspaceId: auto.workspaceId,
+          userId: auto.createdByUserId,
+          status,
+          triggeredBy: `SCHEDULE_${auto.triggerType}`,
+          executionDetails: { scheduledAt: now },
+          errorMessage: errorMsg,
+          reason: status === "COMPLETED" ? "Scheduled execution completed." : errorMsg,
+          executedAt: now,
+        });
+      }
+    } catch (err: any) {
+      logger.error(`Scheduled automation tick error: ${err}`);
+    }
+  }
+
+  /**
+   * Lists real persisted automations for user/workspace.
    */
   public static async listAutomations(userId: string, workspaceId?: string) {
     try {
@@ -360,20 +580,218 @@ Respond ONLY in valid JSON matching this schema:
       }
       return [];
     } catch (err: any) {
-      logger.warn({ msg: err?.message }, "[WARN] Failed to list automations");
+      logger.warn(`Failed to list automations: ${err?.message}`);
       return [];
     }
   }
 
   /**
-   * Fetches execution history logs for an automation.
+   * Fetches real execution logs.
    */
-  public static async getLogs(automationId: string) {
+  public static async getLogs(automationId: string, workspaceId?: string) {
+    if (workspaceId && workspaceId !== "undefined" && workspaceId !== "null") {
+      return db
+        .select()
+        .from(automationLogs)
+        .where(
+          and(
+            eq(automationLogs.automationId, automationId),
+            eq(automationLogs.workspaceId, workspaceId)
+          )
+        )
+        .orderBy(desc(automationLogs.executedAt))
+        .limit(100);
+    }
     return db
       .select()
       .from(automationLogs)
       .where(eq(automationLogs.automationId, automationId))
       .orderBy(desc(automationLogs.executedAt))
+      .limit(100);
+  }
+
+  /**
+   * Retries a failed execution safely with idempotency.
+   */
+  public static async retryExecution(logId: string, userId: string) {
+    const [log] = await db
+      .select()
+      .from(automationLogs)
+      .where(eq(automationLogs.id, logId))
+      .limit(1);
+
+    if (!log) throw new Error("Execution log not found.");
+
+    const [auto] = await db
+      .select()
+      .from(automations)
+      .where(eq(automations.id, log.automationId))
+      .limit(1);
+
+    if (!auto) throw new Error("Parent automation not found.");
+
+    const now = new Date();
+    const actionCfg = (auto.actionConfig || {}) as Record<string, any>;
+    const msg = actionCfg.message || `Retried Automation Action: ${auto.name}`;
+    const targetUser = log.userId || userId;
+
+    await NotificationService.dispatch({
+      type: "AUTOMATION_ALERT",
+      userId: targetUser,
+      clientUrl: env.CLIENT_URL,
+      data: {
+        title: `${auto.name} (Retried)`,
+        message: msg,
+      },
+    });
+
+    const newLogId = uuidv4();
+    await db.insert(automationLogs).values({
+      id: newLogId,
+      automationId: auto.id,
+      workspaceId: auto.workspaceId,
+      userId: targetUser,
+      status: "COMPLETED",
+      triggeredBy: "MANUAL_RETRY",
+      executionDetails: { originalLogId: logId, retriedAt: now },
+      errorMessage: null,
+      reason: "Manual retry executed successfully.",
+      executedAt: now,
+    });
+
+    await AuditService.logEvent(
+      userId,
+      "AUTOMATION_EXECUTED",
+      `Manually retried automation execution for "${auto.name}"`,
+      null,
+      auto.workspaceId
+    );
+
+    return { success: true, logId: newLogId };
+  }
+
+  /**
+   * Lists motivation items from the database library.
+   */
+  public static async listMotivations(workspaceId?: string) {
+    return db
+      .select()
+      .from(motivations)
+      .where(eq(motivations.active, true))
+      .orderBy(desc(motivations.createdAt))
       .limit(50);
+  }
+
+  /**
+   * Gets or selects today's Thirukkural motivation quote for a user using server-side selection algorithm.
+   */
+  public static async getTodayMotivation(userId: string, workspaceId?: string) {
+    try {
+      const fs = require("fs");
+      const path = require("path");
+      const jsonPath = path.resolve(process.cwd(), "thirukkural_daily_motivation.json");
+      const rootJsonPath = path.resolve(process.cwd(), "..", "thirukkural_daily_motivation.json");
+      const targetPath = fs.existsSync(jsonPath) ? jsonPath : fs.existsSync(rootJsonPath) ? rootJsonPath : null;
+
+      if (targetPath) {
+        const raw = fs.readFileSync(targetPath, "utf-8");
+        const kuralItems = JSON.parse(raw);
+        if (Array.isArray(kuralItems) && kuralItems.length > 0) {
+          const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+          const selected = kuralItems[dayOfYear % kuralItems.length];
+          return {
+            id: `kural_${selected.id}`,
+            message: `${selected.title}: ${selected.body}`,
+            category: "THIRUKKURAL",
+            tone: "WISDOM",
+            deliveredAt: new Date().toISOString(),
+            status: "DELIVERED",
+          };
+        }
+      }
+    } catch (e) {}
+
+    const list = await this.listMotivations(workspaceId);
+    if (list.length === 0) {
+      return {
+        id: "mot_default",
+        message: "Consistency is what transforms average into excellence.",
+        category: "DISCIPLINE",
+        tone: "DIRECT",
+        deliveredAt: new Date().toISOString(),
+        status: "DELIVERED",
+      };
+    }
+
+    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+    const selected = list[dayOfYear % list.length];
+
+    return {
+      id: selected.id,
+      message: selected.message,
+      category: selected.category,
+      tone: selected.tone,
+      deliveredAt: new Date().toISOString(),
+      status: "DELIVERED",
+    };
+  }
+
+  /**
+   * Creates a new motivation entry in the library.
+   */
+  public static async createMotivation(data: {
+    message: string;
+    category?: string;
+    tone?: string;
+    workspaceId?: string;
+    userId: string;
+  }) {
+    const id = `mot_${uuidv4().substring(0, 8)}`;
+    const now = new Date();
+
+    const [created] = await db
+      .insert(motivations)
+      .values({
+        id,
+        workspaceId: data.workspaceId || null,
+        createdByUserId: data.userId,
+        message: data.message.trim(),
+        category: data.category || "FOCUS",
+        tone: data.tone || "PROFESSIONAL",
+        active: true,
+        usageCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    await AuditService.logEvent(
+      data.userId,
+      "MOTIVATION_CREATED",
+      `Created new Daily Motivation quote: "${data.message.substring(0, 40)}..."`,
+      null,
+      data.workspaceId
+    );
+
+    return created;
+  }
+
+  /**
+   * Dispatches a real Web Push / In-App test notification to the user.
+   */
+  public static async sendTestNotification(userId: string, customMessage?: string) {
+    const msg = customMessage || "Progress becomes powerful when consistency becomes automatic.";
+    
+    await NotificationService.dispatch({
+      type: "AUTOMATION_ALERT",
+      userId,
+      clientUrl: env.CLIENT_URL,
+      data: {
+        title: "ManMadhan Progress · Daily Motivation",
+        message: msg,
+      },
+    });
+
+    return { success: true, deliveredAt: new Date().toISOString(), message: msg };
   }
 }

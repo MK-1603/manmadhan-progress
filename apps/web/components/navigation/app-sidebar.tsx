@@ -4,19 +4,20 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, Focus, FolderKanban, CheckSquare, Calendar, History,
+  LayoutDashboard, FolderKanban, CheckSquare, Calendar, History,
   Users, UserPlus, UserCheck, Network, Trophy, Zap, Building, User as UserIcon,
   Settings, FileText, Archive, Brain, Sparkles, Bell, BarChart3,
   ShieldCheck, ClipboardCheck, ChevronDown, PanelLeftClose, PanelLeftOpen,
   LogOut, BookOpen
 } from "lucide-react";
+import { FocusIcon, Focus } from "@/components/ui/focus-icon";
 import { useAuth } from "@/components/auth/auth-context";
 
 /* ─────────────────────────────────────────────────────────── types */
 export type NavItem = {
   name: string;
   href: string;
-  icon: React.ElementType;
+  icon: any;
   badge?: number | string;
 };
 
@@ -35,19 +36,18 @@ const ORG_CEO_NAV: NavGroup[] = [
     label: "OVERVIEW",
     items: [
       { name: "Dashboard", href: "/ceo/dashboard", icon: LayoutDashboard },
-      { name: "Focus",     href: "/ceo/focus",     icon: Focus },
+      { name: "Focus", href: "/ceo/focus", icon: FocusIcon },
     ],
   },
   {
     id: "work",
     label: "WORK",
     items: [
-      { name: "Projects",   href: "/ceo/projects",   icon: FolderKanban },
-      { name: "Tasks",      href: "/ceo/tasks",      icon: CheckSquare },
-      { name: "Learning",          href: "/ceo/learning",   icon: BookOpen },
-      { name: "ManMadhan Command", href: "/ceo/ai-builder", icon: Brain },
-      { name: "Calendar",          href: "/ceo/calendar",   icon: Calendar },
-      { name: "Timeline",   href: "/ceo/timeline",   icon: History },
+      { name: "Projects", href: "/ceo/projects", icon: FolderKanban },
+      { name: "Tasks", href: "/ceo/tasks", icon: CheckSquare },
+      { name: "Learning", href: "/ceo/learning", icon: BookOpen },
+      { name: "Calendar", href: "/ceo/calendar", icon: Calendar },
+      { name: "Timeline", href: "/ceo/timeline", icon: History },
     ],
   },
   {
@@ -61,19 +61,19 @@ const ORG_CEO_NAV: NavGroup[] = [
     id: "performance",
     label: "PERFORMANCE",
     items: [
-      { name: "Organization Graph", href: "/ceo/graph",       icon: Network },
-      { name: "Leaderboard",        href: "/ceo/leaderboard", icon: Trophy },
-      { name: "Performance",        href: "/ceo/performance", icon: BarChart3 },
+      { name: "Organization Graph", href: "/ceo/graph", icon: Network },
+      { name: "Leaderboard", href: "/ceo/leaderboard", icon: Trophy },
+      { name: "Performance", href: "/ceo/performance", icon: BarChart3 },
     ],
   },
   {
     id: "administration",
     label: "ADMINISTRATION",
     items: [
-      { name: "Automation",            href: "/ceo/automation",   icon: Zap },
-      { name: "Organization",          href: "/ceo/organization", icon: Building },
-      { name: "Organization Profile",  href: "/ceo/profile",      icon: UserIcon },
-      { name: "Organization Settings", href: "/ceo/settings",     icon: Settings },
+      { name: "Automation", href: "/ceo/automation", icon: Zap },
+      { name: "Organization", href: "/ceo/organization", icon: Building },
+      { name: "Organization Profile", href: "/ceo/profile", icon: UserIcon },
+      { name: "Organization Settings", href: "/ceo/settings", icon: Settings },
     ],
   },
 ];
@@ -85,27 +85,26 @@ const ORG_COCEO_NAV: NavGroup[] = [
     label: "OVERVIEW",
     items: [
       { name: "Dashboard", href: "/co-ceo/dashboard", icon: LayoutDashboard },
-      { name: "Focus",     href: "/co-ceo/focus",     icon: Focus },
+      { name: "Focus", href: "/co-ceo/focus", icon: FocusIcon },
     ],
   },
   {
     id: "work",
     label: "WORK",
     items: [
-      { name: "My Work",   href: "/co-ceo/my-work",  icon: CheckSquare },
-      { name: "Projects",  href: "/co-ceo/projects", icon: FolderKanban },
-      { name: "Tasks",     href: "/co-ceo/tasks",    icon: ClipboardCheck },
-      { name: "ManMadhan Command", href: "/co-ceo/ai-builder", icon: Brain },
-      { name: "Calendar",  href: "/co-ceo/calendar", icon: Calendar },
-      { name: "Timeline",  href: "/co-ceo/timeline", icon: History },
+      { name: "My Work", href: "/co-ceo/my-work", icon: CheckSquare },
+      { name: "Projects", href: "/co-ceo/projects", icon: FolderKanban },
+      { name: "Tasks", href: "/co-ceo/tasks", icon: ClipboardCheck },
+      { name: "Calendar", href: "/co-ceo/calendar", icon: Calendar },
+      { name: "Timeline", href: "/co-ceo/timeline", icon: History },
     ],
   },
   {
     id: "team",
     label: "TEAM",
     items: [
-      { name: "My Members", href: "/co-ceo/members",   icon: Users },
-      { name: "Approvals",  href: "/co-ceo/approvals", icon: ShieldCheck },
+      { name: "My Members", href: "/co-ceo/members", icon: Users },
+      { name: "Approvals", href: "/co-ceo/approvals", icon: ShieldCheck },
     ],
   },
   {
@@ -113,8 +112,8 @@ const ORG_COCEO_NAV: NavGroup[] = [
     label: "PERFORMANCE",
     items: [
       { name: "Organization Graph", href: "/co-ceo/organization-graph", icon: Network },
-      { name: "Leaderboard",        href: "/co-ceo/leaderboard",        icon: Trophy },
-      { name: "Performance",        href: "/co-ceo/performance",        icon: BarChart3 },
+      { name: "Leaderboard", href: "/co-ceo/leaderboard", icon: Trophy },
+      { name: "Performance", href: "/co-ceo/performance", icon: BarChart3 },
     ],
   },
 ];
@@ -126,19 +125,18 @@ const ORG_MEMBER_NAV: NavGroup[] = [
     label: "OVERVIEW",
     items: [
       { name: "Dashboard", href: "/member/dashboard", icon: LayoutDashboard },
-      { name: "Focus",     href: "/member/focus",     icon: Focus },
+      { name: "Focus", href: "/member/focus", icon: FocusIcon },
     ],
   },
   {
     id: "work",
     label: "WORK",
     items: [
-      { name: "My Work",   href: "/member/my-work",  icon: CheckSquare },
-      { name: "Projects",  href: "/member/projects", icon: FolderKanban },
-      { name: "Tasks",     href: "/member/tasks",    icon: ClipboardCheck },
-      { name: "ManMadhan Command", href: "/member/ai-builder", icon: Brain },
-      { name: "Calendar",  href: "/member/calendar", icon: Calendar },
-      { name: "Timeline",  href: "/member/timeline", icon: History },
+      { name: "My Work", href: "/member/my-work", icon: CheckSquare },
+      { name: "Projects", href: "/member/projects", icon: FolderKanban },
+      { name: "Tasks", href: "/member/tasks", icon: ClipboardCheck },
+      { name: "Calendar", href: "/member/calendar", icon: Calendar },
+      { name: "Timeline", href: "/member/timeline", icon: History },
     ],
   },
 ];
@@ -150,7 +148,7 @@ const PERSONAL_NAV: NavGroup[] = [
     label: "OVERVIEW",
     items: [
       { name: "Dashboard", href: "/personal/dashboard", icon: LayoutDashboard },
-      { name: "Focus",     href: "/personal/focus",     icon: Focus },
+      { name: "Focus", href: "/personal/focus", icon: FocusIcon },
     ],
   },
   {
@@ -158,7 +156,7 @@ const PERSONAL_NAV: NavGroup[] = [
     label: "WORK",
     items: [
       { name: "Projects", href: "/personal/projects", icon: FolderKanban },
-      { name: "Tasks",    href: "/personal/tasks",    icon: CheckSquare },
+      { name: "Tasks", href: "/personal/tasks", icon: CheckSquare },
       { name: "Calendar", href: "/personal/calendar", icon: Calendar },
       { name: "Timeline", href: "/personal/timeline", icon: History },
     ],
@@ -167,7 +165,7 @@ const PERSONAL_NAV: NavGroup[] = [
     id: "content",
     label: "CONTENT",
     items: [
-      { name: "Notes",     href: "/personal/notes",     icon: FileText },
+      { name: "Notes", href: "/personal/notes", icon: FileText },
       { name: "Documents", href: "/personal/documents", icon: Archive },
     ],
   },
@@ -175,7 +173,7 @@ const PERSONAL_NAV: NavGroup[] = [
     id: "ai",
     label: "AI",
     items: [
-      { name: "AI Builder",     href: "/personal/ai-builder",    icon: Brain },
+      { name: "AI Builder", href: "/personal/ai-builder", icon: Brain },
       { name: "Prompt Library", href: "/personal/prompt-library", icon: Sparkles },
     ],
   },
@@ -184,15 +182,15 @@ const PERSONAL_NAV: NavGroup[] = [
     label: "SYSTEM",
     items: [
       { name: "Automation", href: "/personal/automation", icon: Zap },
-      { name: "Reminders",  href: "/personal/reminders",  icon: Bell },
-      { name: "Reports",    href: "/personal/reports",    icon: BarChart3 },
+      { name: "Reminders", href: "/personal/reminders", icon: Bell },
+      { name: "Reports", href: "/personal/reports", icon: BarChart3 },
     ],
   },
   {
     id: "account",
     label: "ACCOUNT",
     items: [
-      { name: "Profile",  href: "/personal/profile",  icon: UserIcon },
+      { name: "Profile", href: "/personal/profile", icon: UserIcon },
       { name: "Settings", href: "/personal/settings", icon: Settings },
     ],
   },
@@ -225,8 +223,8 @@ export function AppSidebar({
   const { user, logout } = useAuth();
 
   // 1. Workspace context determination
-  const isPersonal = forcedWorkspace 
-    ? forcedWorkspace === "personal" 
+  const isPersonal = forcedWorkspace
+    ? forcedWorkspace === "personal"
     : pathname.startsWith("/personal");
 
   const effectiveRole = useMemo(() => {
@@ -260,7 +258,7 @@ export function AppSidebar({
         if (stored) {
           setCollapsedSections(JSON.parse(stored));
         }
-      } catch {}
+      } catch { }
     }
   }, []);
 
@@ -274,7 +272,7 @@ export function AppSidebar({
           const next = { ...prev, [group.id]: false };
           try {
             localStorage.setItem("sidebar_sections_state", JSON.stringify(next));
-          } catch {}
+          } catch { }
           return next;
         });
         break;
@@ -287,7 +285,7 @@ export function AppSidebar({
       const next = { ...prev, [groupId]: !prev[groupId] };
       try {
         localStorage.setItem("sidebar_sections_state", JSON.stringify(next));
-      } catch {}
+      } catch { }
       return next;
     });
   };
@@ -420,9 +418,8 @@ export function AppSidebar({
                   >
                     <span>{group.label}</span>
                     <ChevronDown
-                      className={`w-3.5 h-3.5 text-[#667085] dark:text-[#8B94A3] group-hover:text-current transition-transform duration-180 ${
-                        !isSectionCollapsed ? "rotate-180" : ""
-                      }`}
+                      className={`w-3.5 h-3.5 text-[#667085] dark:text-[#8B94A3] group-hover:text-current transition-transform duration-180 ${!isSectionCollapsed ? "rotate-180" : ""
+                        }`}
                     />
                   </button>
                 ) : (
@@ -432,9 +429,8 @@ export function AppSidebar({
                 {/* Items List (Collapsible) */}
                 <div
                   id={`section-${group.id}`}
-                  className={`space-y-1 transition-all duration-180 overflow-hidden ${
-                    !isCollapsed && isSectionCollapsed ? "max-h-0 opacity-0 pointer-events-none" : "max-h-[500px] opacity-100"
-                  }`}
+                  className={`space-y-1 transition-all duration-180 overflow-hidden ${!isCollapsed && isSectionCollapsed ? "max-h-0 opacity-0 pointer-events-none" : "max-h-[500px] opacity-100"
+                    }`}
                 >
                   {group.items.map((item) => {
                     const active = isItemActive(pathname, item.href);
@@ -448,10 +444,9 @@ export function AppSidebar({
                         className={`
                           group relative flex items-center h-[40px] rounded-lg text-[13.5px] font-medium transition-all duration-150
                           ${isCollapsed ? "justify-center px-0" : "px-3 gap-3"}
-                          ${
-                            active
-                              ? "bg-[#FFF8E7] dark:bg-[#191812] text-[#17202A] dark:text-[#F2F3F5] font-semibold"
-                              : "text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5] hover:bg-[#F3F4F6] dark:hover:bg-[#151920]"
+                          ${active
+                            ? "bg-[#FFF8E7] dark:bg-[#191812] text-[#17202A] dark:text-[#F2F3F5] font-semibold"
+                            : "text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5] hover:bg-[#F3F4F6] dark:hover:bg-[#151920]"
                           }
                         `}
                       >
@@ -462,11 +457,10 @@ export function AppSidebar({
 
                         {/* Icon */}
                         <Icon
-                          className={`w-[17px] h-[17px] shrink-0 transition-colors ${
-                            active
+                          className={`w-[17px] h-[17px] shrink-0 transition-colors ${active
                               ? "text-[#B28D18] dark:text-[#D4B12F]"
                               : "text-[#667085] dark:text-[#8B94A3] group-hover:text-current"
-                          }`}
+                            }`}
                         />
 
                         {/* Item Label */}
@@ -500,9 +494,8 @@ export function AppSidebar({
       <div className="shrink-0 h-[96px] border-t border-[#E5E7EB] dark:border-[#24282E] p-3 space-y-2.5 bg-[#FFFFFF] dark:bg-[#0B0D10] relative">
         {/* Static User Identity Block (NOT CLICKABLE, NO CHEVRON, NO MENU) */}
         <div
-          className={`flex items-center gap-2.5 ${
-            isCollapsed ? "justify-center" : "px-1"
-          }`}
+          className={`flex items-center gap-2.5 ${isCollapsed ? "justify-center" : "px-1"
+            }`}
         >
           <div
             title={isCollapsed ? `${user?.displayName || user?.name || "Sai Krishnan S"} (${isPersonal ? "Personal" : effectiveRole})` : undefined}
@@ -524,9 +517,8 @@ export function AppSidebar({
 
         {/* Footer Action Row: Logout on LEFT, Collapse on RIGHT */}
         <div
-          className={`flex items-center ${
-            isCollapsed ? "justify-center flex-col gap-2" : "justify-between px-0.5"
-          } h-[36px]`}
+          className={`flex items-center ${isCollapsed ? "justify-center flex-col gap-2" : "justify-between px-0.5"
+            } h-[36px]`}
         >
           {/* Left Side: Logout Button */}
           <button

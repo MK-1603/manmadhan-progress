@@ -201,7 +201,7 @@ export default function InvitePage() {
   
   // Form Data State
   const [name, setName] = useState("");
-  const [batchNumber, setBatchNumber] = useState("3D");
+  const [batchNumber, setBatchNumber] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -849,19 +849,24 @@ export default function InvitePage() {
                       </div>
 
                       <div className="space-y-1.5 text-left">
-                        <label className={`text-xs font-medium block ${isLight ? "text-[#71717A]" : "text-[#A1A1AA]"}`}>Batch / Cohort Name</label>
+                        <label className={`text-xs font-medium block ${isLight ? "text-[#71717A]" : "text-[#A1A1AA]"}`}>Batch / Cohort ID</label>
                         <input
                           type="text"
-                          required
-                          placeholder="e.g. 3D"
-                          className={`w-full h-12 border focus:border-[#D4AF37] focus:-translate-y-[1px] px-3.5 rounded-xl text-xs sm:text-sm outline-none transition-all duration-150 ${
+                          placeholder="e.g. MK1603"
+                          maxLength={6}
+                          className={`w-full h-12 border focus:border-[#D4AF37] focus:-translate-y-[1px] px-3.5 rounded-xl text-xs sm:text-sm outline-none transition-all duration-150 font-mono tracking-widest uppercase ${
                             isLight ? "bg-[#FFFFFF] border-[#E4E4E7] text-[#18181B]" : "bg-[#171717] border-[#2A2A2A] text-[#F5F5F5]"
                           }`}
                           value={batchNumber}
-                          onChange={(e) => setBatchNumber(e.target.value)}
+                          onChange={(e) => {
+                            const raw = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                            const letters = raw.replace(/[^A-Z]/g, "").slice(0, 2);
+                            const digits = raw.replace(/[^0-9]/g, "").slice(0, 4);
+                            setBatchNumber(letters + digits);
+                          }}
                         />
                         <p className={`text-[11px] pt-0.5 ${isLight ? "text-[#9CA3AF]" : "text-[#71717A]"}`}>
-                          Batch or cohort identifier assigned by your organization.
+                          Format: 2 letters + 4 digits (e.g. MK1603, SS0778)
                         </p>
                       </div>
 
@@ -1062,7 +1067,7 @@ export default function InvitePage() {
                       <div className={`p-3 sm:p-3.5 flex items-center justify-between text-xs sm:text-sm transition-colors ${isLight ? "hover:bg-[#F4F4F5]" : "hover:bg-[#1A1A1A]"}`}>
                         <div>
                           <div className={`text-[10px] sm:text-[11px] font-medium uppercase tracking-wider ${isLight ? "text-[#71717A]" : "text-[#A1A1AA]"}`}>Batch / Cohort</div>
-                          <div className="font-semibold text-[#D4AF37] mt-0.5">{batchNumber || "3D"}</div>
+                          <div className="font-semibold text-[#D4AF37] mt-0.5">{batchNumber || "—"}</div>
                         </div>
                         <motion.button
                           type="button"
