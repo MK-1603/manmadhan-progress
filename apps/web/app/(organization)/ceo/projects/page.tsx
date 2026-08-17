@@ -362,7 +362,7 @@ export default function ProjectsPage() {
         {/* Desktop Project Table Content */}
         <div className="flex-1 min-h-0 w-full bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[12px] flex flex-col overflow-hidden shadow-xs shrink">
           {/* Desktop Table Header */}
-          <div className="grid grid-cols-[2.5fr_1fr_1fr_1fr_1.2fr_80px] items-center gap-4 px-5 py-3 border-b border-[#E4E7EC] dark:border-[#272D36] bg-[#F8F9FB] dark:bg-[#111419] shrink-0 sticky top-0 z-10">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_140px] items-center gap-4 px-5 py-3 border-b border-[#E4E7EC] dark:border-[#272D36] bg-[#F8F9FB] dark:bg-[#111419] shrink-0 sticky top-0 z-10">
             <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-[0.08em]">Project</span>
             <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-[0.08em]">Status</span>
             <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-[0.08em]">Owner</span>
@@ -405,7 +405,7 @@ export default function ProjectsPage() {
                   key={project.id}
                   className="hover:bg-[#F8F9FB]/60 dark:hover:bg-[#111419]/60 transition-colors"
                 >
-                  <div className="grid grid-cols-[2.5fr_1fr_1fr_1fr_1.2fr_80px] items-center gap-4 px-5 py-3.5">
+                  <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_140px] items-center gap-4 px-5 py-3.5">
                     <div className="min-w-0">
                       <Link
                         href={`${base}/projects/${project.id}`}
@@ -434,7 +434,7 @@ export default function ProjectsPage() {
                       {fmtDate(project.deadline)}
                     </div>
 
-                    <div className="space-y-1">
+                    <div className="space-y-1 pr-2">
                       <div className="flex items-center justify-between text-[11.5px] font-mono font-semibold">
                         <span className="text-[#17202A] dark:text-[#F2F4F7]">{project.progress || 0}%</span>
                       </div>
@@ -446,17 +446,17 @@ export default function ProjectsPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1.5 shrink-0">
                       <Link
                         href={`${base}/projects/${project.id}`}
-                        className="px-2.5 py-1 rounded-[7px] bg-[#C9A52A]/10 text-[#C9A52A] dark:text-[#D4B12F] border border-[#C9A52A]/20 text-[12px] font-semibold hover:bg-[#C9A52A]/20 flex items-center gap-1 transition-colors"
+                        className="px-2.5 py-1 rounded-[7px] bg-[#C9A52A]/10 text-[#C9A52A] dark:text-[#D4B12F] border border-[#C9A52A]/20 text-[12px] font-semibold hover:bg-[#C9A52A]/20 flex items-center gap-1 transition-colors shrink-0"
                       >
-                        Open Project <ChevronRight className="w-3.5 h-3.5" />
+                        <span>Open Project</span> <ChevronRight className="w-3.5 h-3.5" />
                       </Link>
                       <button
                         onClick={(e) => handleDelete(project.id, e)}
                         disabled={deletingId === project.id}
-                        className="p-1 rounded text-[#667085] hover:text-rose-600 transition-colors ml-1 cursor-pointer"
+                        className="p-1.5 rounded-md text-[#667085] hover:text-rose-600 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
                         title="Delete project"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

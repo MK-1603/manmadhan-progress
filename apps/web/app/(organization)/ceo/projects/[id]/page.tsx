@@ -1190,10 +1190,11 @@ export default function ProjectWorkspacePage() {
       return;
     }
     try {
-      await apiClient.delete(`/org/projects/${projectId}`);
-      router.push("/ceo/projects");
+      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+      await apiClient.delete(`/org/projects/${projectId}${wsId ? `?workspaceId=${wsId}` : ""}`);
+      router.push(`${base}/projects`);
     } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to delete project.");
+      alert(err?.response?.data?.error || "Failed to delete project.");
     }
   };
 

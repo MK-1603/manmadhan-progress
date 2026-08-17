@@ -2062,6 +2062,15 @@ orgProjectsRouter.delete(
 					.status(404)
 					.json({ success: false, error: "Project not found" });
 
+			// Cascade delete all associated child records first to satisfy Foreign Key constraints
+			try { await db.delete(tasks).where(eq(tasks.projectId, id)); } catch (e) {}
+			try { await db.delete(milestones).where(eq(milestones.projectId, id)); } catch (e) {}
+			try { await db.delete(projectMilestonesV2).where(eq(projectMilestonesV2.projectId, id)); } catch (e) {}
+			try { await db.delete(projectAssignments).where(eq(projectAssignments.projectId, id)); } catch (e) {}
+			try { await db.delete(projectDocuments).where(eq(projectDocuments.projectId, id)); } catch (e) {}
+			try { await db.delete(projectRequirements).where(eq(projectRequirements.projectId, id)); } catch (e) {}
+			try { await db.delete(projectFeatures).where(eq(projectFeatures.projectId, id)); } catch (e) {}
+
 			await db.delete(projects).where(eq(projects.id, id));
 			await db.insert(auditLogs).values({
 				id: uuidv4(),

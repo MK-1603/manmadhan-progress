@@ -286,6 +286,12 @@ personalProjectsRouter.delete("/:id", async (req: Request, res: Response) => {
 				.json({ success: false, error: "Project not found" });
 		}
 
+		// Safely delete associated child records first to satisfy Foreign Key constraints
+		try { await personalDb.delete(personalTasks).where(eq(personalTasks.projectId, String(projectId))); } catch (e) {}
+		try { await personalDb.delete(personalMilestones).where(eq(personalMilestones.projectId, String(projectId))); } catch (e) {}
+		try { await personalDb.delete(personalFeatures).where(eq(personalFeatures.projectId, String(projectId))); } catch (e) {}
+		try { await personalDb.delete(personalRequirements).where(eq(personalRequirements.projectId, String(projectId))); } catch (e) {}
+
 		await personalDb
 			.delete(personalProjects)
 			.where(eq(personalProjects.id, String(projectId)));
