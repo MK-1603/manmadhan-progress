@@ -34,6 +34,17 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
+// ── Explicit Logout State ──────────────────────────────────────────────────
+let explicitLoggingOut = false;
+
+export function setIsExplicitLoggingOut(status: boolean) {
+  explicitLoggingOut = status;
+}
+
+export function isExplicitLoggingOut() {
+  return explicitLoggingOut;
+}
+
 // ── Token refresh state ──────────────────────────────────────────────────────
 // A single in-flight refresh promise is shared across all concurrent 401s so
 // we only make one refresh request even when multiple requests expire at once.
@@ -51,6 +62,7 @@ function clearAuthStorage() {
 }
 
 async function attemptTokenRefresh(): Promise<string | null> {
+  if (explicitLoggingOut) return null;
   try {
     const existingToken =
       typeof window !== "undefined"
@@ -93,7 +105,7 @@ async function attemptTokenRefresh(): Promise<string | null> {
     const errCode = err.response?.data?.code;
     if (errCode === "ACCOUNT_SUSPENDED" || errCode === "ACCOUNT_DELETED") {
       clearAuthStorage();
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined" && !explicitLoggingOut) {
         window.location.href = "/login?error=AccountSuspended";
       }
     }
@@ -113,7 +125,7 @@ apiClient.interceptors.response.use(
 
       if (errCode === "ACCOUNT_SUSPENDED" || errCode === "ACCOUNT_DELETED") {
         clearAuthStorage();
-        if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login") && !explicitLoggingOut) {
           window.location.href = "/login?error=AccountSuspended";
         }
         return Promise.reject(new Error("Your account has been suspended or is unavailable."));
@@ -137,7 +149,7 @@ apiClient.interceptors.response.use(
         originalRequest?.url?.includes("/auth/refresh") ||
         originalRequest?.url?.includes("/auth/login");
 
-      if (isAuthEndpoint || originalRequest?._retry) {
+      if (isAuthEndpoint || originalRequest?._retry || explicitLoggingOut) {
         if (isAuthEndpoint && originalRequest?.url?.includes("/auth/me")) {
           // Silent non-authenticated response for initial auth check
           return Promise.reject(error);
@@ -168,9 +180,10 @@ apiClient.interceptors.response.use(
       clearAuthStorage();
       if (
         typeof window !== "undefined" &&
-        !window.location.pathname.startsWith("/login")
+        !window.location.pathname.startsWith("/login") &&
+        !explicitLoggingOut
       ) {
-        window.location.href = "/login?error=SessionExpired";
+        window.location.href = "/login";
       }
       return Promise.reject(new Error("Session expired. Please sign in again."));
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useState, useEffect, type ReactNode } from "react";
-import apiClient from "../../lib/api-client";
+import apiClient, { setIsExplicitLoggingOut } from "../../lib/api-client";
 import { useRouter, usePathname } from "next/navigation";
 import { TransitionScreen } from "../transition-screen";
 import { resetGlobalSheetState } from "@/components/ui/global-sheet";
@@ -131,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = React.useCallback(async () => {
+    setIsExplicitLoggingOut(true);
     resetGlobalSheetState();
     isNavigatingRef.current = true;
     setTransitionMessage("Signing out securely...");
@@ -150,11 +151,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sessionStorage.removeItem("authData");
         syncTokenCookie(null);
       }
-      router.push("/login");
+      router.push("/");
 
       setTimeout(() => {
         setIsTransitioning(false);
         isNavigatingRef.current = false;
+        setIsExplicitLoggingOut(false);
       }, 500);
     }, 400);
   }, [router]);

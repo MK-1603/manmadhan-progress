@@ -12,6 +12,7 @@ import React, {
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "@/components/auth/auth-context";
 import { resetGlobalSheetState } from "@/components/ui/global-sheet";
+import { isExplicitLoggingOut } from "@/lib/api-client";
 
 interface SocketContextType {
   socket: Socket | null;
@@ -223,8 +224,8 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
             localStorage.removeItem("auth_token");
             localStorage.removeItem("token");
             localStorage.removeItem("user");
-            if (!window.location.pathname.startsWith("/login")) {
-              window.location.href = "/login?error=SessionExpired";
+            if (!window.location.pathname.startsWith("/login") && !isExplicitLoggingOut()) {
+              window.location.href = "/login";
             }
           }
         }
