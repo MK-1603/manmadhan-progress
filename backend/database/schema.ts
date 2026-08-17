@@ -1479,6 +1479,117 @@ export const userSessions = pgTable("user_sessions", {
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// ─── Organization Learning Workspace Schema V1 ───────────────────────────────
+export const learningPlans = pgTable("learning_plans", {
+	id: text("id").primaryKey(),
+	workspaceId: text("workspace_id")
+		.notNull()
+		.references(() => workspaces.id, { onDelete: "cascade" }),
+	name: text("name").notNull(),
+	description: text("description"),
+	objective: text("objective"),
+	status: text("status").default("ACTIVE").notNull(), // DRAFT, ACTIVE, PAUSED, COMPLETED, ARCHIVED
+	priority: text("priority").default("MEDIUM").notNull(), // LOW, MEDIUM, HIGH, CRITICAL
+	ownerId: text("owner_id").references(() => users.id),
+	targetDate: timestamp("target_date"),
+	createdByUserId: text("created_by_user_id")
+		.notNull()
+		.references(() => users.id),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const learningTopics = pgTable("learning_topics", {
+	id: text("id").primaryKey(),
+	learningPlanId: text("learning_plan_id")
+		.notNull()
+		.references(() => learningPlans.id, { onDelete: "cascade" }),
+	title: text("title").notNull(),
+	description: text("description"),
+	category: text("category").default("General"),
+	orderIndex: integer("order_index").default(0).notNull(),
+	status: text("status").default("NOT_STARTED").notNull(), // NOT_STARTED, IN_PROGRESS, COMPLETED, BLOCKED
+	priority: text("priority").default("MEDIUM").notNull(),
+	targetDate: timestamp("target_date"),
+	assigneeId: text("assignee_id").references(() => users.id),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const learningAssignments = pgTable("learning_assignments", {
+	id: text("id").primaryKey(),
+	learningPlanId: text("learning_plan_id")
+		.notNull()
+		.references(() => learningPlans.id, { onDelete: "cascade" }),
+	topicId: text("topic_id").references(() => learningTopics.id, { onDelete: "cascade" }),
+	assigneeId: text("assignee_id")
+		.notNull()
+		.references(() => users.id),
+	assignedByUserId: text("assigned_by_user_id")
+		.notNull()
+		.references(() => users.id),
+	status: text("status").default("PENDING").notNull(),
+	dueDate: timestamp("due_date"),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const learningProgress = pgTable("learning_progress", {
+	id: text("id").primaryKey(),
+	topicId: text("topic_id")
+		.notNull()
+		.references(() => learningTopics.id, { onDelete: "cascade" }),
+	userId: text("user_id")
+		.notNull()
+		.references(() => users.id),
+	progressPercent: integer("progress_percent").default(0).notNull(),
+	status: text("status").default("NOT_STARTED").notNull(),
+	startedAt: timestamp("started_at"),
+	completedAt: timestamp("completed_at"),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const learningResources = pgTable("learning_resources", {
+	id: text("id").primaryKey(),
+	topicId: text("topic_id")
+		.notNull()
+		.references(() => learningTopics.id, { onDelete: "cascade" }),
+	title: text("title").notNull(),
+	type: text("type").default("URL").notNull(), // URL, ARTICLE, VIDEO, PDF, REPO, COURSE
+	url: text("url").notNull(),
+	description: text("description"),
+	createdByUserId: text("created_by_user_id").references(() => users.id),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const learningDocuments = pgTable("learning_documents", {
+	id: text("id").primaryKey(),
+	learningPlanId: text("learning_plan_id")
+		.notNull()
+		.references(() => learningPlans.id, { onDelete: "cascade" }),
+	topicId: text("topic_id").references(() => learningTopics.id, { onDelete: "cascade" }),
+	name: text("name").notNull(),
+	type: text("type").default("HANDBOOK").notNull(), // HANDBOOK, NOTES, SUMMARY, GUIDE
+	storageReference: text("storage_reference").notNull(),
+	createdByUserId: text("created_by_user_id").references(() => users.id),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const learningActivities = pgTable("learning_activities", {
+	id: text("id").primaryKey(),
+	workspaceId: text("workspace_id")
+		.notNull()
+		.references(() => workspaces.id, { onDelete: "cascade" }),
+	learningPlanId: text("learning_plan_id").references(() => learningPlans.id, { onDelete: "cascade" }),
+	topicId: text("topic_id").references(() => learningTopics.id, { onDelete: "cascade" }),
+	actorId: text("actor_id")
+		.notNull()
+		.references(() => users.id),
+	action: text("action").notNull(),
+	details: text("details"),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export * from "./schema/personal.schema";
 
 

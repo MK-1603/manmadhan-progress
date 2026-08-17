@@ -39,6 +39,7 @@ import { orgPromptsRouter } from "./routes/org-prompts.routes";
 import { orgReportsRouter } from "./routes/org-reports.routes";
 import { orgTasksRouter } from "./routes/org-tasks.routes";
 import { orgTimelineRouter } from "./routes/org-timeline.routes";
+import { orgLearningRouter } from "./routes/org-learning.routes";
 import { orgIntegrationsRouter } from "./routes/org-integrations.routes";
 import { organizationRouter } from "./routes/organization.routes";
 import { automationRouter } from "./routes/automation.routes";
@@ -256,6 +257,8 @@ export const createApp = (): Express => {
 	app.use("/api/v1/org/members", organizationRouter);
 	app.use("/api/v1/org/prompts", orgPromptsRouter);
 	app.use("/api/org/prompts", orgPromptsRouter);
+	app.use("/api/v1/org/learning", orgLearningRouter);
+	app.use("/api/org/learning", orgLearningRouter);
 	app.use("/api/v1/automation", automationRouter);
 	app.use("/api/v1/org/automation", automationRouter);
 	app.use("/api/v1/org/integrations", orgIntegrationsRouter);
