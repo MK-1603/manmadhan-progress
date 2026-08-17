@@ -1,4 +1,4 @@
-import { and, desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
@@ -2133,6 +2133,150 @@ orgTasksRouter.post(
 			res
 				.status(500)
 				.json({ success: false, error: "Failed to start work session" });
+		}
+	},
+);
+
+// ─── Bulk Task Operations ───────────────────────────────────────────────────
+orgTasksRouter.post(
+	"/bulk/status",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const { taskIds, status } = req.body;
+			if (!Array.isArray(taskIds) || taskIds.length === 0 || !status) {
+				return res.status(400).json({ success: false, error: "taskIds array and status are required" });
+			}
+			await db
+				.update(tasks)
+				.set({ status, completedAt: status === "Completed" ? new Date() : null })
+				.where(and(inArray(tasks.id, taskIds), eq(tasks.workspaceId, workspaceId)));
+			socketService.emitToWorkspace(workspaceId, "task.updated", { taskIds, status });
+			res.json({ success: true, message: `Updated status for ${taskIds.length} tasks` });
+		} catch (err: any) {
+			logger.error(`Bulk status update error: ${err?.message}`);
+			res.status(500).json({ success: false, error: "Failed bulk status update" });
+		}
+	},
+);
+
+orgTasksRouter.post(
+	"/bulk/priority",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const { taskIds, priority } = req.body;
+			if (!Array.isArray(taskIds) || taskIds.length === 0 || !priority) {
+				return res.status(400).json({ success: false, error: "taskIds array and priority are required" });
+			}
+			await db
+				.update(tasks)
+				.set({ priority })
+				.where(and(inArray(tasks.id, taskIds), eq(tasks.workspaceId, workspaceId)));
+			socketService.emitToWorkspace(workspaceId, "task.updated", { taskIds, priority });
+			res.json({ success: true, message: `Updated priority for ${taskIds.length} tasks` });
+		} catch (err: any) {
+			logger.error(`Bulk priority update error: ${err?.message}`);
+			res.status(500).json({ success: false, error: "Failed bulk priority update" });
+		}
+	},
+);
+
+orgTasksRouter.post(
+	"/bulk/assign",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const { taskIds, assigneeId } = req.body;
+			if (!Array.isArray(taskIds) || taskIds.length === 0) {
+				return res.status(400).json({ success: false, error: "taskIds array is required" });
+			}
+			await db
+				.update(tasks)
+				.set({ assigneeId: assigneeId || null })
+				.where(and(inArray(tasks.id, taskIds), eq(tasks.workspaceId, workspaceId)));
+			socketService.emitToWorkspace(workspaceId, "task.updated", { taskIds, assigneeId });
+			res.json({ success: true, message: `Reassigned ${taskIds.length} tasks` });
+		} catch (err: any) {
+			logger.error(`Bulk assign error: ${err?.message}`);
+			res.status(500).json({ success: false, error: "Failed bulk task assignment" });
+		}
+	},
+);
+
+orgTasksRouter.post(
+	"/bulk/move",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const { taskIds, projectId } = req.body;
+			if (!Array.isArray(taskIds) || taskIds.length === 0) {
+				return res.status(400).json({ success: false, error: "taskIds array is required" });
+			}
+			await db
+				.update(tasks)
+				.set({ projectId: projectId || null })
+				.where(and(inArray(tasks.id, taskIds), eq(tasks.workspaceId, workspaceId)));
+			socketService.emitToWorkspace(workspaceId, "task.updated", { taskIds, projectId });
+			res.json({ success: true, message: `Moved ${taskIds.length} tasks` });
+		} catch (err: any) {
+			logger.error(`Bulk move error: ${err?.message}`);
+			res.status(500).json({ success: false, error: "Failed bulk task move" });
+		}
+	},
+);
+
+orgTasksRouter.post(
+	"/bulk/complete",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const { taskIds } = req.body;
+			if (!Array.isArray(taskIds) || taskIds.length === 0) {
+				return res.status(400).json({ success: false, error: "taskIds array is required" });
+			}
+			await db
+				.update(tasks)
+				.set({ status: "Completed", completedAt: new Date() })
+				.where(and(inArray(tasks.id, taskIds), eq(tasks.workspaceId, workspaceId)));
+			socketService.emitToWorkspace(workspaceId, "task.updated", { taskIds, status: "Completed" });
+			res.json({ success: true, message: `Marked ${taskIds.length} tasks completed` });
+		} catch (err: any) {
+			logger.error(`Bulk complete error: ${err?.message}`);
+			res.status(500).json({ success: false, error: "Failed bulk task completion" });
+		}
+	},
+);
+
+orgTasksRouter.delete(
+	"/bulk",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const { taskIds } = req.body;
+			if (!Array.isArray(taskIds) || taskIds.length === 0) {
+				return res.status(400).json({ success: false, error: "taskIds array is required" });
+			}
+			await db
+				.delete(tasks)
+				.where(and(inArray(tasks.id, taskIds), eq(tasks.workspaceId, workspaceId)));
+			socketService.emitToWorkspace(workspaceId, "task.deleted", { taskIds });
+			res.json({ success: true, message: `Deleted ${taskIds.length} tasks` });
+		} catch (err: any) {
+			logger.error(`Bulk delete error: ${err?.message}`);
+			res.status(500).json({ success: false, error: "Failed bulk task deletion" });
 		}
 	},
 );
