@@ -114,12 +114,12 @@ class EmailService {
 			await Promise.race([
 				this.nodemailerTransport.verify(),
 				new Promise<never>((_, reject) =>
-					setTimeout(() => reject(new Error("SMTP verification timeout")), 6000),
+					setTimeout(() => reject(new Error("SMTP verification timeout (6s limit reached)")), 6000),
 				),
 			]);
 			return true;
 		} catch (err: any) {
-			logger.warn("Email service connection check failed");
+			logger.warn({ err: err?.message || err }, "Email service connection check failed");
 			return false;
 		}
 	}
