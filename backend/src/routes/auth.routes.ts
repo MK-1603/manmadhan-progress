@@ -79,19 +79,11 @@ authRouter.post("/login/password", async (req, res, next) => {
 			.limit(1);
 
 		if (userList.length === 0) {
-			const errorMode = process.env.AUTH_ERROR_MODE || "PRIVATE_APP";
-			if (errorMode === "PUBLIC_APP") {
-				return res.status(401).json({
-					success: false,
-					code: "INVALID_CREDENTIALS",
-					error: "Invalid email or password.",
-				});
-			}
-			return res.status(404).json({
+			return res.status(401).json({
 				success: false,
-				code: "ACCOUNT_NOT_FOUND",
-				error: "Account not found",
-				details: "We couldn't find an account with this email address.",
+				code: "INVALID_CREDENTIALS",
+				error: "Invalid email or password",
+				details: "Invalid email or password. Please check your credentials and try again.",
 			});
 		}
 
@@ -139,9 +131,9 @@ authRouter.post("/login/password", async (req, res, next) => {
 			);
 			return res.status(401).json({
 				success: false,
-				code: "INVALID_PASSWORD",
-				error: "Invalid password",
-				details: "The password you entered is incorrect.",
+				code: "INVALID_CREDENTIALS",
+				error: "Invalid email or password",
+				details: "Invalid email or password. Please check your credentials and try again.",
 			});
 		}
 

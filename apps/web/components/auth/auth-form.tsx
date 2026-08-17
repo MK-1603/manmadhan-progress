@@ -580,14 +580,18 @@ export function AuthForm({
       setLoading(false);
       return;
     }
-    if (errCode === "ACCOUNT_NOT_FOUND" || errStatus === 404) {
-      setError("We couldn't find an account with this email address.");
-      setLoading(false);
-      return;
-    }
-    if (errCode === "INVALID_PASSWORD" || errStatus === 401) {
-      setPassword(""); // Clear ONLY the password field, keeping email populated
-      setError(err?.response?.data?.details || "The password you entered is incorrect.");
+    if (
+      errCode === "INVALID_CREDENTIALS" ||
+      errCode === "ACCOUNT_NOT_FOUND" ||
+      errCode === "INVALID_PASSWORD" ||
+      errStatus === 401 ||
+      errStatus === 404
+    ) {
+      setPassword(""); // Clear password field, keeping email populated
+      setError(
+        err?.response?.data?.details ||
+          "Invalid email or password. Please check your credentials and try again."
+      );
       setLoading(false);
       return;
     }
