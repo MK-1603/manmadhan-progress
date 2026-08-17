@@ -21,13 +21,15 @@ import { CreateTaskModal } from "@/components/tasks/create-task-modal";
 import { ProjectDocumentsView } from "@/components/organization/project-documents-view";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { EditProjectModal } from "@/components/organization/edit-project-modal";
+import { ProjectTeamView } from "@/components/organization/project-team-view";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type TabId = "OVERVIEW" | "WORK" | "MILESTONES" | "DOCUMENTS" | "SUBMISSIONS" | "GITHUB" | "TIMELINE" | "AI_TOOLS";
+type TabId = "OVERVIEW" | "TEAM" | "WORK" | "AI_TOOLS" | "MILESTONES" | "DOCUMENTS" | "SUBMISSIONS" | "GITHUB" | "TIMELINE";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "OVERVIEW", label: "Overview" },
+  { id: "TEAM", label: "Team" },
   { id: "WORK", label: "Work" },
   { id: "AI_TOOLS", label: "AI Tools (Hub)" },
   { id: "MILESTONES", label: "Milestones" },
@@ -401,7 +403,7 @@ function WorkTab({ tasks, onAddTask }: { tasks: any[]; onAddTask: () => void }) 
           onClick={onAddTask}
           className="inline-flex items-center gap-1.5 px-4 h-[38px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-semibold hover:opacity-90 transition-opacity cursor-pointer self-start sm:self-auto"
         >
-          <Plus className="w-3.5 h-3.5" /> + Assign Work
+          <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Assign Work
         </button>
       </div>
 
@@ -416,7 +418,7 @@ function WorkTab({ tasks, onAddTask }: { tasks: any[]; onAddTask: () => void }) 
             onClick={onAddTask}
             className="inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] border border-[#C9A52A]/40 text-[#C9A52A] dark:text-[#D4B12F] text-[12px] font-semibold hover:bg-[#C9A52A]/10 transition-colors cursor-pointer mx-auto mt-2"
           >
-            <Plus className="w-3.5 h-3.5" /> + Assign Work
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Assign Work
           </button>
         </OvCard>
       ) : (
@@ -568,7 +570,7 @@ function SubmissionsTab({
           onClick={() => setShowSubmitModal(true)}
           className="inline-flex items-center gap-1.5 px-4 h-[38px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-semibold hover:opacity-90 transition-opacity cursor-pointer self-start sm:self-auto"
         >
-          <Upload className="w-3.5 h-3.5" /> + Submit Deliverable
+          <Upload className="w-3.5 h-3.5" /> Submit Deliverable
         </button>
       </div>
 
@@ -598,7 +600,7 @@ function SubmissionsTab({
             onClick={() => setShowSubmitModal(true)}
             className="inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] border border-[#C9A52A]/40 text-[#C9A52A] dark:text-[#D4B12F] text-[12px] font-semibold hover:bg-[#C9A52A]/10 transition-colors cursor-pointer mx-auto mt-2"
           >
-            <Upload className="w-3.5 h-3.5" /> + Submit Deliverable
+            <Upload className="w-3.5 h-3.5" /> Submit Deliverable
           </button>
         </OvCard>
       ) : (
@@ -935,7 +937,7 @@ function AiToolsTab({ projectId }: { projectId: string }) {
           onClick={() => setShowSearchModal(true)}
           className="inline-flex items-center gap-1.5 px-4 h-[38px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-semibold hover:opacity-90 transition-opacity cursor-pointer self-start sm:self-auto shadow-xs"
         >
-          <Plus className="w-3.5 h-3.5" /> + Add AI Tool from Hub
+          <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Add AI Tool from Hub
         </button>
       </div>
 
@@ -954,7 +956,7 @@ function AiToolsTab({ projectId }: { projectId: string }) {
             onClick={() => setShowSearchModal(true)}
             className="inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] border border-[#C9A52A]/40 text-[#C9A52A] text-[12px] font-semibold hover:bg-[#C9A52A]/10 transition-colors cursor-pointer mx-auto mt-2"
           >
-            <Plus className="w-3.5 h-3.5" /> Search ManMadhan Hub
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Search ManMadhan Hub
           </button>
         </OvCard>
       ) : (
@@ -1320,8 +1322,8 @@ export default function ProjectWorkspacePage() {
                 onClick={() => setShowAddTaskModal(true)}
                 className="inline-flex items-center gap-1.5 px-3.5 h-[38px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-semibold hover:opacity-90 transition-opacity cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ Assign Work</span>
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Assign Work</span>
               </button>
               <div className="relative" data-actions-menu>
                 <button
@@ -1422,6 +1424,10 @@ export default function ProjectWorkspacePage() {
             />
           )}
 
+          {activeTab === "TEAM" && (
+            <ProjectTeamView projectId={projectId} ownerName={project.owner} />
+          )}
+
           {activeTab === "WORK" && (
             <WorkTab tasks={tasks} onAddTask={() => setShowAddTaskModal(true)} />
           )}
@@ -1486,7 +1492,7 @@ export default function ProjectWorkspacePage() {
             className="w-full min-h-[48px] px-4 rounded-[12px] bg-[#F8F9FB] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] font-semibold text-[#17202A] dark:text-[#F2F4F7] flex items-center gap-3 cursor-pointer active:scale-98 transition-transform"
           >
             <CheckSquare className="w-4.5 h-4.5 text-[#C9A52A] dark:text-[#D4B12F]" />
-            <span>+ Assign Work</span>
+            <span>Assign Work</span>
           </button>
           <button
             onClick={() => {
@@ -1496,7 +1502,7 @@ export default function ProjectWorkspacePage() {
             className="w-full min-h-[48px] px-4 rounded-[12px] bg-[#F8F9FB] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] font-semibold text-[#17202A] dark:text-[#F2F4F7] flex items-center gap-3 cursor-pointer active:scale-98 transition-transform"
           >
             <Flag className="w-4.5 h-4.5 text-[#C9A52A] dark:text-[#D4B12F]" />
-            <span>+ Add Milestone</span>
+            <span>Add Milestone</span>
           </button>
           <button
             onClick={() => {
@@ -1506,7 +1512,7 @@ export default function ProjectWorkspacePage() {
             className="w-full min-h-[48px] px-4 rounded-[12px] bg-[#F8F9FB] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] font-semibold text-[#17202A] dark:text-[#F2F4F7] flex items-center gap-3 cursor-pointer active:scale-98 transition-transform"
           >
             <Folder className="w-4.5 h-4.5 text-[#C9A52A] dark:text-[#D4B12F]" />
-            <span>+ Upload Document</span>
+            <span>Upload Document</span>
           </button>
           <button
             onClick={() => {
@@ -1516,7 +1522,7 @@ export default function ProjectWorkspacePage() {
             className="w-full min-h-[48px] px-4 rounded-[12px] bg-[#F8F9FB] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] font-semibold text-[#17202A] dark:text-[#F2F4F7] flex items-center gap-3 cursor-pointer active:scale-98 transition-transform"
           >
             <Upload className="w-4.5 h-4.5 text-[#C9A52A] dark:text-[#D4B12F]" />
-            <span>+ Add Submission</span>
+            <span>Add Submission</span>
           </button>
         </div>
       </MobileSheet>

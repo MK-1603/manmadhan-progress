@@ -2538,4 +2538,185 @@ orgProjectsRouter.get("/:id/timeline", async (req: Request, res: Response) => {
 	}
 });
 
+// ─── GET Project Team Members (GET /:id/members) ─────────────────────────────
+orgProjectsRouter.get(
+	"/:id/members",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const { id } = req.params;
+			const workspaceId = (req as any).workspaceId;
+
+			// Fetch project owner & assigned users
+			const [project] = await db
+				.select()
+				.from(projects)
+				.where(eq(projects.id, id))
+				.limit(1);
+
+			if (!project) {
+				return res.status(404).json({ success: false, error: "Project not found" });
+			}
+
+			// Fetch project assignments
+			const assignments = await db
+				.select({
+					id: projectAssignments.id,
+					assignedToUserId: projectAssignments.assignedToUserId,
+					responsibleCoCeoId: projectAssignments.responsibleCoCeoId,
+					assignmentType: projectAssignments.assignmentType,
+					status: projectAssignments.status,
+					createdAt: projectAssignments.createdAt,
+					userName: users.displayName,
+					userEmail: users.email,
+					userAvatar: users.avatar,
+					userRole: users.role,
+				})
+				.from(projectAssignments)
+				.leftJoin(users, eq(projectAssignments.assignedToUserId, users.id))
+				.where(eq(projectAssignments.projectId, id));
+
+			// Fetch task counts per user for this project
+			const projectTasks = await db
+				.select({
+					assigneeId: tasks.assigneeId,
+					status: tasks.status,
+				})
+				.from(tasks)
+				.where(eq(tasks.projectId, id));
+
+			const taskStatsByUser: Record<string, { total: number; completed: number }> = {};
+			for (const t of projectTasks) {
+				if (t.assigneeId) {
+					if (!taskStatsByUser[t.assigneeId]) {
+						taskStatsByUser[t.assigneeId] = { total: 0, completed: 0 };
+					}
+					taskStatsByUser[t.assigneeId].total += 1;
+					if (t.status === "DONE" || t.status === "Completed" || t.status === "COMPLETED") {
+						taskStatsByUser[t.assigneeId].completed += 1;
+					}
+				}
+			}
+
+			// Format team list
+			const team = assignments.map((a) => {
+				const stats = taskStatsByUser[a.assignedToUserId] || { total: 0, completed: 0 };
+				return {
+					id: a.id,
+					userId: a.assignedToUserId,
+					name: a.userName || a.userEmail || "Team Member",
+					email: a.userEmail || "",
+					avatar: a.userAvatar,
+					orgRole: a.userRole || "MEMBER",
+					projectRole: a.assignmentType === "CEO_TO_CO_CEO" ? "EXECUTION_LEAD" : "CONTRIBUTOR",
+					assignmentStatus: a.status,
+					assignedTasks: stats.total,
+					completedTasks: stats.completed,
+					progress: stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0,
+					joinedAt: a.createdAt,
+				};
+			});
+
+			res.json({
+				success: true,
+				data: {
+					ownerId: project.ownerId,
+					team,
+				},
+			});
+		} catch (err: any) {
+			logger.error(`Get project team members error: ${err.message}`);
+			res.status(500).json({ success: false, error: "Failed to load project team members" });
+		}
+	},
+);
+
+// ─── POST Assign Project Member (POST /:id/members) ──────────────────────────
+orgProjectsRouter.post(
+	"/:id/members",
+	resolveWorkspace,
+	requireMembership,
+	requireLeadership,
+	async (req: Request, res: Response) => {
+		try {
+			const { id } = req.params;
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const { assignedToUserId, projectRole = "CONTRIBUTOR" } = req.body;
+
+			if (!assignedToUserId) {
+				return res.status(400).json({ success: false, error: "assignedToUserId is required" });
+			}
+
+			// Check if already assigned
+			const [existing] = await db
+				.select()
+				.from(projectAssignments)
+				.where(and(eq(projectAssignments.projectId, id), eq(projectAssignments.assignedToUserId, assignedToUserId)))
+				.limit(1);
+
+			if (existing) {
+				return res.status(400).json({ success: false, error: "User is already assigned to this project" });
+			}
+
+			const assignmentId = uuidv4();
+			await db.insert(projectAssignments).values({
+				id: assignmentId,
+				projectId: id,
+				workspaceId,
+				createdByUserId: userId,
+				assignedToUserId,
+				assignmentType: projectRole === "EXECUTION_LEAD" ? "CEO_TO_CO_CEO" : "CEO_TO_MEMBER",
+				status: "ACCEPTED",
+			});
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "PROJECT_MEMBER_ADDED",
+				details: `Added user ${assignedToUserId} to project ${id}`,
+			});
+
+			res.json({ success: true, message: "Project team member assigned successfully" });
+		} catch (err: any) {
+			logger.error(`Add project team member error: ${err.message}`);
+			res.status(500).json({ success: false, error: "Failed to add project team member" });
+		}
+	},
+);
+
+// ─── DELETE Remove Project Member (DELETE /:id/members/:assignmentId) ────────
+orgProjectsRouter.delete(
+	"/:id/members/:assignmentId",
+	resolveWorkspace,
+	requireMembership,
+	requireLeadership,
+	async (req: Request, res: Response) => {
+		try {
+			const { id, assignmentId } = req.params;
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+
+			await db
+				.delete(projectAssignments)
+				.where(and(eq(projectAssignments.id, assignmentId), eq(projectAssignments.projectId, id)));
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "PROJECT_MEMBER_REMOVED",
+				details: `Removed assignment ${assignmentId} from project ${id}`,
+			});
+
+			res.json({ success: true, message: "Project member removed" });
+		} catch (err: any) {
+			logger.error(`Remove project member error: ${err.message}`);
+			res.status(500).json({ success: false, error: "Failed to remove project member" });
+		}
+	},
+);
+
 export default orgProjectsRouter;

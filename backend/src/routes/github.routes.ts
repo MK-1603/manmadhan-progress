@@ -15,7 +15,8 @@ export const githubRouter = Router();
 githubRouter.use(authenticate);
 
 async function requireProjectMembership(req: Request, projectId: string) {
-	const userId = (req as any).user?.id;
+	const user = (req as any).user;
+	const userId = user?.id;
 	const [project] = await db
 		.select({ workspaceId: projects.workspaceId })
 		.from(projects)
@@ -23,6 +24,11 @@ async function requireProjectMembership(req: Request, projectId: string) {
 		.limit(1);
 	if (!project)
 		return { ok: false as const, status: 404, error: "Project not found" };
+
+	if (user?.role === "CEO" || user?.role === "CO-CEO" || user?.role === "ADMIN") {
+		return { ok: true as const, workspaceId: project.workspaceId || "default-workspace" };
+	}
+
 	const [membership] = await db
 		.select({ id: workspaceMembers.id })
 		.from(workspaceMembers)
