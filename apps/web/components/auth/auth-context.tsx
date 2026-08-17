@@ -10,6 +10,23 @@ import type { User, AuthContextValue } from "./auth-types";
 export type { User, AuthContextValue } from "./auth-types";
 export { useAuth } from "./use-auth";
 
+export function getDashboardPathForRole(role?: string): string {
+  const r = (role || "").toUpperCase().trim();
+  if (r === "CEO") return "/ceo/dashboard";
+  if (r === "CO-CEO") return "/co-ceo/dashboard";
+  return "/member/dashboard";
+}
+
+export function syncTokenCookie(token: string | null) {
+  if (typeof window === "undefined") return;
+  if (token) {
+    const isHttps = window.location.protocol === "https:";
+    document.cookie = `auth_token=${token}; path=/; max-age=${15 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
+  } else {
+    document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+  }
+}
+
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -80,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (token && typeof window !== "undefined") {
           localStorage.setItem("auth_token", token);
           localStorage.setItem("token", token);
+          syncTokenCookie(token);
         }
 
         // Store workspaceId if returned
@@ -93,10 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuthStatus("authenticated");
 
         // Route to correct dashboard based on role
-        const role = (res.data.user?.role || "CEO").toUpperCase();
-        let dashPath = "/ceo/dashboard";
-        if (role === "CO-CEO") dashPath = "/co-ceo/dashboard";
-        else if (role === "MEMBER") dashPath = "/member/dashboard";
+        const dashPath = getDashboardPathForRole(res.data.user?.role);
 
         // Refresh current user session from /auth/me
         try {
@@ -133,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("token");
         localStorage.removeItem("workspaceId");
         sessionStorage.removeItem("authData");
+        syncTokenCookie(null);
       }
       router.push("/login");
 
@@ -243,21 +259,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(() => {
         isNavigatingRef.current = false;
       }, 500);
-    } else if (authStatus === "authenticated" && user && isAuthPage) {
-      isNavigatingRef.current = true;
-      const role = (user.role || "CEO").toUpperCase();
-      const targetDash =
-        role === "CEO"
-          ? "/ceo/dashboard"
-          : role === "CO-CEO"
-            ? "/co-ceo/dashboard"
-            : "/member/dashboard";
-      router.push(targetDash);
-      setTimeout(() => {
-        isNavigatingRef.current = false;
-      }, 500);
+    } else if (authStatus === "authenticated" && user) {
+      if (isAuthPage) {
+        isNavigatingRef.current = true;
+        const targetDash = getDashboardPathForRole(user.role);
+        router.push(targetDash);
+        setTimeout(() => {
+          isNavigatingRef.current = false;
+        }, 500);
+      } else if (pathname) {
+        const role = (user.role || "").toUpperCase().trim();
+        if (pathname.startsWith("/ceo") && role !== "CEO") {
+          isNavigatingRef.current = true;
+          router.replace(getDashboardPathForRole(role));
+          setTimeout(() => {
+            isNavigatingRef.current = false;
+          }, 500);
+        } else if (pathname.startsWith("/co-ceo") && role !== "CO-CEO") {
+          isNavigatingRef.current = true;
+          router.replace(getDashboardPathForRole(role));
+          setTimeout(() => {
+            isNavigatingRef.current = false;
+          }, 500);
+        } else if (pathname.startsWith("/member") && role !== "MEMBER" && role !== "USER") {
+          isNavigatingRef.current = true;
+          router.replace(getDashboardPathForRole(role));
+          setTimeout(() => {
+            isNavigatingRef.current = false;
+          }, 500);
+        }
+      }
     }
-  }, [isLoading, authStatus, user, isProtected, isAuthPage, router]);
+  }, [isLoading, authStatus, user, isProtected, isAuthPage, pathname, router]);
 
   const open = React.useCallback(() => {
     if (isOpeningRef.current) return;

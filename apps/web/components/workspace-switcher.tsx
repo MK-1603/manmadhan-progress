@@ -5,6 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { Building2, User, ChevronDown, Check } from "lucide-react";
 import { ResponsivePopover } from "./ui/responsive-popover";
 
+import { useAuth, getDashboardPathForRole } from "./auth/auth-context";
+
 interface WorkspaceSwitcherProps {
   isCollapsed: boolean;
   isMobile: boolean;
@@ -13,6 +15,7 @@ interface WorkspaceSwitcherProps {
 export function WorkspaceSwitcher({ isCollapsed, isMobile }: WorkspaceSwitcherProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { user } = useAuth();
   const isPersonal = pathname.startsWith("/personal");
   const [isOpen, setIsOpen] = useState(false);
 
@@ -20,12 +23,8 @@ export function WorkspaceSwitcher({ isCollapsed, isMobile }: WorkspaceSwitcherPr
     setIsOpen(false);
     document.cookie = `last_workspace=${mode === "personal" ? "personal" : "organization"}; path=/; max-age=31536000; samesite=lax`;
     if (mode === "org") {
-      // Check localStorage for cached role or use pathname
-      const isCurrentlyCoCeo = pathname.startsWith("/co-ceo");
-      const isCurrentlyMember = pathname.startsWith("/member");
-      if (isCurrentlyCoCeo) router.push("/co-ceo/dashboard");
-      else if (isCurrentlyMember) router.push("/member/dashboard");
-      else router.push("/ceo/dashboard");
+      const targetPath = getDashboardPathForRole(user?.role);
+      router.push(targetPath);
     } else {
       router.push("/personal/dashboard");
     }

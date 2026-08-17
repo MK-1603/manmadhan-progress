@@ -671,14 +671,20 @@ export const createApp = (): Express => {
 					req.ip || "",
 				);
 
+				const getClientUrl = (subpath: string) => {
+					const base = (env.CLIENT_URL || "http://localhost:3000").replace(/\/$/, "");
+					const clean = subpath.startsWith("/") ? subpath : `/${subpath}`;
+					return `${base}${clean}`;
+				};
+
 				const r = (dbUser.role || "").toUpperCase();
 				let dashboardPath = "/member/dashboard";
 				if (r === "CEO") dashboardPath = "/ceo/dashboard";
 				else if (r === "CO-CEO") dashboardPath = "/co-ceo/dashboard";
 
-				return res.redirect(`${env.CLIENT_URL}${dashboardPath}`);
+				return res.redirect(getClientUrl(dashboardPath));
 			}
-			return res.redirect(`${env.CLIENT_URL}/login?error=account_not_found`);
+			return res.redirect(`${(env.CLIENT_URL || "http://localhost:3000").replace(/\/$/, "")}/login?error=account_not_found`);
 		},
 	);
 
@@ -759,12 +765,18 @@ export const createApp = (): Express => {
 						req.ip || "",
 					);
 
+					const getClientUrl = (subpath: string) => {
+						const base = (env.CLIENT_URL || "http://localhost:3000").replace(/\/$/, "");
+						const clean = subpath.startsWith("/") ? subpath : `/${subpath}`;
+						return `${base}${clean}`;
+					};
+
 					const r = (dbUser.role || "").toUpperCase();
 					let dashboardPath = "/member/dashboard";
 					if (r === "CEO") dashboardPath = "/ceo/dashboard";
 					else if (r === "CO-CEO") dashboardPath = "/co-ceo/dashboard";
 
-					return res.redirect(`${env.CLIENT_URL}${dashboardPath}`);
+					return res.redirect(getClientUrl(dashboardPath));
 				} else {
 					await AuditService.logEvent(
 						dbUser.id,

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { ChevronDown, Building, User as UserIcon, Check, Plus } from "lucide-react";
-import { useAuth } from "../auth/auth-context";
+import { useAuth, getDashboardPathForRole } from "../auth/auth-context";
 import { usePathname, useRouter } from "next/navigation";
 import { ResponsivePopover } from "../ui/responsive-popover";
 import apiClient from "@/lib/api-client";
@@ -41,7 +41,7 @@ export function WorkspaceSwitcher() {
 
   const isPersonal = pathname.startsWith("/personal");
   const activeWorkspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
-  const userRole = (user?.role || "CEO").toUpperCase();
+  const userRole = user?.role;
 
   const getActiveWorkspaceName = () => {
     if (isPersonal) return "Personal Workspace";
@@ -60,9 +60,7 @@ export function WorkspaceSwitcher() {
       window.location.href = "/personal/dashboard";
     } else if (wsId) {
       localStorage.setItem("workspaceId", wsId);
-      let targetPath = "/ceo/dashboard";
-      if (userRole === "CO-CEO") targetPath = "/co-ceo/dashboard";
-      else if (userRole === "MEMBER") targetPath = "/member/dashboard";
+      const targetPath = getDashboardPathForRole(userRole);
       window.location.href = targetPath;
     }
   };

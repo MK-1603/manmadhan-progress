@@ -46,6 +46,7 @@ function clearAuthStorage() {
     localStorage.removeItem("jwt");
     localStorage.removeItem("accessToken");
     localStorage.removeItem("user");
+    document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
   }
 }
 
@@ -81,6 +82,8 @@ async function attemptTokenRefresh(): Promise<string | null> {
       if (typeof window !== "undefined") {
         localStorage.setItem("token", newToken);
         localStorage.setItem("auth_token", newToken);
+        const isHttps = window.location.protocol === "https:";
+        document.cookie = `auth_token=${newToken}; path=/; max-age=${15 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
       }
       return newToken;
     }

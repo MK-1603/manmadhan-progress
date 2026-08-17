@@ -29,7 +29,7 @@ import {
   MailCheck
 } from "lucide-react";
 import apiClient from "../../lib/api-client";
-import { useAuth } from "./auth-context";
+import { useAuth, getDashboardPathForRole, syncTokenCookie } from "./auth-context";
 import React from "react";
 
 type SetUserFn = (user: any) => void;
@@ -622,6 +622,7 @@ export function AuthForm({
       if (res.data.accessToken) {
         localStorage.setItem("auth_token", res.data.accessToken);
         localStorage.setItem("token", res.data.accessToken);
+        syncTokenCookie(res.data.accessToken);
       }
 
       if (res.data.nextStep === "DASHBOARD") {
@@ -636,7 +637,7 @@ export function AuthForm({
             if (redirectParam) {
               window.location.href = redirectParam;
             } else {
-              window.location.href = res.data.role === "CEO" ? "/ceo/dashboard" : res.data.role === "CO-CEO" ? "/co-ceo/dashboard" : "/member/dashboard";
+              window.location.href = getDashboardPathForRole(res.data.role);
             }
           }, 800);
         }
@@ -792,6 +793,7 @@ export function AuthForm({
             if (res.data.accessToken) {
               localStorage.setItem("auth_token", res.data.accessToken);
               localStorage.setItem("token", res.data.accessToken);
+              syncTokenCookie(res.data.accessToken);
             }
             onComplete?.();
             setTransitionMessage("Authenticating...");
@@ -807,7 +809,7 @@ export function AuthForm({
                 if (redirectParam) {
                   window.location.href = redirectParam;
                 } else {
-                  window.location.href = res.data.role === "CEO" ? "/ceo/dashboard" : res.data.role === "CO-CEO" ? "/co-ceo/dashboard" : "/member/dashboard";
+                  window.location.href = getDashboardPathForRole(res.data.role);
                 }
               }, 800);
             }
@@ -989,7 +991,7 @@ export function AuthForm({
           if (redirectParam) {
             window.location.href = redirectParam;
           } else {
-            window.location.href = userRole === "CEO" ? "/ceo/dashboard" : userRole === "CO-CEO" ? "/co-ceo/dashboard" : "/member/dashboard";
+            window.location.href = getDashboardPathForRole(userRole);
           }
         }
       }, 600);
