@@ -293,25 +293,7 @@ export default function LearningPage() {
           </div>
         </div>
 
-        {/* MOBILE 2x2 BALANCED METRIC GRID (Clean neutral gray borders, high contrast metrics) */}
-        <div className="sm:hidden grid grid-cols-2 gap-2">
-          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
-            <span className="text-[#667085] text-[10px] font-bold uppercase tracking-wider block">Plans</span>
-            <div className="text-[20px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{summary.activePlans}</div>
-          </div>
-          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
-            <span className="text-[#667085] text-[10px] font-bold uppercase tracking-wider block">Topics</span>
-            <div className="text-[20px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{summary.totalTopics}</div>
-          </div>
-          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
-            <span className="text-[#667085] text-[10px] font-bold uppercase tracking-wider block">Active</span>
-            <div className="text-[20px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{summary.inProgress}</div>
-          </div>
-          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
-            <span className="text-[#667085] text-[10px] font-bold uppercase tracking-wider block">Mastery</span>
-            <div className="text-[20px] font-extrabold text-[#C9A52A] dark:text-[#D4B12F] leading-none">{summary.overallProgress}%</div>
-          </div>
-        </div>
+
 
         {/* Tab Navigation (Desktop: All tabs / Mobile: Primary tabs + More ▾ sheet) */}
         <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-1">
@@ -366,7 +348,7 @@ export default function LearningPage() {
       </div>
 
       {/* ── Scrollable Body Region ──────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-y-auto pb-28 md:pb-6 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto pb-36 md:pb-6 space-y-4">
         {error && (
           <div className="p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[12px] font-medium flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
