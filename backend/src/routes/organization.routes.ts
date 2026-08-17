@@ -82,8 +82,8 @@ const serializeOrganization = (workspace: any, members: any[], owner: any) => ({
 		: null,
 });
 
-// GET /directory - Returns assignable organization directory users for current workspace
-organizationRouter.get("/directory", async (req: Request, res: Response) => {
+// GET /directory & GET / - Returns assignable organization directory users for current workspace
+const handleGetDirectory = async (req: Request, res: Response) => {
 	try {
 		const { membership } = await getOrganizationMembership(req);
 		if (!membership) {
@@ -108,7 +108,10 @@ organizationRouter.get("/directory", async (req: Request, res: Response) => {
 		logger.error(`Get directory error: ${err.message}`);
 		return res.status(500).json({ success: false, error: "Failed to fetch organization directory." });
 	}
-});
+};
+
+organizationRouter.get("/directory", handleGetDirectory);
+organizationRouter.get("/", handleGetDirectory);
 
 // Organization identity: readable by any authenticated organization member.
 organizationRouter.get("/profile", async (req: Request, res: Response) => {

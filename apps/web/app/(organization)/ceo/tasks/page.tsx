@@ -123,11 +123,21 @@ export default function TasksPage() {
   const fetchDirectory = useCallback(async () => {
     try {
       const res = await apiClient.get("/org/directory");
-      if (res.data?.success) {
-        setAssignableUsers(res.data.data || []);
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setAssignableUsers(res.data.data);
+        return;
+      }
+    } catch {
+      // Fallback to eligible assignees if directory route is transitioning
+    }
+
+    try {
+      const fallbackRes = await apiClient.get("/org/projects/eligible-assignees");
+      if (fallbackRes.data?.data?.all) {
+        setAssignableUsers(fallbackRes.data.data.all);
       }
     } catch (e) {
-      console.error("Failed to fetch assignable users:", e);
+      console.warn("Unable to load workspace directory assignees:", e);
     }
   }, []);
 
