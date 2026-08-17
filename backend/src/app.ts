@@ -255,6 +255,8 @@ export const createApp = (): Express => {
 	app.use("/api/v1/org/graph", organizationRouter);
 	app.use("/api/v1/org/co-ceos", organizationRouter);
 	app.use("/api/v1/org/members", organizationRouter);
+	app.use("/api/v1/org/directory", organizationRouter);
+	app.use("/api/org/directory", organizationRouter);
 	app.use("/api/v1/org/prompts", orgPromptsRouter);
 	app.use("/api/org/prompts", orgPromptsRouter);
 	app.use("/api/v1/org/learning", orgLearningRouter);

@@ -82,6 +82,34 @@ const serializeOrganization = (workspace: any, members: any[], owner: any) => ({
 		: null,
 });
 
+// GET /directory - Returns assignable organization directory users for current workspace
+organizationRouter.get("/directory", async (req: Request, res: Response) => {
+	try {
+		const { membership } = await getOrganizationMembership(req);
+		if (!membership) {
+			return res.status(403).json({ success: false, error: "Organization membership required." });
+		}
+
+		const members = await db
+			.select({
+				id: users.id,
+				name: users.displayName,
+				displayName: users.displayName,
+				email: users.email,
+				avatar: users.avatar,
+				role: workspaceMembers.role,
+			})
+			.from(workspaceMembers)
+			.innerJoin(users, eq(workspaceMembers.userId, users.id))
+			.where(eq(workspaceMembers.workspaceId, membership.workspaceId));
+
+		return res.json({ success: true, data: members });
+	} catch (err: any) {
+		logger.error(`Get directory error: ${err.message}`);
+		return res.status(500).json({ success: false, error: "Failed to fetch organization directory." });
+	}
+});
+
 // Organization identity: readable by any authenticated organization member.
 organizationRouter.get("/profile", async (req: Request, res: Response) => {
 	try {
