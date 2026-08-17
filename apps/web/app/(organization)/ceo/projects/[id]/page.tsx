@@ -912,12 +912,11 @@ function AiToolsTab({ projectId }: { projectId: string }) {
   };
 
   const handleUnlink = async (toolLinkId: string) => {
-    if (!confirm("Unlink this AI tool from project?")) return;
     try {
       await apiClient.delete(`/org/integrations/projects/${projectId}/ai-tools/${toolLinkId}`);
       fetchLinkedTools();
-    } catch {
-      alert("Failed to unlink AI tool.");
+    } catch (err: any) {
+      console.error("Failed to unlink AI tool:", err);
     }
   };
 
@@ -1176,12 +1175,11 @@ export default function ProjectWorkspacePage() {
   };
 
   const handleArchiveProject = async () => {
-    if (!confirm("Archive this project?")) return;
     try {
       await apiClient.post(`/org/projects/${projectId}/archive`);
       router.push("/ceo/projects");
     } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to archive project.");
+      console.error("Failed to archive project:", err);
     }
   };
 

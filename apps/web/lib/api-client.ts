@@ -95,7 +95,7 @@ async function attemptTokenRefresh(): Promise<string | null> {
         localStorage.setItem("token", newToken);
         localStorage.setItem("auth_token", newToken);
         const isHttps = window.location.protocol === "https:";
-        document.cookie = `auth_token=${newToken}; path=/; max-age=${15 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
+        document.cookie = `auth_token=${newToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
       }
       return newToken;
     }

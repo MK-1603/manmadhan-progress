@@ -21,7 +21,7 @@ export function syncTokenCookie(token: string | null) {
   if (typeof window === "undefined") return;
   if (token) {
     const isHttps = window.location.protocol === "https:";
-    document.cookie = `auth_token=${token}; path=/; max-age=${15 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
+    document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
   } else {
     document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
   }
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (authData && authData.step !== "RESET_SENT" && authData.step !== "FORGOT_PASSWORD") {
       const dataToStore = {
         ...authData,
-        expiresAt: authData.expiresAt || Date.now() + 5 * 60 * 1000, // 5 minutes from now
+        expiresAt: authData.expiresAt || Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
       };
       sessionStorage.setItem("authData", JSON.stringify(dataToStore));
     } else {
@@ -239,6 +239,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     checkSession();
   }, [checkSession]);
+
+  // Background session refresh heartbeat every 10 minutes to prevent token expiration
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    const heartbeat = setInterval(() => {
+      refreshUser();
+    }, 10 * 60 * 1000);
+    return () => clearInterval(heartbeat);
+  }, [authStatus, refreshUser]);
 
   const isProtected =
     pathname?.startsWith("/ceo") ||

@@ -39,7 +39,7 @@ export class SessionService {
 		};
 
 		const accessToken = jwt.sign(authUser, env.JWT_SECRET, {
-			expiresIn: "15m",
+			expiresIn: "1h",
 		});
 
 		const refreshToken = jwt.sign(
@@ -195,7 +195,7 @@ export class SessionService {
 		};
 
 		const newAccessToken = jwt.sign(authUser, env.JWT_SECRET, {
-			expiresIn: "15m",
+			expiresIn: "1h",
 		});
 
 		const newRefreshToken = jwt.sign(

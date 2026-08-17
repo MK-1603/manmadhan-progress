@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Plus, FolderKanban, Search, Loader2, AlertCircle,
   Trash2, RefreshCw, ChevronRight, LayoutGrid, List,
-  Archive, CheckSquare, Square, Edit, MoreVertical, Shield, Check, X
+  Archive, CheckSquare, Square, Edit, MoreVertical, Shield, Check, X, Move
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
@@ -12,6 +12,7 @@ import { useRegisterRefresh } from "@/components/providers/global-refresh-provid
 import Link from "next/link";
 import { CreateProjectModal } from "@/components/organization/create-project-modal";
 import { EditProjectModal } from "@/components/organization/edit-project-modal";
+import { DeleteConfirmationModal } from "@/components/organization/delete-confirmation-modal";
 
 const STATUS_STYLE: Record<string, string> = {
   Active: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
@@ -25,17 +26,6 @@ const STATUS_STYLE: Record<string, string> = {
   Archived: "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20",
   ARCHIVED: "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20",
   Cancelled: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
-};
-
-const PRIORITY_STYLE: Record<string, string> = {
-  LOW: "text-gray-600 dark:text-gray-400 bg-gray-500/10 border-gray-500/20",
-  Low: "text-gray-600 dark:text-gray-400 bg-gray-500/10 border-gray-500/20",
-  MEDIUM: "text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20",
-  Medium: "text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20",
-  HIGH: "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20",
-  High: "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20",
-  CRITICAL: "text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20",
-  Critical: "text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20",
 };
 
 const STATUS_FILTERS = ["All", "Active", "Planning", "On Hold", "Completed"];
@@ -65,8 +55,15 @@ export default function ProjectsPage() {
   // Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<any | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  
+  // Custom Delete Modals
+  const [deleteConfirmSingleId, setDeleteConfirmSingleId] = useState<string | null>(null);
+  const [deleteConfirmBulkOpen, setDeleteConfirmBulkOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [bulkProcessing, setBulkProcessing] = useState(false);
+
+  // Drag & Drop State
+  const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null);
 
   // Fetch real projects from backend API
   const fetchProjects = useCallback(async () => {
@@ -145,7 +142,9 @@ export default function ProjectsPage() {
 
   const handleBulkAction = async (action: "ARCHIVE" | "CHANGE_STATUS" | "CHANGE_PRIORITY" | "DELETE", extraVal?: string) => {
     if (selectedIds.length === 0) return;
-    if (action === "DELETE" && !confirm(`Permanently delete ${selectedIds.length} projects? This action cannot be undone.`)) {
+    
+    if (action === "DELETE") {
+      setDeleteConfirmBulkOpen(true);
       return;
     }
 
@@ -162,27 +161,74 @@ export default function ProjectsPage() {
       setSelectedIds([]);
       fetchProjects();
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Bulk action failed");
+      setError(err?.response?.data?.error || "Bulk action failed");
     } finally {
       setBulkProcessing(false);
     }
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!confirm("Delete this project? This action is permanent and cannot be undone.")) return;
-    setDeletingId(id);
+  const confirmBulkDelete = async () => {
+    setDeleting(true);
     try {
-      const wsId = localStorage.getItem("workspaceId");
-      await apiClient.delete(`/org/projects/${id}${wsId ? `?workspaceId=${wsId}` : ""}`);
-      setRealProjects((prev) => prev.filter((p) => p.id !== id));
-      setSelectedIds((prev) => prev.filter((i) => i !== id));
+      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+      await apiClient.post(`/org/projects/bulk-action${wsId ? `?workspaceId=${wsId}` : ""}`, {
+        action: "DELETE",
+        projectIds: selectedIds,
+      });
+
+      setSelectedIds([]);
+      setDeleteConfirmBulkOpen(false);
       fetchProjects();
     } catch (err: any) {
-      alert(err?.response?.data?.error || "Failed to delete project");
+      setError(err?.response?.data?.error || "Failed to delete projects");
     } finally {
-      setDeletingId(null);
+      setDeleting(false);
+    }
+  };
+
+  const confirmSingleDelete = async () => {
+    if (!deleteConfirmSingleId) return;
+    setDeleting(true);
+    try {
+      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+      await apiClient.delete(`/org/projects/${deleteConfirmSingleId}${wsId ? `?workspaceId=${wsId}` : ""}`);
+      setRealProjects((prev) => prev.filter((p) => p.id !== deleteConfirmSingleId));
+      setSelectedIds((prev) => prev.filter((i) => i !== deleteConfirmSingleId));
+      setDeleteConfirmSingleId(null);
+      fetchProjects();
+    } catch (err: any) {
+      setError(err?.response?.data?.error || "Failed to delete project");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Drag and Drop Column Handler
+  const handleDropOnColumn = async (targetStatus: string, e: React.DragEvent) => {
+    e.preventDefault();
+    const projectId = e.dataTransfer.getData("text/plain") || draggedProjectId;
+    if (!projectId) return;
+
+    const targetProject = realProjects.find((p) => p.id === projectId);
+    if (!targetProject || targetProject.status === targetStatus) return;
+
+    // Optimistic UI update
+    setRealProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, status: targetStatus } : p))
+    );
+
+    try {
+      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+      await apiClient.put(`/org/projects/${projectId}${wsId ? `?workspaceId=${wsId}` : ""}`, {
+        name: targetProject.name,
+        status: targetStatus,
+      });
+      fetchProjects();
+    } catch (err: any) {
+      console.error("Failed to update status via drag & drop:", err);
+      fetchProjects(); // Revert on failure
+    } finally {
+      setDraggedProjectId(null);
     }
   };
 
@@ -443,7 +489,7 @@ export default function ProjectsPage() {
               </span>
               <button
                 onClick={() => setSelectedIds([])}
-                className="text-[12px] font-semibold text-[#667085] dark:text-[#8B95A5] hover:underline"
+                className="text-[12px] font-semibold text-[#667085] dark:text-[#8B95A5] hover:underline cursor-pointer"
               >
                 Clear Selection
               </button>
@@ -453,7 +499,7 @@ export default function ProjectsPage() {
               <button
                 onClick={() => handleBulkAction("ARCHIVE")}
                 disabled={bulkProcessing}
-                className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-semibold hover:border-[#C9A52A] transition-colors flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-semibold hover:border-[#C9A52A] transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Archive className="w-3.5 h-3.5" /> Archive Selected
               </button>
@@ -461,7 +507,7 @@ export default function ProjectsPage() {
               <button
                 onClick={() => handleBulkAction("CHANGE_STATUS", "COMPLETED")}
                 disabled={bulkProcessing}
-                className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-semibold hover:border-[#C9A52A] transition-colors flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-semibold hover:border-[#C9A52A] transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Check className="w-3.5 h-3.5" /> Mark Completed
               </button>
@@ -469,7 +515,7 @@ export default function ProjectsPage() {
               <button
                 onClick={() => handleBulkAction("DELETE")}
                 disabled={bulkProcessing}
-                className="px-3 py-1.5 rounded-[8px] bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-[12px] font-semibold hover:bg-rose-500/20 transition-colors flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-[8px] bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-[12px] font-semibold hover:bg-rose-500/20 transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" /> Delete Selected
               </button>
@@ -585,7 +631,7 @@ export default function ProjectsPage() {
                       <div className="flex items-center justify-end gap-1.5 shrink-0">
                         <button
                           onClick={() => setEditingProject(project)}
-                          className="p-1.5 rounded-md text-[#667085] hover:text-[#C9A52A] hover:bg-[#C9A52A]/10 transition-colors"
+                          className="p-1.5 rounded-md text-[#667085] hover:text-[#C9A52A] hover:bg-[#C9A52A]/10 transition-colors cursor-pointer"
                           title="Edit project"
                         >
                           <Edit className="w-3.5 h-3.5" />
@@ -599,8 +645,7 @@ export default function ProjectsPage() {
                         </Link>
 
                         <button
-                          onClick={(e) => handleDelete(project.id, e)}
-                          disabled={deletingId === project.id}
+                          onClick={() => setDeleteConfirmSingleId(project.id)}
                           className="p-1.5 rounded-md text-[#667085] hover:text-rose-600 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
                           title="Delete project"
                         >
@@ -614,7 +659,7 @@ export default function ProjectsPage() {
             </div>
           </div>
         ) : (
-          /* Kanban Board View */
+          /* Kanban Board View with Drag & Drop */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 flex-1 min-h-[400px]">
             {["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED"].map((colStatus) => {
               const colProjects = filtered.filter(
@@ -626,7 +671,12 @@ export default function ProjectsPage() {
               return (
                 <div
                   key={colStatus}
-                  className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] p-4 flex flex-col space-y-3"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                  }}
+                  onDrop={(e) => handleDropOnColumn(colStatus, e)}
+                  className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] p-4 flex flex-col space-y-3 transition-colors hover:border-[#C9A52A]/40"
                 >
                   <div className="flex items-center justify-between pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
                     <h3 className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7] uppercase tracking-[0.08em]">
@@ -641,14 +691,22 @@ export default function ProjectsPage() {
                     {colProjects.map((proj) => (
                       <div
                         key={proj.id}
-                        className="p-3.5 rounded-[12px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] space-y-2.5 hover:border-[#C9A52A] transition-all"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", proj.id);
+                          setDraggedProjectId(proj.id);
+                        }}
+                        className="p-3.5 rounded-[12px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] space-y-2.5 hover:border-[#C9A52A] transition-all cursor-grab active:cursor-grabbing shadow-xs"
                       >
-                        <Link
-                          href={`${base}/projects/${proj.id}`}
-                          className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:text-[#C9A52A] transition-colors block truncate"
-                        >
-                          {proj.name}
-                        </Link>
+                        <div className="flex items-center justify-between gap-2">
+                          <Link
+                            href={`${base}/projects/${proj.id}`}
+                            className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:text-[#C9A52A] transition-colors truncate block flex-1"
+                          >
+                            {proj.name}
+                          </Link>
+                          <Move className="w-3.5 h-3.5 text-[#667085] opacity-40 shrink-0" />
+                        </div>
                         {(proj.objective || proj.description) && (
                           <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] line-clamp-2 leading-relaxed">
                             {proj.objective || proj.description}
@@ -688,6 +746,24 @@ export default function ProjectsPage() {
         project={editingProject}
         onClose={() => setEditingProject(null)}
         onSuccess={fetchProjects}
+      />
+
+      {/* Single Project Delete Modal */}
+      <DeleteConfirmationModal
+        isOpen={!!deleteConfirmSingleId}
+        count={1}
+        isSubmitting={deleting}
+        onClose={() => setDeleteConfirmSingleId(null)}
+        onConfirm={confirmSingleDelete}
+      />
+
+      {/* Bulk Project Delete Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteConfirmBulkOpen}
+        count={selectedIds.length}
+        isSubmitting={deleting}
+        onClose={() => setDeleteConfirmBulkOpen(false)}
+        onConfirm={confirmBulkDelete}
       />
     </div>
   );
