@@ -9,6 +9,7 @@ import {
 	tasks,
 	timeTracking,
 	users,
+	userSessions,
 	workspaceMembers,
 	workspaces,
 } from "../../database/schema";
@@ -1849,20 +1850,31 @@ organizationRouter.delete("/members/:id", async (req: Request, res: Response) =>
 			});
 		}
 
-		// Delete workspace member record and any corresponding invitations from database
+		// Delete workspace member record and revoke active user sessions
 		await db.delete(workspaceMembers).where(eq(workspaceMembers.id, targetMember.id));
+		try {
+			await db.delete(userSessions).where(eq(userSessions.userId, targetMember.userId));
+		} catch (e) {
+			logger.warn(`Failed to delete userSessions for ${targetMember.userId}: ${e}`);
+		}
+
 		const [targetUser] = await db.select().from(users).where(eq(users.id, targetMember.userId)).limit(1);
 		if (targetUser?.email) {
 			await db.delete(invitations).where(and(eq(invitations.organizationId, workspaceId), eq(invitations.email, targetUser.email)));
 		}
+
+		// Emit socket signal to target user to force session revocation
+		socketService.emitToUser(targetMember.userId, "session.revoked", {
+			reason: "Access revoked by organization administrator",
+		});
 
 		socketService.emitToWorkspace(workspaceId, "MEMBER_REMOVED", {
 			memberId: targetMember.id,
 			userId: targetMember.userId,
 		});
 
-		logger.info("Member removed");
-		return res.json({ success: true, message: "Member removed successfully." });
+		logger.info("Member removed and sessions revoked");
+		return res.json({ success: true, message: "Member removed and access revoked successfully." });
 	} catch (err: any) {
 		logger.error("Delete organization member failed");
 		return res.status(500).json({

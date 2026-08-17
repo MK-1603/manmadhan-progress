@@ -50,7 +50,7 @@ export function isExplicitLoggingOut() {
 // we only make one refresh request even when multiple requests expire at once.
 let refreshPromise: Promise<string | null> | null = null;
 
-function clearAuthStorage() {
+export function clearAuthStorage() {
   if (typeof window !== "undefined") {
     localStorage.removeItem("token");
     localStorage.removeItem("auth_token");

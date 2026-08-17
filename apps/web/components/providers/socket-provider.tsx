@@ -12,7 +12,7 @@ import React, {
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "@/components/auth/auth-context";
 import { resetGlobalSheetState } from "@/components/ui/global-sheet";
-import { isExplicitLoggingOut } from "@/lib/api-client";
+import { isExplicitLoggingOut, clearAuthStorage } from "@/lib/api-client";
 
 interface SocketContextType {
   socket: Socket | null;
@@ -239,9 +239,8 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     const handleForceLogout = () => {
       resetGlobalSheetState();
       destroySocket();
+      clearAuthStorage();
       if (typeof window !== "undefined") {
-        localStorage.clear();
-        sessionStorage.clear();
         window.location.href = "/login?error=session_revoked";
       }
     };
@@ -250,9 +249,8 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     socketInstance.on("FORCE_LOGOUT", handleForceLogout);
     socketInstance.on("ACCOUNT_DELETED", () => {
       destroySocket();
+      clearAuthStorage();
       if (typeof window !== "undefined") {
-        localStorage.clear();
-        sessionStorage.clear();
         window.location.href = "/account-not-found";
       }
     });
