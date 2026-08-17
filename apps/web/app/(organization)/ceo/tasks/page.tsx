@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   CheckSquare, Search, Loader2, AlertCircle, User, Trash2, Plus, FolderKanban,
   RefreshCw, ChevronRight, BookOpen, Sparkles, Zap, Flame, Filter, LayoutGrid,
-  List, Play, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Check, X, MoreVertical, SlidersHorizontal, UserPlus, ArrowRightLeft, CornerUpRight
+  List, Play, CheckCircle2, Clock, AlertTriangle, ShieldCheck, Check, X, MoreVertical, SlidersHorizontal, UserPlus, ArrowRightLeft, CornerUpRight, ChevronDown
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
@@ -28,16 +28,21 @@ const STATUS_STYLE: Record<string, string> = {
   "Blocked": "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
 };
 
-const TASK_TYPE_CHIPS = [
+const PRIMARY_MOBILE_CHIPS = [
   { id: "All", label: "All" },
   { id: "PROJECT WORK", label: "Project Work" },
   { id: "PERSONAL WORK", label: "Personal Work" },
   { id: "LEARNING", label: "Learning" },
+];
+
+const MORE_MOBILE_CHIPS = [
   { id: "DOCUMENTATION", label: "Docs" },
   { id: "RESEARCH", label: "Research" },
   { id: "SUBMISSION", label: "Submission" },
   { id: "REVIEW", label: "Review" },
 ];
+
+const TASK_TYPE_CHIPS = [...PRIMARY_MOBILE_CHIPS, ...MORE_MOBILE_CHIPS];
 
 const PRIORITY_OPTIONS = [
   { value: "All", label: "All Priorities" },
@@ -86,6 +91,7 @@ export default function TasksPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
+  const [showMoreCategorySheet, setShowMoreCategorySheet] = useState(false);
   const [actionTaskSheet, setActionTaskSheet] = useState<any | null>(null);
   const [showBulkAssignSheet, setShowBulkAssignSheet] = useState(false);
   const [showBulkStatusSheet, setShowBulkStatusSheet] = useState(false);
@@ -99,104 +105,104 @@ export default function TasksPage() {
   const fetchTasks = useCallback(async () => {
     setLoading(true);
     try {
-      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
+      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
       const res = await apiClient.get(`/org/tasks${wsId ? `?workspaceId=${wsId}` : ""}`);
-      if (res.data?.success && Array.isArray(res.data.data)) {
-        setTasks(res.data.data);
+      if (res.data?.success) {
+        setTasks(res.data.data || []);
         setError("");
       } else {
-        setError("Failed to fetch tasks from backend.");
+        setError(res.data?.error || "Failed to load tasks.");
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Tasks couldn't be loaded.");
+      setError(err?.response?.data?.error || "Unable to load task workspace data.");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchTasks();
-    apiClient.get("/org/projects/eligible-assignees").then((res) => {
-      if (res.data?.data?.all) setAssignableUsers(res.data.data.all);
-    }).catch(() => null);
-  }, [fetchTasks]);
+  const fetchDirectory = useCallback(async () => {
+    try {
+      const res = await apiClient.get("/org/directory");
+      if (res.data?.success) {
+        setAssignableUsers(res.data.data || []);
+      }
+    } catch (e) {
+      console.error("Failed to fetch assignable users:", e);
+    }
+  }, []);
 
   useEffect(() => {
+    fetchTasks();
+    fetchDirectory();
+  }, [fetchTasks, fetchDirectory]);
+
+  // Realtime WebSocket listeners
+  useEffect(() => {
     if (!socket) return;
-    socket.on("task.created", fetchTasks);
-    socket.on("task.updated", fetchTasks);
-    socket.on("task.deleted", fetchTasks);
+    const handleTaskUpdated = () => fetchTasks();
+    const handleTaskCreated = () => fetchTasks();
+    const handleTaskDeleted = () => fetchTasks();
+
+    socket.on("task_updated", handleTaskUpdated);
+    socket.on("task_created", handleTaskCreated);
+    socket.on("task_deleted", handleTaskDeleted);
+
     return () => {
-      socket.off("task.created", fetchTasks);
-      socket.off("task.updated", fetchTasks);
-      socket.off("task.deleted", fetchTasks);
+      socket.off("task_updated", handleTaskUpdated);
+      socket.off("task_created", handleTaskCreated);
+      socket.off("task_deleted", handleTaskDeleted);
     };
   }, [socket, fetchTasks]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setSelectedIds([]);
-        setIsMobileSelectionMode(false);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  // Filtering
+  // Filter Logic
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      const matchSearch =
-        !search.trim() ||
+      const matchesSearch =
         (t.title || "").toLowerCase().includes(search.toLowerCase()) ||
-        (t.description || "").toLowerCase().includes(search.toLowerCase()) ||
         (t.projectName || "").toLowerCase().includes(search.toLowerCase()) ||
         (t.assigneeName || "").toLowerCase().includes(search.toLowerCase());
 
-      const matchType =
+      const matchesType =
         activeTypeTab === "All" ||
-        (t.type || "").toUpperCase() === activeTypeTab.toUpperCase();
+        (t.taskType || "").toUpperCase() === activeTypeTab.toUpperCase() ||
+        (activeTypeTab === "PROJECT WORK" && t.projectId) ||
+        (activeTypeTab === "PERSONAL WORK" && !t.projectId);
 
-      const matchPriority =
-        priorityFilter === "All" ||
-        (t.priority || "").toLowerCase() === priorityFilter.toLowerCase();
+      const matchesPriority = priorityFilter === "All" || (t.priority || "").toLowerCase() === priorityFilter.toLowerCase();
+      const matchesStatus = statusFilter === "All" || (t.status || "").toLowerCase() === statusFilter.toLowerCase();
+      const matchesAssignee = assigneeFilter === "All" || t.assigneeId === assigneeFilter;
 
-      const matchStatus =
-        statusFilter === "All" ||
-        (t.status || "").toLowerCase() === statusFilter.toLowerCase();
-
-      const matchAssignee =
-        assigneeFilter === "All" ||
-        t.assigneeId === assigneeFilter;
-
-      return matchSearch && matchType && matchPriority && matchStatus && matchAssignee;
+      return matchesSearch && matchesType && matchesPriority && matchesStatus && matchesAssignee;
     });
   }, [tasks, search, activeTypeTab, priorityFilter, statusFilter, assigneeFilter]);
 
-  // Summary Metrics (4 Core Metrics)
-  const summaryMetrics = useMemo(() => {
-    const total = tasks.length;
-    const active = tasks.filter((t) => ["In Progress", "Accepted", "Assigned"].includes(t.status)).length;
-    const completed = tasks.filter((t) => ["Completed", "Approved"].includes(t.status)).length;
-    const overdue = tasks.filter((t) => t.deadline && new Date(t.deadline) < new Date() && !["Completed", "Approved"].includes(t.status)).length;
-    return { total, active, completed, overdue };
-  }, [tasks]);
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (activeTypeTab !== "All") count++;
+    if (priorityFilter !== "All") count++;
+    if (statusFilter !== "All") count++;
+    if (assigneeFilter !== "All") count++;
+    return count;
+  }, [activeTypeTab, priorityFilter, statusFilter, assigneeFilter]);
 
-  // Master Checkbox State
-  const isAllSelected = filteredTasks.length > 0 && filteredTasks.every((t) => selectedIds.includes(t.id));
-  const isIndeterminate = selectedIds.length > 0 && !isAllSelected;
+  const isMoreCategoryActive = MORE_MOBILE_CHIPS.some((c) => c.id === activeTypeTab);
 
-  const toggleSelectAll = () => {
+  // Bulk Operations
+  const isAllSelected = useMemo(() => {
+    return filteredTasks.length > 0 && filteredTasks.every((t) => selectedIds.includes(t.id));
+  }, [filteredTasks, selectedIds]);
+
+  const handleSelectAll = () => {
     if (isAllSelected) {
       setSelectedIds([]);
+      setIsMobileSelectionMode(false);
     } else {
       setSelectedIds(filteredTasks.map((t) => t.id));
     }
   };
 
-  const handleTaskRowClick = (task: any, index: number, e: React.MouseEvent) => {
-    if (e.shiftKey && lastSelectedIndexRef.current !== null) {
+  const handleTaskClick = (task: any, index: number, event: React.MouseEvent) => {
+    if (event.shiftKey && lastSelectedIndexRef.current !== null) {
       const start = Math.min(lastSelectedIndexRef.current, index);
       const end = Math.max(lastSelectedIndexRef.current, index);
       const rangeIds = filteredTasks.slice(start, end + 1).map((t) => t.id);
@@ -256,7 +262,7 @@ export default function TasksPage() {
     }
   };
 
-  const handleExecuteBulkAssign = async (assigneeId: string) => {
+  const handleExecuteBulkAssignee = async (assigneeId: string) => {
     setIsBulkProcessing(true);
     try {
       await apiClient.post("/org/tasks/bulk/assign", { taskIds: selectedIds, assigneeId });
@@ -269,24 +275,10 @@ export default function TasksPage() {
     }
   };
 
-  const handleExecuteBulkComplete = async () => {
-    setIsBulkProcessing(true);
-    try {
-      await apiClient.post("/org/tasks/bulk/complete", { taskIds: selectedIds });
-      setSelectedIds([]);
-      setIsMobileSelectionMode(false);
-      fetchTasks();
-    } catch (e) {
-      console.error("Bulk complete error:", e);
-    } finally {
-      setIsBulkProcessing(false);
-    }
-  };
-
   const handleExecuteBulkDelete = async () => {
     setIsBulkProcessing(true);
     try {
-      await apiClient.delete("/org/tasks/bulk", { data: { taskIds: selectedIds } });
+      await apiClient.post("/org/tasks/bulk/delete", { taskIds: selectedIds });
       setSelectedIds([]);
       setIsMobileSelectionMode(false);
       setShowBulkDeleteModal(false);
@@ -303,14 +295,14 @@ export default function TasksPage() {
   };
 
   return (
-    <div className="w-full h-full min-h-0 flex-1 flex flex-col justify-between overflow-hidden p-3 sm:p-6 md:p-8 max-w-[1600px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans space-y-4 select-none">
+    <div className="w-full min-h-full flex flex-col justify-between p-3.5 sm:p-6 md:p-8 max-w-[1600px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans space-y-4 select-none pb-20 md:pb-6">
       
-      {/* ── HEADER REGION (Zero Page Scroll, Spacious Desktop Heights) ───── */}
+      {/* ── HEADER REGION ──────────────────────────────────────────────── */}
       <div className="shrink-0 space-y-3">
         
         {/* Title Bar or Mobile Selection Header */}
         {isMobileSelectionMode ? (
-          <div className="flex items-center justify-between pb-2 border-b border-[#C9A52A]/40 bg-[#C9A52A]/10 -mx-3 px-3 py-2">
+          <div className="flex items-center justify-between pb-2 border-b border-[#C9A52A]/40 bg-[#C9A52A]/10 -mx-3.5 px-3.5 py-2">
             <div className="flex items-center gap-2 text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
               <span className="w-6 h-6 rounded-full bg-[#C9A52A] text-[#0B0D10] font-mono text-[12px] flex items-center justify-center font-bold">
                 {selectedIds.length}
@@ -327,21 +319,19 @@ export default function TasksPage() {
         ) : (
           <div className="flex items-center justify-between gap-3 pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
             <div>
-              <div className="flex items-center gap-2.5">
-                <CheckSquare className="w-6 h-6 text-[#C9A52A] dark:text-[#D4B12F]" />
-                <h1 className="text-[22px] sm:text-[26px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="w-5 h-5 text-[#C9A52A] dark:text-[#D4B12F]" />
+                <h1 className="text-[20px] sm:text-[26px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
                   Tasks
                 </h1>
               </div>
-              <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5] mt-1 hidden sm:block">
-                Execution Control Center — Track and manage execution across projects, learning plans, and organizational work.
-              </p>
-              <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] mt-0.5 sm:hidden">
+              <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] mt-1">
                 Execution workspace
               </p>
             </div>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
+              {/* View Switcher Controls */}
               <div className="flex items-center p-0.5 rounded-[9px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36]">
                 <button
                   type="button"
@@ -382,150 +372,72 @@ export default function TasksPage() {
               <button
                 type="button"
                 onClick={() => setShowCreate(true)}
-                className="hidden md:inline-flex items-center gap-1.5 px-4 h-[38px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer shrink-0"
+                className="px-3.5 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold text-[12px] flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
-                <span>Create Task</span>
+                <span className="hidden sm:inline">Create Task</span>
+                <span className="sm:hidden">New Task</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* ── DESKTOP STICKY BULK ACTION TOOLBAR ───────────────────────── */}
-        {selectedIds.length > 0 && (
-          <div className="hidden md:flex items-center justify-between p-3 rounded-[14px] bg-[#17202A] dark:bg-[#15191F] text-white shadow-lg border border-[#C9A52A]/40 animate-in fade-in duration-150">
-            <div className="text-[13px] font-bold flex items-center gap-2.5">
-              <span className="w-6 h-6 rounded-full bg-[#C9A52A] text-[#0B0D10] font-mono text-[12px] flex items-center justify-center font-bold">
-                {selectedIds.length}
-              </span>
-              <span>selected</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowBulkAssignSheet(true)}
-                className="px-3.5 h-[32px] rounded-[8px] bg-[#FFFFFF]/10 hover:bg-[#FFFFFF]/20 text-[12px] font-semibold flex items-center gap-1.5 cursor-pointer"
-              >
-                <UserPlus className="w-3.5 h-3.5 text-[#C9A52A]" />
-                <span>Assign</span>
-              </button>
-              <button
-                onClick={() => setShowBulkStatusSheet(true)}
-                className="px-3.5 h-[32px] rounded-[8px] bg-[#FFFFFF]/10 hover:bg-[#FFFFFF]/20 text-[12px] font-semibold flex items-center gap-1.5 cursor-pointer"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5 text-blue-400" />
-                <span>Status</span>
-              </button>
-              <button
-                onClick={() => setShowBulkPrioritySheet(true)}
-                className="px-3.5 h-[32px] rounded-[8px] bg-[#FFFFFF]/10 hover:bg-[#FFFFFF]/20 text-[12px] font-semibold flex items-center gap-1.5 cursor-pointer"
-              >
-                <Flame className="w-3.5 h-3.5 text-amber-400" />
-                <span>Priority</span>
-              </button>
-              <button
-                onClick={handleExecuteBulkComplete}
-                className="px-3.5 h-[32px] rounded-[8px] bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-[12px] font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Complete</span>
-              </button>
-              <button
-                onClick={() => setShowBulkDeleteModal(true)}
-                className="px-3.5 h-[32px] rounded-[8px] bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[12px] font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete</span>
-              </button>
-
-              <div className="w-[1px] h-5 bg-white/20 mx-1" />
-
-              <button
-                onClick={() => { setSelectedIds([]); setIsMobileSelectionMode(false); }}
-                className="text-slate-400 hover:text-white text-[12px] font-medium px-2"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── DESKTOP 4 CORE KPI ROW (96–112px height, 4 columns) ─────── */}
-        {selectedIds.length === 0 && (
-          <div className="hidden md:grid grid-cols-4 gap-4">
-            <div className="h-[96px] sm:h-[104px] p-4 sm:p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
-              <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Total Tasks</div>
-              <div className="flex items-baseline justify-between">
-                <div className="text-[28px] sm:text-[30px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{summaryMetrics.total}</div>
-                <span className="text-[11px] font-medium text-[#667085]">All assigned work</span>
-              </div>
-            </div>
-
-            <div className="h-[96px] sm:h-[104px] p-4 sm:p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
-              <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Active</div>
-              <div className="flex items-baseline justify-between">
-                <div className="text-[28px] sm:text-[30px] font-extrabold text-blue-600 dark:text-blue-400 leading-none">{summaryMetrics.active}</div>
-                <span className="text-[11px] font-medium text-[#667085]">Currently executing</span>
-              </div>
-            </div>
-
-            <div className="h-[96px] sm:h-[104px] p-4 sm:p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
-              <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Completed</div>
-              <div className="flex items-baseline justify-between">
-                <div className="text-[28px] sm:text-[30px] font-extrabold text-emerald-600 dark:text-emerald-400 leading-none">{summaryMetrics.completed}</div>
-                <span className="text-[11px] font-medium text-[#667085]">Successfully finished</span>
-              </div>
-            </div>
-
-            <div className="h-[96px] sm:h-[104px] p-4 sm:p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
-              <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Overdue</div>
-              <div className="flex items-baseline justify-between">
-                <div className="text-[28px] sm:text-[30px] font-extrabold text-amber-600 dark:text-amber-400 leading-none">{summaryMetrics.overdue}</div>
-                <span className="text-[11px] font-medium text-[#667085]">Needs attention</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-
-
-        {/* ── DESKTOP & MOBILE FILTER WORKSPACE ───────────────────────── */}
+        {/* ── DESKTOP & MOBILE FILTER CONTROLS ───────────────────────────── */}
         {!isMobileSelectionMode && (
-          <div className="space-y-2">
-            {/* Filter Chips Row */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] whitespace-nowrap">
-              {TASK_TYPE_CHIPS.map((chip) => (
+          <div className="space-y-2.5">
+            
+            {/* Mobile Category Navigation (Primary Tabs + More ▾ sheet) */}
+            <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-1 overflow-x-auto [scrollbar-width:none]">
+              <div className="flex items-center gap-1">
+                {/* Primary mobile category chips */}
+                {PRIMARY_MOBILE_CHIPS.map((chip) => (
+                  <button
+                    key={chip.id}
+                    onClick={() => setActiveTypeTab(chip.id)}
+                    className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      activeTypeTab === chip.id
+                        ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
+                        : "text-[#667085] dark:text-[#8B95A5]"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+
+                {/* More Categories Button */}
                 <button
-                  key={chip.id}
-                  onClick={() => setActiveTypeTab(chip.id)}
-                  className={`px-3.5 py-1.5 rounded-[8px] text-[12px] font-bold transition-all cursor-pointer shrink-0 ${
-                    activeTypeTab === chip.id
+                  type="button"
+                  onClick={() => setShowMoreCategorySheet(true)}
+                  className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                    isMoreCategoryActive
                       ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
-                      : "bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] dark:text-[#8B95A5] border border-[#E4E7EC] dark:border-[#272D36]"
+                      : "text-[#667085] dark:text-[#8B95A5]"
                   }`}
                 >
-                  {chip.label}
+                  <span>{isMoreCategoryActive ? MORE_MOBILE_CHIPS.find(c => c.id === activeTypeTab)?.label : "More"}</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
                 </button>
-              ))}
+              </div>
             </div>
 
-            {/* Filter Controls Row */}
-            <div className="flex items-center gap-2.5">
-              <div className="relative flex-1 md:flex-none md:w-[420px]">
+            {/* Filter Row: Dominant Search + Filter Button */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#667085]" />
                 <input
                   type="text"
                   placeholder="Search tasks..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 h-[36px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
+                  className="w-full pl-9 pr-3 h-[42px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] outline-none shadow-2xs focus:border-[#C9A52A]"
                 />
               </div>
 
+              {/* Desktop Filters */}
               <select
                 value={priorityFilter}
                 onChange={(e) => setPriorityFilter(e.target.value)}
-                className="hidden md:block h-[36px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
+                className="hidden md:block h-[42px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
               >
                 {PRIORITY_OPTIONS.map((p) => (
                   <option key={p.value} value={p.value}>{p.label}</option>
@@ -535,41 +447,41 @@ export default function TasksPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="hidden md:block h-[36px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
+                className="hidden md:block h-[42px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
               >
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
 
-              <select
-                value={assigneeFilter}
-                onChange={(e) => setAssigneeFilter(e.target.value)}
-                className="hidden md:block h-[36px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
-              >
-                <option value="All">All Assignees</option>
-                {assignableUsers.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
-
+              {/* Mobile Filter Sheet Trigger Button */}
               <button
                 type="button"
                 onClick={() => setShowFilterSheet(true)}
-                className="md:hidden h-[36px] px-3.5 rounded-[9px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-bold text-[#17202A] dark:text-[#F2F4F7] flex items-center gap-1.5 cursor-pointer shrink-0"
+                className={`md:hidden h-[42px] px-3.5 rounded-[10px] border text-[12.5px] font-bold flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors ${
+                  activeFilterCount > 0
+                    ? "bg-[#C9A52A]/10 border-[#C9A52A] text-[#C9A52A]"
+                    : "bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7]"
+                }`}
               >
                 <SlidersHorizontal className="w-4 h-4 text-[#C9A52A]" />
                 <span>Filter</span>
+                {activeFilterCount > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-[#C9A52A] text-[#0B0D10] text-[10px] font-bold flex items-center justify-center">
+                    {activeFilterCount}
+                  </span>
+                )}
               </button>
             </div>
+
           </div>
         )}
       </div>
 
-      {/* ── TASK EXECUTION WORKSPACE (Fills Viewport Space Above Bottom Nav) ─── */}
-      <div className="flex-1 min-h-0 w-full overflow-y-auto flex flex-col pb-6 md:pb-0">
+      {/* ── TASK EXECUTION WORKSPACE ────────────────────────────────────── */}
+      <div className="flex-1 space-y-4">
         {error ? (
-          <div className="p-8 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[16px] border border-rose-500/20 space-y-3 max-w-md mx-auto my-auto shadow-sm">
+          <div className="p-8 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[16px] border border-rose-500/20 space-y-3 max-w-md mx-auto shadow-sm">
             <AlertCircle className="w-10 h-10 text-rose-500 mx-auto" />
             <div className="space-y-1">
               <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
@@ -587,33 +499,32 @@ export default function TasksPage() {
           </div>
         ) : loading ? (
           /* SKELETON LOADING ROWS */
-          <div className="w-full h-full min-h-0 overflow-y-auto bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-4 space-y-3">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-[56px] w-full bg-slate-100 dark:bg-[#1C222B] rounded-[10px] animate-pulse flex items-center justify-between px-4">
+          <div className="w-full bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-4 space-y-3 animate-pulse">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-[56px] w-full bg-slate-100 dark:bg-[#1C222B] rounded-[10px] flex items-center justify-between px-4">
                 <div className="w-1/3 h-4 bg-slate-200 dark:bg-[#272D36] rounded" />
                 <div className="w-1/6 h-4 bg-slate-200 dark:bg-[#272D36] rounded" />
                 <div className="w-1/6 h-4 bg-slate-200 dark:bg-[#272D36] rounded" />
-                <div className="w-1/8 h-4 bg-slate-200 dark:bg-[#272D36] rounded" />
               </div>
             ))}
           </div>
         ) : filteredTasks.length === 0 ? (
-          /* LARGE DESKTOP & MOBILE WORKSPACE EMPTY STATE */
-          <div className="w-full rounded-[16px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] flex flex-col items-center justify-center p-6 text-center space-y-4 my-auto max-w-md mx-auto shadow-2xs">
-            <div className="w-14 h-14 rounded-full bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center border border-[#C9A52A]/20">
-              <Check className="w-7 h-7 stroke-[3]" />
+          /* WORKSPACE EMPTY STATE (Compact content-fitted card) */
+          <div className="w-full rounded-[16px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] flex flex-col items-center justify-center py-8 px-6 text-center space-y-4 my-2 max-w-md mx-auto shadow-2xs">
+            <div className="w-12 h-12 rounded-full bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center border border-[#C9A52A]/20 shrink-0">
+              <Check className="w-6 h-6 stroke-[3]" />
             </div>
-            <div className="space-y-1 max-w-sm">
+            <div className="space-y-1.5 max-w-sm">
               <h3 className="text-[16px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
                 No active work
               </h3>
-              <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5]">
+              <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5] leading-relaxed">
                 Your assigned tasks will appear here. Create a task to begin execution.
               </p>
             </div>
             <button
               onClick={() => setShowCreate(true)}
-              className="px-5 h-[38px] rounded-[10px] bg-[#C9A52A] text-[#0B0D10] text-[13px] font-bold hover:opacity-90 transition-opacity cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+              className="inline-flex items-center gap-1.5 px-5 h-[40px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer mt-1"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Create Task</span>
@@ -622,242 +533,129 @@ export default function TasksPage() {
         ) : viewMode === "TABLE" ? (
           <>
             {/* DESKTOP TABLE VIEW */}
-            <div className="hidden md:block h-full min-h-0 overflow-y-auto bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] shadow-xs">
+            <div className="hidden md:block bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] shadow-xs overflow-hidden">
               <table className="w-full text-left text-[13px]">
-                <thead className="sticky top-0 z-10 bg-[#F8F9FB] dark:bg-[#111419] border-b border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">
-                  <tr className="h-[48px]">
-                    <th className="p-3 w-10 text-center">
+                <thead className="bg-[#F8F9FB] dark:bg-[#111419] border-b border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">
+                  <tr className="h-[44px]">
+                    <th className="p-3 w-10">
                       <input
                         type="checkbox"
                         checked={isAllSelected}
-                        ref={(el) => { if (el) el.indeterminate = isIndeterminate; }}
-                        onChange={toggleSelectAll}
-                        className="rounded border-gray-300 text-[#C9A52A]"
+                        onChange={handleSelectAll}
+                        className="rounded border-[#E4E7EC] dark:border-[#272D36] text-[#C9A52A] focus:ring-0 cursor-pointer"
                       />
                     </th>
-                    <th className="p-3">Task</th>
-                    <th className="p-3">Type</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3">Priority</th>
+                    <th className="p-3">Task Title</th>
+                    <th className="p-3">Project / Type</th>
                     <th className="p-3">Assignee</th>
-                    <th className="p-3">Project / Source</th>
-                    <th className="p-3">Due Date</th>
-                    <th className="p-3 text-right">Actions</th>
+                    <th className="p-3">Priority</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E4E7EC]/60 dark:divide-[#272D36]/60">
-                  {filteredTasks.map((t, index) => {
-                    const isSelected = selectedIds.includes(t.id);
-                    return (
-                      <tr
-                        key={t.id}
-                        onClick={(e) => handleTaskRowClick(t, index, e)}
-                        className={`h-[62px] transition-colors cursor-pointer ${
-                          isSelected
-                            ? "bg-[#C9A52A]/10 dark:bg-[#C9A52A]/15 border-l-4 border-l-[#C9A52A]"
-                            : "hover:bg-[#F8F9FB] dark:hover:bg-[#111419]"
-                        }`}
-                      >
-                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelectId(t.id)}
-                            className="rounded border-gray-300 text-[#C9A52A]"
-                          />
-                        </td>
-                        <td className="p-3 font-semibold text-[#17202A] dark:text-[#F2F4F7]">
-                          {t.title}
-                        </td>
-                        <td className="p-3">
-                          <span className="px-2.5 py-1 rounded text-[10.5px] font-bold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20 uppercase">
-                            {t.type || "Task"}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <span className={`px-3 py-1 rounded-full text-[11px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
-                            {t.status}
-                          </span>
-                        </td>
-                        <td className="p-3 font-semibold text-[12.5px]">
-                          {t.priority || "Medium"}
-                        </td>
-                        <td className="p-3 font-medium text-[#17202A] dark:text-[#F2F4F7]">
-                          {t.assigneeName || "Unassigned"}
-                        </td>
-                        <td className="p-3 text-[#667085] dark:text-[#8B95A5]">
-                          {t.projectName || t.sourceType || "General Workspace"}
-                        </td>
-                        <td className="p-3 font-mono text-[12px] text-[#667085]">
-                          {t.deadline ? new Date(t.deadline).toLocaleDateString() : "Flexible"}
-                        </td>
-                        <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleStartFocus(t.id)}
-                              className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36] text-[#C9A52A] transition-colors"
-                              title="Start Focus Session"
-                            >
-                              <Play className="w-4 h-4 fill-current" />
-                            </button>
-                            <button
-                              onClick={() => setSelectedTask(t)}
-                              className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36] text-[#667085] transition-colors"
-                            >
-                              <ChevronRight className="w-4.5 h-4.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {filteredTasks.map((t, idx) => (
+                    <tr
+                      key={t.id}
+                      onClick={(e) => handleTaskClick(t, idx, e)}
+                      className={`hover:bg-[#F8F9FB] dark:hover:bg-[#111419] transition-colors cursor-pointer ${
+                        selectedIds.includes(t.id) ? "bg-[#C9A52A]/5" : ""
+                      }`}
+                    >
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(t.id)}
+                          onChange={() => toggleSelectId(t.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="rounded border-[#E4E7EC] dark:border-[#272D36] text-[#C9A52A] focus:ring-0 cursor-pointer"
+                        />
+                      </td>
+                      <td className="p-3 font-semibold text-[#17202A] dark:text-[#F2F4F7]">{t.title}</td>
+                      <td className="p-3 text-[#667085]">{t.projectName || t.taskType || "General"}</td>
+                      <td className="p-3 font-medium">{t.assigneeName || "Unassigned"}</td>
+                      <td className="p-3 font-bold">{t.priority || "Medium"}</td>
+                      <td className="p-3">
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Not Started"]}`}>
+                          {t.status}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setActionTaskSheet(t); }}
+                          className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36]"
+                        >
+                          <MoreVertical className="w-4 h-4 text-[#667085]" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
 
-            {/* MOBILE CARDS LIST */}
-            <div className="md:hidden h-full min-h-0 overflow-y-auto space-y-2.5 pb-24">
-              {filteredTasks.map((t, index) => {
-                const isSelected = selectedIds.includes(t.id);
-                return (
-                  <div
-                    key={t.id}
-                    onClick={(e) => handleTaskRowClick(t, index, e)}
-                    className={`p-3.5 rounded-[14px] border transition-all cursor-pointer space-y-2.5 ${
-                      isSelected
-                        ? "border-[#C9A52A] bg-[#C9A52A]/10 ring-1 ring-[#C9A52A]"
-                        : "bg-[#FFFFFF] dark:bg-[#15191F] border-[#E4E7EC] dark:border-[#272D36]"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2">
-                        {isMobileSelectionMode && (
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelectId(t.id)}
-                            className="mt-1 rounded border-gray-300 text-[#C9A52A]"
-                          />
-                        )}
-                        <div>
-                          <h4 className="text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-tight">
-                            {t.title}
-                          </h4>
-                          <div className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5] mt-0.5 flex items-center gap-1.5">
-                            <span className="uppercase text-[#C9A52A] font-bold">{t.type || "Task"}</span>
-                            <span>•</span>
-                            <span>{t.projectName || "Workspace"}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setActionTaskSheet(t); }}
-                        className="p-1 text-[#667085] hover:text-[#17202A]"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </button>
+            {/* MOBILE PREMIUM TASK CARDS LIST */}
+            <div className="md:hidden space-y-2.5">
+              {filteredTasks.map((t, idx) => (
+                <div
+                  key={t.id}
+                  onClick={(e) => handleTaskClick(t, idx, e)}
+                  className={`p-3.5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border transition-all cursor-pointer space-y-2.5 shadow-2xs ${
+                    selectedIds.includes(t.id)
+                      ? "border-[#C9A52A] ring-1 ring-[#C9A52A]"
+                      : "border-[#E4E7EC] dark:border-[#272D36]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <h4 className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-snug line-clamp-2">
+                        {t.title}
+                      </h4>
+                      <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">
+                        {t.projectName || t.taskType || "Work Task"}
+                      </p>
                     </div>
-
-                    <div className="flex items-center justify-between text-[11.5px]">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10.5px] font-bold px-2 py-0.5 rounded bg-[#C9A52A]/10 text-[#C9A52A] border border-[#C9A52A]/20 uppercase">
-                          ● {t.priority || "Medium"}
-                        </span>
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
-                          {t.status}
-                        </span>
-                      </div>
-
-                      <div className="text-[11px] text-[#667085] font-mono">
-                        {t.deadline ? new Date(t.deadline).toLocaleDateString([], { month: "short", day: "numeric" }) : "Flexible"}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1 pt-1">
-                      <div className="flex items-center justify-between text-[10.5px] font-mono text-[#667085]">
-                        <span>Assignee: {t.assigneeName || "Unassigned"}</span>
-                        <span>{t.progressPercent || (t.status === "Completed" ? 100 : 0)}%</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-[#E4E7EC] dark:bg-[#272D36] rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-[#C9A52A] dark:bg-[#D4B12F] rounded-full"
-                          style={{ width: `${t.progressPercent || (t.status === "Completed" ? 100 : 0)}%` }}
-                        />
-                      </div>
-                    </div>
+                    <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold shrink-0 ${STATUS_STYLE[t.status] || STATUS_STYLE["Not Started"]}`}>
+                      {t.status}
+                    </span>
                   </div>
-                );
-              })}
+
+                  <div className="flex items-center justify-between text-[11.5px] text-[#667085] dark:text-[#8B95A5] pt-1 border-t border-[#E4E7EC]/60 dark:border-[#272D36]/60">
+                    <span>Assignee: <strong className="text-[#17202A] dark:text-[#F2F4F7]">{t.assigneeName || "Unassigned"}</strong></span>
+                    <span className="font-semibold text-[#17202A] dark:text-[#F2F4F7]">{t.priority || "Medium"}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </>
         ) : (
           /* KANBAN BOARD VIEW */
-          <div className="h-full min-h-0 overflow-x-auto flex gap-4 pb-2">
+          <div className="flex gap-3 overflow-x-auto pb-4 [scrollbar-width:none]">
             {KANBAN_COLUMNS.map((col) => {
-              const colTasks = filteredTasks.filter((t) => {
-                if (col.id === "Not Started") return ["Draft", "Not Started", "Pending"].includes(t.status);
-                if (col.id === "In Progress") return ["In Progress", "Assigned", "Accepted", "Review", "Submitted"].includes(t.status);
-                if (col.id === "Blocked") return t.status === "Blocked";
-                if (col.id === "Completed") return ["Completed", "Approved"].includes(t.status);
-                return false;
-              });
-
+              const colTasks = filteredTasks.filter((t) => (t.status || "Not Started").toLowerCase() === col.id.toLowerCase());
               return (
-                <div
-                  key={col.id}
-                  className="flex-1 min-w-[280px] sm:min-w-[320px] h-full min-h-0 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-4 flex flex-col space-y-3 shadow-2xs"
-                >
-                  <div className="flex items-center justify-between pb-3 border-b border-[#E4E7EC] dark:border-[#272D36]">
-                    <h4 className="text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
-                      {col.title}
-                    </h4>
-                    <span className="w-6 h-6 rounded-full bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-mono font-bold text-[#667085] flex items-center justify-center">
+                <div key={col.id} className="w-[280px] shrink-0 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-3.5 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-2">
+                    <h3 className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7]">{col.title}</h3>
+                    <span className="w-5 h-5 rounded-full bg-[#F8F9FB] dark:bg-[#111419] text-[#667085] text-[11px] font-bold flex items-center justify-center border border-[#E4E7EC] dark:border-[#272D36]">
                       {colTasks.length}
                     </span>
                   </div>
 
-                  <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-0.5">
-                    {colTasks.map((t) => {
-                      const isSelected = selectedIds.includes(t.id);
-                      return (
-                        <div
-                          key={t.id}
-                          onClick={() => toggleSelectId(t.id)}
-                          className={`p-3.5 rounded-[12px] border space-y-2.5 cursor-pointer transition-all ${
-                            isSelected
-                              ? "border-[#C9A52A] bg-[#C9A52A]/10 ring-1 ring-[#C9A52A]"
-                              : "bg-[#F8F9FB] dark:bg-[#111419] border-[#E4E7EC] dark:border-[#272D36]"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-1.5">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => toggleSelectId(t.id)}
-                                className="rounded border-gray-300 text-[#C9A52A]"
-                              />
-                              <h5 className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-tight">
-                                {t.title}
-                              </h5>
-                            </div>
-                            <span className="text-[9.5px] font-bold px-2 py-0.5 rounded bg-[#C9A52A]/10 text-[#C9A52A] uppercase shrink-0">
-                              {t.priority}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between text-[11px] text-[#667085]">
-                            <span>{t.assigneeName || "Unassigned"}</span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleUpdateStatus(t.id, col.id === "Completed" ? "In Progress" : "Completed"); }}
-                              className="text-[#C9A52A] font-bold"
-                            >
-                              {col.id === "Completed" ? "Reopen" : "Done"}
-                            </button>
-                          </div>
+                  <div className="space-y-2 max-h-[550px] overflow-y-auto pr-0.5">
+                    {colTasks.map((t) => (
+                      <div
+                        key={t.id}
+                        onClick={() => setSelectedTask(t)}
+                        className="p-3 rounded-[12px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] space-y-2 cursor-pointer hover:border-[#C9A52A]/50 transition-colors"
+                      >
+                        <h4 className="text-[12.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] line-clamp-2">{t.title}</h4>
+                        <div className="flex items-center justify-between text-[10.5px] text-[#667085]">
+                          <span>{t.assigneeName || "Unassigned"}</span>
+                          <span className="font-bold">{t.priority}</span>
                         </div>
-                      );
-                    })}
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
@@ -866,179 +664,160 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* ── MOBILE SELECTION BOTTOM ACTION BAR ───────────────────────────── */}
-      {selectedIds.length > 0 && (
-        <div className="md:hidden fixed bottom-16 inset-x-3 z-40 p-3 rounded-[14px] bg-[#17202A] dark:bg-[#15191F] text-white flex items-center justify-around shadow-2xl border border-[#C9A52A]/50 animate-in slide-in-from-bottom duration-200">
-          <button
-            onClick={() => setShowBulkAssignSheet(true)}
-            className="flex flex-col items-center gap-1 text-[11px] font-bold text-slate-300 hover:text-white"
+      {/* Mobile Secondary Category Bottom Sheet */}
+      {showMoreCategorySheet && (
+        <div
+          className="md:hidden fixed inset-0 z-[140] flex flex-col justify-end bg-black/70 backdrop-blur-xs font-sans transition-opacity animate-in fade-in duration-200"
+          onClick={() => setShowMoreCategorySheet(false)}
+        >
+          <div
+            className="bg-[#FFFFFF] dark:bg-[#15191F] border-t border-[#E4E7EC] dark:border-[#272D36] rounded-t-[24px] p-5 space-y-4 max-h-[75dvh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300"
+            onClick={(e) => e.stopPropagation()}
           >
-            <UserPlus className="w-4 h-4 text-[#C9A52A]" />
-            <span>Assign</span>
-          </button>
-          <button
-            onClick={() => setShowBulkStatusSheet(true)}
-            className="flex flex-col items-center gap-1 text-[11px] font-bold text-slate-300 hover:text-white"
-          >
-            <ArrowRightLeft className="w-4 h-4 text-blue-400" />
-            <span>Status</span>
-          </button>
-          <button
-            onClick={() => setShowBulkPrioritySheet(true)}
-            className="flex flex-col items-center gap-1 text-[11px] font-bold text-slate-300 hover:text-white"
-          >
-            <Flame className="w-4 h-4 text-amber-400" />
-            <span>Priority</span>
-          </button>
-          <button
-            onClick={handleExecuteBulkComplete}
-            className="flex flex-col items-center gap-1 text-[11px] font-bold text-emerald-400"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Complete</span>
-          </button>
-          <button
-            onClick={() => setShowBulkDeleteModal(true)}
-            className="flex flex-col items-center gap-1 text-[11px] font-bold text-rose-400"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Delete</span>
-          </button>
+            <div className="space-y-3">
+              <div className="w-10 h-1 bg-[#E4E7EC] dark:bg-[#272D36] rounded-full mx-auto" />
+              <div className="flex items-center justify-between pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
+                <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">Secondary Task Categories</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowMoreCategorySheet(false)}
+                  className="p-1.5 rounded-full text-[#667085] hover:bg-[#F8F9FB] dark:hover:bg-[#111419]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              {MORE_MOBILE_CHIPS.map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveTypeTab(chip.id);
+                    setShowMoreCategorySheet(false);
+                  }}
+                  className={`w-full h-[48px] px-3.5 rounded-[12px] text-left text-[13px] font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                    activeTypeTab === chip.id
+                      ? "bg-[#C9A52A]/10 text-[#C9A52A]"
+                      : "text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F8F9FB] dark:hover:bg-[#111419]"
+                  }`}
+                >
+                  <span>{chip.label}</span>
+                  {activeTypeTab === chip.id && <CheckCircle2 className="w-4 h-4 text-[#C9A52A]" />}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
+      {/* Reconstructed Mobile Filter Sheet */}
+      {showFilterSheet && (
+        <div
+          className="md:hidden fixed inset-0 z-[140] flex flex-col justify-end bg-black/70 backdrop-blur-xs font-sans transition-opacity animate-in fade-in duration-200"
+          onClick={() => setShowFilterSheet(false)}
+        >
+          <div
+            className="bg-[#FFFFFF] dark:bg-[#15191F] border-t border-[#E4E7EC] dark:border-[#272D36] rounded-t-[24px] p-5 space-y-4 max-h-[85dvh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-3">
+              <div className="w-10 h-1 bg-[#E4E7EC] dark:bg-[#272D36] rounded-full mx-auto" />
+              <div className="flex items-center justify-between pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
+                <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">Filter Tasks</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowFilterSheet(false)}
+                  className="p-1.5 rounded-full text-[#667085] hover:bg-[#F8F9FB] dark:hover:bg-[#111419]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
 
+            <div className="space-y-3 text-[13px]">
+              <div className="space-y-1.5">
+                <label className="font-bold text-[#17202A] dark:text-[#F2F4F7]">Task Category</label>
+                <select
+                  value={activeTypeTab}
+                  onChange={(e) => setActiveTypeTab(e.target.value)}
+                  className="w-full h-[44px] px-3.5 rounded-[10px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7] font-semibold outline-none"
+                >
+                  {TASK_TYPE_CHIPS.map((chip) => (
+                    <option key={chip.id} value={chip.id}>{chip.label}</option>
+                  ))}
+                </select>
+              </div>
 
-      {/* ── BULK ASSIGN BOTTOM SHEET ───────────────────────────────────── */}
-      <MobileSheet
-        isOpen={showBulkAssignSheet}
-        onClose={() => setShowBulkAssignSheet(false)}
-        title={`Assign ${selectedIds.length} Tasks`}
-      >
-        <div className="space-y-3 p-4 text-[13px]">
-          <p className="text-[12px] text-[#667085]">Select an organization member to reassign selected tasks:</p>
-          <div className="max-h-[240px] overflow-y-auto border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] divide-y divide-[#E4E7EC] dark:divide-[#272D36]">
-            {assignableUsers.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => handleExecuteBulkAssign(u.id)}
-                className="w-full p-3 text-left hover:bg-[#F8F9FB] dark:hover:bg-[#111419] flex items-center justify-between transition-colors"
-              >
-                <div>
-                  <div className="font-bold text-[#17202A] dark:text-[#F2F4F7]">{u.name}</div>
-                  <div className="text-[11px] text-[#667085]">{u.role} — {u.email}</div>
-                </div>
-                <User className="w-4 h-4 text-[#C9A52A]" />
-              </button>
-            ))}
+              <div className="space-y-1.5">
+                <label className="font-bold text-[#17202A] dark:text-[#F2F4F7]">Priority</label>
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value)}
+                  className="w-full h-[44px] px-3.5 rounded-[10px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7] font-semibold outline-none"
+                >
+                  {PRIORITY_OPTIONS.map((p) => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-[#17202A] dark:text-[#F2F4F7]">Status</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full h-[44px] px-3.5 rounded-[10px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7] font-semibold outline-none"
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-[#17202A] dark:text-[#F2F4F7]">Assignee</label>
+                <select
+                  value={assigneeFilter}
+                  onChange={(e) => setAssigneeFilter(e.target.value)}
+                  className="w-full h-[44px] px-3.5 rounded-[10px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7] font-semibold outline-none"
+                >
+                  <option value="All">All Assignees</option>
+                  {assignableUsers.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 pt-4 border-t border-[#E4E7EC] dark:border-[#272D36]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTypeTab("All");
+                    setPriorityFilter("All");
+                    setStatusFilter("All");
+                    setAssigneeFilter("All");
+                    setShowFilterSheet(false);
+                  }}
+                  className="flex-1 h-[42px] rounded-[10px] border border-[#E4E7EC] dark:border-[#272D36] font-bold text-[#667085] hover:text-[#17202A]"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowFilterSheet(false)}
+                  className="flex-1 h-[42px] rounded-[10px] bg-[#C9A52A] text-[#0B0D10] font-bold hover:opacity-90"
+                >
+                  Apply Filters
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </MobileSheet>
+      )}
 
-      {/* ── BULK STATUS BOTTOM SHEET ──────────────────────────────────── */}
-      <MobileSheet
-        isOpen={showBulkStatusSheet}
-        onClose={() => setShowBulkStatusSheet(false)}
-        title={`Change Status for ${selectedIds.length} Tasks`}
-      >
-        <div className="space-y-2 p-4 text-[13px]">
-          {["Not Started", "In Progress", "Blocked", "Completed"].map((st) => (
-            <button
-              key={st}
-              onClick={() => handleExecuteBulkStatus(st)}
-              className="w-full p-3 rounded-[10px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] font-bold text-left hover:border-[#C9A52A] flex items-center justify-between"
-            >
-              <span>{st}</span>
-              <span className={`px-2.5 py-0.5 rounded-full text-[11px] border ${STATUS_STYLE[st]}`}>{st}</span>
-            </button>
-          ))}
-        </div>
-      </MobileSheet>
-
-      {/* ── BULK PRIORITY BOTTOM SHEET ────────────────────────────────── */}
-      <MobileSheet
-        isOpen={showBulkPrioritySheet}
-        onClose={() => setShowBulkPrioritySheet(false)}
-        title={`Change Priority for ${selectedIds.length} Tasks`}
-      >
-        <div className="space-y-2 p-4 text-[13px]">
-          {["Low", "Medium", "High", "Critical"].map((pr) => (
-            <button
-              key={pr}
-              onClick={() => handleExecuteBulkPriority(pr)}
-              className="w-full p-3 rounded-[10px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] font-bold text-left hover:border-[#C9A52A] flex items-center justify-between"
-            >
-              <span>{pr} Priority</span>
-              <span className="text-[11.5px] font-mono text-[#C9A52A]">{pr}</span>
-            </button>
-          ))}
-        </div>
-      </MobileSheet>
-
-      {/* ── MOBILE FILTER BOTTOM SHEET ─────────────────────────────────── */}
-      <MobileSheet
-        isOpen={showFilterSheet}
-        onClose={() => setShowFilterSheet(false)}
-        title="Filter Tasks"
-      >
-        <div className="space-y-4 p-4 text-[13px]">
-          <div className="space-y-1.5">
-            <label className="font-bold text-[#17202A] dark:text-[#F2F4F7]">Task Type</label>
-            <select
-              value={activeTypeTab}
-              onChange={(e) => setActiveTypeTab(e.target.value)}
-              className="w-full h-[40px] px-3 rounded-[9px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] outline-none"
-            >
-              {TASK_TYPE_CHIPS.map((c) => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="font-bold text-[#17202A] dark:text-[#F2F4F7]">Priority</label>
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="w-full h-[40px] px-3 rounded-[9px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] outline-none"
-            >
-              {PRIORITY_OPTIONS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="font-bold text-[#17202A] dark:text-[#F2F4F7]">Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full h-[40px] px-3 rounded-[9px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] outline-none"
-            >
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2 pt-3">
-            <button
-              onClick={() => { setActiveTypeTab("All"); setPriorityFilter("All"); setStatusFilter("All"); setAssigneeFilter("All"); setShowFilterSheet(false); }}
-              className="flex-1 h-[40px] rounded-[10px] border border-[#E4E7EC] dark:border-[#272D36] font-bold text-[#667085]"
-            >
-              Reset
-            </button>
-            <button
-              onClick={() => setShowFilterSheet(false)}
-              className="flex-1 h-[40px] rounded-[10px] bg-[#C9A52A] text-[#0B0D10] font-bold"
-            >
-              Apply Filters
-            </button>
-          </div>
-        </div>
-      </MobileSheet>
-
-      {/* ── MOBILE QUICK TASK ACTIONS SHEET ───────────────────────────── */}
+      {/* Quick Task Actions Sheet */}
       <MobileSheet
         isOpen={!!actionTaskSheet}
         onClose={() => setActionTaskSheet(null)}
