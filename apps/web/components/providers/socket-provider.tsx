@@ -171,13 +171,11 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       withCredentials: true,
       auth: { token },
       query: { token },
-      transports: ["websocket", "polling"],
-      // Reconnection is enabled but limited. We stop after exhausting attempts
-      // so we never spin forever with a stale token.
+      transports: ["polling", "websocket"],
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
       autoConnect: true,
     });
 
