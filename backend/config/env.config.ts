@@ -13,20 +13,23 @@ const requiredSecret = (name: string, fallback = "") => {
 	return value;
 };
 
+const cleanDbUrl = (url: string) => {
+	if (!url) return url;
+	return url.replace(/sslmode=(require|prefer|verify-ca)/g, "sslmode=verify-full");
+};
+
 export const env = {
 	NODE_ENV: process.env.NODE_ENV || "development",
 	PORT: parseInt(process.env.PORT || "4100", 10),
 	CLIENT_URL: process.env.CLIENT_URL || "http://localhost:3000",
 
 	// PostgreSQL Databases
-	DATABASE_URL: requiredSecret("DATABASE_URL"),
-	PERSONAL_DATABASE_URL: requiredSecret(
-		"PERSONAL_DATABASE_URL",
-		process.env.DATABASE_URL || "",
+	DATABASE_URL: cleanDbUrl(requiredSecret("DATABASE_URL")),
+	PERSONAL_DATABASE_URL: cleanDbUrl(
+		requiredSecret("PERSONAL_DATABASE_URL", process.env.DATABASE_URL || ""),
 	),
-	MANMADHAN_DATABASE_URL: requiredSecret(
-		"MANMADHAN_DATABASE_URL",
-		process.env.DATABASE_URL || "",
+	MANMADHAN_DATABASE_URL: cleanDbUrl(
+		requiredSecret("MANMADHAN_DATABASE_URL", process.env.DATABASE_URL || ""),
 	),
 
 	// Authentication & OAuth 2.0
