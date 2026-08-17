@@ -199,23 +199,23 @@ export default function TasksPage() {
   };
 
   return (
-    <div className="w-full min-h-dvh flex flex-col justify-between overflow-x-hidden px-3 sm:px-6 md:px-10 py-3 sm:py-5 max-w-[1400px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans pb-24 md:pb-6 space-y-3.5">
+    <div className="w-full h-full min-h-0 flex-1 flex flex-col justify-between overflow-hidden px-3 sm:px-6 md:px-10 py-3 sm:py-4 max-w-[1400px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans space-y-3 select-none">
       
-      {/* ── HEADER REGION ──────────────────────────────────────────────── */}
-      <div className="shrink-0 space-y-3">
+      {/* ── FIXED HEADER REGION (Zero Page Scroll) ───────────────────────── */}
+      <div className="shrink-0 space-y-2.5">
         
         {/* Title Bar */}
-        <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-[#E4E7EC] dark:border-[#272D36]">
+        <div className="flex items-center justify-between gap-3 pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
           <div>
             <div className="flex items-center gap-2">
               <CheckSquare className="w-5 h-5 text-[#C9A52A] dark:text-[#D4B12F]" />
-              <h1 className="text-[20px] sm:text-[26px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
+              <h1 className="text-[20px] sm:text-[24px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
                 Tasks
               </h1>
             </div>
-            {/* Subtitles: Compact on Mobile, Full on Desktop */}
-            <p className="text-[12px] sm:text-[12.5px] text-[#667085] dark:text-[#8B95A5] mt-1 hidden sm:block">
-              Track and manage execution across your organization projects, learning plans, and personal work.
+            {/* Desktop Full Title Subtitle / Mobile Compact Subtitle */}
+            <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] mt-1 hidden sm:block">
+              Tasks & Execution Control Center — Track execution across projects, learning, and personal work.
             </p>
             <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] mt-0.5 sm:hidden">
               Execution workspace
@@ -265,7 +265,7 @@ export default function TasksPage() {
             <button
               type="button"
               onClick={() => setShowCreate(true)}
-              className="hidden md:inline-flex items-center gap-1.5 px-4 h-[38px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer shrink-0"
+              className="hidden md:inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer shrink-0"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Create Task</span>
@@ -275,50 +275,53 @@ export default function TasksPage() {
 
         {/* ── DESKTOP KPI CARDS (Hidden on Mobile) ────────────────────── */}
         <div className="hidden md:grid grid-cols-5 gap-3">
-          <div className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1">
-            <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Total Tasks</div>
-            <div className="text-[20px] font-bold text-[#17202A] dark:text-[#F2F4F7]">{summaryMetrics.total}</div>
+          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-0.5">
+            <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Total Tasks</div>
+            <div className="text-[18px] font-bold text-[#17202A] dark:text-[#F2F4F7]">{summaryMetrics.total}</div>
           </div>
-          <div className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1">
-            <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Active</div>
-            <div className="text-[20px] font-bold text-blue-600 dark:text-blue-400">{summaryMetrics.active}</div>
+          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-0.5">
+            <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Active</div>
+            <div className="text-[18px] font-bold text-blue-600 dark:text-blue-400">{summaryMetrics.active}</div>
           </div>
-          <div className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1">
-            <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Completed</div>
-            <div className="text-[20px] font-bold text-emerald-600 dark:text-emerald-400">{summaryMetrics.completed}</div>
+          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-0.5">
+            <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Completed</div>
+            <div className="text-[18px] font-bold text-emerald-600 dark:text-emerald-400">{summaryMetrics.completed}</div>
           </div>
-          <div className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1">
-            <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Overdue</div>
-            <div className="text-[20px] font-bold text-amber-600 dark:text-amber-400">{summaryMetrics.overdue}</div>
+          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-0.5">
+            <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Overdue</div>
+            <div className="text-[18px] font-bold text-amber-600 dark:text-amber-400">{summaryMetrics.overdue}</div>
           </div>
-          <div className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1">
-            <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Filtered</div>
-            <div className="text-[20px] font-bold text-[#C9A52A] dark:text-[#D4B12F]">{filteredTasks.length}</div>
+          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-0.5">
+            <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Filtered</div>
+            <div className="text-[18px] font-bold text-[#C9A52A] dark:text-[#D4B12F]">{filteredTasks.length}</div>
           </div>
         </div>
 
-        {/* ── MOBILE COMPACT SUMMARY STRIP (Visible only on Mobile) ─────── */}
-        <div className="md:hidden flex items-center gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none]">
-          <div className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-bold shrink-0 flex items-center gap-1.5">
-            <span className="text-[#667085]">Total:</span>
-            <span className="text-[#17202A] dark:text-[#F2F4F7]">{summaryMetrics.total}</span>
+        {/* ── MOBILE COMPACT SINGLE-ROW METRIC STRIP ───────────────────── */}
+        <div className="md:hidden flex items-center justify-between px-3 py-2 rounded-[10px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-bold shrink-0">
+          <div className="flex flex-col items-center">
+            <span className="text-[#17202A] dark:text-[#F2F4F7] text-[13px]">{summaryMetrics.total}</span>
+            <span className="text-[9.5px] text-[#667085] uppercase">Total</span>
           </div>
-          <div className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-bold shrink-0 flex items-center gap-1.5">
-            <span className="text-[#667085]">Active:</span>
-            <span className="text-blue-600 dark:text-blue-400">{summaryMetrics.active}</span>
+          <div className="w-[1px] h-5 bg-[#E4E7EC] dark:bg-[#272D36]" />
+          <div className="flex flex-col items-center">
+            <span className="text-blue-600 dark:text-blue-400 text-[13px]">{summaryMetrics.active}</span>
+            <span className="text-[9.5px] text-[#667085] uppercase">Active</span>
           </div>
-          <div className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-bold shrink-0 flex items-center gap-1.5">
-            <span className="text-[#667085]">Done:</span>
-            <span className="text-emerald-600 dark:text-emerald-400">{summaryMetrics.completed}</span>
+          <div className="w-[1px] h-5 bg-[#E4E7EC] dark:bg-[#272D36]" />
+          <div className="flex flex-col items-center">
+            <span className="text-emerald-600 dark:text-emerald-400 text-[13px]">{summaryMetrics.completed}</span>
+            <span className="text-[9.5px] text-[#667085] uppercase">Done</span>
           </div>
-          <div className="px-3 py-1.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-bold shrink-0 flex items-center gap-1.5">
-            <span className="text-[#667085]">Due:</span>
-            <span className="text-amber-600 dark:text-amber-400">{summaryMetrics.overdue}</span>
+          <div className="w-[1px] h-5 bg-[#E4E7EC] dark:bg-[#272D36]" />
+          <div className="flex flex-col items-center">
+            <span className="text-amber-600 dark:text-amber-400 text-[13px]">{summaryMetrics.overdue}</span>
+            <span className="text-[9.5px] text-[#667085] uppercase">Due</span>
           </div>
         </div>
 
         {/* ── FILTER CHIPS ROW (Horizontal Scrollable) ────────────────── */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] whitespace-nowrap">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] whitespace-nowrap">
           {TASK_TYPE_CHIPS.map((chip) => (
             <button
               key={chip.id}
@@ -343,26 +346,24 @@ export default function TasksPage() {
               placeholder="Search tasks..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 h-[36px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[8px] text-[12px] text-[#17202A] dark:text-[#F2F4F7] outline-none"
+              className="w-full pl-8 pr-3 h-[34px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[8px] text-[12px] text-[#17202A] dark:text-[#F2F4F7] outline-none"
             />
           </div>
 
-          {/* Desktop Select Filters */}
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
-            className="hidden md:block h-[36px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[8px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
+            className="hidden md:block h-[34px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[8px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
           >
             {PRIORITY_OPTIONS.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}
           </select>
 
-          {/* Mobile Filter Sheet Button */}
           <button
             type="button"
             onClick={() => setShowFilterSheet(true)}
-            className="md:hidden h-[36px] px-3 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-bold text-[#17202A] dark:text-[#F2F4F7] flex items-center gap-1.5 cursor-pointer shrink-0"
+            className="md:hidden h-[34px] px-3 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-bold text-[#17202A] dark:text-[#F2F4F7] flex items-center gap-1.5 cursor-pointer shrink-0"
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-[#C9A52A]" />
             <span>Filter</span>
@@ -370,10 +371,10 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* ── BULK ACTIONS BAR ───────────────────────────────────────────── */}
+      {/* ── BULK ACTIONS FLOATING BAR ───────────────────────────────────── */}
       {selectedIds.length > 0 && (
-        <div className="shrink-0 p-3 rounded-[12px] bg-[#17202A] dark:bg-[#15191F] text-white flex items-center justify-between shadow-lg border border-[#C9A52A]/40 animate-in fade-in duration-200">
-          <div className="text-[12.5px] font-bold flex items-center gap-2">
+        <div className="shrink-0 p-2.5 rounded-[12px] bg-[#17202A] dark:bg-[#15191F] text-white flex items-center justify-between shadow-lg border border-[#C9A52A]/40 animate-in fade-in duration-200">
+          <div className="text-[12px] font-bold flex items-center gap-2">
             <span className="w-5 h-5 rounded-full bg-[#C9A52A] text-[#0B0D10] font-mono text-[11px] flex items-center justify-center">
               {selectedIds.length}
             </span>
@@ -382,7 +383,7 @@ export default function TasksPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowBulkDeleteModal(true)}
-              className="px-3 h-[32px] rounded-[7px] bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[11.5px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+              className="px-3 h-[30px] rounded-[7px] bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Delete</span>
@@ -397,10 +398,10 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* ── BODY REGION: DESKTOP & MOBILE RESPONSIVE ───────────────────── */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      {/* ── INTERNAL SCROLL CONTAINER (Only this container scrolls) ────── */}
+      <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col">
         {error ? (
-          <div className="p-6 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-rose-500/20 space-y-3 max-w-md mx-auto my-6">
+          <div className="p-6 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-rose-500/20 space-y-3 max-w-md mx-auto my-auto">
             <AlertCircle className="w-9 h-9 text-rose-500 mx-auto" />
             <div className="space-y-1">
               <h3 className="text-[14.5px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
@@ -417,125 +418,123 @@ export default function TasksPage() {
             </button>
           </div>
         ) : loading ? (
-          <div className="p-10 flex items-center justify-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-[#E4E7EC] dark:border-[#272D36]">
+          <div className="p-10 flex items-center justify-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-[#E4E7EC] dark:border-[#272D36] my-auto">
             <Loader2 className="w-6 h-6 animate-spin text-[#C9A52A] dark:text-[#D4B12F]" />
           </div>
         ) : filteredTasks.length === 0 ? (
-          <div className="p-8 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-[#E4E7EC] dark:border-[#272D36] space-y-3 max-w-md mx-auto my-6">
-            <CheckSquare className="w-10 h-10 text-[#C9A52A] dark:text-[#D4B12F] mx-auto opacity-70" />
+          <div className="p-6 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-[#E4E7EC] dark:border-[#272D36] space-y-2 max-w-sm mx-auto my-auto">
+            <CheckSquare className="w-9 h-9 text-[#C9A52A] dark:text-[#D4B12F] mx-auto opacity-70" />
             <div className="space-y-1">
-              <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+              <h3 className="text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
                 No active work
               </h3>
-              <p className="text-[12px] text-[#667085] dark:text-[#8B95A5]">
+              <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5]">
                 Your assigned tasks will appear here.
               </p>
             </div>
           </div>
         ) : viewMode === "TABLE" ? (
           <>
-            {/* DESKTOP DENSE TABLE VIEW (Hidden on Mobile) */}
-            <div className="hidden md:block bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] overflow-hidden shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-[12.5px]">
-                  <thead className="bg-[#F8F9FB] dark:bg-[#111419] border-b border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">
-                    <tr>
-                      <th className="p-3 w-10 text-center">
+            {/* DESKTOP TABLE (Internal Scroll Only) */}
+            <div className="hidden md:block h-full min-h-0 overflow-y-auto bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] shadow-xs">
+              <table className="w-full text-left text-[12.5px]">
+                <thead className="sticky top-0 z-10 bg-[#F8F9FB] dark:bg-[#111419] border-b border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={toggleSelectAll}
+                        className="rounded border-gray-300 text-[#C9A52A]"
+                      />
+                    </th>
+                    <th className="p-3">Task</th>
+                    <th className="p-3">Type</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3">Priority</th>
+                    <th className="p-3">Assignee</th>
+                    <th className="p-3">Project / Source</th>
+                    <th className="p-3">Due Date</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E4E7EC]/60 dark:divide-[#272D36]/60">
+                  {filteredTasks.map((t) => (
+                    <tr
+                      key={t.id}
+                      onClick={() => setSelectedTask(t)}
+                      className="hover:bg-[#F8F9FB] dark:hover:bg-[#111419] transition-colors cursor-pointer"
+                    >
+                      <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
-                          checked={isAllSelected}
-                          onChange={toggleSelectAll}
+                          checked={selectedIds.includes(t.id)}
+                          onChange={() => toggleSelectId(t.id)}
                           className="rounded border-gray-300 text-[#C9A52A]"
                         />
-                      </th>
-                      <th className="p-3">Task</th>
-                      <th className="p-3">Type</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">Priority</th>
-                      <th className="p-3">Assignee</th>
-                      <th className="p-3">Project / Source</th>
-                      <th className="p-3">Due Date</th>
-                      <th className="p-3 text-right">Actions</th>
+                      </td>
+                      <td className="p-3 font-semibold text-[#17202A] dark:text-[#F2F4F7]">
+                        {t.title}
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20 uppercase">
+                          {t.type || "Task"}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
+                          {t.status}
+                        </span>
+                      </td>
+                      <td className="p-3 font-semibold text-[12px]">
+                        {t.priority || "Medium"}
+                      </td>
+                      <td className="p-3 font-medium text-[#17202A] dark:text-[#F2F4F7]">
+                        {t.assigneeName || "Unassigned"}
+                      </td>
+                      <td className="p-3 text-[#667085] dark:text-[#8B95A5]">
+                        {t.projectName || t.sourceType || "General Workspace"}
+                      </td>
+                      <td className="p-3 font-mono text-[11.5px] text-[#667085]">
+                        {t.deadline ? new Date(t.deadline).toLocaleDateString() : "Flexible"}
+                      </td>
+                      <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleStartFocus(t.id)}
+                            className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36] text-[#C9A52A] transition-colors"
+                            title="Start Focus Session"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-current" />
+                          </button>
+                          <button
+                            onClick={() => setSelectedTask(t)}
+                            className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36] text-[#667085] transition-colors"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E4E7EC]/60 dark:divide-[#272D36]/60">
-                    {filteredTasks.map((t) => (
-                      <tr
-                        key={t.id}
-                        onClick={() => setSelectedTask(t)}
-                        className="hover:bg-[#F8F9FB] dark:hover:bg-[#111419] transition-colors cursor-pointer"
-                      >
-                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(t.id)}
-                            onChange={() => toggleSelectId(t.id)}
-                            className="rounded border-gray-300 text-[#C9A52A]"
-                          />
-                        </td>
-                        <td className="p-3 font-semibold text-[#17202A] dark:text-[#F2F4F7]">
-                          {t.title}
-                        </td>
-                        <td className="p-3">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20 uppercase">
-                            {t.type || "Task"}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
-                            {t.status}
-                          </span>
-                        </td>
-                        <td className="p-3 font-semibold text-[12px]">
-                          {t.priority || "Medium"}
-                        </td>
-                        <td className="p-3 font-medium text-[#17202A] dark:text-[#F2F4F7]">
-                          {t.assigneeName || "Unassigned"}
-                        </td>
-                        <td className="p-3 text-[#667085] dark:text-[#8B95A5]">
-                          {t.projectName || t.sourceType || "General Workspace"}
-                        </td>
-                        <td className="p-3 font-mono text-[11.5px] text-[#667085]">
-                          {t.deadline ? new Date(t.deadline).toLocaleDateString() : "Flexible"}
-                        </td>
-                        <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleStartFocus(t.id)}
-                              className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36] text-[#C9A52A] transition-colors"
-                              title="Start Focus Session"
-                            >
-                              <Play className="w-3.5 h-3.5 fill-current" />
-                            </button>
-                            <button
-                              onClick={() => setSelectedTask(t)}
-                              className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36] text-[#667085] transition-colors"
-                            >
-                              <ChevronRight className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            {/* MOBILE COMPACT TASK CARDS VIEW (Visible only on Mobile) */}
-            <div className="md:hidden space-y-2.5">
+            {/* MOBILE COMPACT CARDS LIST (Internal Scroll Only) */}
+            <div className="md:hidden h-full min-h-0 overflow-y-auto space-y-2 pb-20">
               {filteredTasks.map((t) => (
                 <div
                   key={t.id}
                   onClick={() => setSelectedTask(t)}
-                  className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] active:scale-[0.99] transition-transform space-y-2.5 shadow-2xs"
+                  className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] active:scale-[0.99] transition-transform space-y-2 shadow-2xs"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h4 className="text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-snug">
+                      <h4 className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-tight">
                         {t.title}
                       </h4>
-                      <div className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5] mt-0.5 flex items-center gap-1.5">
+                      <div className="text-[10.5px] font-semibold text-[#667085] dark:text-[#8B95A5] mt-0.5 flex items-center gap-1.5">
                         <span className="uppercase text-[#C9A52A] font-bold">{t.type || "Task"}</span>
                         <span>•</span>
                         <span>{t.projectName || "Workspace"}</span>
@@ -550,23 +549,23 @@ export default function TasksPage() {
                     </button>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11.5px]">
+                  <div className="flex items-center justify-between text-[11px]">
                     <div className="flex items-center gap-2">
-                      <span className="text-[10.5px] font-bold px-2 py-0.5 rounded bg-[#C9A52A]/10 text-[#C9A52A] border border-[#C9A52A]/20 uppercase">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#C9A52A]/10 text-[#C9A52A] border border-[#C9A52A]/20 uppercase">
                         ● {t.priority || "Medium"}
                       </span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
                         {t.status}
                       </span>
                     </div>
 
-                    <div className="text-[11px] text-[#667085] font-mono">
+                    <div className="text-[10.5px] text-[#667085] font-mono">
                       {t.deadline ? new Date(t.deadline).toLocaleDateString([], { month: "short", day: "numeric" }) : "Flexible"}
                     </div>
                   </div>
 
                   <div className="space-y-1 pt-1">
-                    <div className="flex items-center justify-between text-[10.5px] font-mono text-[#667085]">
+                    <div className="flex items-center justify-between text-[10px] font-mono text-[#667085]">
                       <span>Assignee: {t.assigneeName || "Unassigned"}</span>
                       <span>{t.progressPercent || (t.status === "Completed" ? 100 : 0)}%</span>
                     </div>
@@ -582,8 +581,8 @@ export default function TasksPage() {
             </div>
           </>
         ) : (
-          /* KANBAN BOARD VIEW (Scrollable on Mobile) */
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          /* KANBAN BOARD VIEW (Internal Scroll Only) */
+          <div className="h-full min-h-0 overflow-x-auto flex gap-3 pb-2">
             {KANBAN_COLUMNS.map((col) => {
               const colTasks = filteredTasks.filter((t) => {
                 if (col.id === "Not Started") return ["Draft", "Not Started", "Pending"].includes(t.status);
@@ -596,7 +595,7 @@ export default function TasksPage() {
               return (
                 <div
                   key={col.id}
-                  className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] p-3.5 flex flex-col space-y-2.5"
+                  className="w-72 sm:w-80 shrink-0 h-full min-h-0 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] p-3 flex flex-col space-y-2"
                 >
                   <div className="flex items-center justify-between pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
                     <h4 className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
@@ -607,7 +606,7 @@ export default function TasksPage() {
                     </span>
                   </div>
 
-                  <div className="space-y-2 min-h-[120px]">
+                  <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
                     {colTasks.map((t) => (
                       <div
                         key={t.id}
