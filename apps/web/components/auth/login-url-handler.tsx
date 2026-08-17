@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { useAuth } from "./auth-context";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useAuth, getDashboardPathForRole, syncTokenCookie } from "./auth-context";
 
 function Handler() {
   const searchParams = useSearchParams();
-  const { open, setAuthData } = useAuth();
+  const router = useRouter();
+  const { open, setAuthData, checkSession } = useAuth();
   const searchParamsString = searchParams ? searchParams.toString() : "";
 
   useEffect(() => {
@@ -14,10 +15,27 @@ function Handler() {
     const redirectParam = searchParams.get("redirect");
     const errorMsg = searchParams.get("error");
     const emailParam = searchParams.get("email");
+    const token = searchParams.get("token") || "";
+    const role = searchParams.get("role") || "";
+
+    if (token && step === "OAUTH_SUCCESS") {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("auth_token", token);
+        localStorage.setItem("token", token);
+        syncTokenCookie(token);
+        const url = new URL(window.location.href);
+        url.searchParams.delete("auth_step");
+        url.searchParams.delete("token");
+        url.searchParams.delete("role");
+        window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+      }
+      checkSession();
+      const targetDash = getDashboardPathForRole(role);
+      router.push(targetDash);
+      return;
+    }
 
     if (step || redirectParam || errorMsg || emailParam) {
-      const token = searchParams.get("token") || "";
-      const role = searchParams.get("role") || "";
       const email = emailParam || "";
 
       setAuthData({ step: step || "EMAIL_ENTRY", token, role, error: errorMsg || "", email });
@@ -36,7 +54,7 @@ function Handler() {
       // Open the global AuthModal
       open();
     }
-  }, [searchParamsString, open, setAuthData]);
+  }, [searchParamsString, open, setAuthData, checkSession, router]);
 
   return null;
 }

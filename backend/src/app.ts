@@ -666,8 +666,9 @@ export const createApp = (): Express => {
 					os: "Unknown",
 					ipAddress: req.ip || "0.0.0.0",
 				});
+				let tokens: any = null;
 				try {
-					await SessionService.issueTokens(
+					tokens = await SessionService.issueTokens(
 						res,
 						dbUser,
 						deviceId,
@@ -676,7 +677,7 @@ export const createApp = (): Express => {
 					);
 				} catch (sessionErr) {
 					return res.redirect(
-						`${env.CLIENT_URL}/login?error=session_creation_failed`,
+						`${(env.CLIENT_URL || "http://localhost:3000").replace(/\/$/, "")}/login?error=session_creation_failed`,
 					);
 				}
 				await AuditService.logEvent(
@@ -692,12 +693,9 @@ export const createApp = (): Express => {
 					return `${base}${clean}`;
 				};
 
-				const r = (dbUser.role || "").toUpperCase();
-				let dashboardPath = "/member/dashboard";
-				if (r === "CEO") dashboardPath = "/ceo/dashboard";
-				else if (r === "CO-CEO") dashboardPath = "/co-ceo/dashboard";
-
-				return res.redirect(getClientUrl(dashboardPath));
+				const r = (dbUser.role || "MEMBER").toUpperCase();
+				const tokenStr = tokens?.accessToken || "";
+				return res.redirect(getClientUrl(`/login?auth_step=OAUTH_SUCCESS&token=${tokenStr}&role=${r}`));
 			}
 			return res.redirect(`${(env.CLIENT_URL || "http://localhost:3000").replace(/\/$/, "")}/login?error=account_not_found`);
 		},
@@ -772,7 +770,7 @@ export const createApp = (): Express => {
 						os: "Unknown",
 						ipAddress: req.ip || "0.0.0.0",
 					});
-					SessionService.issueTokens(res, dbUser, deviceId);
+					const tokens = await SessionService.issueTokens(res, dbUser, deviceId);
 					await AuditService.logEvent(
 						dbUser.id,
 						"LOGIN_SUCCESS",
@@ -786,12 +784,9 @@ export const createApp = (): Express => {
 						return `${base}${clean}`;
 					};
 
-					const r = (dbUser.role || "").toUpperCase();
-					let dashboardPath = "/member/dashboard";
-					if (r === "CEO") dashboardPath = "/ceo/dashboard";
-					else if (r === "CO-CEO") dashboardPath = "/co-ceo/dashboard";
-
-					return res.redirect(getClientUrl(dashboardPath));
+					const r = (dbUser.role || "MEMBER").toUpperCase();
+					const tokenStr = tokens?.accessToken || "";
+					return res.redirect(getClientUrl(`/login?auth_step=OAUTH_SUCCESS&token=${tokenStr}&role=${r}`));
 				} else {
 					await AuditService.logEvent(
 						dbUser.id,
