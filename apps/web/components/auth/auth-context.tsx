@@ -86,13 +86,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Debounce ref to prevent double opening
   const isOpeningRef = React.useRef(false);
 
+  const open = React.useCallback(() => {
+    if (isOpeningRef.current) return;
+    isOpeningRef.current = true;
+    setOpenModal(true);
+    setTimeout(() => {
+      isOpeningRef.current = false;
+    }, 500);
+  }, []);
+
+  const close = React.useCallback((discardState = false) => {
+    setOpenModal(false);
+    if (discardState) {
+      setAuthData(null);
+      setIsDirty(false);
+      setAuthState("EMAIL_ENTRY");
+    }
+  }, []);
+
   const verifyOtp = React.useCallback(
     async (tempToken: string, otp: string) => {
       const res = await apiClient.post("/auth/verify-otp", { tempToken, otp });
       if (res.data.success) {
-        setTransitionMessage("Authenticating...");
-        setIsTransitioning(true);
-
+        close(true);
         const token = res.data.token || res.data.accessToken;
         if (token && typeof window !== "undefined") {
           localStorage.setItem("auth_token", token);
@@ -100,66 +116,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           syncTokenCookie(token);
         }
 
-        // Store workspaceId if returned
         if (res.data.workspaceId && typeof window !== "undefined") {
           localStorage.setItem("workspaceId", res.data.workspaceId);
         }
 
-        // Instantly invalidate session promise and set authenticated status
         sessionPromiseRef.current = null;
         setUser(res.data.user);
         setAuthStatus("authenticated");
+        setAuthData(null);
 
-        // Route to correct dashboard based on role
         const dashPath = getDashboardPathForRole(res.data.user?.role);
-
-        // Refresh current user session from /auth/me
-        try {
-          const meRes = await apiClient.get("/auth/me");
-          if ((meRes.data?.authenticated || meRes.data?.success) && meRes.data?.user) {
-            setUser(meRes.data.user);
-          }
-        } catch (e) {}
-
-        setTimeout(() => {
-          router.push(dashPath);
-          setTimeout(() => setIsTransitioning(false), 500);
-        }, 500);
+        router.replace(dashPath);
       }
     },
-    [router],
+    [router, close],
   );
 
   const logout = React.useCallback(async () => {
     setIsExplicitLoggingOut(true);
+    close(true);
     resetGlobalSheetState();
-    isNavigatingRef.current = true;
-    setTransitionMessage("Signing out securely...");
-    setIsTransitioning(true);
 
-    setTimeout(async () => {
-      try {
-        await apiClient.post("/auth/logout");
-      } catch (e) {}
-      setUser(null);
-      setAuthData(null);
-      setAuthStatus("unauthenticated");
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("token");
-        localStorage.removeItem("workspaceId");
-        sessionStorage.removeItem("authData");
-        syncTokenCookie(null);
-      }
-      router.push("/");
+    apiClient.post("/auth/logout").catch(() => {});
 
-      setTimeout(() => {
-        setIsTransitioning(false);
-        isNavigatingRef.current = false;
-        setIsExplicitLoggingOut(false);
-      }, 500);
-    }, 400);
-  }, [router]);
+    setUser(null);
+    setAuthData(null);
+    setAuthStatus("unauthenticated");
+
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("token");
+      localStorage.removeItem("workspaceId");
+      sessionStorage.removeItem("authData");
+      syncTokenCookie(null);
+    }
+
+    router.replace("/");
+
+    setTimeout(() => {
+      setIsExplicitLoggingOut(false);
+    }, 300);
+  }, [router, close]);
 
   const checkSession = React.useCallback(async () => {
     setIsLoading(true);
@@ -294,23 +291,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [isLoading, authStatus, user, isProtected, isAuthPage, pathname, router]);
 
-  const open = React.useCallback(() => {
-    if (isOpeningRef.current) return;
-    isOpeningRef.current = true;
-    setOpenModal(true);
-    setTimeout(() => {
-      isOpeningRef.current = false;
-    }, 500);
-  }, []);
 
-  const close = React.useCallback((discardState = false) => {
-    setOpenModal(false);
-    if (discardState) {
-      setAuthData(null);
-      setIsDirty(false);
-      setAuthState("EMAIL_ENTRY");
-    }
-  }, []);
 
   const contextValue = React.useMemo(
     () => ({
