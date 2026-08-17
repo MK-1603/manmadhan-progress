@@ -220,9 +220,9 @@ export default function ProjectsPage() {
             </h1>
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="px-3.5 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold text-[12px] flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 shadow-xs transition-transform"
+              className="px-4 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold text-[12px] flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95 shadow-xs transition-transform whitespace-nowrap"
             >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
               <span>New Project</span>
             </button>
           </div>
@@ -313,9 +313,9 @@ export default function ProjectsPage() {
               </div>
               <button
                 onClick={() => setIsCreateOpen(true)}
-                className="inline-flex items-center gap-1.5 px-5 h-[40px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer mt-1"
+                className="inline-flex items-center justify-center gap-1.5 px-5 h-[40px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer whitespace-nowrap shrink-0 mt-1"
               >
-                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
                 <span>Create Project</span>
               </button>
             </div>
@@ -400,21 +400,21 @@ export default function ProjectsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={fetchProjects}
-              className="h-[34px] px-3 rounded-[9px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[#667085] dark:text-[#8B95A5] hover:text-[#17202A] dark:hover:text-[#F2F4F7] text-[12px] font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+              className="h-[36px] px-3.5 rounded-[9px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[#667085] dark:text-[#8B95A5] hover:text-[#17202A] dark:hover:text-[#F2F4F7] text-[12px] font-semibold transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap shrink-0"
               title="Refresh projects"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${loading ? "animate-spin" : ""}`} />
               <span>Refresh</span>
             </button>
 
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="h-[34px] px-4 rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12px] font-bold hover:opacity-90 transition-opacity inline-flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+              className="h-[36px] px-5 rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12px] font-bold hover:opacity-90 transition-opacity inline-flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-95 whitespace-nowrap shrink-0"
             >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
               <span>New Project</span>
             </button>
           </div>
@@ -484,7 +484,7 @@ export default function ProjectsPage() {
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className={`h-[30px] px-3 text-[11.5px] font-bold rounded-[7px] transition-all cursor-pointer ${
+                className={`h-[30px] px-3 text-[11.5px] font-bold rounded-[7px] transition-all cursor-pointer whitespace-nowrap ${
                   statusFilter === s
                     ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] shadow-2xs"
                     : "text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
@@ -499,7 +499,7 @@ export default function ProjectsPage() {
             <button
               type="button"
               onClick={() => setViewMode("table")}
-              className={`px-2.5 h-[28px] rounded-[5px] text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 h-[28px] rounded-[5px] text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                 viewMode === "table"
                   ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
                   : "text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
@@ -511,7 +511,7 @@ export default function ProjectsPage() {
             <button
               type="button"
               onClick={() => setViewMode("board")}
-              className={`px-2.5 h-[28px] rounded-[5px] text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 h-[28px] rounded-[5px] text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                 viewMode === "board"
                   ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
                   : "text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
@@ -538,7 +538,7 @@ export default function ProjectsPage() {
             </div>
           ) : filtered.length === 0 ? (
             /* Integrated Compact Empty State */
-            <div className="flex flex-col items-center justify-center py-8 px-6 text-center space-y-3 my-auto">
+            <div className="flex flex-col items-center justify-center py-8 px-6 text-center space-y-3.5 my-auto">
               <div className="w-11 h-11 rounded-full bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center border border-[#C9A52A]/20 shrink-0">
                 <FolderKanban className="w-5 h-5 stroke-[2]" />
               </div>
@@ -555,15 +555,15 @@ export default function ProjectsPage() {
               {realProjects.length === 0 ? (
                 <button
                   onClick={() => setIsCreateOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-4.5 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12px] font-bold hover:opacity-90 transition-opacity shadow-2xs cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2 px-6 h-[38px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
                   <span>Create Project</span>
                 </button>
               ) : (
                 <button
                   onClick={() => { setSearch(""); setStatusFilter("All"); }}
-                  className="inline-flex items-center gap-1.5 px-3.5 h-[34px] rounded-[8px] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F8F9FB] cursor-pointer"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 h-[34px] rounded-[8px] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F8F9FB] dark:hover:bg-[#111419] cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <span>Clear Filters</span>
                 </button>
@@ -647,7 +647,7 @@ export default function ProjectsPage() {
                         </button>
                         <Link
                           href={`${base}/projects/${p.id}`}
-                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-[6px] bg-[#C9A52A]/10 text-[#C9A52A] border border-[#C9A52A]/20 text-[11px] font-bold"
+                          className="inline-flex items-center justify-center gap-1 px-2.5 py-0.5 rounded-[6px] bg-[#C9A52A]/10 text-[#C9A52A] border border-[#C9A52A]/20 text-[11px] font-bold whitespace-nowrap"
                         >
                           Open <ChevronRight className="w-3 h-3" />
                         </Link>
