@@ -65,10 +65,15 @@ async function cleanExpiredCache() {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // Skip caching for non-GET or sensitive API requests
+  // Skip caching for non-GET, sensitive API requests, or auth/oauth redirect query flows
   if (
     event.request.method !== "GET" ||
-    SENSITIVE_ENDPOINTS.some((ep) => url.pathname.startsWith(ep))
+    SENSITIVE_ENDPOINTS.some((ep) => url.pathname.startsWith(ep)) ||
+    url.searchParams.has("redirect") ||
+    url.searchParams.has("auth_step") ||
+    url.searchParams.has("token") ||
+    url.searchParams.has("code") ||
+    url.pathname.includes("/auth")
   ) {
     return;
   }
@@ -102,9 +107,18 @@ self.addEventListener("fetch", (event) => {
       } catch (err) {
         if (cachedResponse) return cachedResponse;
         if (event.request.mode === "navigate") {
-          return caches.match("/offline") || caches.match("/");
+          const offlineMatch = (await caches.match("/offline")) || (await caches.match("/"));
+          if (offlineMatch) return offlineMatch;
         }
-        throw err;
+        // Graceful fallback fetch with redirect follow to prevent FetchEvent rejection
+        try {
+          return await fetch(event.request.url, { redirect: "follow" });
+        } catch {
+          return new Response("Service Temporarily Unavailable", {
+            status: 503,
+            statusText: "Service Unavailable",
+          });
+        }
       }
     })
   );
