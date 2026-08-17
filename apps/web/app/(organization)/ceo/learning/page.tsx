@@ -210,7 +210,7 @@ export default function LearningPage() {
   const isMoreTabActive = MORE_TABS.some((t) => t.id === activeTab);
 
   return (
-    <div className="w-full h-full flex-1 min-h-0 flex flex-col overflow-hidden px-3.5 sm:px-6 md:px-10 py-2.5 sm:py-4 max-w-[1600px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans space-y-3 select-none">
+    <div className="w-full min-h-full flex flex-col justify-between px-3.5 sm:px-6 md:px-10 py-3 sm:py-5 max-w-[1600px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans space-y-4 select-none pb-20 md:pb-6">
       
       {/* ── Fixed Header Region ────────────────────────────────────────── */}
       <div className="shrink-0 space-y-3">
@@ -348,7 +348,7 @@ export default function LearningPage() {
       </div>
 
       {/* ── Scrollable Body Region ──────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-y-auto pb-36 md:pb-6 space-y-4">
+      <div className="flex-1 space-y-4">
         {error && (
           <div className="p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[12px] font-medium flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
