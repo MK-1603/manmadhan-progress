@@ -30,8 +30,8 @@ const STATUS_STYLE: Record<string, string> = {
 
 const TASK_TYPE_CHIPS = [
   { id: "All", label: "All" },
-  { id: "PROJECT WORK", label: "Project" },
-  { id: "PERSONAL WORK", label: "Personal" },
+  { id: "PROJECT WORK", label: "Project Work" },
+  { id: "PERSONAL WORK", label: "Personal Work" },
   { id: "LEARNING", label: "Learning" },
   { id: "DOCUMENTATION", label: "Docs" },
   { id: "RESEARCH", label: "Research" },
@@ -41,10 +41,18 @@ const TASK_TYPE_CHIPS = [
 
 const PRIORITY_OPTIONS = [
   { value: "All", label: "All Priorities" },
-  { value: "Low", label: "Low Priority", color: "bg-slate-400" },
-  { value: "Medium", label: "Medium Priority", color: "bg-[#C9A52A]" },
-  { value: "High", label: "High Priority", color: "bg-amber-500" },
-  { value: "Critical", label: "Critical Priority", color: "bg-rose-500" },
+  { value: "Low", label: "Low Priority" },
+  { value: "Medium", label: "Medium Priority" },
+  { value: "High", label: "High Priority" },
+  { value: "Critical", label: "Critical Priority" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "All", label: "All Statuses" },
+  { value: "Not Started", label: "Not Started" },
+  { value: "In Progress", label: "In Progress" },
+  { value: "Blocked", label: "Blocked" },
+  { value: "Completed", label: "Completed" },
 ];
 
 const KANBAN_COLUMNS = [
@@ -67,6 +75,7 @@ export default function TasksPage() {
   const [activeTypeTab, setActiveTypeTab] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [assigneeFilter, setAssigneeFilter] = useState("All");
 
   // Selection & Mobile Select Mode
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -84,7 +93,7 @@ export default function TasksPage() {
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
-  // Workspace Directory
+  // Directory for Assignee dropdown
   const [assignableUsers, setAssignableUsers] = useState<any[]>([]);
 
   const fetchTasks = useCallback(async () => {
@@ -107,7 +116,6 @@ export default function TasksPage() {
 
   useEffect(() => {
     fetchTasks();
-    // Load directory for bulk assign
     apiClient.get("/org/projects/eligible-assignees").then((res) => {
       if (res.data?.data?.all) setAssignableUsers(res.data.data.all);
     }).catch(() => null);
@@ -125,7 +133,6 @@ export default function TasksPage() {
     };
   }, [socket, fetchTasks]);
 
-  // Esc key clears selection
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -159,11 +166,15 @@ export default function TasksPage() {
         statusFilter === "All" ||
         (t.status || "").toLowerCase() === statusFilter.toLowerCase();
 
-      return matchSearch && matchType && matchPriority && matchStatus;
-    });
-  }, [tasks, search, activeTypeTab, priorityFilter, statusFilter]);
+      const matchAssignee =
+        assigneeFilter === "All" ||
+        t.assigneeId === assigneeFilter;
 
-  // Metrics
+      return matchSearch && matchType && matchPriority && matchStatus && matchAssignee;
+    });
+  }, [tasks, search, activeTypeTab, priorityFilter, statusFilter, assigneeFilter]);
+
+  // Summary Metrics (4 Core Metrics)
   const summaryMetrics = useMemo(() => {
     const total = tasks.length;
     const active = tasks.filter((t) => ["In Progress", "Accepted", "Assigned"].includes(t.status)).length;
@@ -186,17 +197,14 @@ export default function TasksPage() {
 
   const handleTaskRowClick = (task: any, index: number, e: React.MouseEvent) => {
     if (e.shiftKey && lastSelectedIndexRef.current !== null) {
-      // Range selection
       const start = Math.min(lastSelectedIndexRef.current, index);
       const end = Math.max(lastSelectedIndexRef.current, index);
       const rangeIds = filteredTasks.slice(start, end + 1).map((t) => t.id);
       setSelectedIds((prev) => Array.from(new Set([...prev, ...rangeIds])));
     } else if (selectedIds.length > 0 || isMobileSelectionMode) {
-      // Toggle single item selection
       toggleSelectId(task.id);
       lastSelectedIndexRef.current = index;
     } else {
-      // Normal click opens task details
       setSelectedTask(task);
     }
   };
@@ -222,7 +230,6 @@ export default function TasksPage() {
     }
   };
 
-  // Bulk API Handlers
   const handleExecuteBulkStatus = async (status: string) => {
     setIsBulkProcessing(true);
     try {
@@ -296,14 +303,13 @@ export default function TasksPage() {
   };
 
   return (
-    <div className="w-full h-full min-h-0 flex-1 flex flex-col justify-between overflow-hidden px-3 sm:px-6 md:px-10 py-3 sm:py-4 max-w-[1400px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans space-y-3 select-none">
+    <div className="w-full h-full min-h-0 flex-1 flex flex-col justify-between overflow-hidden p-3 sm:p-6 md:p-8 max-w-[1600px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans space-y-4 select-none">
       
-      {/* ── HEADER REGION (Zero Page Scroll) ───────────────────────── */}
-      <div className="shrink-0 space-y-2.5">
+      {/* ── HEADER REGION (Zero Page Scroll, Spacious Desktop Heights) ───── */}
+      <div className="shrink-0 space-y-3">
         
         {/* Title Bar or Mobile Selection Header */}
         {isMobileSelectionMode ? (
-          /* Mobile Selection Top Header */
           <div className="flex items-center justify-between pb-2 border-b border-[#C9A52A]/40 bg-[#C9A52A]/10 -mx-3 px-3 py-2">
             <div className="flex items-center gap-2 text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
               <span className="w-6 h-6 rounded-full bg-[#C9A52A] text-[#0B0D10] font-mono text-[12px] flex items-center justify-center font-bold">
@@ -319,29 +325,28 @@ export default function TasksPage() {
             </button>
           </div>
         ) : (
-          /* Normal Header */
           <div className="flex items-center justify-between gap-3 pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
             <div>
-              <div className="flex items-center gap-2">
-                <CheckSquare className="w-5 h-5 text-[#C9A52A] dark:text-[#D4B12F]" />
-                <h1 className="text-[20px] sm:text-[24px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
+              <div className="flex items-center gap-2.5">
+                <CheckSquare className="w-6 h-6 text-[#C9A52A] dark:text-[#D4B12F]" />
+                <h1 className="text-[22px] sm:text-[26px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
                   Tasks
                 </h1>
               </div>
-              <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] mt-1 hidden sm:block">
-                Tasks & Execution Control Center — Track execution across projects, learning plans, and organizational work.
+              <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5] mt-1 hidden sm:block">
+                Execution Control Center — Track and manage execution across projects, learning plans, and organizational work.
               </p>
               <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] mt-0.5 sm:hidden">
                 Execution workspace
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="flex items-center p-0.5 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36]">
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center p-0.5 rounded-[9px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36]">
                 <button
                   type="button"
                   onClick={() => setViewMode("TABLE")}
-                  className={`px-2.5 h-[30px] rounded-[6px] text-[11.5px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  className={`px-3 h-[32px] rounded-[7px] text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                     viewMode === "TABLE"
                       ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
                       : "text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
@@ -354,7 +359,7 @@ export default function TasksPage() {
                 <button
                   type="button"
                   onClick={() => setViewMode("BOARD")}
-                  className={`px-2.5 h-[30px] rounded-[6px] text-[11.5px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  className={`px-3 h-[32px] rounded-[7px] text-[12px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                     viewMode === "BOARD"
                       ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
                       : "text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
@@ -368,16 +373,16 @@ export default function TasksPage() {
               <button
                 type="button"
                 onClick={fetchTasks}
-                className="p-1.5 rounded-[8px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] hover:text-[#17202A] transition-colors cursor-pointer"
-                title="Refresh"
+                className="p-2 rounded-[9px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] hover:text-[#17202A] transition-colors cursor-pointer"
+                title="Refresh Tasks"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
+                <RefreshCw className="w-4 h-4" />
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowCreate(true)}
-                className="hidden md:inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer shrink-0"
+                className="hidden md:inline-flex items-center gap-1.5 px-4 h-[38px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer shrink-0"
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
                 <span>Create Task</span>
@@ -386,11 +391,11 @@ export default function TasksPage() {
           </div>
         )}
 
-        {/* ── DESKTOP STICKY BULK ACTION TOOLBAR (Visible on Desktop when selection active) ── */}
+        {/* ── DESKTOP STICKY BULK ACTION TOOLBAR ───────────────────────── */}
         {selectedIds.length > 0 && (
-          <div className="hidden md:flex items-center justify-between p-2.5 rounded-[12px] bg-[#17202A] dark:bg-[#15191F] text-white shadow-lg border border-[#C9A52A]/40 animate-in fade-in duration-150">
-            <div className="text-[12.5px] font-bold flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-[#C9A52A] text-[#0B0D10] font-mono text-[11px] flex items-center justify-center font-bold">
+          <div className="hidden md:flex items-center justify-between p-3 rounded-[14px] bg-[#17202A] dark:bg-[#15191F] text-white shadow-lg border border-[#C9A52A]/40 animate-in fade-in duration-150">
+            <div className="text-[13px] font-bold flex items-center gap-2.5">
+              <span className="w-6 h-6 rounded-full bg-[#C9A52A] text-[#0B0D10] font-mono text-[12px] flex items-center justify-center font-bold">
                 {selectedIds.length}
               </span>
               <span>selected</span>
@@ -399,35 +404,35 @@ export default function TasksPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowBulkAssignSheet(true)}
-                className="px-3 h-[30px] rounded-[7px] bg-[#FFFFFF]/10 hover:bg-[#FFFFFF]/20 text-[11.5px] font-semibold flex items-center gap-1 cursor-pointer"
+                className="px-3.5 h-[32px] rounded-[8px] bg-[#FFFFFF]/10 hover:bg-[#FFFFFF]/20 text-[12px] font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 <UserPlus className="w-3.5 h-3.5 text-[#C9A52A]" />
                 <span>Assign</span>
               </button>
               <button
                 onClick={() => setShowBulkStatusSheet(true)}
-                className="px-3 h-[30px] rounded-[7px] bg-[#FFFFFF]/10 hover:bg-[#FFFFFF]/20 text-[11.5px] font-semibold flex items-center gap-1 cursor-pointer"
+                className="px-3.5 h-[32px] rounded-[8px] bg-[#FFFFFF]/10 hover:bg-[#FFFFFF]/20 text-[12px] font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowRightLeft className="w-3.5 h-3.5 text-blue-400" />
                 <span>Status</span>
               </button>
               <button
                 onClick={() => setShowBulkPrioritySheet(true)}
-                className="px-3 h-[30px] rounded-[7px] bg-[#FFFFFF]/10 hover:bg-[#FFFFFF]/20 text-[11.5px] font-semibold flex items-center gap-1 cursor-pointer"
+                className="px-3.5 h-[32px] rounded-[8px] bg-[#FFFFFF]/10 hover:bg-[#FFFFFF]/20 text-[12px] font-semibold flex items-center gap-1.5 cursor-pointer"
               >
                 <Flame className="w-3.5 h-3.5 text-amber-400" />
                 <span>Priority</span>
               </button>
               <button
                 onClick={handleExecuteBulkComplete}
-                className="px-3 h-[30px] rounded-[7px] bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-[11.5px] font-bold flex items-center gap-1 cursor-pointer"
+                className="px-3.5 h-[32px] rounded-[8px] bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-[12px] font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>Complete</span>
               </button>
               <button
                 onClick={() => setShowBulkDeleteModal(true)}
-                className="px-3 h-[30px] rounded-[7px] bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[11.5px] font-bold flex items-center gap-1 cursor-pointer"
+                className="px-3.5 h-[32px] rounded-[8px] bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[12px] font-bold flex items-center gap-1.5 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete</span>
@@ -437,7 +442,7 @@ export default function TasksPage() {
 
               <button
                 onClick={() => { setSelectedIds([]); setIsMobileSelectionMode(false); }}
-                className="text-slate-400 hover:text-white text-[11.5px] font-medium"
+                className="text-slate-400 hover:text-white text-[12px] font-medium px-2"
               >
                 Clear
               </button>
@@ -445,154 +450,205 @@ export default function TasksPage() {
           </div>
         )}
 
-        {/* Desktop 5 KPI Cards */}
+        {/* ── DESKTOP 4 CORE KPI ROW (96–112px height, 4 columns) ─────── */}
         {selectedIds.length === 0 && (
-          <div className="hidden md:grid grid-cols-5 gap-3">
-            <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-0.5">
-              <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Total Tasks</div>
-              <div className="text-[18px] font-bold text-[#17202A] dark:text-[#F2F4F7]">{summaryMetrics.total}</div>
+          <div className="hidden md:grid grid-cols-4 gap-4">
+            <div className="h-[96px] sm:h-[104px] p-4 sm:p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
+              <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Total Tasks</div>
+              <div className="flex items-baseline justify-between">
+                <div className="text-[28px] sm:text-[30px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{summaryMetrics.total}</div>
+                <span className="text-[11px] font-medium text-[#667085]">All assigned work</span>
+              </div>
             </div>
-            <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-0.5">
-              <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Active</div>
-              <div className="text-[18px] font-bold text-blue-600 dark:text-blue-400">{summaryMetrics.active}</div>
+
+            <div className="h-[96px] sm:h-[104px] p-4 sm:p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
+              <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Active</div>
+              <div className="flex items-baseline justify-between">
+                <div className="text-[28px] sm:text-[30px] font-extrabold text-blue-600 dark:text-blue-400 leading-none">{summaryMetrics.active}</div>
+                <span className="text-[11px] font-medium text-[#667085]">Currently executing</span>
+              </div>
             </div>
-            <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-0.5">
-              <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Completed</div>
-              <div className="text-[18px] font-bold text-emerald-600 dark:text-emerald-400">{summaryMetrics.completed}</div>
+
+            <div className="h-[96px] sm:h-[104px] p-4 sm:p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
+              <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Completed</div>
+              <div className="flex items-baseline justify-between">
+                <div className="text-[28px] sm:text-[30px] font-extrabold text-emerald-600 dark:text-emerald-400 leading-none">{summaryMetrics.completed}</div>
+                <span className="text-[11px] font-medium text-[#667085]">Successfully finished</span>
+              </div>
             </div>
-            <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-0.5">
-              <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Overdue</div>
-              <div className="text-[18px] font-bold text-amber-600 dark:text-amber-400">{summaryMetrics.overdue}</div>
-            </div>
-            <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-0.5">
-              <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Filtered</div>
-              <div className="text-[18px] font-bold text-[#C9A52A] dark:text-[#D4B12F]">{filteredTasks.length}</div>
+
+            <div className="h-[96px] sm:h-[104px] p-4 sm:p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
+              <div className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Overdue</div>
+              <div className="flex items-baseline justify-between">
+                <div className="text-[28px] sm:text-[30px] font-extrabold text-amber-600 dark:text-amber-400 leading-none">{summaryMetrics.overdue}</div>
+                <span className="text-[11px] font-medium text-[#667085]">Needs attention</span>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Mobile Compact Single-Row Metric Strip */}
+        {/* ── MOBILE COMPACT SINGLE-ROW METRIC STRIP ───────────────────── */}
         {!isMobileSelectionMode && (
-          <div className="md:hidden flex items-center justify-between px-3 py-2 rounded-[10px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-bold shrink-0">
+          <div className="md:hidden flex items-center justify-around h-[60px] px-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-bold shrink-0">
             <div className="flex flex-col items-center">
-              <span className="text-[#17202A] dark:text-[#F2F4F7] text-[13px]">{summaryMetrics.total}</span>
+              <span className="text-[#17202A] dark:text-[#F2F4F7] text-[14px] font-bold">{summaryMetrics.total}</span>
               <span className="text-[9.5px] text-[#667085] uppercase">Total</span>
             </div>
-            <div className="w-[1px] h-5 bg-[#E4E7EC] dark:bg-[#272D36]" />
+            <div className="w-[1px] h-6 bg-[#E4E7EC] dark:bg-[#272D36]" />
             <div className="flex flex-col items-center">
-              <span className="text-blue-600 dark:text-blue-400 text-[13px]">{summaryMetrics.active}</span>
+              <span className="text-blue-600 dark:text-blue-400 text-[14px] font-bold">{summaryMetrics.active}</span>
               <span className="text-[9.5px] text-[#667085] uppercase">Active</span>
             </div>
-            <div className="w-[1px] h-5 bg-[#E4E7EC] dark:bg-[#272D36]" />
+            <div className="w-[1px] h-6 bg-[#E4E7EC] dark:bg-[#272D36]" />
             <div className="flex flex-col items-center">
-              <span className="text-emerald-600 dark:text-emerald-400 text-[13px]">{summaryMetrics.completed}</span>
+              <span className="text-emerald-600 dark:text-emerald-400 text-[14px] font-bold">{summaryMetrics.completed}</span>
               <span className="text-[9.5px] text-[#667085] uppercase">Done</span>
             </div>
-            <div className="w-[1px] h-5 bg-[#E4E7EC] dark:bg-[#272D36]" />
+            <div className="w-[1px] h-6 bg-[#E4E7EC] dark:bg-[#272D36]" />
             <div className="flex flex-col items-center">
-              <span className="text-amber-600 dark:text-amber-400 text-[13px]">{summaryMetrics.overdue}</span>
+              <span className="text-amber-600 dark:text-amber-400 text-[14px] font-bold">{summaryMetrics.overdue}</span>
               <span className="text-[9.5px] text-[#667085] uppercase">Due</span>
             </div>
           </div>
         )}
 
-        {/* Filter Chips Row */}
+        {/* ── DESKTOP & MOBILE FILTER WORKSPACE ───────────────────────── */}
         {!isMobileSelectionMode && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] whitespace-nowrap">
-            {TASK_TYPE_CHIPS.map((chip) => (
-              <button
-                key={chip.id}
-                onClick={() => setActiveTypeTab(chip.id)}
-                className={`px-3 py-1 rounded-[7px] text-[11.5px] font-bold transition-all cursor-pointer shrink-0 ${
-                  activeTypeTab === chip.id
-                    ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
-                    : "bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] dark:text-[#8B95A5] border border-[#E4E7EC] dark:border-[#272D36]"
-                }`}
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Search Bar & Mobile Filter Trigger */}
-        {!isMobileSelectionMode && (
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#667085]" />
-              <input
-                type="text"
-                placeholder="Search tasks..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 h-[34px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[8px] text-[12px] text-[#17202A] dark:text-[#F2F4F7] outline-none"
-              />
+          <div className="space-y-2">
+            {/* Filter Chips Row */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] whitespace-nowrap">
+              {TASK_TYPE_CHIPS.map((chip) => (
+                <button
+                  key={chip.id}
+                  onClick={() => setActiveTypeTab(chip.id)}
+                  className={`px-3.5 py-1.5 rounded-[8px] text-[12px] font-bold transition-all cursor-pointer shrink-0 ${
+                    activeTypeTab === chip.id
+                      ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
+                      : "bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] dark:text-[#8B95A5] border border-[#E4E7EC] dark:border-[#272D36]"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
             </div>
 
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="hidden md:block h-[34px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[8px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
-            >
-              {PRIORITY_OPTIONS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
+            {/* Filter Controls Row */}
+            <div className="flex items-center gap-2.5">
+              <div className="relative flex-1 md:flex-none md:w-[420px]">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#667085]" />
+                <input
+                  type="text"
+                  placeholder="Search tasks..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 h-[36px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
+                />
+              </div>
 
-            <button
-              type="button"
-              onClick={() => setShowFilterSheet(true)}
-              className="md:hidden h-[34px] px-3 rounded-[8px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-bold text-[#17202A] dark:text-[#F2F4F7] flex items-center gap-1.5 cursor-pointer shrink-0"
-            >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-[#C9A52A]" />
-              <span>Filter</span>
-            </button>
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                className="hidden md:block h-[36px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
+              >
+                {PRIORITY_OPTIONS.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="hidden md:block h-[36px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
+              >
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+
+              <select
+                value={assigneeFilter}
+                onChange={(e) => setAssigneeFilter(e.target.value)}
+                className="hidden md:block h-[36px] px-3 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none"
+              >
+                <option value="All">All Assignees</option>
+                {assignableUsers.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setShowFilterSheet(true)}
+                className="md:hidden h-[36px] px-3.5 rounded-[9px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-bold text-[#17202A] dark:text-[#F2F4F7] flex items-center gap-1.5 cursor-pointer shrink-0"
+              >
+                <SlidersHorizontal className="w-4 h-4 text-[#C9A52A]" />
+                <span>Filter</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* ── INTERNAL SCROLL CONTAINER (Only this container scrolls) ────── */}
+      {/* ── TASK EXECUTION WORKSPACE (Fills All Remaining Viewport Space) ─── */}
       <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col">
         {error ? (
-          <div className="p-6 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-rose-500/20 space-y-3 max-w-md mx-auto my-auto">
-            <AlertCircle className="w-9 h-9 text-rose-500 mx-auto" />
+          <div className="p-8 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[16px] border border-rose-500/20 space-y-3 max-w-md mx-auto my-auto shadow-sm">
+            <AlertCircle className="w-10 h-10 text-rose-500 mx-auto" />
             <div className="space-y-1">
-              <h3 className="text-[14.5px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
-                Couldn't load tasks
+              <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+                Unable to load tasks
               </h3>
-              <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5]">{error}</p>
+              <p className="text-[12px] text-[#667085] dark:text-[#8B95A5]">{error}</p>
             </div>
             <button
               onClick={fetchTasks}
-              className="px-4 h-[34px] rounded-[8px] bg-[#C9A52A] text-[#0B0D10] text-[12px] font-bold hover:opacity-90 transition-opacity cursor-pointer inline-flex items-center gap-1.5"
+              className="px-4 h-[36px] rounded-[9px] bg-[#C9A52A] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity cursor-pointer inline-flex items-center gap-1.5"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Retry</span>
             </button>
           </div>
         ) : loading ? (
-          <div className="p-10 flex items-center justify-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-[#E4E7EC] dark:border-[#272D36] my-auto">
-            <Loader2 className="w-6 h-6 animate-spin text-[#C9A52A] dark:text-[#D4B12F]" />
+          /* SKELETON LOADING ROWS */
+          <div className="w-full h-full min-h-0 overflow-y-auto bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-4 space-y-3">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-[56px] w-full bg-slate-100 dark:bg-[#1C222B] rounded-[10px] animate-pulse flex items-center justify-between px-4">
+                <div className="w-1/3 h-4 bg-slate-200 dark:bg-[#272D36] rounded" />
+                <div className="w-1/6 h-4 bg-slate-200 dark:bg-[#272D36] rounded" />
+                <div className="w-1/6 h-4 bg-slate-200 dark:bg-[#272D36] rounded" />
+                <div className="w-1/8 h-4 bg-slate-200 dark:bg-[#272D36] rounded" />
+              </div>
+            ))}
           </div>
         ) : filteredTasks.length === 0 ? (
-          <div className="p-6 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[14px] border border-[#E4E7EC] dark:border-[#272D36] space-y-2 max-w-sm mx-auto my-auto">
-            <CheckSquare className="w-9 h-9 text-[#C9A52A] dark:text-[#D4B12F] mx-auto opacity-70" />
-            <div className="space-y-1">
-              <h3 className="text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+          /* LARGE DESKTOP & MOBILE WORKSPACE EMPTY STATE */
+          <div className="w-full h-full min-h-[320px] rounded-[16px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] flex flex-col items-center justify-center p-8 text-center space-y-4 my-auto">
+            <div className="w-14 h-14 rounded-full bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center border border-[#C9A52A]/20">
+              <Check className="w-7 h-7 stroke-[3]" />
+            </div>
+            <div className="space-y-1 max-w-sm">
+              <h3 className="text-[16px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
                 No active work
               </h3>
-              <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5]">
-                Your assigned tasks will appear here.
+              <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5]">
+                Your assigned tasks will appear here. Create a task to begin execution.
               </p>
             </div>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="px-5 h-[38px] rounded-[10px] bg-[#C9A52A] text-[#0B0D10] text-[13px] font-bold hover:opacity-90 transition-opacity cursor-pointer inline-flex items-center gap-1.5 shadow-xs"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>Create Task</span>
+            </button>
           </div>
         ) : viewMode === "TABLE" ? (
           <>
             {/* DESKTOP TABLE VIEW */}
-            <div className="hidden md:block h-full min-h-0 overflow-y-auto bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] shadow-xs">
-              <table className="w-full text-left text-[12.5px]">
+            <div className="hidden md:block h-full min-h-0 overflow-y-auto bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] shadow-xs">
+              <table className="w-full text-left text-[13px]">
                 <thead className="sticky top-0 z-10 bg-[#F8F9FB] dark:bg-[#111419] border-b border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">
-                  <tr>
+                  <tr className="h-[48px]">
                     <th className="p-3 w-10 text-center">
                       <input
                         type="checkbox"
@@ -619,7 +675,7 @@ export default function TasksPage() {
                       <tr
                         key={t.id}
                         onClick={(e) => handleTaskRowClick(t, index, e)}
-                        className={`transition-colors cursor-pointer ${
+                        className={`h-[62px] transition-colors cursor-pointer ${
                           isSelected
                             ? "bg-[#C9A52A]/10 dark:bg-[#C9A52A]/15 border-l-4 border-l-[#C9A52A]"
                             : "hover:bg-[#F8F9FB] dark:hover:bg-[#111419]"
@@ -637,16 +693,16 @@ export default function TasksPage() {
                           {t.title}
                         </td>
                         <td className="p-3">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20 uppercase">
+                          <span className="px-2.5 py-1 rounded text-[10.5px] font-bold bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20 uppercase">
                             {t.type || "Task"}
                           </span>
                         </td>
                         <td className="p-3">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
+                          <span className={`px-3 py-1 rounded-full text-[11px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
                             {t.status}
                           </span>
                         </td>
-                        <td className="p-3 font-semibold text-[12px]">
+                        <td className="p-3 font-semibold text-[12.5px]">
                           {t.priority || "Medium"}
                         </td>
                         <td className="p-3 font-medium text-[#17202A] dark:text-[#F2F4F7]">
@@ -655,7 +711,7 @@ export default function TasksPage() {
                         <td className="p-3 text-[#667085] dark:text-[#8B95A5]">
                           {t.projectName || t.sourceType || "General Workspace"}
                         </td>
-                        <td className="p-3 font-mono text-[11.5px] text-[#667085]">
+                        <td className="p-3 font-mono text-[12px] text-[#667085]">
                           {t.deadline ? new Date(t.deadline).toLocaleDateString() : "Flexible"}
                         </td>
                         <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
@@ -665,13 +721,13 @@ export default function TasksPage() {
                               className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36] text-[#C9A52A] transition-colors"
                               title="Start Focus Session"
                             >
-                              <Play className="w-3.5 h-3.5 fill-current" />
+                              <Play className="w-4 h-4 fill-current" />
                             </button>
                             <button
                               onClick={() => setSelectedTask(t)}
                               className="p-1.5 rounded-md hover:bg-[#E4E7EC] dark:hover:bg-[#272D36] text-[#667085] transition-colors"
                             >
-                              <ChevronRight className="w-4 h-4" />
+                              <ChevronRight className="w-4.5 h-4.5" />
                             </button>
                           </div>
                         </td>
@@ -682,15 +738,15 @@ export default function TasksPage() {
               </table>
             </div>
 
-            {/* MOBILE COMPACT CARDS LIST */}
-            <div className="md:hidden h-full min-h-0 overflow-y-auto space-y-2 pb-20">
+            {/* MOBILE CARDS LIST */}
+            <div className="md:hidden h-full min-h-0 overflow-y-auto space-y-2.5 pb-24">
               {filteredTasks.map((t, index) => {
                 const isSelected = selectedIds.includes(t.id);
                 return (
                   <div
                     key={t.id}
                     onClick={(e) => handleTaskRowClick(t, index, e)}
-                    className={`p-3 rounded-[12px] border transition-all cursor-pointer space-y-2 ${
+                    className={`p-3.5 rounded-[14px] border transition-all cursor-pointer space-y-2.5 ${
                       isSelected
                         ? "border-[#C9A52A] bg-[#C9A52A]/10 ring-1 ring-[#C9A52A]"
                         : "bg-[#FFFFFF] dark:bg-[#15191F] border-[#E4E7EC] dark:border-[#272D36]"
@@ -707,10 +763,10 @@ export default function TasksPage() {
                           />
                         )}
                         <div>
-                          <h4 className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-tight">
+                          <h4 className="text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-tight">
                             {t.title}
                           </h4>
-                          <div className="text-[10.5px] font-semibold text-[#667085] dark:text-[#8B95A5] mt-0.5 flex items-center gap-1.5">
+                          <div className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5] mt-0.5 flex items-center gap-1.5">
                             <span className="uppercase text-[#C9A52A] font-bold">{t.type || "Task"}</span>
                             <span>•</span>
                             <span>{t.projectName || "Workspace"}</span>
@@ -726,27 +782,27 @@ export default function TasksPage() {
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center justify-between text-[11.5px]">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#C9A52A]/10 text-[#C9A52A] border border-[#C9A52A]/20 uppercase">
+                        <span className="text-[10.5px] font-bold px-2 py-0.5 rounded bg-[#C9A52A]/10 text-[#C9A52A] border border-[#C9A52A]/20 uppercase">
                           ● {t.priority || "Medium"}
                         </span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${STATUS_STYLE[t.status] || STATUS_STYLE["Pending"]}`}>
                           {t.status}
                         </span>
                       </div>
 
-                      <div className="text-[10.5px] text-[#667085] font-mono">
+                      <div className="text-[11px] text-[#667085] font-mono">
                         {t.deadline ? new Date(t.deadline).toLocaleDateString([], { month: "short", day: "numeric" }) : "Flexible"}
                       </div>
                     </div>
 
                     <div className="space-y-1 pt-1">
-                      <div className="flex items-center justify-between text-[10px] font-mono text-[#667085]">
+                      <div className="flex items-center justify-between text-[10.5px] font-mono text-[#667085]">
                         <span>Assignee: {t.assigneeName || "Unassigned"}</span>
                         <span>{t.progressPercent || (t.status === "Completed" ? 100 : 0)}%</span>
                       </div>
-                      <div className="h-1 w-full bg-[#E4E7EC] dark:bg-[#272D36] rounded-full overflow-hidden">
+                      <div className="h-1.5 w-full bg-[#E4E7EC] dark:bg-[#272D36] rounded-full overflow-hidden">
                         <div
                           className="h-full bg-[#C9A52A] dark:bg-[#D4B12F] rounded-full"
                           style={{ width: `${t.progressPercent || (t.status === "Completed" ? 100 : 0)}%` }}
@@ -760,7 +816,7 @@ export default function TasksPage() {
           </>
         ) : (
           /* KANBAN BOARD VIEW */
-          <div className="h-full min-h-0 overflow-x-auto flex gap-3 pb-2">
+          <div className="h-full min-h-0 overflow-x-auto flex gap-4 pb-2">
             {KANBAN_COLUMNS.map((col) => {
               const colTasks = filteredTasks.filter((t) => {
                 if (col.id === "Not Started") return ["Draft", "Not Started", "Pending"].includes(t.status);
@@ -773,47 +829,47 @@ export default function TasksPage() {
               return (
                 <div
                   key={col.id}
-                  className="w-72 sm:w-80 shrink-0 h-full min-h-0 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] p-3 flex flex-col space-y-2"
+                  className="flex-1 min-w-[280px] sm:min-w-[320px] h-full min-h-0 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-4 flex flex-col space-y-3 shadow-2xs"
                 >
-                  <div className="flex items-center justify-between pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
-                    <h4 className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+                  <div className="flex items-center justify-between pb-3 border-b border-[#E4E7EC] dark:border-[#272D36]">
+                    <h4 className="text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
                       {col.title}
                     </h4>
-                    <span className="w-5 h-5 rounded-full bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-mono font-bold text-[#667085] flex items-center justify-center">
+                    <span className="w-6 h-6 rounded-full bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-mono font-bold text-[#667085] flex items-center justify-center">
                       {colTasks.length}
                     </span>
                   </div>
 
-                  <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
+                  <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-0.5">
                     {colTasks.map((t) => {
                       const isSelected = selectedIds.includes(t.id);
                       return (
                         <div
                           key={t.id}
                           onClick={() => toggleSelectId(t.id)}
-                          className={`p-3 rounded-[10px] border space-y-2 cursor-pointer transition-all ${
+                          className={`p-3.5 rounded-[12px] border space-y-2.5 cursor-pointer transition-all ${
                             isSelected
                               ? "border-[#C9A52A] bg-[#C9A52A]/10 ring-1 ring-[#C9A52A]"
                               : "bg-[#F8F9FB] dark:bg-[#111419] border-[#E4E7EC] dark:border-[#272D36]"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-1.5">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
                               <input
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => toggleSelectId(t.id)}
                                 className="rounded border-gray-300 text-[#C9A52A]"
                               />
-                              <h5 className="text-[12.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-tight">
+                              <h5 className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-tight">
                                 {t.title}
                               </h5>
                             </div>
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#C9A52A]/10 text-[#C9A52A] uppercase shrink-0">
+                            <span className="text-[9.5px] font-bold px-2 py-0.5 rounded bg-[#C9A52A]/10 text-[#C9A52A] uppercase shrink-0">
                               {t.priority}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between text-[10.5px] text-[#667085]">
+                          <div className="flex items-center justify-between text-[11px] text-[#667085]">
                             <span>{t.assigneeName || "Unassigned"}</span>
                             <button
                               onClick={(e) => { e.stopPropagation(); handleUpdateStatus(t.id, col.id === "Completed" ? "In Progress" : "Completed"); }}
@@ -833,9 +889,9 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* ── MOBILE SELECTION BOTTOM ACTION BAR (Visible in Mobile Selection Mode) ── */}
+      {/* ── MOBILE SELECTION BOTTOM ACTION BAR ───────────────────────────── */}
       {selectedIds.length > 0 && (
-        <div className="md:hidden fixed bottom-16 inset-x-3 z-40 p-3 rounded-[12px] bg-[#17202A] dark:bg-[#15191F] text-white flex items-center justify-around shadow-2xl border border-[#C9A52A]/50 animate-in slide-in-from-bottom duration-200">
+        <div className="md:hidden fixed bottom-16 inset-x-3 z-40 p-3 rounded-[14px] bg-[#17202A] dark:bg-[#15191F] text-white flex items-center justify-around shadow-2xl border border-[#C9A52A]/50 animate-in slide-in-from-bottom duration-200">
           <button
             onClick={() => setShowBulkAssignSheet(true)}
             className="flex flex-col items-center gap-1 text-[11px] font-bold text-slate-300 hover:text-white"
@@ -874,7 +930,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* ── MOBILE PRIMARY FLOATING CREATION BUTTON (56px Circle) ─────── */}
+      {/* ── ONLY ONE MOBILE PRIMARY FLOATING CREATION BUTTON (56px FAB) ── */}
       {!isMobileSelectionMode && (
         <button
           type="button"
@@ -894,7 +950,7 @@ export default function TasksPage() {
       >
         <div className="space-y-3 p-4 text-[13px]">
           <p className="text-[12px] text-[#667085]">Select an organization member to reassign selected tasks:</p>
-          <div className="max-h-[220px] overflow-y-auto border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] divide-y divide-[#E4E7EC] dark:divide-[#272D36]">
+          <div className="max-h-[240px] overflow-y-auto border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] divide-y divide-[#E4E7EC] dark:divide-[#272D36]">
             {assignableUsers.map((u) => (
               <button
                 key={u.id}
@@ -923,10 +979,10 @@ export default function TasksPage() {
             <button
               key={st}
               onClick={() => handleExecuteBulkStatus(st)}
-              className="w-full p-3 rounded-[9px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] font-bold text-left hover:border-[#C9A52A] flex items-center justify-between"
+              className="w-full p-3 rounded-[10px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] font-bold text-left hover:border-[#C9A52A] flex items-center justify-between"
             >
               <span>{st}</span>
-              <span className={`px-2 py-0.5 rounded-full text-[10.5px] border ${STATUS_STYLE[st]}`}>{st}</span>
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] border ${STATUS_STYLE[st]}`}>{st}</span>
             </button>
           ))}
         </div>
@@ -943,10 +999,10 @@ export default function TasksPage() {
             <button
               key={pr}
               onClick={() => handleExecuteBulkPriority(pr)}
-              className="w-full p-3 rounded-[9px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] font-bold text-left hover:border-[#C9A52A] flex items-center justify-between"
+              className="w-full p-3 rounded-[10px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] font-bold text-left hover:border-[#C9A52A] flex items-center justify-between"
             >
               <span>{pr} Priority</span>
-              <span className="text-[11px] font-mono text-[#C9A52A]">{pr}</span>
+              <span className="text-[11.5px] font-mono text-[#C9A52A]">{pr}</span>
             </button>
           ))}
         </div>
@@ -985,9 +1041,22 @@ export default function TasksPage() {
             </select>
           </div>
 
+          <div className="space-y-1.5">
+            <label className="font-bold text-[#17202A] dark:text-[#F2F4F7]">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full h-[40px] px-3 rounded-[9px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] outline-none"
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex items-center gap-2 pt-3">
             <button
-              onClick={() => { setActiveTypeTab("All"); setPriorityFilter("All"); setStatusFilter("All"); setShowFilterSheet(false); }}
+              onClick={() => { setActiveTypeTab("All"); setPriorityFilter("All"); setStatusFilter("All"); setAssigneeFilter("All"); setShowFilterSheet(false); }}
               className="flex-1 h-[40px] rounded-[10px] border border-[#E4E7EC] dark:border-[#272D36] font-bold text-[#667085]"
             >
               Reset
