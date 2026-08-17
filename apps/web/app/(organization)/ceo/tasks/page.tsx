@@ -589,8 +589,8 @@ export default function TasksPage() {
         )}
       </div>
 
-      {/* ── TASK EXECUTION WORKSPACE (Fills All Remaining Viewport Space) ─── */}
-      <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col">
+      {/* ── TASK EXECUTION WORKSPACE (Fills Viewport Space Above Bottom Nav) ─── */}
+      <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col pb-20 md:pb-0">
         {error ? (
           <div className="p-8 text-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[16px] border border-rose-500/20 space-y-3 max-w-md mx-auto my-auto shadow-sm">
             <AlertCircle className="w-10 h-10 text-rose-500 mx-auto" />
@@ -930,17 +930,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* ── ONLY ONE MOBILE PRIMARY FLOATING CREATION BUTTON (56px FAB) ── */}
-      {!isMobileSelectionMode && (
-        <button
-          type="button"
-          onClick={() => setShowCreate(true)}
-          className="md:hidden fixed bottom-20 right-5 z-40 w-14 h-14 rounded-full bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] shadow-xl flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform"
-          aria-label="Create Task"
-        >
-          <Plus className="w-7 h-7 stroke-[2.5]" />
-        </button>
-      )}
+
 
       {/* ── BULK ASSIGN BOTTOM SHEET ───────────────────────────────────── */}
       <MobileSheet
