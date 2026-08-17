@@ -239,24 +239,24 @@ export default function ProjectsPage() {
     : "/ceo";
 
   return (
-    <div className="w-full min-h-full flex flex-col justify-between p-3.5 sm:p-5 md:px-10 md:py-5 max-w-[1400px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none space-y-4">
+    <div className="w-full min-h-full flex flex-col justify-between p-3.5 sm:p-5 md:px-10 md:py-5 max-w-[1400px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none space-y-4 pb-24 md:pb-5">
       
       {/* Mobile Header Row */}
-      <div className="md:hidden space-y-4">
+      <div className="md:hidden space-y-3">
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-[26px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
+            <h1 className="text-[22px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
               Projects
             </h1>
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="w-[36px] h-[36px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold flex items-center justify-center shrink-0 cursor-pointer active:scale-95 shadow-xs transition-transform"
-              title="Create project"
+              className="px-3.5 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold text-[12px] flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 shadow-xs transition-transform"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>New Project</span>
             </button>
           </div>
-          <p className="text-[13px] text-[#667085] dark:text-[#8B95A5]">
+          <p className="text-[12px] text-[#667085] dark:text-[#8B95A5]">
             Plan, execute, and track organization work.
           </p>
         </div>

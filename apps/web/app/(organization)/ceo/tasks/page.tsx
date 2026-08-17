@@ -487,30 +487,7 @@ export default function TasksPage() {
           </div>
         )}
 
-        {/* ── MOBILE COMPACT SINGLE-ROW METRIC STRIP ───────────────────── */}
-        {!isMobileSelectionMode && (
-          <div className="md:hidden flex items-center justify-around h-[60px] px-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] font-bold shrink-0">
-            <div className="flex flex-col items-center">
-              <span className="text-[#17202A] dark:text-[#F2F4F7] text-[14px] font-bold">{summaryMetrics.total}</span>
-              <span className="text-[9.5px] text-[#667085] uppercase">Total</span>
-            </div>
-            <div className="w-[1px] h-6 bg-[#E4E7EC] dark:bg-[#272D36]" />
-            <div className="flex flex-col items-center">
-              <span className="text-blue-600 dark:text-blue-400 text-[14px] font-bold">{summaryMetrics.active}</span>
-              <span className="text-[9.5px] text-[#667085] uppercase">Active</span>
-            </div>
-            <div className="w-[1px] h-6 bg-[#E4E7EC] dark:bg-[#272D36]" />
-            <div className="flex flex-col items-center">
-              <span className="text-emerald-600 dark:text-emerald-400 text-[14px] font-bold">{summaryMetrics.completed}</span>
-              <span className="text-[9.5px] text-[#667085] uppercase">Done</span>
-            </div>
-            <div className="w-[1px] h-6 bg-[#E4E7EC] dark:bg-[#272D36]" />
-            <div className="flex flex-col items-center">
-              <span className="text-amber-600 dark:text-amber-400 text-[14px] font-bold">{summaryMetrics.overdue}</span>
-              <span className="text-[9.5px] text-[#667085] uppercase">Due</span>
-            </div>
-          </div>
-        )}
+
 
         {/* ── DESKTOP & MOBILE FILTER WORKSPACE ───────────────────────── */}
         {!isMobileSelectionMode && (
