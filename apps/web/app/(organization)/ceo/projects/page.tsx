@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Plus, FolderKanban, Search, Loader2, AlertCircle,
   Trash2, RefreshCw, ChevronRight, LayoutGrid, List,
-  Edit, Check, X, ChevronDown, Filter, Calendar, User
+  Edit, Check, X, ChevronDown
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
@@ -211,7 +211,7 @@ export default function ProjectsPage() {
   return (
     <div className="w-full min-h-full flex flex-col justify-between p-3.5 sm:p-5 md:px-10 md:py-6 max-w-[1600px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none space-y-5 pb-24 md:pb-6">
       
-      {/* ── MOBILE WORKSPACE (100% PRESERVED & UNTOUCHED) ──────────────── */}
+      {/* ── MOBILE WORKSPACE (100% UNTOUCHED & PROTECTED) ──────────────── */}
       <div className="md:hidden space-y-3">
         <div className="space-y-1">
           <div className="flex items-center justify-between gap-3">
@@ -387,23 +387,23 @@ export default function ProjectsPage() {
       </div>
 
       {/* ── DESKTOP RECONSTRUCTED WORKSPACE (>= 1024px) ────────────────── */}
-      <div className="hidden md:flex md:flex-col space-y-5">
+      <div className="hidden md:flex md:flex-col space-y-6">
         
         {/* Desktop Header */}
         <div className="flex items-center justify-between gap-4 border-b border-[#E4E7EC] dark:border-[#272D36] pb-4">
           <div className="space-y-1">
-            <h1 className="text-[28px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none flex items-center gap-2.5">
+            <h1 className="text-[30px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none flex items-center gap-2.5">
               <span>Projects</span>
             </h1>
-            <p className="text-[13px] text-[#667085] dark:text-[#8B95A5]">
+            <p className="text-[13.5px] text-[#667085] dark:text-[#8B95A5]">
               Plan, execute, and track organization work from one place.
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={fetchProjects}
-              className="h-[40px] px-3.5 rounded-[10px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[#667085] dark:text-[#8B95A5] hover:text-[#17202A] dark:hover:text-[#F2F4F7] text-[12.5px] font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+              className="h-[38px] px-3.5 rounded-[10px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[#667085] dark:text-[#8B95A5] hover:text-[#17202A] dark:hover:text-[#F2F4F7] text-[12.5px] font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
               title="Refresh projects"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -412,7 +412,7 @@ export default function ProjectsPage() {
 
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="h-[40px] px-4.5 rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13px] font-bold hover:opacity-90 transition-opacity inline-flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+              className="h-[38px] px-4.5 rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity inline-flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>New Project</span>
@@ -433,42 +433,42 @@ export default function ProjectsPage() {
           </div>
         )}
 
-        {/* Desktop Real-Time KPI Strip */}
+        {/* Desktop Refined Executive KPI Strip */}
         <div className="grid grid-cols-5 gap-3.5">
-          <div className="p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
+          <div className="h-[96px] p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
             <span className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Total Projects</span>
-            <div className="text-[24px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{kpis.total}</div>
-            <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">All organization mandates</p>
+            <div className="text-[26px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{kpis.total}</div>
+            <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">All organization projects</p>
           </div>
 
-          <div className="p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
+          <div className="h-[96px] p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
             <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Active</span>
-            <div className="text-[24px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{kpis.active}</div>
-            <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">In active execution</p>
+            <div className="text-[26px] font-extrabold text-emerald-600 dark:text-emerald-400 leading-none">{kpis.active}</div>
+            <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">Currently executing</p>
           </div>
 
-          <div className="p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
+          <div className="h-[96px] p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
             <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Planning</span>
-            <div className="text-[24px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{kpis.planning}</div>
-            <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">Scope & milestone setup</p>
+            <div className="text-[26px] font-extrabold text-blue-600 dark:text-blue-400 leading-none">{kpis.planning}</div>
+            <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">Preparing execution</p>
           </div>
 
-          <div className="p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
+          <div className="h-[96px] p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
             <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">On Hold</span>
-            <div className="text-[24px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{kpis.onHold}</div>
-            <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">Paused mandates</p>
+            <div className="text-[26px] font-extrabold text-amber-600 dark:text-amber-400 leading-none">{kpis.onHold}</div>
+            <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">Paused projects</p>
           </div>
 
-          <div className="p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
+          <div className="h-[96px] p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Completed</span>
-            <div className="text-[24px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{kpis.completed}</div>
-            <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">Finished projects</p>
+            <div className="text-[26px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{kpis.completed}</div>
+            <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">Successfully completed</p>
           </div>
         </div>
 
-        {/* Unified Desktop Toolbar */}
+        {/* Unified Desktop Toolbar Surface */}
         <div className="flex items-center justify-between gap-4 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] p-2 rounded-[14px] shadow-2xs">
-          <div className="relative w-[320px]">
+          <div className="relative w-[340px]">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#667085] dark:text-[#8B95A5]" />
             <input
               type="text"
@@ -523,188 +523,190 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {/* Desktop View Content Area */}
-        {loading ? (
-          /* Desktop Table Skeleton Loading */
-          <div className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-4 space-y-3 animate-pulse">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-[48px] bg-[#F8F9FB] dark:bg-[#111419] rounded-[10px] w-full flex items-center justify-between px-4">
-                <div className="w-1/4 h-4 bg-[#E4E7EC] dark:bg-[#272D36] rounded" />
-                <div className="w-1/6 h-4 bg-[#E4E7EC] dark:bg-[#272D36] rounded" />
-                <div className="w-1/6 h-4 bg-[#E4E7EC] dark:bg-[#272D36] rounded" />
+        {/* Desktop Integrated Workspace Surface */}
+        <div className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] min-h-[420px] shadow-2xs overflow-hidden flex flex-col justify-center">
+          {loading ? (
+            /* Desktop Table Skeleton Loading */
+            <div className="p-4 space-y-3 animate-pulse w-full">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-[48px] bg-[#F8F9FB] dark:bg-[#111419] rounded-[10px] w-full flex items-center justify-between px-4">
+                  <div className="w-1/4 h-4 bg-[#E4E7EC] dark:bg-[#272D36] rounded" />
+                  <div className="w-1/6 h-4 bg-[#E4E7EC] dark:bg-[#272D36] rounded" />
+                  <div className="w-1/6 h-4 bg-[#E4E7EC] dark:bg-[#272D36] rounded" />
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            /* Integrated Desktop Empty State (No nested floating card) */
+            <div className="flex flex-col items-center justify-center py-16 px-6 text-center space-y-4 my-auto">
+              <div className="w-12 h-12 rounded-full bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center border border-[#C9A52A]/20 shrink-0">
+                <FolderKanban className="w-6 h-6 stroke-[2]" />
               </div>
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          /* Content-Fitted Desktop Empty State */
-          <div className="w-full rounded-[16px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] flex flex-col items-center justify-center py-10 px-6 text-center space-y-4 my-4 max-w-md mx-auto shadow-2xs">
-            <div className="w-12 h-12 rounded-full bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center border border-[#C9A52A]/20 shrink-0">
-              <FolderKanban className="w-6 h-6 stroke-[2]" />
+              <div className="space-y-1.5 max-w-md">
+                <h3 className="text-[17px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+                  {realProjects.length === 0 ? "No projects yet" : "No matching projects"}
+                </h3>
+                <p className="text-[13px] text-[#667085] dark:text-[#8B95A5] leading-relaxed">
+                  {realProjects.length === 0
+                    ? "Create your first organization project to define the mandate, assign ownership, and start execution."
+                    : `No organization projects matched your search term "${search}" or status filter "${statusFilter}".`}
+                </p>
+              </div>
+              {realProjects.length === 0 ? (
+                <button
+                  onClick={() => setIsCreateOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-5 h-[40px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-2xs cursor-pointer mt-1"
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Create Project</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setSearch(""); setStatusFilter("All"); }}
+                  className="inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F8F9FB] cursor-pointer mt-1"
+                >
+                  <span>Clear Filters</span>
+                </button>
+              )}
             </div>
-            <div className="space-y-1.5 max-w-sm">
-              <h3 className="text-[16px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
-                {realProjects.length === 0 ? "No projects yet" : "No projects match your filters"}
-              </h3>
-              <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5] leading-relaxed">
-                {realProjects.length === 0
-                  ? "Create your first organization project to define the mandate, assign ownership, and start execution."
-                  : `No projects matched search term "${search}" or status filter "${statusFilter}".`}
-              </p>
-            </div>
-            {realProjects.length === 0 ? (
-              <button
-                onClick={() => setIsCreateOpen(true)}
-                className="inline-flex items-center gap-1.5 px-5 h-[40px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-2xs cursor-pointer mt-1"
-              >
-                <Plus className="w-4 h-4 stroke-[2.5]" />
-                <span>Create Project</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => { setSearch(""); setStatusFilter("All"); }}
-                className="inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F8F9FB] cursor-pointer mt-1"
-              >
-                <span>Clear Filters</span>
-              </button>
-            )}
-          </div>
-        ) : viewMode === "table" ? (
-          /* Desktop Enterprise Execution Table */
-          <div className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] overflow-hidden shadow-2xs">
-            <table className="w-full text-left text-[13px]">
-              <thead className="bg-[#F8F9FB] dark:bg-[#111419] border-b border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">
-                <tr className="h-[44px]">
-                  <th className="p-3 w-10">
-                    <input
-                      type="checkbox"
-                      checked={isAllSelected}
-                      onChange={toggleSelectAll}
-                      className="rounded border-[#E4E7EC] dark:border-[#272D36] text-[#C9A52A] focus:ring-0 cursor-pointer"
-                    />
-                  </th>
-                  <th className="p-3">Project</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Tasks & Progress</th>
-                  <th className="p-3">Owner</th>
-                  <th className="p-3">Target Date</th>
-                  <th className="p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E4E7EC]/60 dark:divide-[#272D36]/60">
-                {filtered.map((p) => (
-                  <tr key={p.id} className="hover:bg-[#F8F9FB] dark:hover:bg-[#111419] transition-colors">
-                    <td className="p-3">
+          ) : viewMode === "table" ? (
+            /* Desktop Enterprise Execution Table */
+            <div className="w-full">
+              <table className="w-full text-left text-[13px]">
+                <thead className="bg-[#F8F9FB] dark:bg-[#111419] border-b border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">
+                  <tr className="h-[44px]">
+                    <th className="p-3 w-10">
                       <input
                         type="checkbox"
-                        checked={selectedIds.includes(p.id)}
-                        onChange={(e) => toggleSelectOne(p.id, e)}
+                        checked={isAllSelected}
+                        onChange={toggleSelectAll}
                         className="rounded border-[#E4E7EC] dark:border-[#272D36] text-[#C9A52A] focus:ring-0 cursor-pointer"
                       />
-                    </td>
-                    <td className="p-3">
-                      <Link href={`${base}/projects/${p.id}`} className="font-bold text-[#17202A] dark:text-[#F2F4F7] hover:text-[#C9A52A] transition-colors block">
-                        {p.name}
-                      </Link>
-                      {(p.objective || p.mandate) && (
-                        <span className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] line-clamp-1">{p.objective || p.mandate}</span>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${STATUS_STYLE[p.status] || STATUS_STYLE.Archived}`}>
-                        {p.status}
-                      </span>
-                    </td>
-                    <td className="p-3 w-[220px]">
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px] font-mono">
-                          <span className="text-[#667085]">{p.completedTasks || 0}/{p.totalTasks || 0} tasks</span>
-                          <span className="font-bold text-[#17202A] dark:text-[#F2F4F7]">{p.progress || 0}%</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-[#E4E7EC] dark:bg-[#272D36] rounded-full overflow-hidden">
-                          <div className="h-full bg-[#C9A52A] dark:bg-[#D4B12F] rounded-full transition-all" style={{ width: `${p.progress || 0}%` }} />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-3 font-medium text-[#17202A] dark:text-[#F2F4F7]">
-                      {p.ownerName || p.ownerEmail || "Organization Owner"}
-                    </td>
-                    <td className="p-3 font-mono text-[#667085]">{fmtDate(p.deadline || p.targetDate)}</td>
-                    <td className="p-3 text-right space-x-2">
-                      <button
-                        onClick={() => setEditingProject(p)}
-                        className="p-1.5 rounded-md text-[#667085] hover:text-[#C9A52A] hover:bg-[#C9A52A]/10 transition-colors"
-                        title="Edit Project"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirmSingleId(p.id)}
-                        className="p-1.5 rounded-md text-[#667085] hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
-                        title="Delete Project"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                      <Link
-                        href={`${base}/projects/${p.id}`}
-                        className="inline-flex items-center gap-1 px-3 py-1 rounded-[7px] bg-[#C9A52A]/10 text-[#C9A52A] border border-[#C9A52A]/20 text-[11.5px] font-bold"
-                      >
-                        Open <ChevronRight className="w-3.5 h-3.5" />
-                      </Link>
-                    </td>
+                    </th>
+                    <th className="p-3">Project</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3">Tasks & Progress</th>
+                    <th className="p-3">Owner</th>
+                    <th className="p-3">Target Date</th>
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          /* Desktop Kanban Board View */
-          <div className="grid grid-cols-4 gap-4">
-            {["Planning", "Active", "On Hold", "Completed"].map((status) => {
-              const colProjects = filtered.filter(p => (p.status || "Planning").toUpperCase() === status.toUpperCase() || (status === "Active" && p.status === "ACTIVE"));
-              return (
-                <div
-                  key={status}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => handleDropOnColumn(status, e)}
-                  className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-4 space-y-3 shadow-2xs min-h-[500px]"
-                >
-                  <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-2.5">
-                    <h3 className="text-[14px] font-bold text-[#17202A] dark:text-[#F2F4F7]">{status}</h3>
-                    <span className="w-5 h-5 rounded-full bg-[#F8F9FB] dark:bg-[#111419] text-[#667085] text-[11px] font-bold flex items-center justify-center border border-[#E4E7EC] dark:border-[#272D36]">
-                      {colProjects.length}
-                    </span>
-                  </div>
-                  <div className="space-y-2.5">
-                    {colProjects.map((p) => (
-                      <div
-                        key={p.id}
-                        draggable
-                        onDragStart={(e) => { e.dataTransfer.setData("text/plain", p.id); setDraggedProjectId(p.id); }}
-                        className="p-3.5 rounded-[12px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] space-y-2.5 cursor-grab active:cursor-grabbing hover:border-[#C9A52A]/50 transition-colors shadow-2xs"
-                      >
-                        <Link href={`${base}/projects/${p.id}`} className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:text-[#C9A52A] block leading-snug">
+                </thead>
+                <tbody className="divide-y divide-[#E4E7EC]/60 dark:divide-[#272D36]/60">
+                  {filtered.map((p) => (
+                    <tr key={p.id} className="hover:bg-[#F8F9FB] dark:hover:bg-[#111419] transition-colors">
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(p.id)}
+                          onChange={(e) => toggleSelectOne(p.id, e)}
+                          className="rounded border-[#E4E7EC] dark:border-[#272D36] text-[#C9A52A] focus:ring-0 cursor-pointer"
+                        />
+                      </td>
+                      <td className="p-3">
+                        <Link href={`${base}/projects/${p.id}`} className="font-bold text-[#17202A] dark:text-[#F2F4F7] hover:text-[#C9A52A] transition-colors block">
                           {p.name}
                         </Link>
-                        {(p.mandate || p.objective) && (
-                          <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] line-clamp-2">{p.mandate || p.objective}</p>
+                        {(p.objective || p.mandate) && (
+                          <span className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] line-clamp-1">{p.objective || p.mandate}</span>
                         )}
-                        <div className="space-y-1 pt-1 border-t border-[#E4E7EC]/60 dark:border-[#272D36]/60">
-                          <div className="flex items-center justify-between text-[10.5px] text-[#667085]">
-                            <span>Progress</span>
-                            <span className="font-bold">{p.progress || 0}%</span>
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${STATUS_STYLE[p.status] || STATUS_STYLE.Archived}`}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="p-3 w-[220px]">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[11px] font-mono">
+                            <span className="text-[#667085]">{p.completedTasks || 0}/{p.totalTasks || 0} tasks</span>
+                            <span className="font-bold text-[#17202A] dark:text-[#F2F4F7]">{p.progress || 0}%</span>
                           </div>
                           <div className="h-1.5 w-full bg-[#E4E7EC] dark:bg-[#272D36] rounded-full overflow-hidden">
-                            <div className="h-full bg-[#C9A52A] rounded-full" style={{ width: `${p.progress || 0}%` }} />
+                            <div className="h-full bg-[#C9A52A] dark:bg-[#D4B12F] rounded-full transition-all" style={{ width: `${p.progress || 0}%` }} />
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      </td>
+                      <td className="p-3 font-medium text-[#17202A] dark:text-[#F2F4F7]">
+                        {p.ownerName || p.ownerEmail || "Organization Owner"}
+                      </td>
+                      <td className="p-3 font-mono text-[#667085]">{fmtDate(p.deadline || p.targetDate)}</td>
+                      <td className="p-3 text-right space-x-2">
+                        <button
+                          onClick={() => setEditingProject(p)}
+                          className="p-1.5 rounded-md text-[#667085] hover:text-[#C9A52A] hover:bg-[#C9A52A]/10 transition-colors"
+                          title="Edit Project"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmSingleId(p.id)}
+                          className="p-1.5 rounded-md text-[#667085] hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                          title="Delete Project"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        <Link
+                          href={`${base}/projects/${p.id}`}
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-[7px] bg-[#C9A52A]/10 text-[#C9A52A] border border-[#C9A52A]/20 text-[11.5px] font-bold"
+                        >
+                          Open <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* Desktop Kanban Board View */
+            <div className="p-4 grid grid-cols-4 gap-4 w-full">
+              {["Planning", "Active", "On Hold", "Completed"].map((status) => {
+                const colProjects = filtered.filter(p => (p.status || "Planning").toUpperCase() === status.toUpperCase() || (status === "Active" && p.status === "ACTIVE"));
+                return (
+                  <div
+                    key={status}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => handleDropOnColumn(status, e)}
+                    className="bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[14px] p-3.5 space-y-3 min-h-[460px]"
+                  >
+                    <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-2.5">
+                      <h3 className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7]">{status}</h3>
+                      <span className="w-5 h-5 rounded-full bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] text-[11px] font-bold flex items-center justify-center border border-[#E4E7EC] dark:border-[#272D36]">
+                        {colProjects.length}
+                      </span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {colProjects.map((p) => (
+                        <div
+                          key={p.id}
+                          draggable
+                          onDragStart={(e) => { e.dataTransfer.setData("text/plain", p.id); setDraggedProjectId(p.id); }}
+                          className="p-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-2.5 cursor-grab active:cursor-grabbing hover:border-[#C9A52A]/50 transition-colors shadow-2xs"
+                        >
+                          <Link href={`${base}/projects/${p.id}`} className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:text-[#C9A52A] block leading-snug">
+                            {p.name}
+                          </Link>
+                          {(p.mandate || p.objective) && (
+                            <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] line-clamp-2">{p.mandate || p.objective}</p>
+                          )}
+                          <div className="space-y-1 pt-1 border-t border-[#E4E7EC]/60 dark:border-[#272D36]/60">
+                            <div className="flex items-center justify-between text-[10.5px] text-[#667085]">
+                              <span>Progress</span>
+                              <span className="font-bold">{p.progress || 0}%</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-[#E4E7EC] dark:bg-[#272D36] rounded-full overflow-hidden">
+                              <div className="h-full bg-[#C9A52A] rounded-full" style={{ width: `${p.progress || 0}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Mobile Secondary Status Sheet */}
