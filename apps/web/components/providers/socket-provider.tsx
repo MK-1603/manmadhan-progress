@@ -56,12 +56,7 @@ function readStoredToken(): string {
  */
 async function refreshAccessToken(): Promise<string | null> {
   try {
-    const apiBase =
-      typeof window !== "undefined"
-        ? "/api/v1" // client-side: use Next.js proxy
-        : (process.env.INTERNAL_API_URL ??
-           process.env.NEXT_PUBLIC_API_URL ??
-           "http://localhost:4100/api/v1");
+    const apiBase = `${resolveSocketUrl()}/api/v1`;
 
     const res = await fetch(`${apiBase}/auth/refresh`, {
       method: "POST",

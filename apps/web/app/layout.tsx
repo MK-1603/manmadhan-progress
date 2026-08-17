@@ -51,6 +51,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
+        <link rel="preload" href="/ios/iTunesArtwork@1x.png" as="image" type="image/png" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" href="https://res.cloudinary.com/fmiadecb/image/upload/v1786817328/ic_launcher-web_bq8zjj.png" />
         <link rel="apple-touch-icon" href="https://res.cloudinary.com/fmiadecb/image/upload/v1786817328/ic_launcher-web_bq8zjj.png" />
