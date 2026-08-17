@@ -116,7 +116,7 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 			},
 		),
 	);
-	authLogger.trace("Google OAuth 2.0 Strategy initialized");
+	authLogger.info({ callbackURL }, "Google OAuth 2.0 Strategy initialized");
 }
 
 export { passport };
