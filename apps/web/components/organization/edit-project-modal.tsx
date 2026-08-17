@@ -121,7 +121,7 @@ export function EditProjectModal({ isOpen, project, onClose, onSuccess }: EditPr
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200">
+    <div className="fixed inset-0 w-screen h-screen z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 overflow-x-hidden">
       <div className="w-full sm:max-w-xl bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-t-[20px] sm:rounded-[16px] shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden font-sans">
         
         {/* Modal Header */}

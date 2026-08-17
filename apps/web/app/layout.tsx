@@ -58,13 +58,13 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
-      <body className="min-h-screen w-full bg-background text-foreground antialiased font-sans" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+      <body className="min-h-screen w-full bg-[#0B0E12] dark:bg-[#0B0E12] text-foreground antialiased font-sans overflow-x-hidden" suppressHydrationWarning>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
           <AuthProvider>
             <SocketProvider>
               <OfflineProvider>
                 <ConfirmProvider>
-                  <div className="min-h-screen w-full">{children}</div>
+                  <div className="min-h-screen w-full overflow-x-hidden bg-[#0B0E12]">{children}</div>
                   <ScrollToTopButton />
                   <AuthModal />
                   <RestModeOverlay />
