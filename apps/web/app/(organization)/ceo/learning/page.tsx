@@ -363,8 +363,18 @@ export default function LearningPage() {
         )}
 
         {loading ? (
-          <div className="p-12 flex items-center justify-center bg-[#FFFFFF] dark:bg-[#15191F] rounded-[16px] border border-[#E4E7EC] dark:border-[#272D36]">
-            <Loader2 className="w-7 h-7 animate-spin text-[#C9A52A] dark:text-[#D4B12F]" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-4 shadow-xs">
+                <div className="h-4 bg-[#E4E7EC] dark:bg-[#272D36] rounded w-2/3" />
+                <div className="h-3 bg-[#E4E7EC] dark:bg-[#272D36] rounded w-full" />
+                <div className="h-8 bg-[#F8F9FB] dark:bg-[#111419] rounded-[10px] border border-[#E4E7EC] dark:border-[#272D36]" />
+                <div className="flex justify-between items-center pt-2">
+                  <div className="h-3 bg-[#E4E7EC] dark:bg-[#272D36] rounded w-1/3" />
+                  <div className="h-3 bg-[#C9A52A]/30 rounded w-1/4" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : plans.length === 0 && activeTab === "OVERVIEW" ? (
           /* WORKSPACE EMPTY STATE */
