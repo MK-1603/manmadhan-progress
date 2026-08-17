@@ -631,19 +631,13 @@ export function AuthForm({
 
       if (res.data.nextStep === "DASHBOARD") {
         onComplete?.();
-        setTransitionMessage("Authenticating...");
-        setIsTransitioning(true);
+        close(true);
         await checkSession();
         if (typeof window !== "undefined") {
           const urlParams = new URLSearchParams(window.location.search);
           const redirectParam = urlParams.get('redirect');
-          setTimeout(() => {
-            if (redirectParam) {
-              window.location.href = redirectParam;
-            } else {
-              window.location.href = getDashboardPathForRole(res.data.role);
-            }
-          }, 800);
+          const targetPath = redirectParam || getDashboardPathForRole(res.data.role);
+          router.replace(targetPath);
         }
       } else {
         setTempToken(res.data.tempToken);
@@ -800,22 +794,14 @@ export function AuthForm({
               syncTokenCookie(res.data.accessToken);
             }
             onComplete?.();
-            setTransitionMessage("Authenticating...");
-            setIsTransitioning(true);
-            
-            await checkSession(); // Ensure user session is populated globally before navigating
+            close(true);
+            await checkSession();
             
             if (typeof window !== "undefined") {
               const urlParams = new URLSearchParams(window.location.search);
               const redirectParam = urlParams.get('redirect');
-            
-              setTimeout(() => {
-                if (redirectParam) {
-                  window.location.href = redirectParam;
-                } else {
-                  window.location.href = getDashboardPathForRole(res.data.role);
-                }
-              }, 800);
+              const targetPath = redirectParam || getDashboardPathForRole(res.data.role);
+              router.replace(targetPath);
             }
           }
         }
@@ -896,18 +882,11 @@ export function AuthForm({
       if (res.data.nextStep === "DASHBOARD") {
         setUserRole(res.data.role);
         setState("SUCCESS");
-        setTimeout(async () => {
-          onComplete?.();
-          setTransitionMessage("Preparing Dashboard...");
-          setIsTransitioning(true);
-          await checkSession();
-          if (typeof window !== "undefined") {
-            setTimeout(() => {
-              router.push(res.data.role === "CEO" ? "/ceo/dashboard" : res.data.role === "CO-CEO" ? "/co-ceo/dashboard" : "/member/dashboard");
-              setTimeout(() => setIsTransitioning(false), 500);
-            }, 800);
-          }
-        }, 1500);
+        onComplete?.();
+        close(true);
+        await checkSession();
+        const targetPath = getDashboardPathForRole(res.data.role);
+        router.replace(targetPath);
       } else {
         setTempToken(res.data.tempToken);
         setState(res.data.nextStep as AuthState);
@@ -983,23 +962,14 @@ export function AuthForm({
   useEffect(() => {
     if (state === "SUCCESS") {
       setIsDirty(false); // Clean state once successful
-      let step = 0;
-      const interval = setInterval(() => {
-        step += 1;
-        setLoadingStep(step);
-        if (step > 4) {
-          clearInterval(interval);
-          onComplete?.();
-          const urlParams = new URLSearchParams(window.location.search);
-          const redirectParam = urlParams.get('redirect');
-          if (redirectParam) {
-            window.location.href = redirectParam;
-          } else {
-            window.location.href = getDashboardPathForRole(userRole);
-          }
-        }
-      }, 600);
-      return () => clearInterval(interval);
+      onComplete?.();
+      close(true);
+      if (typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectParam = urlParams.get('redirect');
+        const targetPath = redirectParam || getDashboardPathForRole(userRole);
+        router.replace(targetPath);
+      }
     }
   }, [state, userRole, onComplete]);
 
@@ -1093,15 +1063,11 @@ export function AuthForm({
                       setError("Complete your first login with email and password. Google sign-in will be available afterward.");
                       return;
                     }
-                    setTransitionMessage("Connecting to Google...");
-                    setIsTransitioning(true);
-                    setTimeout(() => {
-                      const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
-                      const googleAuthUrl = apiBase.endsWith("/api/v1")
-                        ? `${apiBase}/auth/google`
-                        : `${apiBase}/api/v1/auth/google`;
-                      window.location.href = googleAuthUrl;
-                    }, 200);
+                    const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
+                    const googleAuthUrl = apiBase.endsWith("/api/v1")
+                      ? `${apiBase}/auth/google`
+                      : `${apiBase}/api/v1/auth/google`;
+                    window.location.href = googleAuthUrl;
                   }}
                 />
               </div>
