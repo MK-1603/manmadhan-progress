@@ -20,6 +20,7 @@ import { GitHubOAuthPanel } from "@/components/integrations/github-oauth-panel";
 import { CreateTaskModal } from "@/components/tasks/create-task-modal";
 import { ProjectDocumentsView } from "@/components/organization/project-documents-view";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
+import { EditProjectModal } from "@/components/organization/edit-project-modal";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1586,53 +1587,13 @@ export default function ProjectWorkspacePage() {
         </Modal>
       )}
 
-      {/* Edit Project */}
-      {showEditModal && (
-        <Modal onClose={() => setShowEditModal(false)}>
-          <ModalHeader title="Edit Project" onClose={() => setShowEditModal(false)} icon={<Edit3 className="w-4 h-4 text-[#667085]" />} />
-          <div className="px-5 py-4 space-y-3.5 text-[12.5px]">
-            <div>
-              <label className="block font-semibold text-[#17202A] dark:text-[#F2F4F7] mb-1">Project Name</label>
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="w-full px-3.5 h-[42px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A] dark:focus:border-[#D4B12F]"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold text-[#17202A] dark:text-[#F2F4F7] mb-1">Description</label>
-              <textarea
-                rows={3}
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-                className="w-full p-3 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A] dark:focus:border-[#D4B12F] resize-none"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold text-[#17202A] dark:text-[#F2F4F7] mb-1">Target Deadline</label>
-              <input
-                type="date"
-                value={editDeadline}
-                onChange={(e) => setEditDeadline(e.target.value)}
-                className="w-full px-3.5 h-[42px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A] dark:focus:border-[#D4B12F]"
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2 border-t border-[#E4E7EC] dark:border-[#272D36]">
-              <button onClick={() => setShowEditModal(false)} className="px-4 h-[40px] rounded-[9px] border border-[#E4E7EC] dark:border-[#272D36] font-semibold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] cursor-pointer">
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdateProject}
-                disabled={isUpdating}
-                className="px-4 h-[40px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-semibold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
-              >
-                {isUpdating && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Save Changes
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
+      {/* Edit Project Modal */}
+      <EditProjectModal
+        isOpen={showEditModal}
+        project={project}
+        onClose={() => setShowEditModal(false)}
+        onSuccess={fetchProjectDetails}
+      />
 
       {/* Delete Project */}
       {showDeleteModal && (

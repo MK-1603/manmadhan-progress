@@ -772,6 +772,250 @@ orgProjectsRouter.post(
 	},
 );
 
+// ─── Get Eligible Assignees for Workspace (GET /eligible-assignees) ─────────
+orgProjectsRouter.get(
+	"/eligible-assignees",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+
+			const members = await db
+				.select({
+					id: users.id,
+					name: users.displayName,
+					email: users.email,
+					role: workspaceMembers.role,
+					avatar: users.avatar,
+				})
+				.from(workspaceMembers)
+				.innerJoin(users, eq(workspaceMembers.userId, users.id))
+				.where(eq(workspaceMembers.workspaceId, workspaceId));
+
+			const coCeos = members
+				.filter((m) => m.role === "CO-CEO" || m.role === "CEO")
+				.map((m) => ({
+					id: m.id,
+					name: m.name || m.email || "CO-CEO",
+					email: m.email,
+					role: m.role,
+					avatar: m.avatar,
+				}));
+
+			const memberList = members
+				.filter((m) => m.role === "MEMBER")
+				.map((m) => ({
+					id: m.id,
+					name: m.name || m.email || "Member",
+					email: m.email,
+					role: m.role,
+					avatar: m.avatar,
+				}));
+
+			res.json({
+				success: true,
+				data: {
+					all: members.map((m) => ({
+						id: m.id,
+						name: m.name || m.email || "Team Member",
+						email: m.email,
+						role: m.role,
+						avatar: m.avatar,
+					})),
+					coCeos,
+					members: memberList,
+				},
+			});
+		} catch (err: any) {
+			logger.error(`Get eligible assignees error: ${err?.message || String(err)}`);
+			res.status(500).json({
+				success: false,
+				error: "Failed to fetch eligible assignees",
+			});
+		}
+	},
+);
+
+// ─── Bulk Project Action (POST /bulk-action) ──────────────────────────────────
+orgProjectsRouter.post(
+	"/bulk-action",
+	resolveWorkspace,
+	requireMembership,
+	requireLeadership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const { action, projectIds, status, priority } = req.body;
+
+			if (!Array.isArray(projectIds) || projectIds.length === 0) {
+				return res.status(400).json({
+					success: false,
+					error: "Array of projectIds is required",
+				});
+			}
+
+			if (action === "DELETE") {
+				for (const id of projectIds) {
+					try { await db.delete(tasks).where(eq(tasks.projectId, id)); } catch (e) {}
+					try { await db.delete(milestones).where(eq(milestones.projectId, id)); } catch (e) {}
+					try { await db.delete(projectMilestonesV2).where(eq(projectMilestonesV2.projectId, id)); } catch (e) {}
+					try { await db.delete(projectAssignments).where(eq(projectAssignments.projectId, id)); } catch (e) {}
+					try { await db.delete(projectDocuments).where(eq(projectDocuments.projectId, id)); } catch (e) {}
+					try { await db.delete(projectRequirements).where(eq(projectRequirements.projectId, id)); } catch (e) {}
+					try { await db.delete(projectFeatures).where(eq(projectFeatures.projectId, id)); } catch (e) {}
+					await db.delete(projects).where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)));
+				}
+				await db.insert(auditLogs).values({
+					id: uuidv4(),
+					userId,
+					workspaceId,
+					eventType: "PROJECT_BULK_DELETED",
+					details: `Bulk deleted ${projectIds.length} projects`,
+				});
+			} else if (action === "ARCHIVE") {
+				await db
+					.update(projects)
+					.set({ status: "ARCHIVED", archivedAt: new Date(), updatedAt: new Date() })
+					.where(and(inArray(projects.id, projectIds), eq(projects.workspaceId, workspaceId)));
+			} else if (action === "CHANGE_STATUS" && status) {
+				const updateVals: any = { status, updatedAt: new Date() };
+				if (status === "Completed" || status === "COMPLETED") {
+					updateVals.completedAt = new Date();
+				}
+				await db
+					.update(projects)
+					.set(updateVals)
+					.where(and(inArray(projects.id, projectIds), eq(projects.workspaceId, workspaceId)));
+			} else if (action === "CHANGE_PRIORITY" && priority) {
+				await db
+					.update(projects)
+					.set({ priority, updatedAt: new Date() })
+					.where(and(inArray(projects.id, projectIds), eq(projects.workspaceId, workspaceId)));
+			} else {
+				return res.status(400).json({ success: false, error: "Invalid bulk action" });
+			}
+
+			socketService.emitToWorkspace(workspaceId, "project.updated", { action, projectIds });
+			res.json({ success: true, message: `Successfully executed ${action} on ${projectIds.length} projects` });
+		} catch (err: any) {
+			logger.error(`Bulk action error: ${err?.message || String(err)}`);
+			res.status(500).json({ success: false, error: "Failed to execute bulk project action" });
+		}
+	},
+);
+
+// ─── Update Project Details (PUT /:id) ─────────────────────────────────────────
+orgProjectsRouter.put(
+	"/:id",
+	resolveWorkspace,
+	requireMembership,
+	requireLeadership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+			const {
+				name,
+				mandate,
+				objective,
+				description,
+				status,
+				priority,
+				deadline,
+				assignmentType,
+				responsibleCoCeoId,
+				assignedToUserId,
+			} = req.body;
+
+			const [existing] = await db
+				.select()
+				.from(projects)
+				.where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
+				.limit(1);
+
+			if (!existing) {
+				return res.status(404).json({ success: false, error: "Project not found" });
+			}
+
+			const projUpdates: any = { updatedAt: new Date() };
+			if (name?.trim()) projUpdates.name = name.trim();
+			if (objective || mandate) projUpdates.objective = objective || mandate;
+			if (description !== undefined) projUpdates.description = description;
+			if (status) {
+				projUpdates.status = status;
+				if (status === "Completed" || status === "COMPLETED") projUpdates.completedAt = new Date();
+			}
+			if (priority) projUpdates.priority = priority;
+			if (deadline) projUpdates.deadline = new Date(deadline);
+			if (assignedToUserId) projUpdates.ownerId = assignedToUserId;
+
+			const [updated] = await db
+				.update(projects)
+				.set(projUpdates)
+				.where(eq(projects.id, id))
+				.returning();
+
+			// Update assignment record if assigned user / CO-CEO passed
+			if (assignedToUserId || responsibleCoCeoId || assignmentType) {
+				const [existingAssign] = await db
+					.select()
+					.from(projectAssignments)
+					.where(eq(projectAssignments.projectId, id))
+					.limit(1);
+
+				if (existingAssign) {
+					const assignUpdates: any = { updatedAt: new Date() };
+					if (assignedToUserId) assignUpdates.assignedToUserId = assignedToUserId;
+					if (responsibleCoCeoId) assignUpdates.responsibleCoCeoId = responsibleCoCeoId;
+					if (assignmentType) assignUpdates.assignmentType = assignmentType;
+
+					await db
+						.update(projectAssignments)
+						.set(assignUpdates)
+						.where(eq(projectAssignments.id, existingAssign.id));
+				} else if (assignedToUserId) {
+					await db.insert(projectAssignments).values({
+						id: uuidv4(),
+						projectId: id,
+						workspaceId,
+						createdByUserId: userId,
+						assignedToUserId,
+						responsibleCoCeoId: responsibleCoCeoId || assignedToUserId,
+						assignmentType: assignmentType || "CEO_TO_CO_CEO",
+						status: "ACCEPTED",
+					});
+				}
+			}
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "PROJECT_UPDATED",
+				details: `Project "${updated.name}" updated by leadership`,
+			});
+
+			await db.insert(activities).values({
+				id: uuidv4(),
+				workspaceId,
+				projectId: id,
+				userId,
+				action: "PROJECT_UPDATED",
+				details: JSON.stringify({ message: `Project updated: "${updated.name}"` }),
+			});
+
+			socketService.emitToWorkspace(workspaceId, "project.updated", updated);
+			res.json({ success: true, data: updated });
+		} catch (err: any) {
+			logger.error(`Update project error: ${err?.message || String(err)}`);
+			res.status(500).json({ success: false, error: "Failed to update project" });
+		}
+	},
+);
+
 // ─── List Projects (GET /) ───────────────────────────────────────────────────
 orgProjectsRouter.get(
 	"/",
