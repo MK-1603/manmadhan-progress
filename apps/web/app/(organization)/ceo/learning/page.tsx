@@ -210,47 +210,47 @@ export default function LearningPage() {
   const isMoreTabActive = MORE_TABS.some((t) => t.id === activeTab);
 
   return (
-    <div className="w-full h-full max-h-full flex flex-col justify-between overflow-hidden px-3.5 sm:px-6 md:px-10 py-2.5 sm:py-5 max-w-[1600px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans space-y-2.5 sm:space-y-4 select-none pb-20 md:pb-0">
+    <div className="w-full h-full max-h-full flex flex-col justify-between overflow-hidden px-3.5 sm:px-6 md:px-10 py-3 sm:py-5 max-w-[1600px] mx-auto bg-[#F8F9FB] dark:bg-[#0B0E12] text-[#17202A] dark:text-[#F2F4F7] font-sans space-y-3.5 sm:space-y-4 select-none pb-20 md:pb-0">
       
       {/* ── Fixed Header Region ────────────────────────────────────────── */}
-      <div className="shrink-0 space-y-2 sm:space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
-          <div>
-            <div className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-[#C9A52A] dark:text-[#D4B12F]" />
-              <h1 className="text-[18px] sm:text-[26px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
-                Learning Workspace
-              </h1>
-            </div>
-            <p className="hidden sm:block text-[12.5px] text-[#667085] dark:text-[#8B95A5] mt-1">
-              Build structured learning systems, track topic execution, and measure team mastery.
-            </p>
+      <div className="shrink-0 space-y-3">
+        
+        {/* Page Title & Mobile Intro */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-[#C9A52A] dark:text-[#D4B12F]" />
+            <h1 className="text-[20px] sm:text-[26px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
+              Learning Workspace
+            </h1>
           </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-64">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#667085]" />
-              <input
-                type="text"
-                placeholder="Search learning..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 h-[36px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[9px] text-[12px] sm:text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] outline-none"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 sm:px-4 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12px] sm:text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer shrink-0"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span className="hidden sm:inline">Create Learning Plan</span>
-              <span className="sm:hidden">New Plan</span>
-            </button>
-          </div>
+          <p className="text-[12px] sm:text-[12.5px] text-[#667085] dark:text-[#8B95A5] leading-snug">
+            Build and track structured learning systems across your team.
+          </p>
         </div>
 
-        {/* DESKTOP 5 KPI CARDS (Hidden on mobile to save vertical space) */}
+        {/* Primary Controls Row: Search + Dominant Single CTA (+ New Plan) */}
+        <div className="flex items-center gap-2 w-full">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#667085]" />
+            <input
+              type="text"
+              placeholder="Search learning..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 h-[42px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] outline-none shadow-2xs focus:border-[#C9A52A]"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center justify-center gap-1.5 px-4 h-[42px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer shrink-0"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>New Plan</span>
+          </button>
+        </div>
+
+        {/* DESKTOP 5 KPI CARDS (Hidden on mobile) */}
         <div className="hidden sm:grid grid-cols-5 gap-3">
           <div className="h-[96px] p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
             <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Active Plans</div>
@@ -271,7 +271,7 @@ export default function LearningPage() {
           <div className="h-[96px] p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
             <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">In Progress</div>
             <div className="flex items-baseline justify-between">
-              <div className="text-[26px] font-extrabold text-amber-600 dark:text-amber-400 leading-none">{summary.inProgress}</div>
+              <div className="text-[26px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{summary.inProgress}</div>
               <span className="text-[10.5px] text-[#667085]">Currently learning</span>
             </div>
           </div>
@@ -279,7 +279,7 @@ export default function LearningPage() {
           <div className="h-[96px] p-4 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
             <div className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">Completed</div>
             <div className="flex items-baseline justify-between">
-              <div className="text-[26px] font-extrabold text-emerald-600 dark:text-emerald-400 leading-none">{summary.completed}</div>
+              <div className="text-[26px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{summary.completed}</div>
               <span className="text-[10.5px] text-[#667085]">Mastered topics</span>
             </div>
           </div>
@@ -293,27 +293,27 @@ export default function LearningPage() {
           </div>
         </div>
 
-        {/* MOBILE ULTRA-COMPACT METRIC STRIP (Combines Projects + Tasks mobile style) */}
-        <div className="sm:hidden grid grid-cols-4 gap-1.5 p-2 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[11px] font-mono shadow-2xs">
-          <div className="text-center">
-            <span className="text-[#667085] block text-[9.5px] font-sans uppercase font-bold">Plans</span>
-            <span className="font-extrabold text-[15px] text-[#17202A] dark:text-[#F2F4F7]">{summary.activePlans}</span>
+        {/* MOBILE 2x2 BALANCED METRIC GRID (Clean neutral gray borders, high contrast metrics) */}
+        <div className="sm:hidden grid grid-cols-2 gap-2">
+          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
+            <span className="text-[#667085] text-[10px] font-bold uppercase tracking-wider block">Plans</span>
+            <div className="text-[20px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{summary.activePlans}</div>
           </div>
-          <div className="text-center border-l border-[#E4E7EC] dark:border-[#272D36]">
-            <span className="text-[#667085] block text-[9.5px] font-sans uppercase font-bold">Topics</span>
-            <span className="font-extrabold text-[15px] text-[#17202A] dark:text-[#F2F4F7]">{summary.totalTopics}</span>
+          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
+            <span className="text-[#667085] text-[10px] font-bold uppercase tracking-wider block">Topics</span>
+            <div className="text-[20px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{summary.totalTopics}</div>
           </div>
-          <div className="text-center border-l border-[#E4E7EC] dark:border-[#272D36]">
-            <span className="text-[#667085] block text-[9.5px] font-sans uppercase font-bold">Active</span>
-            <span className="font-extrabold text-[15px] text-amber-600 dark:text-amber-400">{summary.inProgress}</span>
+          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
+            <span className="text-[#667085] text-[10px] font-bold uppercase tracking-wider block">Active</span>
+            <div className="text-[20px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{summary.inProgress}</div>
           </div>
-          <div className="text-center border-l border-[#E4E7EC] dark:border-[#272D36]">
-            <span className="text-[#667085] block text-[9.5px] font-sans uppercase font-bold">Mastery</span>
-            <span className="font-extrabold text-[15px] text-[#C9A52A]">{summary.overallProgress}%</span>
+          <div className="p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-1 shadow-2xs">
+            <span className="text-[#667085] text-[10px] font-bold uppercase tracking-wider block">Mastery</span>
+            <div className="text-[20px] font-extrabold text-[#C9A52A] dark:text-[#D4B12F] leading-none">{summary.overallProgress}%</div>
           </div>
         </div>
 
-        {/* Tab Navigation */}
+        {/* Tab Navigation (Desktop: All tabs / Mobile: Primary tabs + More ▾ sheet) */}
         <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-1">
           <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none]">
             {/* Desktop rendered tabs */}
@@ -339,7 +339,7 @@ export default function LearningPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-2.5 py-1 rounded-[7px] text-[11.5px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold transition-all cursor-pointer whitespace-nowrap ${
                     activeTab === tab.id
                       ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
                       : "text-[#667085] dark:text-[#8B95A5]"
@@ -351,7 +351,7 @@ export default function LearningPage() {
               <button
                 type="button"
                 onClick={() => setShowMoreSheet(true)}
-                className={`px-2.5 py-1 rounded-[7px] text-[11.5px] font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded-[8px] text-[12px] font-bold transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap ${
                   isMoreTabActive
                     ? "bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10]"
                     : "text-[#667085] dark:text-[#8B95A5]"
@@ -366,9 +366,9 @@ export default function LearningPage() {
       </div>
 
       {/* ── Scrollable Body Region ──────────────────────────────────────── */}
-      <div className="flex-1 min-h-0 overflow-y-auto pb-6 space-y-3.5">
+      <div className="flex-1 min-h-0 overflow-y-auto pb-6 space-y-4">
         {error && (
-          <div className="p-3 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[12px] font-medium flex items-center justify-between gap-2">
+          <div className="p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[12px] font-medium flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
@@ -397,23 +397,23 @@ export default function LearningPage() {
             ))}
           </div>
         ) : plans.length === 0 && activeTab === "OVERVIEW" ? (
-          /* WORKSPACE EMPTY STATE */
-          <div className="w-full h-full min-h-[260px] rounded-[16px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] flex flex-col items-center justify-center p-6 text-center space-y-3.5 my-auto">
-            <div className="w-12 h-12 rounded-full bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center border border-[#C9A52A]/20">
+          /* WORKSPACE EMPTY STATE (Fully unclipped, content-sized padding, centered icon) */
+          <div className="w-full rounded-[16px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] flex flex-col items-center justify-center py-8 px-6 text-center space-y-4 my-2 shadow-xs">
+            <div className="w-12 h-12 rounded-full bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center border border-[#C9A52A]/20 shrink-0">
               <BookOpen className="w-6 h-6 stroke-[2]" />
             </div>
-            <div className="space-y-1 max-w-md">
+            <div className="space-y-1.5 max-w-sm">
               <h3 className="text-[16px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
                 No learning plans yet
               </h3>
-              <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] leading-relaxed">
+              <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5] leading-relaxed">
                 Create a structured learning plan to organize topics, assignments, resources, and progress tracking across your team.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-5 h-[40px] rounded-[10px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity shadow-xs cursor-pointer mt-1"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Create Learning Plan</span>
@@ -491,7 +491,7 @@ export default function LearningPage() {
               </div>
             )}
 
-            {/* 2. TOPICS TAB (Desktop Table / Mobile Cards) */}
+            {/* 2. TOPICS TAB */}
             {activeTab === "TOPICS" && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-2">
@@ -712,25 +712,42 @@ export default function LearningPage() {
         )}
       </div>
 
-      {/* Mobile "More" Sections Touch Sheet */}
+      {/* Mobile Touch Bottom Sheet for "More" Navigation (Anchored bottom, drag handle, backdrop blur, smooth spring entrance) */}
       {showMoreSheet && (
-        <div className="md:hidden fixed inset-0 z-[120] flex flex-col justify-end bg-black/70 backdrop-blur-xs font-sans">
-          <div className="bg-[#FFFFFF] dark:bg-[#15191F] border-t border-[#E4E7EC] dark:border-[#272D36] rounded-t-[20px] p-5 space-y-4 max-h-[80dvh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
-              <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">Learning Workspace Sections</h3>
-              <button onClick={() => setShowMoreSheet(false)} className="p-1 text-[#667085]">
-                <X className="w-5 h-5" />
-              </button>
+        <div
+          className="md:hidden fixed inset-0 z-[140] flex flex-col justify-end bg-black/70 backdrop-blur-xs font-sans transition-opacity animate-in fade-in duration-200"
+          onClick={() => setShowMoreSheet(false)}
+        >
+          <div
+            className="bg-[#FFFFFF] dark:bg-[#15191F] border-t border-[#E4E7EC] dark:border-[#272D36] rounded-t-[24px] p-5 space-y-4 max-h-[75dvh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag Handle & Header */}
+            <div className="space-y-3">
+              <div className="w-10 h-1 bg-[#E4E7EC] dark:bg-[#272D36] rounded-full mx-auto" />
+              <div className="flex items-center justify-between pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
+                <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">Learning Workspace Sections</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowMoreSheet(false)}
+                  className="p-1.5 rounded-full text-[#667085] hover:bg-[#F8F9FB] dark:hover:bg-[#111419]"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
+
+            {/* Rows */}
             <div className="space-y-1">
               {MORE_TABS.map((tab) => (
                 <button
                   key={tab.id}
+                  type="button"
                   onClick={() => {
                     setActiveTab(tab.id);
                     setShowMoreSheet(false);
                   }}
-                  className={`w-full p-3 rounded-[10px] text-left text-[13px] font-bold transition-colors flex items-center justify-between ${
+                  className={`w-full h-[48px] px-3.5 rounded-[12px] text-left text-[13px] font-bold transition-colors flex items-center justify-between cursor-pointer ${
                     activeTab === tab.id
                       ? "bg-[#C9A52A]/10 text-[#C9A52A]"
                       : "text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F8F9FB] dark:hover:bg-[#111419]"
@@ -758,7 +775,7 @@ export default function LearningPage() {
 
       {/* Custom Delete Confirmation Modal */}
       {deleteTargetPlanId && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs font-sans">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs font-sans">
           <div className="w-full max-w-md bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[16px] p-6 space-y-4 shadow-2xl">
             <div className="flex items-center gap-3 text-rose-500">
               <AlertTriangle className="w-6 h-6 shrink-0" />
