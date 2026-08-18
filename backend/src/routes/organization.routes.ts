@@ -485,6 +485,18 @@ organizationRouter.get(
 				if (userMember) workspaceId = userMember.workspaceId;
 			}
 
+			const userRole = ((req as any).user?.role || "").toUpperCase();
+
+			const whereConditions = [
+				eq(workspaceMembers.workspaceId, workspaceId),
+				ne(workspaceMembers.role, "CEO"),
+			];
+
+			if (userRole === "CO-CEO") {
+				whereConditions.push(eq(users.managerId, userId));
+				whereConditions.push(eq(workspaceMembers.role, "MEMBER"));
+			}
+
 			const members = await db
 				.select({
 					id: users.id,
@@ -500,12 +512,7 @@ organizationRouter.get(
 				})
 				.from(workspaceMembers)
 				.innerJoin(users, eq(workspaceMembers.userId, users.id))
-				.where(
-					and(
-						eq(workspaceMembers.workspaceId, workspaceId),
-						ne(workspaceMembers.role, "CEO"), // CEO is never shown in member list
-					),
-				)
+				.where(and(...whereConditions))
 				.orderBy(desc(workspaceMembers.createdAt));
 
 			// Enrich with operational execution metrics

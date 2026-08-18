@@ -259,7 +259,11 @@ export function OrganizationGraphWorkspace({ userRole = "CEO" }: OrganizationGra
             Organization Graph
           </h1>
           <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] truncate">
-            Reporting hierarchy: CEO → CO-CEO → Members.
+            {userRole === "CEO"
+              ? "Reporting hierarchy: CEO → CO-CEO → Members."
+              : userRole === "CO-CEO"
+              ? "Your team reporting tree: CO-CEO → Assigned Members."
+              : "Your management chain: CO-CEO → Me."}
           </p>
         </div>
 
@@ -345,8 +349,8 @@ export function OrganizationGraphWorkspace({ userRole = "CEO" }: OrganizationGra
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             }}
           >
-            {/* 1. LEVEL 0: CEO NODE */}
-            {graphData.ceoNode && (
+            {/* 1. LEVEL 0: CEO NODE (CEO View Only) */}
+            {userRole === "CEO" && graphData.ceoNode && (
               <div className="flex flex-col items-center">
                 <div
                   onClick={() => setSelectedNode(graphData.ceoNode)}
@@ -388,7 +392,9 @@ export function OrganizationGraphWorkspace({ userRole = "CEO" }: OrganizationGra
             {/* 2. LEVEL 1: CO-CEO NODES & THEIR ASSIGNED MEMBERS */}
             {graphData.coCeoNodes?.length > 0 && (
               <div className="flex items-start gap-8 sm:gap-12 relative flex-wrap justify-center">
-                {graphData.coCeoNodes.map((coCeo) => {
+                {graphData.coCeoNodes
+                  .filter((c) => userRole !== "CO-CEO" || c.id === user?.id || c.email === user?.email)
+                  .map((coCeo) => {
                   const assigned = assignedMembersMap.get(coCeo.id) || [];
                   return (
                     <div key={coCeo.id} className="flex flex-col items-center">

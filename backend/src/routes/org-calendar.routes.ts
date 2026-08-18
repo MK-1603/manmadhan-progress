@@ -11,6 +11,7 @@ import {
 } from "../../database/schema";
 import { authenticate } from "../middleware/auth.middleware";
 import { logger } from "../services/logger.service";
+import { resolveUserScope } from "../services/scope.service";
 
 export const orgCalendarRouter = Router();
 
@@ -85,13 +86,17 @@ export interface CalendarEventDTO {
 orgCalendarRouter.get("/", resolveWorkspace, async (req: Request, res: Response) => {
 	try {
 		const workspaceId = (req as any).workspaceId;
-		const userId = (req as any).user?.id;
-		const userRole = (req as any).user?.role;
-		const { category, search, start, end } = req.query;
+		const { category, search } = req.query;
 
+		const scope = await resolveUserScope(req);
 		const events: CalendarEventDTO[] = [];
 
 		// 1. Fetch Tasks
+		const taskConds = [eq(tasks.workspaceId, workspaceId)];
+		if (scope.role !== "CEO" && scope.managedUserIds.length > 0) {
+			taskConds.push(inArray(tasks.assigneeId, scope.managedUserIds));
+		}
+
 		const taskRows = await db
 			.select({
 				id: tasks.id,
@@ -112,7 +117,7 @@ orgCalendarRouter.get("/", resolveWorkspace, async (req: Request, res: Response)
 			.from(tasks)
 			.leftJoin(users, eq(tasks.assigneeId, users.id))
 			.leftJoin(projects, eq(tasks.projectId, projects.id))
-			.where(eq(tasks.workspaceId, workspaceId))
+			.where(and(...taskConds))
 			.orderBy(desc(tasks.createdAt));
 
 		taskRows.forEach((t) => {

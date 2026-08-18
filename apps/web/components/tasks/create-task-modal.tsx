@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { CheckSquare, X, AlertCircle, Sparkles, Zap, BookOpen, Layers } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { CustomSelect } from "@/components/ui/custom-select";
 import { CustomDatePicker } from "@/components/ui/custom-date-picker";
+import { useAuth } from "@/components/auth/auth-context";
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -53,6 +54,7 @@ export function CreateTaskModal({
   defaultProjectId = null,
   defaultAssigneeId = null,
 }: CreateTaskModalProps) {
+  const { user } = useAuth();
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   const [title, setTitle] = useState("");
@@ -102,6 +104,20 @@ export function CreateTaskModal({
     }
     loadData();
   }, [isOpen]);
+
+  const filteredMembers = useMemo(() => {
+    const userRole = (user?.role || "").toUpperCase();
+    if (userRole === "MEMBER") return [];
+    if (userRole === "CO-CEO") {
+      return members.filter((m: any) => {
+        const mRole = String(m.role || "").toUpperCase();
+        if (mRole === "CEO" || mRole === "CO-CEO" || mRole === "CO_CEO") return false;
+        if (m.managerId) return m.managerId === user?.id;
+        return true;
+      });
+    }
+    return members;
+  }, [members, user]);
 
   if (!isOpen) return null;
 
@@ -286,15 +302,24 @@ export function CreateTaskModal({
           <label className="block text-[10.5px] font-bold uppercase text-[#17202A] dark:text-[#F2F4F7] mb-1">
             Assignee
           </label>
-          <CustomSelect
-            value={assigneeId}
-            onChange={setAssigneeId}
-            options={[
-              { value: "", label: "Unassigned" },
-              ...members.map((m) => ({ value: m.id, label: m.name || m.email, sublabel: m.role })),
-            ]}
-            placeholder="Assignee"
-          />
+          {user?.role !== "MEMBER" ? (
+            <CustomSelect
+              value={assigneeId}
+              onChange={setAssigneeId}
+              options={[
+                { value: "", label: "Unassigned" },
+                ...filteredMembers.map((m) => ({ value: m.id, label: m.name || m.email, sublabel: m.role })),
+              ]}
+              placeholder="Assignee"
+            />
+          ) : (
+            <input
+              type="text"
+              disabled
+              value="Self (Member Execution)"
+              className="w-full h-[38px] px-3 rounded-[8px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-medium text-[#667085] cursor-not-allowed"
+            />
+          )}
         </div>
 
         <div>

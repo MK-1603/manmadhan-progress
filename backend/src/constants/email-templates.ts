@@ -211,7 +211,7 @@ export const AppEvents: Record<string, NotificationTemplate> = {
 		getDefaultActionUrl: (_data, url) => `${url}/settings/billing`,
 	},
 
-	// --- AUTOMATION ---
+	// --- AUTOMATION & REVIEWS ---
 	AUTOMATION_ALERT: {
 		type: "AUTOMATION_ALERT",
 		mode: "alert",
@@ -222,6 +222,88 @@ export const AppEvents: Record<string, NotificationTemplate> = {
 			String(data.message || "An automated execution workflow was triggered."),
 		],
 		actionText: "View Automation",
-		getDefaultActionUrl: (_data, url) => `${url}/ceo/automation`,
+		getDefaultActionUrl: (_data, url) => `${url}/co-ceo/automation`,
+	},
+	AUTOMATION_TRIGGERED: {
+		type: "AUTOMATION_TRIGGERED",
+		mode: "informational",
+		icon: "bell",
+		subjectTemplate: (data) => (data.title ? String(data.title) : "Automation Triggered"),
+		titleTemplate: (data) => (data.title ? String(data.title) : "Automation Executed"),
+		bodyTemplate: (data) => [
+			String(data.message || "An automation rule has executed successfully."),
+		],
+	},
+	AUTOMATION_FAILED: {
+		type: "AUTOMATION_FAILED",
+		mode: "alert",
+		icon: "alert-triangle",
+		subjectTemplate: (data) => (data.title ? String(data.title) : "Automation Failed"),
+		titleTemplate: (data) => (data.title ? String(data.title) : "Automation Error"),
+		bodyTemplate: (data) => [
+			String(data.message || "An automation rule execution encountered an error."),
+		],
+	},
+	TASK_SUBMITTED: {
+		type: "TASK_SUBMITTED",
+		mode: "action",
+		icon: "check-circle",
+		subjectTemplate: (data) => `Task Submitted: ${data.taskTitle || "Work Submission"}`,
+		titleTemplate: () => "Work Submitted for Review",
+		bodyTemplate: (data) => [
+			`${data.userName || "Team Member"} submitted work for task "${data.taskTitle || "Task"}".`,
+		],
+		actionText: "Review Submission",
+		getDefaultActionUrl: (_data, url) => `${url}/co-ceo/approvals`,
+	},
+	TASK_APPROVED: {
+		type: "TASK_APPROVED",
+		mode: "informational",
+		icon: "check-circle",
+		subjectTemplate: (data) => `Task Approved: ${data.taskTitle || "Work Approved"}`,
+		titleTemplate: () => "Submission Approved",
+		bodyTemplate: (data) => [
+			`Your submission for task "${data.taskTitle || "Task"}" has been approved.`,
+		],
+	},
+	TASK_CHANGES_REQUESTED: {
+		type: "TASK_CHANGES_REQUESTED",
+		mode: "alert",
+		icon: "alert-triangle",
+		subjectTemplate: (data) => `Changes Requested: ${data.taskTitle || "Task Review"}`,
+		titleTemplate: () => "Changes Requested",
+		bodyTemplate: (data) => [
+			`Changes have been requested for task "${data.taskTitle || "Task"}": ${data.feedback || "Please review notes."}`,
+		],
+	},
+	DEADLINE_APPROACHING: {
+		type: "DEADLINE_APPROACHING",
+		mode: "alert",
+		icon: "bell",
+		subjectTemplate: (data) => `Deadline Approaching: ${data.taskTitle || "Task"}`,
+		titleTemplate: () => "Deadline Approaching",
+		bodyTemplate: (data) => [
+			`Task "${data.taskTitle || "Task"}" is due soon.`,
+		],
+	},
+	TASK_OVERDUE: {
+		type: "TASK_OVERDUE",
+		mode: "alert",
+		icon: "alert-triangle",
+		subjectTemplate: (data) => `Task Overdue: ${data.taskTitle || "Task"}`,
+		titleTemplate: () => "Task Overdue",
+		bodyTemplate: (data) => [
+			`Task "${data.taskTitle || "Task"}" has passed its deadline and is overdue.`,
+		],
+	},
+	DAILY_MOTIVATION: {
+		type: "DAILY_MOTIVATION",
+		mode: "informational",
+		icon: "bell",
+		subjectTemplate: (data) => (data.title ? String(data.title) : "Daily Execution Motivation"),
+		titleTemplate: (data) => (data.title ? String(data.title) : "Daily Motivation"),
+		bodyTemplate: (data) => [
+			String(data.message || "Stay focused on execution today."),
+		],
 	},
 };

@@ -952,7 +952,8 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
           onCreated={fetchAllData}
-          role="CO-CEO"
+          role={userRole as any || "CO-CEO"}
+          isPersonalWorkspace={true}
         />
       </div>
     </PullToRefresh>

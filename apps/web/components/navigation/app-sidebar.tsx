@@ -116,6 +116,16 @@ const ORG_COCEO_NAV: NavGroup[] = [
       { name: "Performance", href: "/co-ceo/performance", icon: BarChart3 },
     ],
   },
+  {
+    id: "administration",
+    label: "ADMINISTRATION",
+    items: [
+      { name: "Automation", href: "/co-ceo/automation", icon: Zap },
+      { name: "Organization", href: "/co-ceo/organization", icon: Building },
+      { name: "Organization Profile", href: "/co-ceo/profile", icon: UserIcon },
+      { name: "Organization Settings", href: "/co-ceo/settings", icon: Settings },
+    ],
+  },
 ];
 
 // 3. Organization — MEMBER Navigation

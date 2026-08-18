@@ -35,26 +35,62 @@ function normalizeRole(roleStr?: string): "CEO" | "CO-CEO" | "MEMBER" {
 	return "MEMBER";
 }
 
-function canCreateTask(user: any, membership: any, payload: any): { allowed: boolean; reason?: string } {
-	const effectiveRole = normalizeRole(user?.role || membership?.role);
-
-	if (effectiveRole === "CEO" || effectiveRole === "CO-CEO") {
+async function validateAssignmentHierarchy(
+	user: any,
+	membership: any,
+	targetAssigneeId: string | null | undefined,
+): Promise<{ allowed: boolean; reason?: string }> {
+	if (!targetAssigneeId || targetAssigneeId === user?.id) {
 		return { allowed: true };
 	}
 
-	// Members can create tasks assigned to themselves within their workspace
-	if (effectiveRole === "MEMBER") {
-		const targetAssignee = payload?.assigneeId;
-		if (!targetAssignee || targetAssignee === user?.id) {
-			return { allowed: true };
-		}
+	const normRole = normalizeRole(membership?.role || user?.role);
+
+	if (normRole === "CEO") {
+		return { allowed: true };
+	}
+
+	if (normRole === "MEMBER") {
 		return {
 			allowed: false,
 			reason: "Members cannot assign organization tasks to other users.",
 		};
 	}
 
-	return { allowed: false, reason: "Insufficient permissions to create tasks." };
+	if (normRole === "CO-CEO") {
+		const [targetUser] = await db
+			.select({
+				id: users.id,
+				role: users.role,
+				managerId: users.managerId,
+			})
+			.from(users)
+			.where(eq(users.id, targetAssigneeId))
+			.limit(1);
+
+		if (!targetUser) {
+			return { allowed: false, reason: "Target assignee user not found." };
+		}
+
+		const targetRole = normalizeRole(targetUser.role);
+		if (targetRole === "CEO" || targetRole === "CO-CEO") {
+			return {
+				allowed: false,
+				reason: "CO-CEOs cannot assign tasks to the CEO or other CO-CEOs.",
+			};
+		}
+
+		if (targetUser.managerId !== user?.id) {
+			return {
+				allowed: false,
+				reason: "CO-CEOs can only assign tasks to their assigned team members.",
+			};
+		}
+
+		return { allowed: true };
+	}
+
+	return { allowed: false, reason: "Insufficient permissions to assign tasks." };
 }
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
@@ -704,7 +740,7 @@ const createTaskHandler = async (req: Request, res: Response) => {
 		const user = (req as any).user;
 		const membership = (req as any).membership;
 
-		const permCheck = canCreateTask(user, membership, req.body);
+		const permCheck = await validateAssignmentHierarchy(user, membership, req.body.assigneeId);
 		if (!permCheck.allowed) {
 			return res.status(403).json({
 				success: false,
@@ -1031,6 +1067,16 @@ orgTasksRouter.patch(
 				delete req.body.assigneeId;
 				delete req.body.deadline;
 				delete req.body.priority;
+			}
+
+			if (req.body.assigneeId && req.body.assigneeId !== existing.assigneeId) {
+				const permCheck = await validateAssignmentHierarchy((req as any).user, membership, req.body.assigneeId);
+				if (!permCheck.allowed) {
+					return res.status(403).json({
+						success: false,
+						error: permCheck.reason || "You do not have permission to assign this task.",
+					});
+				}
 			}
 
 			const updates: any = {};

@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { db } from "../../database/client";
 import {
@@ -9,6 +9,7 @@ import {
 } from "../../database/schema";
 import { authenticate } from "../middleware/auth.middleware";
 import { logger } from "../services/logger.service";
+import { resolveUserScope } from "../services/scope.service";
 
 export const orgTimelineRouter = Router();
 orgTimelineRouter.use(authenticate);
@@ -68,7 +69,15 @@ orgTimelineRouter.get(
 				0,
 			);
 
-			// Fetch all workspace audit logs enriched with user details
+			const scope = await resolveUserScope(req);
+
+			// Where conditions
+			const whereConds = [eq(auditLogs.workspaceId, workspaceId)];
+			if (scope.role !== "CEO" && scope.managedUserIds.length > 0) {
+				whereConds.push(inArray(auditLogs.userId, scope.managedUserIds));
+			}
+
+			// Fetch workspace audit logs enriched with user details
 			const logs = await db
 				.select({
 					id: auditLogs.id,
@@ -82,7 +91,7 @@ orgTimelineRouter.get(
 				})
 				.from(auditLogs)
 				.leftJoin(users, eq(auditLogs.userId, users.id))
-				.where(eq(auditLogs.workspaceId, workspaceId))
+				.where(and(...whereConds))
 				.orderBy(desc(auditLogs.createdAt))
 				.limit(200);
 
