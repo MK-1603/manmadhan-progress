@@ -8,7 +8,14 @@ import {
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
-import Link from "next/link";
+import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
+
+const APPROVAL_PRIORITY_OPTIONS: CustomSelectOption[] = [
+  { value: "All", label: "All Priorities" },
+  { value: "High", label: "High Priority", color: "bg-amber-500" },
+  { value: "Medium", label: "Medium Priority", color: "bg-[#C9A52A]" },
+  { value: "Low", label: "Low Priority", color: "bg-slate-400" },
+];
 import { useRegisterRefresh } from "@/components/providers/global-refresh-provider";
 import { TaskAssignmentModal } from "@/components/tasks/task-assignment-modal";
 
@@ -357,16 +364,14 @@ export default function CoCeoApprovalsPage() {
           </div>
 
           {/* Priority Select */}
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="h-[34px] px-3 bg-[#FFFFFF] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[10px] text-[11.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] outline-none cursor-pointer shrink-0"
-          >
-            <option value="All">All Priorities</option>
-            <option value="High">High Priority</option>
-            <option value="Medium">Medium Priority</option>
-            <option value="Low">Low Priority</option>
-          </select>
+          <div className="w-[145px] shrink-0">
+            <CustomSelect
+              value={priorityFilter}
+              onChange={setPriorityFilter}
+              options={APPROVAL_PRIORITY_OPTIONS}
+              size="sm"
+            />
+          </div>
         </div>
       </div>
 

@@ -14,6 +14,8 @@ import { AuditService } from "../services/audit.service";
 import { logger } from "../services/logger.service";
 import { socketService } from "../services/socket.service";
 
+import { OrganizationScheduleService } from "../services/organization-schedule.service";
+
 export const orgFocusRouter = Router();
 orgFocusRouter.use(authenticate);
 
@@ -25,10 +27,15 @@ function getUserId(req: Request): string | null {
 	return typeof id === "string" && id.trim().length > 0 ? id.trim() : null;
 }
 
-// Helper: Check system working hours (04:00 - 23:00)
-function isWithinWorkingHours(): boolean {
-	const hour = new Date().getHours();
-	return hour >= 4 && hour < 23;
+// Helper: Check system working hours using Centralized Schedule Engine
+async function isFocusAllowed(workspaceId: string, role: string): Promise<{ allowed: boolean; reason?: string; statusInfo?: any }> {
+	const statusInfo = await OrganizationScheduleService.getScheduleStatus(workspaceId);
+	const check = await OrganizationScheduleService.isActionAllowed(workspaceId, role, "timer");
+	return {
+		allowed: check.allowed,
+		reason: check.reason,
+		statusInfo,
+	};
 }
 
 // Middleware to resolve workspace and verify membership using standard db.select()
@@ -110,11 +117,15 @@ orgFocusRouter.get(
 			const workspaceId = (req as any).workspaceId;
 			const userId = getUserId(req);
 
+			const memberRole = (req as any).memberRole || "MEMBER";
+			const scheduleCheck = await isFocusAllowed(workspaceId, memberRole);
+
 			if (!userId || !workspaceId) {
 				return res.json({
 					success: true,
 					data: null,
-					isSystemActive: isWithinWorkingHours(),
+					isSystemActive: scheduleCheck.allowed,
+					statusInfo: scheduleCheck.statusInfo,
 				});
 			}
 
@@ -140,12 +151,13 @@ orgFocusRouter.get(
 				return res.json({
 					success: true,
 					data: null,
-					isSystemActive: isWithinWorkingHours(),
+					isSystemActive: scheduleCheck.allowed,
+					statusInfo: scheduleCheck.statusInfo,
 				});
 			}
 
-			// Automatic 23:00 shutdown check
-			if (!isWithinWorkingHours() && activeSession.status === "Active") {
+			// Automatic Working Hours Restricted shutdown check
+			if (!scheduleCheck.allowed && activeSession.status === "Active") {
 				const now = new Date();
 				const startTime = activeSession.resumedAt || activeSession.startTime;
 				const sessionDuration = Math.floor(
@@ -167,7 +179,7 @@ orgFocusRouter.get(
 				await AuditService.logEvent(
 					userId,
 					"FOCUS_SYSTEM_STOPPED",
-					`Session ${activeSession.id} auto-stopped at 23:00`,
+					`Session ${activeSession.id} auto-stopped due to Working Hours Policy`,
 				);
 				socketService.emitToWorkspace(workspaceId, "focus.stopped", {
 					userId,
@@ -179,7 +191,8 @@ orgFocusRouter.get(
 					success: true,
 					data: null,
 					isSystemActive: false,
-					message: "Active session automatically stopped at 23:00",
+					statusInfo: scheduleCheck.statusInfo,
+					message: "Active session automatically stopped at Working Hours policy transition",
 				});
 			}
 
@@ -213,7 +226,8 @@ orgFocusRouter.get(
 					task: taskData,
 					project: projectData,
 				},
-				isSystemActive: isWithinWorkingHours(),
+				isSystemActive: scheduleCheck.allowed,
+				statusInfo: scheduleCheck.statusInfo,
 			});
 		} catch (err: any) {
 			logger.error(
@@ -238,6 +252,9 @@ orgFocusRouter.get(
 			const workspaceId = (req as any).workspaceId;
 			const userId = getUserId(req);
 
+			const memberRole = (req as any).memberRole || "MEMBER";
+			const scheduleCheck = await isFocusAllowed(workspaceId, memberRole);
+
 			if (!userId || !workspaceId) {
 				return res.json({
 					success: true,
@@ -251,7 +268,8 @@ orgFocusRouter.get(
 						categoryBreakdown: {},
 						split: { orgWorkSeconds: 0, ceoWorkSeconds: 0 },
 						insights: [],
-						isSystemActive: isWithinWorkingHours(),
+						isSystemActive: scheduleCheck.allowed,
+						statusInfo: scheduleCheck.statusInfo,
 					},
 				});
 			}
@@ -369,7 +387,8 @@ orgFocusRouter.get(
 						ceoWorkSeconds,
 					},
 					insights,
-					isSystemActive: isWithinWorkingHours(),
+					isSystemActive: scheduleCheck.allowed,
+					statusInfo: scheduleCheck.statusInfo,
 				},
 			});
 		} catch (err: any) {
@@ -648,11 +667,13 @@ orgFocusRouter.post(
 					.json({ success: false, error: "Authentication required" });
 			}
 
-			if (!isWithinWorkingHours()) {
+			const memberRole = (req as any).memberRole || "MEMBER";
+			const scheduleCheck = await isFocusAllowed(workspaceId, memberRole);
+
+			if (!scheduleCheck.allowed) {
 				return res.status(403).json({
 					success: false,
-					error:
-						"Focus is not available outside working hours (04:00 – 23:00). Next activation at 04:00.",
+					error: scheduleCheck.reason || "Focus is not available outside working hours.",
 				});
 			}
 
@@ -883,11 +904,13 @@ orgFocusRouter.post(
 					.json({ success: false, error: "Authentication required" });
 			}
 
-			if (!isWithinWorkingHours()) {
+			const memberRole = (req as any).memberRole || "MEMBER";
+			const scheduleCheck = await isFocusAllowed(workspaceId, memberRole);
+
+			if (!scheduleCheck.allowed) {
 				return res.status(403).json({
 					success: false,
-					error:
-						"Focus cannot be resumed outside working hours (04:00 – 23:00).",
+					error: scheduleCheck.reason || "Focus cannot be resumed outside working hours.",
 				});
 			}
 
@@ -1120,3 +1143,7 @@ orgFocusRouter.post(
 		}
 	},
 );
+function isWithinWorkingHours() {
+	throw new Error("Function not implemented.");
+}
+

@@ -16,9 +16,11 @@ import {
 	projectRequirements,
 	projectRoadmaps,
 	projects,
+	projectSubmissions,
 	tasks,
 	users,
 	workspaceMembers,
+	workspaces,
 } from "../../database/schema";
 import { authenticate } from "../middleware/auth.middleware";
 import { enforceNoSelfAssignment } from "../middleware/self-assignment.guard";
@@ -41,7 +43,7 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 			req.query.workspaceId || req.body?.workspaceId || "",
 		).trim();
 
-		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
+		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null" || workspaceId === "default-workspace") {
 			if (userId) {
 				const [m] = await db
 					.select()
@@ -50,16 +52,27 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 					.limit(1);
 				if (m?.workspaceId) {
 					workspaceId = m.workspaceId;
-					req.body.workspaceId = workspaceId;
-					(req.query as any).workspaceId = workspaceId;
 				}
 			}
 		}
 
-		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
-			workspaceId = "default-workspace";
+		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null" || workspaceId === "default-workspace") {
+			const [orgWs] = await db
+				.select()
+				.from(workspaces)
+				.where(ne(workspaces.type, "personal"))
+				.limit(1);
+
+			if (orgWs) {
+				workspaceId = orgWs.id;
+			} else {
+				const [anyWs] = await db.select().from(workspaces).limit(1);
+				if (anyWs) workspaceId = anyWs.id;
+			}
 		}
 
+		req.body.workspaceId = workspaceId;
+		(req.query as any).workspaceId = workspaceId;
 		(req as any).workspaceId = workspaceId;
 		next();
 	} catch (err: any) {
@@ -296,6 +309,7 @@ orgProjectsRouter.post(
 					name: title.trim(),
 					description: description || prompt || null,
 					objective: prompt || null,
+					type: "ORGANIZATION",
 					status: "PLANNING",
 					priority: "Medium",
 					progress: 0,
@@ -496,22 +510,46 @@ orgProjectsRouter.post(
 			});
 
 			// 4. Create Central Approval Request for Project Assignment
-			await RequestEngineService.createRequest({
-				workspaceId,
-				requestType: "PROJECT_ASSIGNMENT",
-				title: `Project Assignment: ${title.trim()}`,
-				description: `Assigned role for ${title.trim()}. Deadline: ${projectDeadline ? projectDeadline.toDateString() : "Flexible"}.`,
-				requesterId: userId,
-				approverId: assignedToUserId,
-				entityType: "PROJECT",
-				entityId: projectId,
-				metadata: {
-					assignmentType,
-					responsibleCoCeoId,
-					prompt,
-					analysisData,
-				},
-			});
+			try {
+				await RequestEngineService.createRequest({
+					workspaceId,
+					requestType: "PROJECT_ASSIGNMENT",
+					title: `Project Assignment: ${title.trim()}`,
+					description: `Assigned role for ${title.trim()}. Deadline: ${projectDeadline ? projectDeadline.toDateString() : "Flexible"}.`,
+					requesterId: userId,
+					approverId: assignedToUserId,
+					entityType: "PROJECT",
+					entityId: projectId,
+					metadata: {
+						assignmentType,
+						responsibleCoCeoId,
+						prompt,
+						analysisData,
+					},
+				});
+			} catch (reqErr: any) {
+				logger.warn(`Central request creation notice: ${reqErr?.message || String(reqErr)}`);
+			}
+
+			// Emit Real-Time Socket Events to Workspace and Assigned User
+			try {
+				socketService.emitToWorkspace(workspaceId, "project.created", newProject);
+				socketService.emitToWorkspace(workspaceId, "project_created", newProject);
+				if (assignedToUserId) {
+					socketService.emitToUser(assignedToUserId, "TASK_ASSIGNED", {
+						type: "PROJECT_ASSIGNMENT",
+						projectId,
+						title: title.trim(),
+					});
+					socketService.emitToUser(assignedToUserId, "notification.created", {
+						type: "PROJECT_ASSIGNMENT",
+						title: "PROJECT ASSIGNED",
+						message: `You have been assigned to project "${title.trim()}"`,
+					});
+				}
+			} catch (socketErr: any) {
+				logger.warn(`Project creation socket emit notice: ${socketErr?.message || String(socketErr)}`);
+			}
 
 			res.json({
 				success: true,
@@ -804,50 +842,68 @@ orgProjectsRouter.get(
 		try {
 			const workspaceId = (req as any).workspaceId;
 
-			const members = await db
+			let membersList = await db
 				.select({
 					id: users.id,
 					name: users.displayName,
 					email: users.email,
-					role: workspaceMembers.role,
+					userRole: users.role,
+					workspaceRole: workspaceMembers.role,
 					avatar: users.avatar,
 				})
 				.from(workspaceMembers)
 				.innerJoin(users, eq(workspaceMembers.userId, users.id))
 				.where(eq(workspaceMembers.workspaceId, workspaceId));
 
-			const coCeos = members
-				.filter((m) => m.role === "CO-CEO" || m.role === "CEO")
-				.map((m) => ({
-					id: m.id,
-					name: m.name || m.email || "CO-CEO",
-					email: m.email,
-					role: m.role,
-					avatar: m.avatar,
-				}));
+			if (membersList.length <= 1) {
+				const allUsers = await db
+					.select({
+						id: users.id,
+						name: users.displayName,
+						email: users.email,
+						userRole: users.role,
+						workspaceRole: users.role,
+						avatar: users.avatar,
+					})
+					.from(users)
+					.where(ne(users.role, "GUEST"));
 
-			const memberList = members
-				.filter((m) => m.role === "MEMBER")
-				.map((m) => ({
+				const existingIds = new Set(membersList.map((m) => m.id));
+				const additional = allUsers.filter((u) => !existingIds.has(u.id));
+				membersList = [...membersList, ...additional];
+			}
+
+			const normalizedMembers = membersList.map((m) => {
+				const rawRole = (m.workspaceRole || m.userRole || "MEMBER").toUpperCase();
+				const effectiveRole = rawRole.includes("CEO") && !rawRole.includes("CO") ? "CEO" : rawRole.includes("CO") ? "CO-CEO" : "MEMBER";
+				return {
 					id: m.id,
-					name: m.name || m.email || "Member",
+					name: m.name || m.email || "User",
 					email: m.email,
-					role: m.role,
+					role: effectiveRole,
 					avatar: m.avatar,
-				}));
+				};
+			});
+
+			// Strictly exclude CEO from CO-CEO and Member selection lists
+			const coCeos = normalizedMembers.filter((m) => m.role === "CO-CEO");
+			const memberList = normalizedMembers.filter((m) => m.role === "MEMBER");
+
+			// Fallback: If no dedicated CO-CEO exists in DB yet, show non-CEO members labelled as CO-CEO
+			const finalCoCeos = coCeos.length > 0
+				? coCeos
+				: normalizedMembers.filter((m) => m.role !== "CEO").map((m) => ({ ...m, role: "CO-CEO" }));
+
+			const finalMembers = memberList.length > 0
+				? memberList
+				: normalizedMembers.filter((m) => m.role !== "CEO");
 
 			res.json({
 				success: true,
 				data: {
-					all: members.map((m) => ({
-						id: m.id,
-						name: m.name || m.email || "Team Member",
-						email: m.email,
-						role: m.role,
-						avatar: m.avatar,
-					})),
-					coCeos,
-					members: memberList,
+					all: normalizedMembers.filter((m) => m.role !== "CEO"),
+					coCeos: finalCoCeos,
+					members: finalMembers,
 				},
 			});
 		} catch (err: any) {
@@ -1051,15 +1107,20 @@ orgProjectsRouter.get(
 			const membership = (req as any).membership;
 
 			let projectList: (typeof projects.$inferSelect)[] = [];
-			if (
-				!membership ||
-				membership.role === "CEO" ||
-				membership.role === "CO-CEO"
-			) {
+			const isLeadership = !membership || membership.role === "CEO" || membership.role === "CO-CEO" || (req as any).user?.role === "CEO";
+			if (isLeadership) {
 				projectList = await db
 					.select()
 					.from(projects)
-					.where(eq(projects.workspaceId, workspaceId))
+					.where(
+						and(
+							eq(projects.type, "ORGANIZATION"),
+							or(
+								eq(projects.workspaceId, workspaceId),
+								ne(projects.workspaceId, "personal-workspace")
+							)
+						)
+					)
 					.orderBy(desc(projects.createdAt));
 			} else {
 				// Member: only projects with their tasks or where they own
@@ -1373,6 +1434,18 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 			logger.error(`Fetch project assignment error: ${e.message}`);
 		}
 
+		// Submissions for project
+		let projSubmissions: any[] = [];
+		try {
+			projSubmissions = await db
+				.select()
+				.from(projectSubmissions)
+				.where(eq(projectSubmissions.projectId, id))
+				.orderBy(desc(projectSubmissions.submittedAt));
+		} catch (e: any) {
+			logger.error(`Fetch project submissions error: ${e.message}`);
+		}
+
 		res.json({
 			success: true,
 			data: {
@@ -1388,6 +1461,7 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 				features: projFeatures,
 				github: githubData,
 				tasks: formattedTasks,
+				submissions: projSubmissions,
 				stats: {
 					total,
 					completed,
@@ -1412,6 +1486,93 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 		res.status(500).json({ success: false, error: "Internal server error" });
 	}
 });
+
+// ─── Post Project Deliverable Submission (POST /:id/submissions) ─────────────
+orgProjectsRouter.post(
+	"/:id/submissions",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const userRole = (req as any).user?.role || "CO-CEO";
+			const userName = (req as any).user?.displayName || (req as any).user?.name || "User";
+			const projectId = req.params.id as string;
+			const { title, description, deploymentUrl, applicationUrl, repositoryUrl, versionTag, fileName, fileSize } = req.body;
+
+			if (!title?.trim() || !description?.trim()) {
+				return res.status(400).json({ success: false, error: "Title and description are required for deliverable submission." });
+			}
+
+			const [project] = await db
+				.select()
+				.from(projects)
+				.where(eq(projects.id, projectId))
+				.limit(1);
+
+			if (!project) {
+				return res.status(404).json({ success: false, error: "Project not found" });
+			}
+
+			const subId = uuidv4();
+			const now = new Date();
+
+			const [newSub] = await db
+				.insert(projectSubmissions)
+				.values({
+					id: subId,
+					projectId,
+					workspaceId,
+					title: title.trim(),
+					description: description.trim(),
+					submittedBy: userName,
+					submittedRole: userRole,
+					status: "Under Review",
+					deploymentUrl: deploymentUrl?.trim() || null,
+					applicationUrl: applicationUrl?.trim() || null,
+					repositoryUrl: repositoryUrl?.trim() || null,
+					versionTag: versionTag?.trim() || null,
+					fileName: fileName || null,
+					fileSize: fileSize || null,
+					submittedAt: now,
+					createdAt: now,
+				})
+				.returning();
+
+			// Add Activity & Audit Logs
+			await db.insert(activities).values({
+				id: uuidv4(),
+				workspaceId,
+				projectId,
+				userId,
+				action: "DELIVERABLE_SUBMITTED",
+				details: JSON.stringify({ message: `${userName} submitted deliverable "${title.trim()}" for review` }),
+				createdAt: now,
+			});
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "DELIVERABLE_SUBMITTED",
+				details: `Submitted deliverable "${title.trim()}" for project "${project.name}"`,
+			});
+
+			socketService.emitToWorkspace(workspaceId, "project.updated", { action: "submission_created", projectId });
+			socketService.emitToWorkspace(workspaceId, "submission.created", newSub);
+
+			return res.json({
+				success: true,
+				data: newSub,
+				message: "Deliverable submitted successfully for executive review.",
+			});
+		} catch (err: any) {
+			logger.error(`Submit project deliverable error: ${err?.message || String(err)}`);
+			return res.status(500).json({ success: false, error: "Failed to submit deliverable" });
+		}
+	},
+);
 
 // ─── GET /:id/assignment Details ──────────────────────────────────────────────
 orgProjectsRouter.get(

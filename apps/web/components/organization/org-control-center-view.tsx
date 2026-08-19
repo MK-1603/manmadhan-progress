@@ -13,10 +13,18 @@ import { useRouter } from "next/navigation";
 import { PremiumCard } from "@/components/ui/premium-card";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
+import { OrganizationLogo } from "./org-logo";
 import { OrgGeneralTab } from "./settings/org-general-tab";
+import { OrgPeopleTab } from "./org-people-tab";
 import { OrgWorkingHoursTab } from "./settings/org-working-hours-tab";
 import { OrgWorkflowTab } from "./settings/org-workflow-tab";
 import { OrgEmailTemplatesTab } from "./org-email-templates-tab";
+import { OrgApprovalsTab } from "./org-approvals-tab";
+import { NumericValue } from "@/components/ui/numeric-value";
+import { OrganizationHeader } from "./org-header";
+import { OrganizationNavigation, ORG_NAV_ITEMS } from "./org-navigation";
+import { AppSelect } from "@/components/ui/app-select";
+import { AccessRestricted } from "@/components/ui/access-restricted";
 
 interface OrgControlCenterViewProps {
 	basePath: string;
@@ -31,6 +39,7 @@ export function OrgControlCenterView({ basePath }: OrgControlCenterViewProps) {
 	const [workspace, setWorkspace] = useState<any>(null);
 	const [stats, setStats] = useState<any>(null);
 	const [realProjects, setRealProjects] = useState<any[]>([]);
+	const [recentActivity, setRecentActivity] = useState<any[]>([]);
 	const [loading, setLoading] = useState(true);
 
 	// ── Approvals Queue State ──
@@ -313,7 +322,6 @@ export function OrgControlCenterView({ basePath }: OrgControlCenterViewProps) {
 			group: "GOVERNANCE",
 			items: [
 				{ id: "audit", label: "Audit Log", desc: "Immutable organization audit events", icon: ShieldCheck },
-				{ id: "graph", label: "Organization Graph", desc: "Interactive hierarchy network tree", icon: Network },
 			],
 		},
 	];
@@ -339,301 +347,271 @@ export function OrgControlCenterView({ basePath }: OrgControlCenterViewProps) {
 		{ id: "t5", name: "Database Schema & Drizzle Migration Plan", category: "Database", version: "v1.2", desc: "Relational database schema and migration plan template." },
 	];
 
-	return (
-		<div className="flex flex-col h-full bg-background min-h-screen">
-			{/* Top Header Bar */}
-			<div className="flex items-center justify-between px-4 md:px-6 py-3.5 border-b border-border/60 bg-card/60 shrink-0">
-				<div className="flex items-center gap-3">
-					{/* Back Button */}
-					<button
-						type="button"
-						onClick={() => router.back()}
-						className="p-2 rounded-xl bg-card border border-border hover:bg-muted text-foreground transition-colors flex items-center gap-1.5 text-xs font-bold shrink-0"
-						title="Go back"
-					>
-						<ArrowLeft className="w-4 h-4" />
-						<span className="hidden sm:inline">Back</span>
-					</button>
+	const activeNavItem = ORG_NAV_ITEMS.find((item) => item.id === activeTab) || ORG_NAV_ITEMS[0];
 
-					{/* Mobile Menu Toggle Button */}
-					{!isMobileMenuOpen && (
-						<button
-							type="button"
-							onClick={() => setIsMobileMenuOpen(true)}
-							className="md:hidden p-2 rounded-xl bg-card border border-border text-foreground hover:bg-muted transition-colors text-xs font-bold"
-						>
-							Modules Index
-						</button>
-					)}
-					<div>
-						<h1 className="text-lg md:text-xl font-black text-foreground tracking-tight flex items-center gap-2">
-							<Building2 className="w-5 h-5 text-gold dark:text-[#F0BC2B]" /> Organization
-						</h1>
-						<p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-[240px] sm:max-w-none">
-							ManMadhan Progress Workspace · Governance Center
-						</p>
-					</div>
-				</div>
-				<span className="hidden sm:inline-flex text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-					Active Operational
-				</span>
+	return (
+		<div className="flex flex-col md:flex-row h-full w-full bg-background overflow-hidden">
+			{/* Organization Sub-Navigation Fixed Column (Desktop) */}
+			<div className="hidden md:flex flex-col w-[240px] shrink-0 h-full border-r border-border bg-[#090B0F] p-3 overflow-y-auto min-h-0 [scrollbar-width:thin] select-none">
+				<OrganizationNavigation
+					activeTab={activeTab === "document-templates" || activeTab === "email-templates" ? "templates" : activeTab}
+					onTabChange={(tabId) => setActiveTab(tabId)}
+				/>
 			</div>
 
-			{/* Main Content Area */}
-			<div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
-				{/* MOBILE INDEX PAGE VIEW */}
-				{isMobileMenuOpen && (
-					<div className="w-full h-full overflow-y-auto p-4 space-y-6 md:hidden pb-24 bg-background">
-						<div>
-							<h2 className="text-lg font-black text-foreground">Organization Index</h2>
-							<p className="text-xs text-muted-foreground mt-0.5">Select a governance module to open.</p>
-						</div>
+			{/* Mobile Navigation Selector Bar (Under 768px) */}
+			<div className="md:hidden w-full shrink-0 border-b border-border bg-card/40">
+				<OrganizationNavigation
+					activeTab={activeTab === "document-templates" || activeTab === "email-templates" ? "templates" : activeTab}
+					onTabChange={(tabId) => setActiveTab(tabId)}
+				/>
+			</div>
 
-						{navGroups.map((group) => (
-							<div key={group.group} className="space-y-2">
-								<h3 className="text-[10px] font-black text-gold uppercase tracking-widest px-1">
-									{group.group}
-								</h3>
-								<div className="space-y-2">
-									{group.items.map((item) => {
-										const Icon = item.icon;
-										return (
-											<div
-												key={item.id}
-												onClick={() => {
-													setActiveTab(item.id);
-													setIsMobileMenuOpen(false);
-												}}
-												className="flex items-center justify-between p-3.5 rounded-xl bg-card border border-border/80 active:border-gold cursor-pointer transition-colors"
-											>
-												<div className="flex items-center gap-3 min-w-0">
-													<div className="w-9 h-9 rounded-xl bg-gold/10 text-gold flex items-center justify-center shrink-0">
-														<Icon className="w-4 h-4" />
-													</div>
-													<div className="min-w-0">
-														<p className="text-xs font-bold text-foreground truncate">{item.label}</p>
-														<p className="text-[10px] text-muted-foreground truncate">{item.desc}</p>
-													</div>
-												</div>
-												<ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-											</div>
-										);
-									})}
-								</div>
-							</div>
-						))}
+			{/* Right Content Area */}
+			<div className="flex-1 min-w-0 min-h-0 h-full p-3.5 sm:p-5 md:p-6 space-y-4 overflow-y-auto overflow-x-hidden [scrollbar-width:thin]">
+				{/* Reusable Organization Header */}
+				<OrganizationHeader
+					category={activeNavItem.label}
+					title={activeNavItem.label}
+					description={activeNavItem.description}
+					onRefresh={loadData}
+					isRefreshing={loading}
+					actions={
+						activeTab === "overview" ? (
+							<button
+								type="button"
+								onClick={() => setActiveTab("profile")}
+								className="h-8 px-3 rounded-lg bg-gold/15 text-gold border border-gold/30 hover:bg-gold/25 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+							>
+								<Building2 className="w-3.5 h-3.5" />
+								<span>Edit Organization</span>
+							</button>
+						) : undefined
+					}
+				/>
+
+				{templateSuccess && (
+					<div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold text-emerald-500 flex items-center gap-2">
+						<Check className="w-4 h-4 shrink-0" /> {templateSuccess}
 					</div>
 				)}
 
-				{/* DESKTOP FIXED SUB-NAV */}
-				<nav className="hidden md:flex w-64 shrink-0 flex-col gap-1 p-4 border-r border-border/50 bg-card/40 h-full overflow-y-auto">
-					<h3 className="text-[10px] font-black text-muted-foreground/70 tracking-widest uppercase px-3 mb-1">
-						ORGANIZATION
-					</h3>
-					{allNavItems.map((item) => {
-						const Icon = item.icon;
-						const isActive = activeTab === item.id;
-						return (
-							<button
-								key={item.id}
-								type="button"
-								onClick={() => {
-									setActiveTab(item.id);
-									setIsMobileMenuOpen(false);
-								}}
-								className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all text-left focus:outline-none cursor-pointer ${
-									isActive
-										? "bg-gold/10 text-gold dark:bg-gold/15 dark:text-[#F0BC2B] border border-gold/30 shadow-sm"
-										: "text-muted-foreground hover:text-foreground hover:bg-muted/50 border border-transparent"
-								}`}
-							>
-								<div className="flex items-center gap-2.5 min-w-0">
-									<Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-gold dark:text-[#F0BC2B]" : "text-muted-foreground/70"}`} />
-									<span className="truncate">{item.label}</span>
+				{/* 1. OVERVIEW */}
+				{activeTab === "overview" && (
+					<div className="flex-1 flex flex-col justify-between space-y-2.5 max-w-6xl w-full mx-auto min-h-0">
+						{/* Top KPI Cards Row */}
+						<div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+							<PremiumCard className="p-3 bg-card border-border/80 rounded-xl space-y-1">
+								<div className="flex items-center justify-between">
+									<span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Members</span>
+									<Users className="w-3.5 h-3.5 text-blue-400" />
 								</div>
-							</button>
-						);
-					})}
-				</nav>
+								<p className="text-2xl font-black text-foreground leading-none">{stats?.totalMembers ?? 0}</p>
+								<p className="text-[10px] text-muted-foreground">{stats?.totalCoCeos ?? 0} CO-CEO{(stats?.totalCoCeos ?? 0) !== 1 ? "s" : ""} · {(stats?.totalMembers ?? 0) - (stats?.totalCoCeos ?? 0)} Members</p>
+							</PremiumCard>
 
-				{/* MAIN CONTENT PANEL */}
-				<main className={`flex-1 h-full overflow-y-auto p-4 md:p-6 lg:p-8 pb-24 md:pb-8 ${isMobileMenuOpen ? "hidden md:block" : "block"}`}>
-					{templateSuccess && (
-						<div className="mb-4 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold text-emerald-500 flex items-center gap-2">
-							<Check className="w-4 h-4 shrink-0" /> {templateSuccess}
-						</div>
-					)}
+							<PremiumCard className="p-3 bg-card border-border/80 rounded-xl space-y-1">
+								<div className="flex items-center justify-between">
+									<span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Active Projects</span>
+									<FolderKanban className="w-3.5 h-3.5 text-emerald-400" />
+								</div>
+								<p className="text-2xl font-black text-foreground leading-none">{stats?.activeProjects ?? realProjects.length}</p>
+								<p className="text-[10px] text-muted-foreground">{stats?.totalProjects ?? realProjects.length} total projects</p>
+							</PremiumCard>
 
-					{/* 1. OVERVIEW */}
-					{activeTab === "overview" && (
-						<div className="space-y-6 max-w-5xl">
-							<div>
-								<h2 className="text-xl font-black text-foreground tracking-tight">Organization Overview</h2>
-								<p className="text-xs text-muted-foreground mt-1">Real-time workspace statistics, membership, and project status.</p>
-							</div>
+							<PremiumCard className="p-3 bg-card border-border/80 rounded-xl space-y-1">
+								<div className="flex items-center justify-between">
+									<span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Active Tasks</span>
+									<Activity className="w-3.5 h-3.5 text-blue-400" />
+								</div>
+								<p className="text-2xl font-black text-foreground leading-none">{stats?.activeTasks ?? 0}</p>
+								<p className="text-[10px] text-muted-foreground">{stats?.pendingApprovals ?? 0} pending review</p>
+							</PremiumCard>
 
-							<div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-								<PremiumCard className="p-4 bg-card border-border/80 rounded-xl space-y-1.5">
-									<div className="flex items-center justify-between">
-										<span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Members</span>
-										<Users className="w-3.5 h-3.5 text-blue-400" />
-									</div>
-									<p className="text-3xl font-black text-foreground leading-none">{stats?.totalMembers ?? 0}</p>
-									<p className="text-[10px] text-muted-foreground">{stats?.totalCoCeos ?? 0} CO-CEO{(stats?.totalCoCeos ?? 0) !== 1 ? "s" : ""}</p>
-								</PremiumCard>
-
-								<PremiumCard className="p-4 bg-card border-border/80 rounded-xl space-y-1.5">
-									<div className="flex items-center justify-between">
-										<span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Active Projects</span>
-										<FolderKanban className="w-3.5 h-3.5 text-emerald-400" />
-									</div>
-									<p className="text-3xl font-black text-foreground leading-none">{stats?.activeProjects ?? realProjects.length}</p>
-									<p className="text-[10px] text-muted-foreground">{stats?.totalProjects ?? realProjects.length} total</p>
-								</PremiumCard>
-
-								<PremiumCard className="p-4 bg-card border-border/80 rounded-xl space-y-1.5">
-									<div className="flex items-center justify-between">
-										<span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Active Tasks</span>
-										<Activity className="w-3.5 h-3.5 text-blue-400" />
-									</div>
-									<p className="text-3xl font-black text-foreground leading-none">{stats?.activeTasks ?? 0}</p>
-									<p className="text-[10px] text-muted-foreground">{stats?.pendingApprovals ?? 0} pending review</p>
-								</PremiumCard>
-
-								<PremiumCard className={`p-4 rounded-xl space-y-1.5 border ${
-									(stats?.overdueTasks ?? 0) > 0 || (stats?.blockedTasks ?? 0) > 0
-										? "bg-rose-500/5 border-rose-500/20"
-										: "bg-card border-border/80"
-								}`}>
-									<div className="flex items-center justify-between">
-										<span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Needs Attention</span>
-										<AlertCircle className={`w-3.5 h-3.5 ${
-											(stats?.overdueTasks ?? 0) > 0 || (stats?.blockedTasks ?? 0) > 0
-												? "text-rose-400"
-												: "text-emerald-400"
-										}`} />
-									</div>
-									<p className={`text-3xl font-black leading-none ${
+							<PremiumCard className={`p-3 rounded-xl space-y-1 border ${
+								(stats?.overdueTasks ?? 0) > 0 || (stats?.blockedTasks ?? 0) > 0
+									? "bg-rose-500/5 border-rose-500/20"
+									: "bg-card border-border/80"
+							}`}>
+								<div className="flex items-center justify-between">
+									<span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Needs Attention</span>
+									<AlertCircle className={`w-3.5 h-3.5 ${
 										(stats?.overdueTasks ?? 0) > 0 || (stats?.blockedTasks ?? 0) > 0
-											? "text-rose-500"
-											: "text-emerald-500"
-									}`}>
-										{(stats?.overdueTasks ?? 0) + (stats?.blockedTasks ?? 0)}
-									</p>
-									<p className="text-[10px] text-muted-foreground">
-										{stats?.overdueTasks ?? 0} overdue · {stats?.blockedTasks ?? 0} blocked
-									</p>
-								</PremiumCard>
-							</div>
-
-							<div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-								<PremiumCard className="p-5 bg-card border-border/80 rounded-xl space-y-4">
-									<h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Workspace Identity</h3>
-									<div className="space-y-3 text-xs">
-										<div>
-											<p className="text-muted-foreground font-semibold">Organization Name</p>
-											<p className="font-bold text-foreground mt-0.5">{workspace?.name || "—"}</p>
-										</div>
-										<div>
-											<p className="text-muted-foreground font-semibold">System ID</p>
-											<p className="font-mono text-muted-foreground text-[11px] mt-0.5 truncate">{workspace?.id || "—"}</p>
-										</div>
-										<div>
-											<p className="text-muted-foreground font-semibold">Description</p>
-											<p className="font-medium text-foreground mt-0.5">{workspace?.description || "—"}</p>
-										</div>
-									</div>
-								</PremiumCard>
-
-								<PremiumCard className="p-5 bg-card border-border/80 rounded-xl space-y-3">
-									<h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Executive Summary</h3>
-									<div className="space-y-2">
-										<div className="flex items-center justify-between text-xs py-1.5 border-b border-border/30">
-											<span className="text-muted-foreground font-medium">Pending Approvals</span>
-											<span className={`font-bold ${
-												(stats?.pendingApprovals ?? 0) > 0 ? "text-amber-400" : "text-emerald-500"
-											}`}>{stats?.pendingApprovals ?? 0}</span>
-										</div>
-										<div className="flex items-center justify-between text-xs py-1.5 border-b border-border/30">
-											<span className="text-muted-foreground font-medium">Overdue Tasks</span>
-											<span className={`font-bold ${
-												(stats?.overdueTasks ?? 0) > 0 ? "text-rose-500" : "text-emerald-500"
-											}`}>{stats?.overdueTasks ?? 0}</span>
-										</div>
-										<div className="flex items-center justify-between text-xs py-1.5 border-b border-border/30">
-											<span className="text-muted-foreground font-medium">Blocked Tasks</span>
-											<span className={`font-bold ${
-												(stats?.blockedTasks ?? 0) > 0 ? "text-rose-500" : "text-emerald-500"
-											}`}>{stats?.blockedTasks ?? 0}</span>
-										</div>
-										<div className="flex items-center justify-between text-xs py-1.5 border-b border-border/30">
-											<span className="text-muted-foreground font-medium">Pending Invitations</span>
-											<span className={`font-bold ${
-												(stats?.pendingInvitations ?? 0) > 0 ? "text-amber-400" : "text-emerald-500"
-											}`}>{stats?.pendingInvitations ?? 0}</span>
-										</div>
-										<div className="flex items-center justify-between text-xs py-1.5">
-											<span className="text-muted-foreground font-medium">Completed Projects</span>
-											<span className="font-bold text-foreground">{stats?.completedProjects ?? 0}</span>
-										</div>
-									</div>
-								</PremiumCard>
-							</div>
+											? "text-rose-400"
+											: "text-emerald-400"
+									}`} />
+								</div>
+								<p className={`text-2xl font-black leading-none ${
+									(stats?.overdueTasks ?? 0) > 0 || (stats?.blockedTasks ?? 0) > 0
+										? "text-rose-500"
+										: "text-emerald-500"
+								}`}>
+									{(stats?.overdueTasks ?? 0) + (stats?.blockedTasks ?? 0)}
+								</p>
+								<p className="text-[10px] text-muted-foreground">
+									{stats?.overdueTasks ?? 0} overdue · {stats?.blockedTasks ?? 0} blocked
+								</p>
+							</PremiumCard>
 						</div>
-					)}
+
+						{/* Middle Row: Organization Identity + Executive Summary */}
+						<div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5">
+							{/* Organization Identity Card */}
+							<PremiumCard className="lg:col-span-7 p-3.5 bg-card border-border/80 rounded-xl space-y-2.5">
+								<div className="flex items-center justify-between">
+									<div className="flex items-center gap-2.5 min-w-0">
+										<OrganizationLogo logoUrl={workspace?.logoUrl} name={workspace?.name} size="md" />
+										<div className="min-w-0">
+											<h3 className="text-xs sm:text-sm font-extrabold text-foreground truncate">
+												{workspace?.name && workspace.name !== "Personal Workspace" ? workspace.name : "ManMadhan Workspace"}
+											</h3>
+											<span className="text-[9px] font-mono font-semibold px-2 py-0.5 rounded bg-gold/10 text-gold border border-gold/30 inline-block mt-0.5">
+												Organization Workspace
+											</span>
+										</div>
+									</div>
+								</div>
+
+								<p className="text-[11px] text-muted-foreground font-medium leading-normal truncate">
+									{workspace?.description || "Execution and progress management workspace for ManMadhan."}
+								</p>
+
+								<div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/40 text-[11px]">
+									<div className="space-y-0.5">
+										<span className="text-muted-foreground font-semibold text-[10px]">Organization ID</span>
+										<div className="flex items-center gap-1.5 font-mono text-[11px] text-foreground font-bold">
+											<span className="truncate">{workspace?.id ? `ORG-${workspace.id.substring(0, 8)}` : "ORG-MM1603"}</span>
+											<button
+												type="button"
+												onClick={() => navigator.clipboard.writeText(workspace?.id || "ORG-MM1603")}
+												className="text-muted-foreground hover:text-gold text-[10px] cursor-pointer"
+												title="Copy ID"
+											>
+												Copy
+											</button>
+										</div>
+									</div>
+									<div className="space-y-0.5">
+										<span className="text-muted-foreground font-semibold text-[10px]">Timezone</span>
+										<p className="font-bold text-foreground text-[11px]">Asia/Kolkata (en-IN)</p>
+									</div>
+									<div className="space-y-0.5">
+										<span className="text-muted-foreground font-semibold text-[10px]">Operational Window</span>
+										<p className="font-bold text-emerald-400 text-[11px]">04:00–23:00 IST</p>
+									</div>
+									<div className="space-y-0.5">
+										<span className="text-muted-foreground font-semibold text-[10px]">System Off</span>
+										<p className="font-bold text-amber-400 text-[11px]">23:00–04:00 IST</p>
+									</div>
+								</div>
+							</PremiumCard>
+
+							{/* Executive Summary */}
+							<PremiumCard className="lg:col-span-5 p-3.5 bg-card border-border/80 rounded-xl space-y-2">
+								<h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Executive Summary</h3>
+								<div className="space-y-1 text-xs">
+									<div
+										onClick={() => setActiveTab("approvals")}
+										className="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer border-b border-border/30"
+									>
+										<span className="text-muted-foreground font-semibold text-[11px]">Pending Approvals</span>
+										<NumericValue size="table" className={(stats?.pendingApprovals ?? 0) > 0 ? "text-amber-400 font-bold" : "text-emerald-500"} value={stats?.pendingApprovals ?? 0} />
+									</div>
+									<div
+										onClick={() => setActiveTab("projects")}
+										className="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer border-b border-border/30"
+									>
+										<span className="text-muted-foreground font-semibold text-[11px]">Overdue Tasks</span>
+										<NumericValue size="table" className={(stats?.overdueTasks ?? 0) > 0 ? "text-rose-500 font-bold" : "text-emerald-500"} value={stats?.overdueTasks ?? 0} />
+									</div>
+									<div
+										onClick={() => setActiveTab("projects")}
+										className="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer border-b border-border/30"
+									>
+										<span className="text-muted-foreground font-semibold text-[11px]">Blocked Tasks</span>
+										<NumericValue size="table" className={(stats?.blockedTasks ?? 0) > 0 ? "text-rose-500 font-bold" : "text-emerald-500"} value={stats?.blockedTasks ?? 0} />
+									</div>
+									<div
+										onClick={() => setActiveTab("people")}
+										className="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer border-b border-border/30"
+									>
+										<span className="text-muted-foreground font-semibold text-[11px]">Pending Invitations</span>
+										<NumericValue size="table" className={(stats?.pendingInvitations ?? 0) > 0 ? "text-amber-400 font-bold" : "text-emerald-500"} value={stats?.pendingInvitations ?? 0} />
+									</div>
+									<div
+										onClick={() => setActiveTab("projects")}
+										className="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer"
+									>
+										<span className="text-muted-foreground font-semibold text-[11px]">Completed Projects</span>
+										<NumericValue size="table" className="text-foreground font-bold" value={stats?.completedProjects ?? 0} />
+									</div>
+								</div>
+							</PremiumCard>
+						</div>
+
+						{/* Bottom Row: Organization Structure + Recent Activity */}
+						<div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+							{/* Organization Structure Summary */}
+							<PremiumCard className="p-3.5 bg-card border-border/80 rounded-xl space-y-2">
+								<h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Organization Structure</h3>
+								<div className="flex items-center justify-around py-2 px-2 rounded-xl bg-card/60 border border-border/40 text-center">
+									<div>
+										<span className="text-[9px] font-mono font-bold text-amber-500 uppercase">CEO</span>
+										<p className="text-xs font-bold text-foreground mt-0.5 truncate max-w-[120px]">{workspace?.ownerName || "Sai Krishnan"}</p>
+									</div>
+									<div className="text-muted-foreground text-xs">↓</div>
+									<div>
+										<span className="text-[9px] font-mono font-bold text-purple-400 uppercase">CO-CEOs</span>
+										<p className="text-xs font-black text-purple-400 mt-0.5">{stats?.totalCoCeos ?? 0}</p>
+									</div>
+									<div className="text-muted-foreground text-xs">↓</div>
+									<div>
+										<span className="text-[9px] font-mono font-bold text-blue-400 uppercase">Members</span>
+										<p className="text-xs font-black text-blue-400 mt-0.5">{stats?.totalMembers ?? 0}</p>
+									</div>
+								</div>
+							</PremiumCard>
+
+							{/* Recent Organization Activity */}
+							<PremiumCard className="p-3.5 bg-card border-border/80 rounded-xl space-y-2">
+								<h3 className="text-xs font-bold text-foreground uppercase tracking-wider">Recent Organization Activity</h3>
+								{recentActivity && recentActivity.length > 0 ? (
+									<div className="space-y-1.5">
+										{recentActivity.slice(0, 2).map((act: any, idx: number) => (
+											<div key={idx} className="flex items-center gap-2 text-[11px] py-0.5 border-b border-border/30 last:border-0">
+												<div className="w-1.5 h-1.5 rounded-full bg-gold shrink-0" />
+												<div className="min-w-0 flex-1 truncate">
+													<span className="font-bold text-foreground">{act.actor || "Member"} </span>
+													<span className="text-muted-foreground">{act.action} </span>
+													<span className="font-semibold text-gold">{act.resource}</span>
+												</div>
+												<span className="text-[9px] text-muted-foreground shrink-0 font-mono">{act.time || "recent"}</span>
+											</div>
+										))}
+									</div>
+								) : (
+									<div className="py-2.5 text-center text-[11px] text-muted-foreground font-medium">
+										No recent organization activity
+									</div>
+								)}
+							</PremiumCard>
+						</div>
+					</div>
+				)}
 
 					{/* 2. PROFILE */}
 					{activeTab === "profile" && (
-						<OrgGeneralTab workspace={workspace} userRole="CEO" onUpdated={(ws) => setWorkspace(ws)} />
+						<OrgGeneralTab
+							workspace={workspace}
+							userRole="CEO"
+							onUpdated={(ws) => setWorkspace(ws)}
+							onNavigateTab={(tabId) => setActiveTab(tabId)}
+						/>
 					)}
 
 					{/* 3. PEOPLE */}
 					{activeTab === "people" && (
-						<div className="space-y-6 max-w-4xl">
-							<div className="flex items-center justify-between">
-								<div>
-									<h2 className="text-xl font-black text-foreground tracking-tight">Organization People</h2>
-									<p className="text-xs text-muted-foreground mt-1">{stats?.totalMembers ?? 0} members · {stats?.totalCoCeos ?? 0} CO-CEO{(stats?.totalCoCeos ?? 0) !== 1 ? "s" : ""}</p>
-								</div>
-								<Link href={`${basePath}/organization/people`} className="px-3.5 py-2 bg-gold hover:bg-[#F0BC2B] text-black text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-sm">
-									<Users className="w-3.5 h-3.5" /> Open People Workspace
-								</Link>
-							</div>
-							<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-								<PremiumCard className="p-5 bg-card border-border/80 rounded-xl space-y-3">
-									<Users className="w-6 h-6 text-purple-500" />
-									<div>
-										<p className="text-xs font-bold text-foreground">CO-CEOs</p>
-										<p className="text-2xl font-black text-purple-500 mt-1">{stats?.totalCoCeos ?? 0}</p>
-									</div>
-									<Link href={`${basePath}/co-ceos`} className="text-xs font-bold text-gold flex items-center gap-1 hover:underline">
-										Manage CO-CEOs <ArrowRight className="w-3 h-3" />
-									</Link>
-								</PremiumCard>
-
-								<PremiumCard className="p-5 bg-card border-border/80 rounded-xl space-y-3">
-									<Users className="w-6 h-6 text-blue-500" />
-									<div>
-										<p className="text-xs font-bold text-foreground">Members</p>
-										<p className="text-2xl font-black text-blue-500 mt-1">{stats?.totalMembers ?? 0}</p>
-									</div>
-									<Link href={`${basePath}/members`} className="text-xs font-bold text-gold flex items-center gap-1 hover:underline">
-										Manage Members <ArrowRight className="w-3 h-3" />
-									</Link>
-								</PremiumCard>
-
-								<PremiumCard className="p-5 bg-card border-border/80 rounded-xl space-y-3">
-									<Mail className="w-6 h-6 text-amber-500" />
-									<div>
-										<p className="text-xs font-bold text-foreground">Pending Invitations</p>
-										<p className="text-2xl font-black text-amber-500 mt-1">{stats?.pendingInvitations ?? 0}</p>
-									</div>
-									<Link href={`${basePath}/organization/people`} className="text-xs font-bold text-gold flex items-center gap-1 hover:underline">
-										View Invitations <ArrowRight className="w-3 h-3" />
-									</Link>
-								</PremiumCard>
-							</div>
-						</div>
+						<OrgPeopleTab userRole="CEO" basePath={basePath} />
 					)}
 
 					{/* 4. PROJECTS */}
@@ -714,74 +692,8 @@ export function OrgControlCenterView({ basePath }: OrgControlCenterViewProps) {
 					{activeTab === "working-hours" && <OrgWorkingHoursTab userRole="CEO" />}
 
 					{/* 7. REAL APPROVALS QUEUE */}
-					{activeTab === "approvals" && (
-						<div className="space-y-6 max-w-4xl">
-							<div className="flex items-center justify-between">
-								<div>
-									<h2 className="text-xl font-black text-foreground tracking-tight flex items-center gap-2">
-										<ClipboardCheck className="w-5 h-5 text-gold" /> Approvals Queue
-									</h2>
-									<p className="text-xs text-muted-foreground mt-1">Review task submissions, deadline extension requests, and leave approvals.</p>
-								</div>
-								<button onClick={fetchApprovals} className="p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground transition-colors">
-									<RefreshCw className={`w-3.5 h-3.5 ${loadingApprovals ? "animate-spin text-gold" : ""}`} />
-								</button>
-							</div>
-
-							{loadingApprovals ? (
-								<div className="flex items-center justify-center py-16">
-									<Loader2 className="w-6 h-6 animate-spin text-gold" />
-								</div>
-							) : (approvals.tasks?.length || 0) === 0 && (approvals.extensions?.length || 0) === 0 ? (
-								<PremiumCard className="p-8 bg-card border-border/80 rounded-xl text-center space-y-2">
-									<CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto opacity-80" />
-									<p className="text-sm font-bold text-foreground">No pending approval requests</p>
-									<p className="text-xs text-muted-foreground max-w-sm mx-auto">All task submissions and extension requests have been reviewed and processed.</p>
-								</PremiumCard>
-							) : (
-								<div className="space-y-4">
-									{/* Tasks pending review */}
-									{approvals.tasks?.map((t: any) => (
-										<PremiumCard key={t.id} className="p-4 bg-card border-border/80 rounded-xl space-y-3">
-											<div className="flex items-start justify-between gap-3">
-												<div>
-													<span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 border border-blue-500/20">
-														Task Submitted for Review
-													</span>
-													<h3 className="text-sm font-bold text-foreground mt-1.5">{t.title}</h3>
-													<p className="text-xs text-muted-foreground mt-0.5">
-														Submitted by <span className="font-semibold text-foreground">{t.assigneeName || "Team Member"}</span> · {t.projectName || "Organization Task"}
-													</p>
-												</div>
-												<span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20">
-													REVIEW
-												</span>
-											</div>
-
-											<div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
-												<button
-													type="button"
-													onClick={() => handleRejectTask(t.id)}
-													disabled={approvalActionId === t.id}
-													className="px-3.5 py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 text-xs font-bold transition-colors flex items-center gap-1 disabled:opacity-50"
-												>
-													<XCircle className="w-3.5 h-3.5" /> Request Changes
-												</button>
-												<button
-													type="button"
-													onClick={() => handleApproveTask(t.id)}
-													disabled={approvalActionId === t.id}
-													className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50"
-												>
-													{approvalActionId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Approve Work
-												</button>
-											</div>
-										</PremiumCard>
-									))}
-								</div>
-							)}
-						</div>
-					)}
+					{/* 7. APPROVALS CENTER */}
+					{activeTab === "approvals" && <OrgApprovalsTab userRole="CEO" />}
 
 					{/* 8. INTERACTIVE DOCUMENTS WORKSPACE */}
 					{activeTab === "documents" && (
@@ -1195,7 +1107,6 @@ export function OrgControlCenterView({ basePath }: OrgControlCenterViewProps) {
 							)}
 						</div>
 					)}
-				</main>
 			</div>
 
 			{/* Document View Modal */}
@@ -1238,39 +1149,33 @@ export function OrgControlCenterView({ basePath }: OrgControlCenterViewProps) {
 						<div className="space-y-3">
 							<div className="space-y-1">
 								<label className="text-xs font-bold text-foreground">Select Target Project</label>
-								<select
+								<AppSelect
 									value={targetProject}
-									onChange={(e) => setTargetProject(e.target.value)}
-									className="w-full h-10 rounded-xl bg-background border border-border px-3 text-xs font-medium focus:border-gold outline-none"
-								>
-									{realProjects.length === 0 ? (
-										<option value="General Organization">General Organization</option>
-									) : (
-										realProjects.map((p) => (
-											<option key={p.id} value={p.name}>
-												{p.name}
-											</option>
-										))
-									)}
-								</select>
+									onChange={(val) => setTargetProject(val)}
+									options={
+										realProjects.length === 0
+											? [{ value: "General Organization", label: "General Organization" }]
+											: realProjects.map((p) => ({ value: p.name, label: p.name }))
+									}
+								/>
 							</div>
 
 							<div className="space-y-1">
 								<label className="text-xs font-bold text-foreground">Select Target 8-Stage Step</label>
-								<select
+								<AppSelect
 									value={targetStage}
-									onChange={(e) => setTargetStage(e.target.value)}
-									className="w-full h-10 rounded-xl bg-background border border-border px-3 text-xs font-medium focus:border-gold outline-none"
-								>
-									<option value="01 Project Invite & Connect">01 Project Invite & Connect</option>
-									<option value="02 PRD">02 PRD</option>
-									<option value="03 TRD">03 TRD</option>
-									<option value="04 Application Workflow">04 Application Workflow</option>
-									<option value="05 UI/UX Design Brief">05 UI/UX Design Brief</option>
-									<option value="06 Database / Schema Plan">06 Database / Schema Plan</option>
-									<option value="07 Implementation Plan">07 Implementation Plan</option>
-									<option value="08 Implementation & Final Verification">08 Implementation & Final Verification</option>
-								</select>
+									onChange={(val) => setTargetStage(val)}
+									options={[
+										{ value: "01 Project Invite & Connect", label: "01 Project Invite & Connect" },
+										{ value: "02 PRD", label: "02 PRD" },
+										{ value: "03 TRD", label: "03 TRD" },
+										{ value: "04 Application Workflow", label: "04 Application Workflow" },
+										{ value: "05 UI/UX Design Brief", label: "05 UI/UX Design Brief" },
+										{ value: "06 Database / Schema Plan", label: "06 Database / Schema Plan" },
+										{ value: "07 Implementation Plan", label: "07 Implementation Plan" },
+										{ value: "08 Implementation & Final Verification", label: "08 Implementation & Final Verification" },
+									]}
+								/>
 							</div>
 						</div>
 

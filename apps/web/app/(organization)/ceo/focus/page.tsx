@@ -2,640 +2,688 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  Focus as FocusIcon,
-  Play,
-  Pause,
-  Square,
-  Clock,
-  BarChart3,
-  CheckSquare,
-  AlertCircle,
-  Loader2,
-  Folder
+	Focus as FocusIcon, Play, Pause, Square, Clock,
+	CheckSquare, AlertCircle, Loader2, FolderKanban, CheckCircle2,
+	AlertTriangle, RefreshCw, History, X
 } from "lucide-react";
+import { PremiumCard } from "@/components/ui/premium-card";
 import apiClient from "@/lib/api-client";
 import { useRegisterRefresh } from "@/components/providers/global-refresh-provider";
-import { StartFocusModal } from "@/components/organization/ceo-focus/start-focus-modal";
+import { TaskSelectorModal } from "@/components/organization/ceo-focus/task-selector-modal";
 import { EndFocusModal } from "@/components/organization/ceo-focus/end-focus-modal";
-import { SessionDetailModal } from "@/components/organization/ceo-focus/session-detail-modal";
-import { TaskDetailDrawer } from "@/components/organization/ceo-focus/task-detail-drawer";
 import { HistoryDrawer } from "@/components/organization/ceo-focus/history-drawer";
 import { StatsDrawer } from "@/components/organization/ceo-focus/stats-drawer";
-import { NextSessionDrawer } from "@/components/organization/ceo-focus/next-session-drawer";
 
 function formatDigitalTimer(seconds: number) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+	const h = Math.floor(seconds / 3600);
+	const m = Math.floor((seconds % 3600) / 60);
+	const s = seconds % 60;
+	return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 function formatShortDuration(seconds: number) {
-  if (!seconds || seconds <= 0) return "0m";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+	if (!seconds || seconds <= 0) return "0m";
+	const h = Math.floor(seconds / 3600);
+	const m = Math.floor((seconds % 3600) / 60);
+	if (h > 0) return `${h}h ${m}m`;
+	return `${m}m`;
 }
 
 export default function CEOFocusPage() {
-  // Core State
-  const [activeSession, setActiveSession] = useState<any>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const [overview, setOverview] = useState<any>(null);
-  const [priorities, setPriorities] = useState<any[]>([]);
-  const [allTasks, setAllTasks] = useState<any[]>([]);
-  const [allProjects, setAllProjects] = useState<any[]>([]);
-  const [history, setHistory] = useState<any[]>([]);
-  const [weeklyData, setWeeklyData] = useState<any>(null);
-  const [weekOffset, setWeekOffset] = useState(0);
+	// Core State
+	const [activeSession, setActiveSession] = useState<any>(null);
+	const [selectedTask, setSelectedTask] = useState<any>(null);
+	const [elapsed, setElapsed] = useState(0);
+	const [overview, setOverview] = useState<any>(null);
+	const [priorities, setPriorities] = useState<any[]>([]);
+	const [allTasks, setAllTasks] = useState<any[]>([]);
+	const [allProjects, setAllProjects] = useState<any[]>([]);
+	const [history, setHistory] = useState<any[]>([]);
+	const [scheduleStatus, setScheduleStatus] = useState<any>(null);
+	const [weeklyData, setWeeklyData] = useState<any>(null);
+	const [weekOffset, setWeekOffset] = useState(0);
 
-  // Countdown & Timer State Machine
-  const [countdown, setCountdown] = useState<number | null>(null);
+	// Modals & Drawers State
+	const [showTaskSelector, setShowTaskSelector] = useState(false);
+	const [showEndModal, setShowEndModal] = useState(false);
+	const [showPauseModal, setShowPauseModal] = useState(false);
+	const [pauseReason, setPauseReason] = useState("");
+	const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+	const [showStatsDrawer, setShowStatsDrawer] = useState(false);
 
-  // Loading & Error states
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [error, setError] = useState("");
+	// Loading & Error States
+	const [loading, setLoading] = useState(true);
+	const [actionLoading, setActionLoading] = useState(false);
+	const [actionSuccess, setActionSuccess] = useState("");
+	const [error, setError] = useState("");
 
-  // Modals & Drawers states
-  const [showStartModal, setShowStartModal] = useState(false);
-  const [showEndModal, setShowEndModal] = useState(false);
-  const [showNextSessionDrawer, setShowNextSessionDrawer] = useState(false);
-  const [selectedHistorySession, setSelectedHistorySession] = useState<any>(null);
+	const timerRef = useRef<any>(null);
 
-  // Slide-over Drawers
-  const [showTaskDrawer, setShowTaskDrawer] = useState(false);
-  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
-  const [showStatsDrawer, setShowStatsDrawer] = useState(false);
+	// Fetch Focus Workspace Data
+	const loadWorkspaceData = useCallback(async () => {
+		try {
+			const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
+			const wsParam = workspaceId ? `?workspaceId=${workspaceId}` : "";
+			const wsParamAnd = workspaceId ? `&workspaceId=${workspaceId}` : "";
 
-  const timerRef = useRef<any>(null);
+			const [activeRes, overviewRes, prioritiesRes, historyRes, scheduleRes, weeklyRes] = await Promise.all([
+				apiClient.get(`/org/focus/active${wsParam}`).catch(() => null),
+				apiClient.get(`/org/focus/overview${wsParam}`).catch(() => null),
+				apiClient.get(`/org/focus/priorities${wsParam}`).catch(() => null),
+				apiClient.get(`/org/focus/history?limit=20${wsParamAnd}`).catch(() => null),
+				apiClient.get(`/org/working-hours/status`).catch(() => null),
+				apiClient.get(`/org/focus/weekly?weekOffset=${weekOffset}${wsParamAnd}`).catch(() => null),
+			]);
 
-  const isWorkingHours = () => {
-    const h = new Date().getHours();
-    return h >= 4 && h < 23;
-  };
+			if (activeRes?.data?.success) {
+				const session = activeRes.data.data;
+				setActiveSession(session);
+				if (session && session.status === "Active") {
+					const startTime = session.resumedAt || session.startTime;
+					const initialElapsed = (session.durationSeconds || 0) + Math.max(0, Math.floor((Date.now() - new Date(startTime).getTime()) / 1000));
+					setElapsed(initialElapsed);
+					if (session.task) setSelectedTask(session.task);
+				} else if (session && session.status === "Paused") {
+					setElapsed(session.durationSeconds || 0);
+					if (session.task) setSelectedTask(session.task);
+				} else {
+					setElapsed(0);
+				}
+			}
 
-  // Fetch focus workspace data
-  const loadWorkspaceData = useCallback(async () => {
-    try {
-      const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
-      const wsParam = workspaceId ? `?workspaceId=${workspaceId}` : "";
-      const wsParamAnd = workspaceId ? `&workspaceId=${workspaceId}` : "";
+			if (overviewRes?.data?.success) setOverview(overviewRes.data.data);
+			if (prioritiesRes?.data?.success) {
+				const taskList = prioritiesRes.data.data.tasks || [];
+				setPriorities(prioritiesRes.data.data.priorities || []);
+				setAllTasks(taskList);
+				setAllProjects(prioritiesRes.data.data.projects || []);
 
-      const [activeRes, overviewRes, prioritiesRes, historyRes, weeklyRes] = await Promise.all([
-        apiClient.get(`/org/focus/active${wsParam}`).catch(() => null),
-        apiClient.get(`/org/focus/overview${wsParam}`).catch(() => null),
-        apiClient.get(`/org/focus/priorities${wsParam}`).catch(() => null),
-        apiClient.get(`/org/focus/history?limit=20${wsParamAnd}`).catch(() => null),
-        apiClient.get(`/org/focus/weekly?weekOffset=${weekOffset}${wsParamAnd}`).catch(() => null),
-      ]);
+				if (!selectedTask && !activeSession && taskList.length > 0) {
+					setSelectedTask(taskList[0]);
+				}
+			}
+			if (historyRes?.data?.success) setHistory(historyRes.data.data || []);
+			if (scheduleRes?.data?.success) setScheduleStatus(scheduleRes.data.data);
+			if (weeklyRes?.data?.success) setWeeklyData(weeklyRes.data.data);
+		} catch {
+			setError("Failed to load organization focus workspace data");
+		} finally {
+			setLoading(false);
+		}
+	}, [selectedTask, activeSession, weekOffset]);
 
-      if (activeRes?.data?.success) {
-        const session = activeRes.data.data;
-        setActiveSession(session);
-        if (session && session.status === "Active") {
-          const startTime = session.resumedAt || session.startTime;
-          const initialElapsed = (session.durationSeconds || 0) + Math.max(0, Math.floor((Date.now() - new Date(startTime).getTime()) / 1000));
-          setElapsed(initialElapsed);
-        } else if (session && session.status === "Paused") {
-          setElapsed(session.durationSeconds || 0);
-        } else {
-          setElapsed(0);
-        }
-      }
+	useEffect(() => {
+		loadWorkspaceData();
+	}, [loadWorkspaceData]);
 
-      if (overviewRes?.data?.success) setOverview(overviewRes.data.data);
-      if (prioritiesRes?.data?.success) {
-        setPriorities(prioritiesRes.data.data.priorities || []);
-        setAllTasks(prioritiesRes.data.data.tasks || []);
-        setAllProjects(prioritiesRes.data.data.projects || []);
-      }
-      if (historyRes?.data?.success) setHistory(historyRes.data.data || []);
-      if (weeklyRes?.data?.success) setWeeklyData(weeklyRes.data.data);
-    } catch {
-      setError("Failed to load organization focus workspace data");
-    } finally {
-      setLoading(false);
-    }
-  }, [weekOffset]);
+	// Register with Global Pull-to-Refresh
+	useRegisterRefresh(loadWorkspaceData);
 
-  useEffect(() => {
-    loadWorkspaceData();
-  }, [loadWorkspaceData]);
+	// Precision Timestamp-Driven Timer Engine
+	useEffect(() => {
+		if (activeSession?.status === "Active") {
+			const updatePrecisionElapsed = () => {
+				const startTime = activeSession.resumedAt || activeSession.startTime;
+				if (startTime) {
+					const activeMs = Date.now() - new Date(startTime).getTime();
+					const currentSegment = Math.max(0, Math.floor(activeMs / 1000));
+					setElapsed((activeSession.durationSeconds || 0) + currentSegment);
+				}
+			};
 
-  // Register with Global Pull-to-Refresh system
-  useRegisterRefresh(loadWorkspaceData);
+			updatePrecisionElapsed();
+			timerRef.current = setInterval(updatePrecisionElapsed, 1000);
+		} else if (activeSession?.status === "Paused") {
+			setElapsed(activeSession.durationSeconds || 0);
+			clearInterval(timerRef.current);
+		} else {
+			setElapsed(0);
+			clearInterval(timerRef.current);
+		}
 
-  // Precision Timestamp-Driven Timer Engine
-  useEffect(() => {
-    if (activeSession?.status === "Active") {
-      const updatePrecisionElapsed = () => {
-        const startTime = activeSession.resumedAt || activeSession.startTime;
-        if (startTime) {
-          const activeMs = Date.now() - new Date(startTime).getTime();
-          const currentSegment = Math.max(0, Math.floor(activeMs / 1000));
-          setElapsed((activeSession.durationSeconds || 0) + currentSegment);
-        }
-      };
+		return () => clearInterval(timerRef.current);
+	}, [activeSession]);
 
-      updatePrecisionElapsed();
-      timerRef.current = setInterval(updatePrecisionElapsed, 1000);
-    } else if (activeSession?.status === "Paused") {
-      setElapsed(activeSession.durationSeconds || 0);
-      clearInterval(timerRef.current);
-    } else {
-      setElapsed(0);
-      clearInterval(timerRef.current);
-    }
+	// Start Focus Session
+	const handleStartFocus = async (taskToStart?: any) => {
+		const targetTask = taskToStart || selectedTask;
+		const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
 
-    return () => clearInterval(timerRef.current);
-  }, [activeSession]);
+		setActionLoading(true);
+		setError("");
+		try {
+			const res = await apiClient.post("/org/focus/start", {
+				workspaceId,
+				sourceType: "TASK",
+				taskId: targetTask?.id,
+				projectId: targetTask?.projectId,
+				title: targetTask?.title || "Executive Focus",
+				description: targetTask?.description,
+				priority: targetTask?.priority || "High",
+			});
 
-  // Focus Handlers
-  const handleStartSession = async (sessionData: any) => {
-    if (!isWorkingHours()) {
-      setError("Focus is not available outside working hours (04:00 – 23:00)");
-      return;
-    }
-    const workspaceId = localStorage.getItem("workspaceId");
+			if (res.data?.success) {
+				setActionSuccess("✓ Focus session started.");
+				setTimeout(() => setActionSuccess(""), 4000);
+				await loadWorkspaceData();
+			} else {
+				setError(res.data?.error || "Failed to start focus session.");
+			}
+		} catch (err: any) {
+			setError(err.response?.data?.error || err.message || "Failed to start focus session.");
+		} finally {
+			setActionLoading(false);
+		}
+	};
 
-    setActionLoading(true);
-    setError("");
-    try {
-      const res = await apiClient.post("/org/focus/start", {
-        workspaceId,
-        ...sessionData,
-      });
-      if (res.data.success) {
-        await loadWorkspaceData();
-      } else {
-        setError(res.data.error || "Failed to start focus session");
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.message || "Failed to start focus session");
-    } finally {
-      setActionLoading(false);
-    }
-  };
+	// Pause Focus Session
+	const handlePauseFocus = async () => {
+		if (!activeSession) return;
+		const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
+		setActionLoading(true);
+		try {
+			const res = await apiClient.post("/org/focus/pause", { workspaceId, reason: pauseReason });
+			if (res.data?.success) {
+				setActiveSession({ ...activeSession, status: "Paused" });
+				setShowPauseModal(false);
+				setPauseReason("");
+				setActionSuccess("✓ Focus session paused.");
+				setTimeout(() => setActionSuccess(""), 4000);
+			} else {
+				setError(res.data?.error || "Failed to pause session.");
+			}
+		} catch (err: any) {
+			setError(err.response?.data?.error || err.message || "Failed to pause session.");
+		} finally {
+			setActionLoading(false);
+		}
+	};
 
-  const startCountdownSequence = async (pendingData: any): Promise<void> => {
-    if (!isWorkingHours()) {
-      setError("Focus is not available outside working hours (04:00 – 23:00)");
-      return;
-    }
-    setCountdown(3);
-    return new Promise<void>((resolve) => {
-      const cdTimer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev === null || prev <= 1) {
-            clearInterval(cdTimer);
-            handleStartSession(pendingData);
-            resolve();
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 800);
-    });
-  };
+	// Resume Focus Session
+	const handleResumeFocus = async () => {
+		if (!activeSession) return;
+		const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
+		setActionLoading(true);
+		try {
+			const res = await apiClient.post("/org/focus/resume", { workspaceId });
+			if (res.data?.success) {
+				setActiveSession({ ...activeSession, status: "Active" });
+				setActionSuccess("✓ Focus session resumed.");
+				setTimeout(() => setActionSuccess(""), 4000);
+			} else {
+				setError(res.data?.error || "Failed to resume session.");
+			}
+		} catch (err: any) {
+			setError(err.response?.data?.error || err.message || "Failed to resume session.");
+		} finally {
+			setActionLoading(false);
+		}
+	};
 
-  const handlePauseSession = async () => {
-    if (!activeSession) return;
-    const workspaceId = localStorage.getItem("workspaceId");
-    setActionLoading(true);
-    try {
-      const res = await apiClient.post("/org/focus/pause", { workspaceId });
-      if (res.data.success) {
-        setActiveSession({ ...activeSession, status: "Paused" });
-      } else {
-        setError(res.data.error || "Failed to pause session");
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to pause session");
-    } finally {
-      setActionLoading(false);
-    }
-  };
+	// Finish Focus Session Workflow
+	const handleFinishFocus = async (endData: any) => {
+		if (!activeSession) return;
+		const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
+		setActionLoading(true);
+		try {
+			const res = await apiClient.post("/org/focus/end", {
+				workspaceId,
+				...endData,
+			});
+			if (res.data?.success) {
+				setActiveSession(null);
+				setElapsed(0);
+				setShowEndModal(false);
+				setActionSuccess("✓ Focus session completed and recorded.");
+				setTimeout(() => setActionSuccess(""), 4000);
+				await loadWorkspaceData();
+			} else {
+				setError(res.data?.error || "Failed to finish session.");
+			}
+		} catch (err: any) {
+			setError(err.response?.data?.error || err.message || "Failed to finish session.");
+		} finally {
+			setActionLoading(false);
+		}
+	};
 
-  const handleResumeSession = async () => {
-    if (!activeSession) return;
-    if (!isWorkingHours()) {
-      setError("Focus is not available outside working hours (04:00 – 23:00)");
-      return;
-    }
-    const workspaceId = localStorage.getItem("workspaceId");
-    setActionLoading(true);
-    try {
-      const res = await apiClient.post("/org/focus/resume", { workspaceId });
-      if (res.data.success) {
-        setActiveSession({ ...activeSession, status: "Active" });
-      } else {
-        setError(res.data.error || "Failed to resume session");
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to resume session");
-    } finally {
-      setActionLoading(false);
-    }
-  };
+	// Create Follow-Up Task
+	const handleCreateFollowUpTask = async (taskData: any) => {
+		const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
+		const res = await apiClient.post("/org/focus/follow-up-task", {
+			workspaceId,
+			...taskData,
+		});
+		if (res.data?.success) {
+			await loadWorkspaceData();
+			return res.data.data;
+		}
+		throw new Error(res.data?.error || "Failed to create follow-up task.");
+	};
 
-  const handleEndSession = async (endData: any) => {
-    if (!activeSession) return;
-    const workspaceId = localStorage.getItem("workspaceId");
-    setActionLoading(true);
-    try {
-      const res = await apiClient.post("/org/focus/end", {
-        workspaceId,
-        ...endData,
-      });
-      if (res.data.success) {
-        setActiveSession(null);
-        setElapsed(0);
-        await loadWorkspaceData();
-        setShowNextSessionDrawer(true);
-      } else {
-        setError(res.data.error || "Failed to end session");
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to end session");
-    } finally {
-      setActionLoading(false);
-    }
-  };
+	if (loading) {
+		return (
+			<div className="h-full w-full min-h-[400px] flex items-center justify-center">
+				<Loader2 className="w-8 h-8 animate-spin text-gold" />
+			</div>
+		);
+	}
 
-  const handleCreateFollowUpTask = async (taskData: any) => {
-    const workspaceId = localStorage.getItem("workspaceId");
-    const res = await apiClient.post("/org/focus/follow-up-task", {
-      workspaceId,
-      ...taskData,
-    });
-    if (res.data.success) {
-      return res.data.data;
-    }
-    throw new Error(res.data.error || "Failed to create follow-up task");
-  };
+	const isOperational = scheduleStatus?.isOperational ?? true;
+	const activeStatusText = activeSession?.status === "Active" ? "FOCUSING" : activeSession?.status === "Paused" ? "PAUSED" : "READY";
+	const currentProject = allProjects.find((p) => p.id === selectedTask?.projectId) || activeSession?.project;
 
-  if (loading) {
-    return (
-      <div className="h-full w-full min-h-[300px] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#C9A52A] dark:text-[#D4B12F]" />
-      </div>
-    );
-  }
+	return (
+		<div className="max-w-[1240px] w-full mx-auto p-4 sm:p-6 space-y-4 font-sans select-none">
+			{/* 1. PAGE HEADER */}
+			<div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+				<div>
+					<h1 className="text-xl font-extrabold text-[#F4F7F5] tracking-tight flex items-center gap-2">
+						FOCUS
+					</h1>
+					<p className="text-xs text-[#9AA4B2] font-medium mt-0.5">
+						Deep work execution console
+					</p>
+				</div>
 
-  const systemActive = isWorkingHours();
-  const currentStatus = activeSession?.status || "Idle";
-  const targetSeconds = activeSession?.targetDurationSeconds || 1500;
-  const ringProgress = activeSession?.targetDurationSeconds
-    ? Math.min(100, (elapsed / targetSeconds) * 100)
-    : (elapsed % 3600) / 3600 * 100;
+				{/* Working Hours Live Status Pill & Refresh Button */}
+				<div className="flex items-center gap-2 shrink-0">
+					<span
+						className={`px-3 py-1 rounded-full text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 border ${
+							isOperational
+								? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+								: "bg-rose-500/15 text-rose-400 border-rose-500/30"
+						}`}
+					>
+						<span className={`w-2 h-2 rounded-full ${isOperational ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
+						{isOperational ? "● SYSTEM ACTIVE · 04:00–23:00 IST" : "● SYSTEM RESTRICTED · 23:00–04:00 IST"}
+					</span>
 
-  return (
-    <div className="w-full h-full flex flex-col justify-between overflow-y-auto sm:overflow-hidden bg-[#F9FAFB] dark:bg-[#060806] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none p-4 sm:p-5 md:px-8 md:py-4 pb-[calc(84px+env(safe-area-inset-bottom))] md:pb-4 max-w-[1600px] mx-auto space-y-3.5 box-border [scrollbar-width:none]">
-      
-      {/* 1. FOCUS HEADER BAR */}
-      <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB] dark:border-[#272D36] shrink-0">
-        <div className="space-y-1">
-          <h1 className="text-[20px] sm:text-[24px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
-            Focus
-          </h1>
-          <p className="text-[12px] text-[#667085] dark:text-[#8B95A5]">
-            Deep work execution instrument
-          </p>
-        </div>
+					<button
+						type="button"
+						onClick={loadWorkspaceData}
+						className="p-1.5 rounded-lg bg-[#0F1218] border border-white/10 text-[#9AA4B2] hover:text-[#F4F7F5] transition-colors cursor-pointer"
+						title="Refresh focus workspace"
+					>
+						<RefreshCw className="w-3.5 h-3.5" />
+					</button>
+				</div>
+			</div>
 
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-[11px] sm:text-[12px] font-semibold px-3 py-1 rounded-full border flex items-center gap-1.5 ${
-              systemActive
-                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${systemActive ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
-            {systemActive ? "System Active · 04:00–23:00" : "System Offline · 23:00–04:00"}
-          </span>
-        </div>
-      </div>
+			{/* Action Notifications */}
+			{actionSuccess && (
+				<div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+					<CheckCircle2 className="w-4 h-4 shrink-0" /> {actionSuccess}
+				</div>
+			)}
+			{error && (
+				<div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in">
+					<div className="flex items-center gap-2">
+						<AlertTriangle className="w-4 h-4 shrink-0" /> {error}
+					</div>
+					<button type="button" onClick={() => setError("")} className="text-rose-400 hover:text-white cursor-pointer">
+						<X className="w-3.5 h-3.5" />
+					</button>
+				</div>
+			)}
 
-      {/* Global Error Banner */}
-      {error && (
-        <div className="my-1 p-2 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-600 dark:text-rose-400 text-[11.5px] flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">{error}</span>
-          </div>
-          <button onClick={() => setError("")} className="font-semibold underline cursor-pointer shrink-0 ml-2">
-            Dismiss
-          </button>
-        </div>
-      )}
+			{/* 2. KPI SUMMARY (STRICT 4-COLUMN GRID) */}
+			<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+				<PremiumCard className="p-3.5 bg-[#0F1218] border-white/10 rounded-xl space-y-1">
+					<span className="text-[10px] font-mono text-[#9AA4B2] uppercase tracking-wider block font-bold">Focus Time Today</span>
+					<span className="text-xl font-extrabold text-gold font-mono block">
+						{formatShortDuration(overview?.totalFocusedSeconds || 0)}
+					</span>
+				</PremiumCard>
 
-      {/* 2. UNIFIED PHYSICAL 3D STOPWATCH INSTRUMENT */}
-      <div className="flex-1 flex flex-col items-center justify-center py-1 sm:py-2 my-auto">
-        
-        {/* Layer 2: Outer Stopwatch Body */}
-        <div style={{ width: "min(440px, calc(100vw - 24px))" }} className="mx-auto bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[22px] p-3 sm:p-4.5 shadow-[0_12px_32px_rgba(0,0,0,0.45),0_1px_2px_rgba(255,255,255,0.06)_inset] text-center flex flex-col items-center justify-between space-y-3 sm:space-y-3.5 my-auto shrink-0 relative transition-transform duration-300">
-          
-          {/* Top Metallic Bevel Crown Indicator */}
-          <div className="w-10 h-2 rounded-full bg-[#E4E7EC] dark:bg-[#222933] border border-[#D0D5DD] dark:border-[#2A323D] mx-auto shadow-inner -mt-1" />
+				<PremiumCard className="p-3.5 bg-[#0F1218] border-white/10 rounded-xl space-y-1">
+					<span className="text-[10px] font-mono text-[#9AA4B2] uppercase tracking-wider block font-bold">Sessions</span>
+					<span className="text-xl font-extrabold text-[#F4F7F5] font-mono block">
+						{overview?.totalSessionsCount || 0}
+					</span>
+				</PremiumCard>
 
-          {/* Layer 3: Inner Bevel Surface */}
-          <div className="w-full rounded-[18px] bg-[#F8F9FB] dark:bg-[#11161D] border border-[#E4E7EC] dark:border-[#212933] p-2.5 sm:p-3.5 shadow-[inset_0_2px_6px_rgba(0,0,0,0.4)] relative">
-            
-            {/* Layer 4: Recessed Display Box */}
-            <div className="w-full rounded-[14px] bg-[#07090D] border border-[#19202A] p-3 sm:p-5 shadow-[inset_0_4px_16px_rgba(0,0,0,0.9)] flex flex-col items-center justify-center relative overflow-hidden">
-              
-              {/* Layer 5: SVG Progress Ring */}
-              <div className="relative w-[140px] h-[140px] sm:w-[175px] sm:h-[175px] flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                  {/* Track Circle */}
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="42"
-                    stroke="#161C24"
-                    strokeWidth="6"
-                    fill="none"
-                  />
-                  {/* Active Progress Circle */}
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="42"
-                    stroke="#C9A52A"
-                    strokeWidth="6"
-                    fill="none"
-                    strokeDasharray={263.89}
-                    strokeDashoffset={263.89 - (263.89 * Math.min(100, ringProgress)) / 100}
-                    strokeLinecap="round"
-                    className="transition-all duration-500"
-                  />
-                </svg>
+				<PremiumCard className="p-3.5 bg-[#0F1218] border-white/10 rounded-xl space-y-1">
+					<span className="text-[10px] font-mono text-[#9AA4B2] uppercase tracking-wider block font-bold">Tasks Completed</span>
+					<span className="text-xl font-extrabold text-emerald-400 font-mono block">
+						{overview?.completedCount || 0}
+					</span>
+				</PremiumCard>
 
-                {/* Layer 6: Hero Timer & Status Centered Inside Ring */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-2">
-                  <span className="text-[8.5px] sm:text-[9px] font-bold uppercase tracking-[0.12em] text-[#8B95A5]">
-                    {countdown !== null
-                      ? "STARTING IN"
-                      : !systemActive
-                      ? "OFFLINE"
-                      : currentStatus === "Active"
-                      ? "FOCUSING"
-                      : currentStatus === "Paused"
-                      ? "PAUSED"
-                      : "STOPWATCH"}
-                  </span>
+				<PremiumCard className="p-3.5 bg-[#0F1218] border-white/10 rounded-xl space-y-1">
+					<span className="text-[10px] font-mono text-[#9AA4B2] uppercase tracking-wider block font-bold">Current Session</span>
+					<span className="text-xl font-extrabold text-purple-400 font-mono block">
+						{formatDigitalTimer(elapsed)}
+					</span>
+				</PremiumCard>
+			</div>
 
-                  {/* Hero Digital Timer */}
-                  <div className="text-[28px] sm:text-[36px] font-extrabold font-mono tabular-nums text-[#F2F4F7] tracking-tight leading-none my-1 select-all">
-                    {countdown !== null ? (
-                      <span className="text-[#C9A52A] dark:text-[#D4B12F]">{countdown}</span>
-                    ) : (
-                      formatDigitalTimer(elapsed)
-                    )}
-                  </div>
+			{/* 3. EXECUTION AREA (MOBILE REORDER: CURRENT WORK -> TIMER ON DESKTOP EQUAL COLUMNS) */}
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+				{/* CURRENT WORK CARD */}
+				<PremiumCard className="p-4 bg-[#0F1218] border-white/10 rounded-xl flex flex-col justify-between space-y-3.5 min-h-[260px]">
+					<div className="space-y-3">
+						<div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+							<span className="text-xs font-bold text-[#F4F7F5] uppercase tracking-wider">
+								CURRENT WORK
+							</span>
+							<button
+								type="button"
+								onClick={() => setShowTaskSelector(true)}
+								className="px-3 py-1 rounded-lg bg-[#0B0E13] border border-white/15 text-xs font-bold text-gold hover:bg-gold/10 transition-all cursor-pointer"
+							>
+								{selectedTask ? "Change Task" : "Select Task"}
+							</button>
+						</div>
 
-                  {/* Status Indicator Pill */}
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        currentStatus === "Active"
-                          ? "bg-[#39D393] animate-pulse"
-                          : currentStatus === "Paused"
-                          ? "bg-amber-500"
-                          : systemActive
-                          ? "bg-[#C9A52A]"
-                          : "bg-rose-500"
-                      }`}
-                    />
-                    <span className="text-[10px] sm:text-[10.5px] font-semibold text-[#8B95A5] uppercase tracking-wider">
-                      {!systemActive ? "System Off" : currentStatus === "Active" ? "Active" : currentStatus === "Paused" ? "Paused" : "Ready"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+						{selectedTask || activeSession ? (
+							<div className="space-y-2.5">
+								<span className="text-[10px] text-gold font-mono font-bold uppercase tracking-wider block">
+									{currentProject?.name || "ORGANIZATION WORK"}
+								</span>
 
-          {/* Session Context Display */}
-          <div className="w-full min-h-[38px] flex flex-col items-center justify-center text-center space-y-0.5 py-1 px-3 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px]">
-            {activeSession ? (
-              <>
-                <p className="text-[12.5px] sm:text-[13px] font-semibold text-[#17202A] dark:text-[#F2F4F7] truncate max-w-full">
-                  {activeSession.title || activeSession.task?.title || "Executive Focus Session"}
-                </p>
-                {activeSession.project && (
-                  <p className="text-[10.5px] sm:text-[11px] text-[#667085] dark:text-[#8B95A5] flex items-center justify-center gap-1 truncate">
-                    <Folder className="w-3 h-3 text-[#667085] dark:text-[#8B95A5]" />
-                    <span>{activeSession.project.name}</span>
-                  </p>
-                )}
-              </>
-            ) : priorities.length > 0 ? (
-              <>
-                <p className="text-[12px] sm:text-[12.5px] font-medium text-[#17202A] dark:text-[#F2F4F7] truncate max-w-full">
-                  {priorities[0].title}
-                </p>
-                <p className="text-[10px] sm:text-[10.5px] text-[#667085] dark:text-[#8B95A5]">
-                  {priorities[0].priority || "High"} Priority
-                </p>
-              </>
-            ) : (
-              <p className="text-[12px] font-medium text-[#667085] dark:text-[#8B95A5]">
-                No priority task selected
-              </p>
-            )}
-          </div>
+								<h3 className="text-sm font-extrabold text-[#F4F7F5] leading-snug">
+									{selectedTask?.title || activeSession?.title || "Executive Focus Task"}
+								</h3>
 
-          {/* Layer 7: Physical 3D Controls */}
-          <div className="w-full max-w-[340px] space-y-2 pt-1">
-            {currentStatus === "Idle" && (
-              <button
-                disabled={!systemActive || actionLoading || countdown !== null}
-                onClick={() => {
-                  const pendingData = priorities.length > 0
-                    ? {
-                        sourceType: "TASK",
-                        taskId: priorities[0].id,
-                        title: priorities[0].title,
-                        priority: priorities[0].priority,
-                        category: "Technical",
-                      }
-                    : null;
+								<p className="text-xs text-[#9AA4B2] leading-relaxed line-clamp-2">
+									{selectedTask?.description || activeSession?.description || "Concentrate on completing task objectives and documenting deliverables."}
+								</p>
 
-                  if (pendingData) {
-                    startCountdownSequence(pendingData);
-                  } else {
-                    setShowStartModal(true);
-                  }
-                }}
-                className="w-full h-[48px] rounded-[12px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13.5px] sm:text-[14px] font-bold shadow-[0_4px_0_#9E801B,0_6px_16px_rgba(0,0,0,0.25)] active:translate-y-[2px] active:shadow-[0_2px_0_#9E801B] hover:brightness-105 transition-all duration-100 flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
-              >
-                {actionLoading ? (
-                  <Loader2 className="w-4.5 h-4.5 animate-spin" />
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 fill-current" />
-                    <span>START FOCUS</span>
-                  </>
-                )}
-              </button>
-            )}
+								<div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10 text-xs font-mono">
+									<div>
+										<span className="text-[#667085] text-[10px] uppercase block">Priority</span>
+										<span className="font-bold text-[#F4F7F5]">{selectedTask?.priority || activeSession?.priority || "High"}</span>
+									</div>
+									<div>
+										<span className="text-[#667085] text-[10px] uppercase block">Deadline</span>
+										<span className="font-bold text-[#F4F7F5]">
+											{selectedTask?.deadline ? new Date(selectedTask.deadline).toLocaleDateString() : "Due Today"}
+										</span>
+									</div>
+									<div>
+										<span className="text-[#667085] text-[10px] uppercase block">Assigned by</span>
+										<span className="font-bold text-[#F4F7F5]">Leadership</span>
+									</div>
+									<div>
+										<span className="text-[#667085] text-[10px] uppercase block">Progress</span>
+										<span className="font-bold text-gold">{selectedTask?.progress || 62}%</span>
+									</div>
+								</div>
+							</div>
+						) : (
+							<div className="py-6 text-center space-y-2 my-auto">
+								<h4 className="text-xs font-extrabold text-[#F4F7F5] uppercase tracking-wider">No task selected</h4>
+								<p className="text-xs text-[#9AA4B2] max-w-xs mx-auto">
+									Select an assigned task to begin a focused work session.
+								</p>
+								<button
+									type="button"
+									onClick={() => setShowTaskSelector(true)}
+									className="px-4 py-2 bg-gold text-black text-xs font-bold rounded-lg hover:bg-gold/90 transition-all cursor-pointer shadow-xs"
+								>
+									Select Task
+								</button>
+							</div>
+						)}
+					</div>
+				</PremiumCard>
 
-            {currentStatus === "Active" && (
-              <div className="flex items-center gap-2.5 w-full">
-                <button
-                  disabled={actionLoading}
-                  onClick={handlePauseSession}
-                  className="flex-1 h-[48px] rounded-[12px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[13px] sm:text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] shadow-[0_4px_0_#1E2530] active:translate-y-[2px] active:shadow-[0_2px_0_#1E2530] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] transition-all duration-100 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Pause className="w-4 h-4" />
-                  <span>PAUSE</span>
-                </button>
-                <button
-                  disabled={actionLoading}
-                  onClick={() => setShowEndModal(true)}
-                  className="flex-1 h-[48px] rounded-[12px] bg-rose-600 text-white text-[13px] sm:text-[13.5px] font-bold shadow-[0_4px_0_#9F1239] active:translate-y-[2px] active:shadow-[0_2px_0_#9F1239] hover:bg-rose-700 transition-all duration-100 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                  <span>END</span>
-                </button>
-              </div>
-            )}
+				{/* FOCUS TIMER CARD */}
+				<PremiumCard className="p-4 bg-[#0F1218] border-white/10 rounded-xl flex flex-col justify-between items-center text-center space-y-3.5 min-h-[260px]">
+					<div className="w-full flex items-center justify-between border-b border-white/10 pb-2.5">
+						<span className="text-xs font-bold text-[#F4F7F5] uppercase tracking-wider">
+							FOCUS TIMER
+						</span>
+						<span
+							className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
+								activeStatusText === "FOCUSING"
+									? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 animate-pulse"
+									: activeStatusText === "PAUSED"
+									? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+									: "bg-white/5 text-[#9AA4B2] border-white/10"
+							}`}
+						>
+							● {activeStatusText}
+						</span>
+					</div>
 
-            {currentStatus === "Paused" && (
-              <div className="flex items-center gap-2.5 w-full">
-                <button
-                  disabled={!systemActive || actionLoading}
-                  onClick={handleResumeSession}
-                  className="flex-1 h-[48px] rounded-[12px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[13px] sm:text-[13.5px] font-bold shadow-[0_4px_0_#9E801B] active:translate-y-[2px] active:shadow-[0_2px_0_#9E801B] hover:brightness-105 transition-all duration-100 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>RESUME</span>
-                </button>
-                <button
-                  disabled={actionLoading}
-                  onClick={() => setShowEndModal(true)}
-                  className="flex-1 h-[48px] rounded-[12px] bg-rose-600 text-white text-[13px] sm:text-[13.5px] font-bold shadow-[0_4px_0_#9F1239] active:translate-y-[2px] active:shadow-[0_2px_0_#9F1239] hover:bg-rose-700 transition-all duration-100 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                  <span>END</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+					{/* Digital Timer & Subtitle */}
+					<div className="py-3 space-y-1.5 my-auto">
+						<div className="text-4xl sm:text-5xl font-extrabold font-mono text-[#F4F7F5] tracking-tight tabular-nums">
+							{formatDigitalTimer(elapsed)}
+						</div>
+						<p className="text-xs font-mono text-[#9AA4B2] uppercase tracking-wider font-bold">
+							{!isOperational
+								? "SYSTEM OFF · Focus unavailable (23:00–04:00 IST)"
+								: activeStatusText === "FOCUSING"
+								? "WORKING"
+								: activeStatusText === "PAUSED"
+								? "PAUSED"
+								: "TIMER READY"}
+						</p>
+					</div>
 
-      {/* 3. COMPACT TODAY SUMMARY & SECONDARY SURFACES */}
-      <div className="flex items-center justify-between pt-2.5 border-t border-[#E4E7EC] dark:border-[#272D36] text-[11.5px] sm:text-[12px] shrink-0">
-        <div className="flex items-center gap-3 sm:gap-4 text-[#667085] dark:text-[#8B95A5]">
-          <span>
-            Today <strong className="text-[#17202A] dark:text-[#F2F4F7] font-semibold ml-0.5 sm:ml-1">{formatShortDuration(overview?.totalFocusedSeconds || 0)}</strong>
-          </span>
-          <span>·</span>
-          <span>
-            Sessions <strong className="text-[#17202A] dark:text-[#F2F4F7] font-semibold ml-0.5 sm:ml-1">{overview?.totalSessionsCount || 0}</strong>
-          </span>
-        </div>
+					{/* Primary Action Button */}
+					<div className="w-full pt-3 border-t border-white/10 flex items-center justify-center gap-2">
+						{activeStatusText === "READY" && (
+							<button
+								type="button"
+								onClick={() => handleStartFocus()}
+								disabled={actionLoading || !isOperational}
+								className="w-full py-3 rounded-xl bg-gold hover:bg-gold/90 text-black text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+							>
+								{actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-black" />}
+								<span>▶ START FOCUS SESSION</span>
+							</button>
+						)}
 
-        {/* Secondary Triggers (Drawers & Modals) */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {activeSession?.task && (
-            <button
-              onClick={() => setShowTaskDrawer(true)}
-              className="px-2.5 sm:px-3 h-[32px] sm:h-[34px] rounded-lg border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[11.5px] sm:text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] transition-colors flex items-center gap-1.5 cursor-pointer"
-            >
-              <CheckSquare className="w-3.5 h-3.5 text-[#C9A52A] dark:text-[#D4B12F]" />
-              <span className="hidden sm:inline">Task Details</span>
-            </button>
-          )}
+						{activeStatusText === "FOCUSING" && (
+							<>
+								<button
+									type="button"
+									onClick={() => setShowPauseModal(true)}
+									disabled={actionLoading}
+									className="flex-1 py-3 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+								>
+									<Pause className="w-3.5 h-3.5" /> Pause
+								</button>
 
-          <button
-            onClick={() => setShowHistoryDrawer(true)}
-            className="px-2.5 sm:px-3 h-[32px] sm:h-[34px] rounded-lg border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[11.5px] sm:text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] transition-colors flex items-center gap-1.5 cursor-pointer"
-          >
-            <Clock className="w-3.5 h-3.5 text-[#667085] dark:text-[#8B95A5]" />
-            <span>History ({history.length})</span>
-          </button>
+								<button
+									type="button"
+									onClick={() => setShowEndModal(true)}
+									disabled={actionLoading}
+									className="flex-1 py-3 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+								>
+									<CheckCircle2 className="w-3.5 h-3.5" /> Finish Session
+								</button>
+							</>
+						)}
 
-          <button
-            onClick={() => setShowStatsDrawer(true)}
-            className="px-2.5 sm:px-3 h-[32px] sm:h-[34px] rounded-lg border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[11.5px] sm:text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] transition-colors flex items-center gap-1.5 cursor-pointer"
-          >
-            <BarChart3 className="w-3.5 h-3.5 text-[#667085] dark:text-[#8B95A5]" />
-            <span>Statistics</span>
-          </button>
-        </div>
-      </div>
+						{activeStatusText === "PAUSED" && (
+							<>
+								<button
+									type="button"
+									onClick={handleResumeFocus}
+									disabled={actionLoading || !isOperational}
+									className="flex-1 py-3 rounded-xl bg-gold text-black hover:bg-gold/90 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+								>
+									<Play className="w-3.5 h-3.5 fill-black" /> Resume
+								</button>
 
-      {/* Modals & Slide-over Drawers */}
-      <StartFocusModal
-        isOpen={showStartModal}
-        onClose={() => setShowStartModal(false)}
-        tasks={allTasks}
-        projects={allProjects}
-        onStartSession={(data) => startCountdownSequence(data)}
-      />
+								<button
+									type="button"
+									onClick={() => setShowEndModal(true)}
+									disabled={actionLoading}
+									className="flex-1 py-3 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+								>
+									<Square className="w-3.5 h-3.5" /> End Session
+								</button>
+							</>
+						)}
+					</div>
+				</PremiumCard>
+			</div>
 
-      <EndFocusModal
-        isOpen={showEndModal}
-        onClose={() => setShowEndModal(false)}
-        session={activeSession}
-        elapsedSeconds={elapsed}
-        projects={allProjects}
-        onEndSession={handleEndSession}
-        onCreateFollowUpTask={handleCreateFollowUpTask}
-      />
+			{/* 4. TODAY'S ACTIVITY */}
+			<PremiumCard className="p-4 bg-[#0F1218] border-white/10 rounded-xl space-y-3">
+				<div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+					<h3 className="text-xs font-extrabold text-[#F4F7F5] uppercase tracking-wider">
+						TODAY'S ACTIVITY
+					</h3>
 
-      <NextSessionDrawer
-        isOpen={showNextSessionDrawer}
-        onClose={() => setShowNextSessionDrawer(false)}
-        tasks={allTasks}
-        onStartNextSession={(t) =>
-          startCountdownSequence({
-            sourceType: "TASK",
-            taskId: t.id,
-            title: t.title,
-            priority: t.priority,
-            category: "Technical",
-          })
-        }
-      />
+					<div className="flex items-center gap-2">
+						<button
+							type="button"
+							onClick={() => setShowHistoryDrawer(true)}
+							className="px-3 py-1 rounded-lg bg-[#0B0E13] border border-white/10 text-xs font-bold text-[#9AA4B2] hover:text-white cursor-pointer"
+						>
+							History
+						</button>
+						<button
+							type="button"
+							onClick={() => setShowStatsDrawer(true)}
+							className="px-3 py-1 rounded-lg bg-[#0B0E13] border border-white/10 text-xs font-bold text-gold hover:bg-gold/10 cursor-pointer"
+						>
+							Statistics
+						</button>
+					</div>
+				</div>
 
-      <SessionDetailModal
-        isOpen={!!selectedHistorySession}
-        onClose={() => setSelectedHistorySession(null)}
-        session={selectedHistorySession}
-      />
+				<div className="space-y-1.5">
+					{history.length > 0 ? (
+						history.slice(0, 5).map((item, idx) => (
+							<div
+								key={idx}
+								className="p-2.5 rounded-lg bg-[#0B0E13] border border-white/5 grid grid-cols-4 items-center text-xs font-mono"
+							>
+								<span className="text-[#667085] text-[11px] font-bold">
+									{new Date(item.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+								</span>
+								<span className="font-bold text-[#F4F7F5] truncate col-span-1">{item.displayTitle}</span>
+								<span className="text-center">
+									<span
+										className={`px-2 py-0.5 rounded text-[9.5px] font-bold uppercase border ${
+											item.status === "Completed"
+												? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+												: item.status === "Paused"
+												? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+												: "bg-white/5 text-[#9AA4B2] border-white/10"
+										}`}
+									>
+										{item.status}
+									</span>
+								</span>
+								<span className="text-right text-gold font-bold">
+									{formatShortDuration(item.durationSeconds)}
+								</span>
+							</div>
+						))
+					) : (
+						<div className="py-6 text-center text-xs text-[#667085] space-y-1">
+							<p>No focus sessions recorded yet today.</p>
+							<p className="text-[11px] text-[#9AA4B2]">Select a task and click Start Focus to begin tracking.</p>
+						</div>
+					)}
+				</div>
+			</PremiumCard>
 
-      <TaskDetailDrawer
-        isOpen={showTaskDrawer}
-        onClose={() => setShowTaskDrawer(false)}
-        task={activeSession?.task}
-        project={activeSession?.project}
-      />
+			{/* TASK SELECTOR MODAL */}
+			<TaskSelectorModal
+				isOpen={showTaskSelector}
+				onClose={() => setShowTaskSelector(false)}
+				tasks={allTasks}
+				projects={allProjects}
+				onSelectTask={(task) => {
+					setSelectedTask(task);
+				}}
+			/>
 
-      <HistoryDrawer
-        isOpen={showHistoryDrawer}
-        onClose={() => setShowHistoryDrawer(false)}
-        history={history}
-        onSelectSession={(s) => {
-          setSelectedHistorySession(s);
-          setShowHistoryDrawer(false);
-        }}
-      />
+			{/* PAUSE MODAL */}
+			{showPauseModal && (
+				<div className="fixed inset-0 z-[10000] bg-black/85 backdrop-blur-xs flex items-center justify-center p-4">
+					<div className="bg-[#0F1218] border border-white/10 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+						<div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+							<h3 className="text-xs font-extrabold text-[#F4F7F5] uppercase tracking-wider">
+								Pause Focus Session
+							</h3>
+							<button type="button" onClick={() => setShowPauseModal(false)} className="text-[#667085] hover:text-white cursor-pointer">
+								<X className="w-4 h-4" />
+							</button>
+						</div>
 
-      <StatsDrawer
-        isOpen={showStatsDrawer}
-        onClose={() => setShowStatsDrawer(false)}
-        overview={overview}
-        weeklyData={weeklyData}
-        weekOffset={weekOffset}
-        onChangeWeekOffset={setWeekOffset}
-      />
-    </div>
-  );
+						<div className="space-y-3 text-xs">
+							<p className="text-[#9AA4B2]">
+								Select an optional reason for pausing your active focus session:
+							</p>
+
+							<div className="grid grid-cols-2 gap-2">
+								{["Break", "Blocked", "Meeting", "Other"].map((reason) => (
+									<button
+										key={reason}
+										type="button"
+										onClick={() => setPauseReason(reason)}
+										className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-center cursor-pointer ${
+											pauseReason === reason
+												? "bg-amber-500/20 text-amber-400 border-amber-500/40"
+												: "bg-[#0B0E13] text-[#9AA4B2] border-white/10 hover:text-white"
+										}`}
+									>
+										{reason}
+									</button>
+								))}
+							</div>
+						</div>
+
+						<div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+							<button
+								type="button"
+								onClick={() => setShowPauseModal(false)}
+								className="px-4 py-1.5 rounded-lg bg-[#0B0E13] border border-white/10 text-xs font-bold text-[#9AA4B2] hover:text-white cursor-pointer"
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								onClick={handlePauseFocus}
+								className="px-4 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-bold hover:bg-amber-400 cursor-pointer"
+							>
+								Confirm Pause
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* END / FINISH FOCUS MODAL */}
+			{showEndModal && (
+				<EndFocusModal
+					isOpen={showEndModal}
+					onClose={() => setShowEndModal(false)}
+					session={activeSession}
+					elapsedSeconds={elapsed}
+					projects={allProjects}
+					onEndSession={handleFinishFocus}
+					onCreateFollowUpTask={handleCreateFollowUpTask}
+				/>
+			)}
+
+			{/* HISTORY & STATS DRAWERS */}
+			<HistoryDrawer
+				isOpen={showHistoryDrawer}
+				onClose={() => setShowHistoryDrawer(false)}
+				history={history}
+				onSelectSession={() => {}}
+			/>
+
+			<StatsDrawer
+				isOpen={showStatsDrawer}
+				onClose={() => setShowStatsDrawer(false)}
+				overview={overview}
+				weeklyData={weeklyData}
+				weekOffset={weekOffset}
+				onChangeWeekOffset={setWeekOffset}
+			/>
+		</div>
+	);
 }

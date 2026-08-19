@@ -109,6 +109,9 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-inter)", "Inter", "-apple-system", "BlinkMacSystemFont", "system-ui", "sans-serif"],
+        numeric: ["var(--font-geist)", "Geist", "Inter", "sans-serif"],
+        geist: ["var(--font-geist)", "Geist", "Inter", "sans-serif"],
+        mono: ["var(--font-geist)", "Geist", "ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "monospace"],
       },
       fontWeight: {
         normal: "400",

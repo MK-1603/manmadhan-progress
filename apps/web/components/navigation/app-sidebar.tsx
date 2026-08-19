@@ -61,9 +61,7 @@ const ORG_CEO_NAV: NavGroup[] = [
     id: "performance",
     label: "PERFORMANCE",
     items: [
-      { name: "Organization Graph", href: "/ceo/graph", icon: Network },
       { name: "Leaderboard", href: "/ceo/leaderboard", icon: Trophy },
-      { name: "Performance", href: "/ceo/performance", icon: BarChart3 },
     ],
   },
   {
@@ -72,8 +70,6 @@ const ORG_CEO_NAV: NavGroup[] = [
     items: [
       { name: "Automation", href: "/ceo/automation", icon: Zap },
       { name: "Organization", href: "/ceo/organization", icon: Building },
-      { name: "Organization Profile", href: "/ceo/profile", icon: UserIcon },
-      { name: "Organization Settings", href: "/ceo/settings", icon: Settings },
     ],
   },
 ];
@@ -95,6 +91,7 @@ const ORG_COCEO_NAV: NavGroup[] = [
       { name: "My Work", href: "/co-ceo/my-work", icon: CheckSquare },
       { name: "Projects", href: "/co-ceo/projects", icon: FolderKanban },
       { name: "Tasks", href: "/co-ceo/tasks", icon: ClipboardCheck },
+      { name: "Learning", href: "/co-ceo/learning", icon: BookOpen },
       { name: "Calendar", href: "/co-ceo/calendar", icon: Calendar },
       { name: "Timeline", href: "/co-ceo/timeline", icon: History },
     ],
@@ -111,9 +108,7 @@ const ORG_COCEO_NAV: NavGroup[] = [
     id: "performance",
     label: "PERFORMANCE",
     items: [
-      { name: "Organization Graph", href: "/co-ceo/organization-graph", icon: Network },
       { name: "Leaderboard", href: "/co-ceo/leaderboard", icon: Trophy },
-      { name: "Performance", href: "/co-ceo/performance", icon: BarChart3 },
     ],
   },
   {
@@ -122,8 +117,6 @@ const ORG_COCEO_NAV: NavGroup[] = [
     items: [
       { name: "Automation", href: "/co-ceo/automation", icon: Zap },
       { name: "Organization", href: "/co-ceo/organization", icon: Building },
-      { name: "Organization Profile", href: "/co-ceo/profile", icon: UserIcon },
-      { name: "Organization Settings", href: "/co-ceo/settings", icon: Settings },
     ],
   },
 ];

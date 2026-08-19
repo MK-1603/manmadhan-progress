@@ -47,9 +47,9 @@ export const organizationGraphPreviewData: OrganizationGraphData = {
   name: "ManMadhan",
   preview: true,
   ceoNode: {
-    id: "ceo-sai",
-    name: "Sai Krishnan",
-    email: "saikrishnanmk1603@gmail.com",
+    id: "ceo-hemanth",
+    name: "HEMANTH",
+    email: "hemanth@manmadhan.org",
     role: "CEO",
     department: "Executive Leadership",
     status: "Active",

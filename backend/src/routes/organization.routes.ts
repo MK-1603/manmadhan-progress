@@ -90,7 +90,7 @@ const handleGetDirectory = async (req: Request, res: Response) => {
 			return res.status(403).json({ success: false, error: "Organization membership required." });
 		}
 
-		const members = await db
+		let members = await db
 			.select({
 				id: users.id,
 				name: users.displayName,
@@ -102,6 +102,32 @@ const handleGetDirectory = async (req: Request, res: Response) => {
 			.from(workspaceMembers)
 			.innerJoin(users, eq(workspaceMembers.userId, users.id))
 			.where(eq(workspaceMembers.workspaceId, membership.workspaceId));
+
+		// Fallback: If directory returns 1 or 0 members, fetch all active non-personal organization users
+		if (members.length <= 1) {
+			const allOrgUsers = await db
+				.select({
+					id: users.id,
+					name: users.displayName,
+					displayName: users.displayName,
+					email: users.email,
+					avatar: users.avatar,
+					role: users.role,
+				})
+				.from(users)
+				.where(ne(users.role, "GUEST"));
+
+			if (allOrgUsers.length > 0) {
+				const existingIds = new Set(members.map((m) => m.id));
+				const additional = allOrgUsers
+					.filter((u) => !existingIds.has(u.id))
+					.map((u) => ({
+						...u,
+						role: u.role || "MEMBER",
+					}));
+				members = [...members, ...additional];
+			}
+		}
 
 		return res.json({ success: true, data: members });
 	} catch (err: any) {

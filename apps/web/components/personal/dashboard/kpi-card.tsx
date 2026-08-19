@@ -1,5 +1,6 @@
 import React from "react";
 import { Clock, CheckCircle2, Folder, Star, ArrowUp } from "lucide-react";
+import { NumericValue } from "../../ui/numeric-value";
 
 interface KpiCardProps {
   title: string;
@@ -35,8 +36,8 @@ export function KpiCard({ title, value, subtitle, icon, trendValue, progressPerc
             {title}
           </span>
         </div>
-        <div className="text-[28px] sm:text-[32px] font-bold text-[#171717] dark:text-[#F5F5F5] leading-none mb-2">
-          {value}
+        <div className="text-[#171717] dark:text-[#F5F5F5] leading-none mb-2">
+          <NumericValue size="kpi" value={value} />
         </div>
         
         {trendValue ? (

@@ -306,4 +306,124 @@ export const AppEvents: Record<string, NotificationTemplate> = {
 			String(data.message || "Stay focused on execution today."),
 		],
 	},
+	TASK_ACCEPTED: {
+		type: "TASK_ACCEPTED",
+		mode: "informational",
+		icon: "check-circle",
+		subjectTemplate: (data) => `Task Accepted: ${data.taskTitle || "Task"}`,
+		titleTemplate: () => "Task Accepted",
+		bodyTemplate: (data) => [
+			`Task "${data.taskTitle || "Task"}" was accepted.`,
+		],
+	},
+	TASK_STARTED: {
+		type: "TASK_STARTED",
+		mode: "informational",
+		icon: "bell",
+		subjectTemplate: (data) => `Task Started: ${data.taskTitle || "Task"}`,
+		titleTemplate: () => "Task In Progress",
+		bodyTemplate: (data) => [
+			`Work has started on task "${data.taskTitle || "Task"}".`,
+		],
+	},
+	TASK_PAUSED: {
+		type: "TASK_PAUSED",
+		mode: "informational",
+		icon: "bell",
+		subjectTemplate: (data) => `Task Paused: ${data.taskTitle || "Task"}`,
+		titleTemplate: () => "Task Paused",
+		bodyTemplate: (data) => [
+			`Task "${data.taskTitle || "Task"}" has been paused.`,
+		],
+	},
+	TASK_REJECTED: {
+		type: "TASK_REJECTED",
+		mode: "alert",
+		icon: "alert-triangle",
+		subjectTemplate: (data) => `Task Rejected: ${data.taskTitle || "Task"}`,
+		titleTemplate: () => "Task Rejected",
+		bodyTemplate: (data) => [
+			`Submission for task "${data.taskTitle || "Task"}" was rejected.`,
+		],
+	},
+	DEADLINE_CHANGED: {
+		type: "DEADLINE_CHANGED",
+		mode: "informational",
+		icon: "bell",
+		subjectTemplate: (data) => `Deadline Updated: ${data.taskTitle || "Task"}`,
+		titleTemplate: () => "Deadline Updated",
+		bodyTemplate: (data) => [
+			`Deadline for task "${data.taskTitle || "Task"}" was changed.`,
+		],
+	},
+	DEADLINE_EXTENSION_REQUESTED: {
+		type: "DEADLINE_EXTENSION_REQUESTED",
+		mode: "action",
+		icon: "bell",
+		subjectTemplate: (data) => `Extension Requested: ${data.taskTitle || "Task"}`,
+		titleTemplate: () => "Deadline Extension Requested",
+		bodyTemplate: (data) => [
+			`A deadline extension was requested for task "${data.taskTitle || "Task"}".`,
+		],
+	},
+	PROJECT_CREATED: {
+		type: "PROJECT_CREATED",
+		mode: "informational",
+		icon: "briefcase",
+		subjectTemplate: (data) => `New Project: ${data.projectName || "Project"}`,
+		titleTemplate: () => "New Project Created",
+		bodyTemplate: (data) => [
+			`Project "${data.projectName || "Project"}" has been created.`,
+		],
+	},
+	PROJECT_UPDATED: {
+		type: "PROJECT_UPDATED",
+		mode: "informational",
+		icon: "briefcase",
+		subjectTemplate: (data) => `Project Updated: ${data.projectName || "Project"}`,
+		titleTemplate: () => "Project Updated",
+		bodyTemplate: (data) => [
+			`Project "${data.projectName || "Project"}" has been updated.`,
+		],
+	},
+	APPROVAL_REQUESTED: {
+		type: "APPROVAL_REQUESTED",
+		mode: "action",
+		icon: "shield",
+		subjectTemplate: (data) => `Approval Required: ${data.title || "Request"}`,
+		titleTemplate: () => "Approval Required",
+		bodyTemplate: (data) => [
+			`An approval is required for "${data.title || "Request"}".`,
+		],
+	},
+	APPROVAL_COMPLETED: {
+		type: "APPROVAL_COMPLETED",
+		mode: "informational",
+		icon: "shield",
+		subjectTemplate: (data) => `Approval Completed: ${data.title || "Request"}`,
+		titleTemplate: () => "Approval Completed",
+		bodyTemplate: (data) => [
+			`Approval for "${data.title || "Request"}" has been processed.`,
+		],
+	},
+	SYSTEM_ALERT: {
+		type: "SYSTEM_ALERT",
+		mode: "alert",
+		icon: "alert-triangle",
+		subjectTemplate: (data) => (data.title ? String(data.title) : "System Alert"),
+		titleTemplate: (data) => (data.title ? String(data.title) : "System Alert"),
+		bodyTemplate: (data) => [
+			String(data.message || "A system alert was dispatched."),
+		],
+	},
+	INVITATION_RECEIVED: {
+		type: "INVITATION_RECEIVED",
+		mode: "action",
+		icon: "user-plus",
+		subjectTemplate: (data) => `Invitation Received: ${data.workspaceName || "Workspace"}`,
+		titleTemplate: () => "Workspace Invitation",
+		bodyTemplate: (data) => [
+			`You have received an invitation to join ${data.workspaceName || "workspace"}.`,
+		],
+	},
 };

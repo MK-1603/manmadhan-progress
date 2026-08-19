@@ -3,8 +3,9 @@ import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../../config/env.config";
 import { db } from "../../database/client";
-import { workspaceMembers, workspaceSettings } from "../../database/schema";
+import { workspaceMembers } from "../../database/schema";
 import { logger } from "../services/logger.service";
+import { OrganizationScheduleService } from "../services/organization-schedule.service";
 
 export const enforceWorkExecutionPolicy = async (
 	req: Request,
@@ -12,7 +13,7 @@ export const enforceWorkExecutionPolicy = async (
 	next: NextFunction,
 ) => {
 	// Allow all pre-flight and auth routes to bypass
-	if (req.method === "OPTIONS" || req.originalUrl.startsWith("/api/v1/auth")) {
+	if (req.method === "OPTIONS" || req.originalUrl.startsWith("/api/v1/auth") || req.originalUrl.startsWith("/api/v1/org/working-hours")) {
 		return next();
 	}
 
@@ -25,7 +26,6 @@ export const enforceWorkExecutionPolicy = async (
 		}
 
 		if (!token) {
-			// No token — let auth.middleware handle the 401 correctly
 			return next();
 		}
 
@@ -33,18 +33,11 @@ export const enforceWorkExecutionPolicy = async (
 		try {
 			decoded = jwt.verify(token, env.JWT_SECRET) as any;
 		} catch (jwtErr: any) {
-			// Expired or invalid token — skip policy enforcement and let
-			// auth.middleware return the proper 401. Do NOT log this as an error;
-			// it is an expected condition for every request made with a stale token.
 			return next();
 		}
 
 		const userId = decoded.id;
-
-		// CEO can bypass Rest Mode
-		if (decoded.role === "CEO") {
-			return next();
-		}
+		const userRole = decoded.role || "MEMBER";
 
 		let workspaceId = req.query.workspaceId || req.body.workspaceId;
 		if (
@@ -59,50 +52,33 @@ export const enforceWorkExecutionPolicy = async (
 			if (userMember) workspaceId = userMember.workspaceId;
 		}
 
-		let startHour = 4;
-		let endHour = 23;
-		let enforce = true;
-
-		if (workspaceId) {
-			const settings = await db.query.workspaceSettings.findFirst({
-				where: eq(workspaceSettings.workspaceId, String(workspaceId)),
-			});
-			if (settings) {
-				enforce = settings.enforceWorkingHours;
-				startHour = parseInt(settings.workingHoursStart.split(":")[0], 10) || 4;
-				endHour = parseInt(settings.workingHoursEnd.split(":")[0], 10) || 23;
-			}
-		}
-
-		if (!enforce) {
+		if (!workspaceId) {
 			return next();
 		}
 
-		// Get current time in local timezone (or configured server timezone)
-		const now = new Date();
-		const options = {
-			timeZone: "Asia/Kolkata",
-			hour12: false,
-			hour: "numeric",
-			minute: "numeric",
-		} as const;
-		const timeString = new Intl.DateTimeFormat("en-US", options).format(now);
+		// Determine action type based on requested route
+		let actionType: "task_execution" | "task_submission" | "project_submission" | "approvals" | "timer" = "task_execution";
+		if (req.originalUrl.includes("/tasks") && (req.method === "POST" || req.method === "PUT" || req.originalUrl.includes("/submit"))) {
+			actionType = "task_submission";
+		} else if (req.originalUrl.includes("/projects") && (req.method === "POST" || req.method === "PUT" || req.originalUrl.includes("/submit"))) {
+			actionType = "project_submission";
+		} else if (req.originalUrl.includes("/approvals") || req.originalUrl.includes("/requests")) {
+			actionType = "approvals";
+		} else if (req.originalUrl.includes("/focus")) {
+			actionType = "timer";
+		}
 
-		const [hourStr] = timeString.split(":");
-		const hour = parseInt(hourStr, 10);
+		const check = await OrganizationScheduleService.isActionAllowed(String(workspaceId), userRole, actionType);
 
-		// Work hours check
-		const isWorkHours = hour >= startHour && hour < endHour;
-
-		if (isWorkHours) {
+		if (check.allowed) {
 			return next();
 		}
 
-		// Outside work hours
 		return res.status(403).json({
 			success: false,
 			error: "REST_MODE_ACTIVE",
-			message: `Outside permitted working hours (${String(startHour).padStart(2, "0")}:00 - ${String(endHour).padStart(2, "0")}:00).`,
+			message: check.reason || "Outside permitted operational working hours.",
+			status: check.status,
 		});
 	} catch (err: any) {
 		logger.error(`Work Execution Policy Error: ${err.message}`);

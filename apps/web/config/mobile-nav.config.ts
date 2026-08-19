@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, FolderKanban, CheckSquare, Calendar as Cal,
+  LayoutDashboard, FolderKanban, CheckSquare, ClipboardCheck, Calendar as Cal,
   History, PenSquare, BookOpen, Headphones, GraduationCap, FileText,
   Archive, Brain, Sparkles, Zap, Bell, BarChart, Settings, UserCheck,
   Users, UserPlus, Network, Trophy, Building, ShieldCheck, LucideIcon
@@ -88,42 +88,43 @@ export const ORGANIZATION_MOBILE_NAV = (role: RoleType): NavSection[] => {
     {
       section: "WORK",
       items: [
+        ...(role === "CO-CEO" || role === "MEMBER"
+          ? [{ label: "My Work", href: getHref("my-work"), icon: CheckSquare }]
+          : []),
         { label: "Projects", href: getHref("projects"), icon: FolderKanban },
-        { label: "Tasks", href: getHref("tasks"), icon: CheckSquare },
+        { label: "Tasks", href: getHref("tasks"), icon: role === "CEO" ? CheckSquare : ClipboardCheck },
+        { label: "Learning", href: getHref("learning"), icon: BookOpen },
         { label: "Calendar", href: getHref("calendar"), icon: Cal },
         { label: "Timeline", href: getHref("timeline"), icon: History },
       ],
     },
   ];
 
-  // PEOPLE & PERFORMANCE are for Leadership (CEO & CO-CEO)
+  // PEOPLE / TEAM & PERFORMANCE for Leadership (CEO & CO-CEO)
   if (role === "CEO" || role === "CO-CEO") {
     sections.push({
-      section: "PEOPLE",
+      section: role === "CO-CEO" ? "TEAM" : "PEOPLE",
       items: [
-        { label: "People", href: getHref("people"), icon: Users },
+        { label: role === "CO-CEO" ? "My Members" : "People", href: getHref(role === "CO-CEO" ? "members" : "people"), icon: Users },
+        { label: "Approvals", href: getHref("approvals"), icon: ShieldCheck },
       ],
     });
 
     sections.push({
       section: "PERFORMANCE",
       items: [
-        { label: "Organization Graph", href: getHref("graph"), icon: Network },
         { label: "Leaderboard", href: getHref("leaderboard"), icon: Trophy },
-        { label: "Performance", href: getHref("performance"), icon: BarChart },
       ],
     });
   }
 
-  // ADMINISTRATION is strictly for Organization CEO
-  if (role === "CEO") {
+  // ADMINISTRATION for Organization CEO & CO-CEO
+  if (role === "CEO" || role === "CO-CEO") {
     sections.push({
       section: "ADMINISTRATION",
       items: [
         { label: "Automation", href: getHref("automation"), icon: Zap },
         { label: "Organization", href: getHref("organization"), icon: Building },
-        { label: "Org Profile", href: getHref("org-profile"), icon: ShieldCheck },
-        { label: "Org Settings", href: getHref("settings"), icon: Settings },
       ],
     });
   }
@@ -156,9 +157,7 @@ export const MORE_SHEET_SHORTCUTS = (workspace: "personal" | "organization", rol
   if (role === "CO-CEO") {
     return [
       { label: "People", href: "/co-ceo/people", icon: Users },
-      { label: "Org Graph", href: "/co-ceo/graph", icon: Network },
       { label: "Leaderboard", href: "/co-ceo/leaderboard", icon: Trophy },
-      { label: "Performance", href: "/co-ceo/performance", icon: BarChart },
     ];
   }
 

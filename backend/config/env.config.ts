@@ -66,6 +66,7 @@ export const env = {
 
 	// Resend HTTPS Email API — required on Render / Vercel / Railway
 	RESEND_API_KEY: process.env.RESEND_API_KEY || "",
+	RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
 
 	// Cloudinary Media Storage (fmiadecb)
 	CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "fmiadecb",

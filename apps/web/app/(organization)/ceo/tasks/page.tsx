@@ -13,6 +13,25 @@ import { TaskDetailModal } from "@/components/tasks/task-detail-modal";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { useAuth } from "@/components/auth/auth-context";
 import { useRouter } from "next/navigation";
+import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
+
+const PRIORITY_OPTIONS: CustomSelectOption[] = [
+  { value: "All", label: "All Priorities" },
+  { value: "Low", label: "Low Priority", color: "bg-slate-400" },
+  { value: "Medium", label: "Medium Priority", color: "bg-[#C9A52A]" },
+  { value: "High", label: "High Priority", color: "bg-amber-500" },
+  { value: "Urgent", label: "Urgent Priority", color: "bg-rose-500" },
+];
+
+const STATUS_OPTIONS: CustomSelectOption[] = [
+  { value: "All", label: "All Statuses" },
+  { value: "Pending", label: "Pending", color: "bg-amber-500" },
+  { value: "In Progress", label: "In Progress", color: "bg-blue-500" },
+  { value: "Paused", label: "Paused", color: "bg-purple-500" },
+  { value: "Blocked", label: "Blocked", color: "bg-rose-500" },
+  { value: "Completed", label: "Completed", color: "bg-emerald-500" },
+  { value: "Cancelled", label: "Cancelled", color: "bg-slate-500" },
+];
 
 const STATUS_STYLE: Record<string, string> = {
   "Draft": "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20",
@@ -60,24 +79,6 @@ const MORE_MOBILE_CHIPS = [
 ];
 
 const TASK_TYPE_CHIPS = [...PRIMARY_MOBILE_CHIPS, ...MORE_MOBILE_CHIPS];
-
-const PRIORITY_OPTIONS = [
-  { value: "All", label: "All Priorities" },
-  { value: "Low", label: "Low Priority" },
-  { value: "Medium", label: "Medium Priority" },
-  { value: "High", label: "High Priority" },
-  { value: "Urgent", label: "Urgent Priority" },
-];
-
-const STATUS_OPTIONS = [
-  { value: "All", label: "All Statuses" },
-  { value: "Pending", label: "Pending" },
-  { value: "In Progress", label: "In Progress" },
-  { value: "Paused", label: "Paused" },
-  { value: "Blocked", label: "Blocked" },
-  { value: "Completed", label: "Completed" },
-  { value: "Cancelled", label: "Cancelled" },
-];
 
 const KANBAN_COLUMNS = [
   { id: "Pending", title: "Pending / Not Started" },
@@ -533,26 +534,24 @@ export default function TasksPage() {
             </div>
 
             {/* Desktop Priority Filter Dropdown */}
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="hidden md:block h-[42px] px-3.5 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[12.5px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none cursor-pointer hover:border-[#C9A52A]/50 transition-colors"
-            >
-              {PRIORITY_OPTIONS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
+            <div className="hidden md:block w-[160px] shrink-0">
+              <CustomSelect
+                value={priorityFilter}
+                onChange={setPriorityFilter}
+                options={PRIORITY_OPTIONS}
+                size="md"
+              />
+            </div>
 
             {/* Desktop Status Filter Dropdown */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="hidden md:block h-[42px] px-3.5 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[12.5px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none cursor-pointer hover:border-[#C9A52A]/50 transition-colors"
-            >
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
+            <div className="hidden md:block w-[160px] shrink-0">
+              <CustomSelect
+                value={statusFilter}
+                onChange={setStatusFilter}
+                options={STATUS_OPTIONS}
+                size="md"
+              />
+            </div>
 
             {/* Mobile Filter Sheet Trigger Button */}
             <button

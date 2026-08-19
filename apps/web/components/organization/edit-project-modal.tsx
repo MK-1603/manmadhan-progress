@@ -252,7 +252,7 @@ export function EditProjectModal({ isOpen, project, onClose, onSuccess }: EditPr
                   <option value="">Select User...</option>
                   {(assignmentType === "CEO_TO_CO_CEO" ? (coCeos.length > 0 ? coCeos : allUsers) : (members.length > 0 ? members : allUsers)).map((u) => (
                     <option key={u.id} value={u.id}>
-                      {u.name} ({u.role}) — {u.email}
+                      {u.name} ({u.role || (assignmentType === "CEO_TO_CO_CEO" ? "CO-CEO" : "MEMBER")})
                     </option>
                   ))}
                 </select>
@@ -332,7 +332,7 @@ export function EditProjectModal({ isOpen, project, onClose, onSuccess }: EditPr
         </div>
 
         {/* Modal Footer */}
-        <div className="px-5 py-4 border-t border-[#E4E7EC] dark:border-[#272D36] flex items-center justify-between bg-[#F8F9FB] dark:bg-[#111419]">
+        <div className="px-5 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] border-t border-[#E4E7EC] dark:border-[#272D36] flex items-center justify-between bg-[#F8F9FB] dark:bg-[#111419] shrink-0">
           <button
             type="button"
             onClick={onClose}

@@ -126,6 +126,9 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
     socket.on("task.updated", handleRefresh);
     socket.on("task.created", handleRefresh);
     socket.on("task.status_changed", handleRefresh);
+    socket.on("project.created", handleRefresh);
+    socket.on("project_created", handleRefresh);
+    socket.on("project.accepted", handleRefresh);
     socket.on("project.updated", handleRefresh);
     socket.on("notification.created", handleRefresh);
     socket.on("approval.updated", handleRefresh);
@@ -138,6 +141,9 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
       socket.off("task.updated", handleRefresh);
       socket.off("task.created", handleRefresh);
       socket.off("task.status_changed", handleRefresh);
+      socket.off("project.created", handleRefresh);
+      socket.off("project_created", handleRefresh);
+      socket.off("project.accepted", handleRefresh);
       socket.off("project.updated", handleRefresh);
       socket.off("notification.created", handleRefresh);
       socket.off("approval.updated", handleRefresh);
@@ -181,6 +187,23 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
       }
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to accept task assignment");
+    } finally {
+      setAcceptingTaskId(null);
+    }
+  };
+
+  const handleAcceptProject = async (projectId: string) => {
+    setAcceptingTaskId(projectId);
+    try {
+      const workspaceId = localStorage.getItem("workspaceId") || "";
+      const res = await apiClient.post(`/org/projects/${projectId}/assignment/accept?workspaceId=${workspaceId}`);
+      if (res.data?.success) {
+        fetchAllData();
+      } else {
+        setError(res.data?.error || "Failed to accept project assignment");
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Failed to accept project assignment");
     } finally {
       setAcceptingTaskId(null);
     }
@@ -647,13 +670,29 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
                         </p>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => setSelectedProjectId(proj.id)}
-                        className="px-3.5 py-1.5 rounded-[9px] bg-[#B28D18] hover:bg-[#967412] dark:bg-[#C9A52A] text-white dark:text-[#0B0D10] text-[11.5px] font-bold cursor-pointer"
-                      >
-                        Review Project
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleAcceptProject(proj.id)}
+                          disabled={acceptingTaskId === proj.id}
+                          className="px-3.5 py-1.5 rounded-[9px] bg-[#B28D18] hover:bg-[#967412] dark:bg-[#C9A52A] dark:hover:bg-[#B28D18] text-white dark:text-[#0B0D10] text-[11.5px] font-extrabold flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                        >
+                          {acceptingTaskId === proj.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          )}
+                          <span>Accept Project</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProjectId(proj.id)}
+                          className="px-3.5 py-1.5 rounded-[9px] bg-[#141820] hover:bg-[#1C222C] border border-white/10 text-[#F4F7F5] text-[11.5px] font-bold cursor-pointer transition-colors"
+                        >
+                          Review Details
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

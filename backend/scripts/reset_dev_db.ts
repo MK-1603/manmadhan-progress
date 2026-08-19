@@ -81,24 +81,26 @@ async function resetDevDatabase() {
 	}
 
 	// 4. Re-create Seeded CEO Account & Clean Workspace for Real Onboarding
-	console.log("\nSeeding Bootstrap CEO Account: saikrishnanmk1603@gmail.com...");
+	console.log("\nSeeding Bootstrap CEO Account: hemanthmm1107@gmail.com...");
 	const ceoUserId = uuidv4();
 	const cleanWsId = uuidv4();
 	const passwordHash = AuthService.hashPassword("Welcome@123");
 
 	await db.insert(users).values({
 		id:              ceoUserId,
-		email:           "saikrishnanmk1603@gmail.com",
-		name:            "Sai Krishnan",
-		displayName:     "Sai Krishnan",
+		email:           "hemanthmm1107@gmail.com",
+		name:            "Hemanth",
+		displayName:     "Hemanth",
 		role:            "CEO",
 		status:          "Activated",
 		isVerified:      true,
-		isOtpEnabled:    true,
+		isOtpEnabled:    false,
 		isGoogleEnabled: false,
+		firstLoginCompleted: true,
+		onboardingStatus: "COMPLETED",
 		systemOwner:     true,
-		batchNumber:     "MK1603",
-		employeeId:      "MK1603",
+		batchNumber:     "CEO",
+		employeeId:      "HEMANTH-CEO",
 		passwordHash,
 	});
 
@@ -118,12 +120,12 @@ async function resetDevDatabase() {
 	});
 
 	console.log("✅ Created Seeded CEO Account:");
-	console.log("   Email    : saikrishnanmk1603@gmail.com");
-	console.log("   Name     : Sai Krishnan");
-	console.log("   Batch    : MK1603");
+	console.log("   Email    : hemanthmm1107@gmail.com");
+	console.log("   Name     : Hemanth");
 	console.log("   Password : Welcome@123");
 	console.log("   Role     : CEO");
 	console.log("   Status   : Activated");
+	console.log("   First Login: Bypassed (firstLoginCompleted = true)");
 	console.log("✅ Created Clean Organization Workspace.");
 
 	// 5. Final Record Count Verification

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -7,6 +7,7 @@ import {
   format, addDays, addWeeks, addMonths,
   subDays, subWeeks, subMonths, isSameDay,
 } from "date-fns";
+import { NumericValue } from "../../ui/numeric-value";
 
 type Period = "day" | "week" | "month";
 
@@ -271,7 +272,6 @@ export function ExecutionAnalytics({ className = "" }: { className?: string }) {
         </div>
       )}
 
-      {/* chart / states */}
       {error ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-3">
           <p className="text-[13px] text-red-500">Unable to load analytics.</p>
@@ -294,43 +294,51 @@ export function ExecutionAnalytics({ className = "" }: { className?: string }) {
           <div className="grid grid-cols-3 gap-3 mt-auto pt-4 border-t border-border">
             <div>
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1">Best Day</p>
-              <p className="text-[13px] font-bold text-foreground truncate">
+              <p className="text-[13px] text-foreground truncate">
                 {(data?.summary?.bestDay?.actualMinutes ?? 0) > 0
                   ? format(new Date(data!.summary.bestDay.date), "EEE")
                   : "—"}
               </p>
               <p className="text-[11px] text-muted-foreground">
-                {(data?.summary?.bestDay?.actualMinutes ?? 0) > 0
-                  ? fmtHM(data!.summary.bestDay.actualMinutes)
-                  : "—"}
+                {(data?.summary?.bestDay?.actualMinutes ?? 0) > 0 ? (
+                  <NumericValue size="meta" value={fmtHM(data!.summary.bestDay.actualMinutes)} />
+                ) : (
+                  "—"
+                )}
               </p>
             </div>
 
             <div>
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1">Average</p>
-              <p className="text-[13px] font-bold text-foreground">
-                {(data?.summary?.totalActualMinutes ?? 0) > 0
-                  ? fmtHM(data!.summary.averageDailyMinutes)
-                  : "—"}
+              <p className="text-[13px] text-foreground">
+                {(data?.summary?.totalActualMinutes ?? 0) > 0 ? (
+                  <NumericValue size="table" value={fmtHM(data!.summary.averageDailyMinutes)} />
+                ) : (
+                  "—"
+                )}
               </p>
               <p className="text-[11px] text-muted-foreground">per day</p>
             </div>
 
             <div>
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1">Consistency</p>
-              <p className="text-[13px] font-bold text-foreground">
-                {(data?.summary?.totalActualMinutes ?? 0) > 0
-                  ? `${data!.summary.consistency}%`
-                  : "—"}
+              <p className="text-[13px] text-foreground">
+                {(data?.summary?.totalActualMinutes ?? 0) > 0 ? (
+                  <NumericValue size="table" value={`${data!.summary.consistency}%`} />
+                ) : (
+                  "—"
+                )}
               </p>
               <p className="text-[11px] text-muted-foreground truncate" title={
                 (data?.summary?.totalActualMinutes ?? 0) > 0
                   ? consistencyLabel(data!.summary.consistency)
                   : ""
               }>
-                {(data?.summary?.totalActualMinutes ?? 0) > 0
-                  ? `${data!.summary.daysHitTarget} / ${data!.graphData.length} days`
-                  : "—"}
+                {(data?.summary?.totalActualMinutes ?? 0) > 0 ? (
+                  <><NumericValue size="meta" value={data!.summary.daysHitTarget} /> / <NumericValue size="meta" value={data!.graphData.length} /> days</>
+                ) : (
+                  "—"
+                )}
               </p>
             </div>
           </div>

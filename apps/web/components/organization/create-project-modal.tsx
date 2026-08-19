@@ -96,7 +96,9 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
     setSubmitting(true);
     try {
       const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
-      await apiClient.post(`/org/projects/create-v2${wsId ? `?workspaceId=${wsId}` : ""}`, {
+      const validWsId = wsId && wsId !== "undefined" && wsId !== "null" ? wsId : undefined;
+      await apiClient.post(`/org/projects/create-v2${validWsId ? `?workspaceId=${validWsId}` : ""}`, {
+        workspaceId: validWsId,
         title: name.trim(),
         description: mandate.trim(),
         prompt: mandate.trim(),
@@ -110,7 +112,9 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Failed to create project. Please try again.");
+      const errObj = err?.response?.data?.error;
+      const msg = typeof errObj === "string" ? errObj : errObj?.message || err?.message || "Failed to create project. Please try again.";
+      setError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -262,7 +266,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                   <option value="">Select Assignee...</option>
                   {(assignmentType === "CEO_TO_CO_CEO" ? (coCeos.length > 0 ? coCeos : allUsers) : (members.length > 0 ? members : allUsers)).map((u) => (
                     <option key={u.id} value={u.id}>
-                      {u.name} ({u.role}) — {u.email}
+                      {u.name} ({u.role || (assignmentType === "CEO_TO_CO_CEO" ? "CO-CEO" : "MEMBER")})
                     </option>
                   ))}
                 </select>
@@ -282,7 +286,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                     <option value="">Select Responsible CO-CEO...</option>
                     {(coCeos.length > 0 ? coCeos : allUsers).map((u) => (
                       <option key={u.id} value={u.id}>
-                        {u.name} ({u.role})
+                        {u.name} ({u.role || "CO-CEO"})
                       </option>
                     ))}
                   </select>
@@ -324,7 +328,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
         </div>
 
         {/* Modal Footer CTA */}
-        <div className="px-5 py-4 border-t border-[#E4E7EC] dark:border-[#272D36] flex items-center justify-between bg-[#F8F9FB] dark:bg-[#111419]">
+        <div className="px-5 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] border-t border-[#E4E7EC] dark:border-[#272D36] flex items-center justify-between bg-[#F8F9FB] dark:bg-[#111419] shrink-0">
           {step === 2 ? (
             <button
               type="button"

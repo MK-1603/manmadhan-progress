@@ -253,6 +253,86 @@
     letter-spacing: 0.05em;
   }
 
+  /* Enterprise Number Typography System (Geist + Tabular Nums + Restrained Scale) */
+  .font-numeric {
+    font-family: var(--font-geist), "Geist", "Inter", sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
+    font-feature-settings: "tnum" 1, "zero" 1 !important;
+  }
+
+  .numeric-kpi {
+    font-family: var(--font-geist), "Geist", "Inter", sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
+    font-feature-settings: "tnum" 1, "zero" 1 !important;
+    font-weight: 500 !important;
+    font-size: 32px;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  .numeric-percentage {
+    font-family: var(--font-geist), "Geist", "Inter", sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
+    font-feature-settings: "tnum" 1, "zero" 1 !important;
+    font-weight: 500 !important;
+    font-size: 36px;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  .numeric-card {
+    font-family: var(--font-geist), "Geist", "Inter", sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
+    font-feature-settings: "tnum" 1, "zero" 1 !important;
+    font-weight: 500 !important;
+    font-size: 26px;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  .numeric-secondary {
+    font-family: var(--font-geist), "Geist", "Inter", sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
+    font-feature-settings: "tnum" 1, "zero" 1 !important;
+    font-weight: 500 !important;
+    font-size: 20px;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+
+  .numeric-table {
+    font-family: var(--font-geist), "Geist", "Inter", sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
+    font-feature-settings: "tnum" 1, "zero" 1 !important;
+    font-weight: 500 !important;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .numeric-meta {
+    font-family: var(--font-geist), "Geist", "Inter", sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
+    font-feature-settings: "tnum" 1, "zero" 1 !important;
+    font-weight: 400 !important;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .metric-value {
+    font-family: var(--font-geist), "Geist", "Inter", sans-serif !important;
+    font-variant-numeric: tabular-nums !important;
+    font-feature-settings: "tnum" 1, "zero" 1 !important;
+    font-weight: 500 !important;
+    letter-spacing: -0.02em;
+  }
+
+  .metric-unit {
+    font-size: 0.65em !important;
+    font-weight: 400 !important;
+    margin-left: 2px !important;
+    display: inline-block;
+  }
+
   /* Buttons */
   button, .btn, [role="button"] {
     font-weight: 500 !important;

@@ -44,7 +44,14 @@ async function validateAssignmentHierarchy(
 		return { allowed: true };
 	}
 
-	const normRole = normalizeRole(membership?.role || user?.role);
+	const userGlobalRole = normalizeRole(user?.role);
+	const memberRole = normalizeRole(membership?.role);
+	const normRole =
+		userGlobalRole === "CEO" || memberRole === "CEO"
+			? "CEO"
+			: userGlobalRole === "CO-CEO" || memberRole === "CO-CEO"
+			? "CO-CEO"
+			: "MEMBER";
 
 	if (normRole === "CEO") {
 		return { allowed: true };
@@ -80,7 +87,7 @@ async function validateAssignmentHierarchy(
 			};
 		}
 
-		if (targetUser.managerId !== user?.id) {
+		if (targetUser.managerId && targetUser.managerId !== user?.id) {
 			return {
 				allowed: false,
 				reason: "CO-CEOs can only assign tasks to their assigned team members.",
@@ -180,24 +187,37 @@ const requireMembership = async (req: Request, res: Response, next: any) => {
 				.where(eq(workspaceMembers.userId, userId))
 				.limit(1);
 
-			if (anyMembership && (userRole === "CEO" || userRole === "CO-CEO")) {
+			if (anyMembership) {
 				m = anyMembership;
 				(req as any).workspaceId = anyMembership.workspaceId;
 			}
 		}
 
+		// Auto-provision membership in active organization workspace if missing
 		if (!m) {
-			return res.status(403).json({
-				success: false,
-				error: {
-					code: "NOT_WORKSPACE_MEMBER",
-					message: "You are not a member of this workspace.",
-				},
-			});
+			const [orgWs] = await db
+				.select()
+				.from(workspaceMembers)
+				.limit(1);
+
+			if (orgWs) {
+				const [newMem] = await db
+					.insert(workspaceMembers)
+					.values({
+						id: uuidv4(),
+						workspaceId: orgWs.workspaceId,
+						userId,
+						role: userRole,
+						createdAt: new Date(),
+					})
+					.returning();
+				m = newMem;
+				(req as any).workspaceId = orgWs.workspaceId;
+			}
 		}
 
-		const effectiveRole = normalizeRole(m.role || userRole);
-		(req as any).membership = { ...m, role: effectiveRole };
+		const effectiveRole = normalizeRole(m?.role || userRole);
+		(req as any).membership = { ...(m || {}), role: effectiveRole };
 		next();
 	} catch (err: any) {
 		logger.error(
@@ -740,23 +760,13 @@ const createTaskHandler = async (req: Request, res: Response) => {
 		const user = (req as any).user;
 		const membership = (req as any).membership;
 
-		const permCheck = await validateAssignmentHierarchy(user, membership, req.body.assigneeId);
-		if (!permCheck.allowed) {
-			return res.status(403).json({
-				success: false,
-				error: {
-					code: "TASK_CREATE_FORBIDDEN",
-					message: permCheck.reason || "You do not have permission to create this task.",
-				},
-			});
-		}
-
 		const {
 			title,
 			description,
 			projectId,
 			milestoneId,
-			assigneeId,
+			assigneeId: rawAssigneeId,
+			assigneeUserId,
 			priority,
 			deadline,
 			startTime,
@@ -776,6 +786,33 @@ const createTaskHandler = async (req: Request, res: Response) => {
 			projectId && projectId !== "NONE" ? projectId : null;
 		const cleanMilestoneId =
 			cleanProjectId && milestoneId ? milestoneId : null;
+
+		// Resolve target assignee: explicit assignee or Project Auto-Assignment fallback
+		let assigneeId: string | null = rawAssigneeId || assigneeUserId || null;
+		if (!assigneeId && cleanProjectId) {
+			const [proj] = await db
+				.select()
+				.from(projects)
+				.where(eq(projects.id, cleanProjectId))
+				.limit(1);
+			if (proj?.ownerId) {
+				assigneeId = proj.ownerId;
+			}
+		}
+
+		// Validate assignment RBAC hierarchy
+		if (assigneeId) {
+			const permCheck = await validateAssignmentHierarchy(user, membership, assigneeId);
+			if (!permCheck.allowed) {
+				return res.status(403).json({
+					success: false,
+					error: {
+						code: "TASK_CREATE_FORBIDDEN",
+						message: permCheck.reason || "You do not have permission to assign this task.",
+					},
+				});
+			}
+		}
 
 		// Validate milestone cross-project linking rule
 		if (cleanMilestoneId && cleanProjectId) {

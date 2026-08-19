@@ -7,6 +7,7 @@ import {
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
 import { useRegisterRefresh } from "@/components/providers/global-refresh-provider";
+import { NumericValue } from "../ui/numeric-value";
 
 type Period = "7d" | "30d" | "90d";
 
@@ -216,70 +217,68 @@ export function PerformanceWorkspace({ userRole = "CEO" }: PerformanceWorkspaceP
         </div>
       )}
 
-      {/* 2. SPACIOUS VERTICALLY SCROLLABLE ANALYTICS CONTENT VIEWPORT */}
-      <div className="w-full space-y-8 pb-20 md:pb-12">
-        
-        {loading ? (
-          <div className="space-y-8">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-24 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] rounded-[14px] animate-pulse" />
-              ))}
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="h-72 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] rounded-[16px] animate-pulse" />
-              <div className="h-72 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] rounded-[16px] animate-pulse" />
-            </div>
+      {/* BODY CONTENT */}
+      {loading ? (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-28 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] rounded-[14px] animate-pulse" />
+            ))}
           </div>
-        ) : (
-          <>
-            {/* 1. KPI SUMMARY ROW */}
-            <div className="space-y-2.5">
-              <h2 className="text-[12px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">KPI SUMMARY</h2>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] space-y-1.5 shadow-xs hover:border-[#B28D18]/50 dark:hover:border-[#383E4A] transition-colors">
-                  <span className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">
-                    OVERALL PERFORMANCE
-                  </span>
-                  <p className="text-[28px] sm:text-[32px] font-extrabold text-[#B28D18] dark:text-[#C9A52A] font-mono leading-none">
-                    {fmt(data?.overallPerformance)}
-                  </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="h-72 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] rounded-[16px] animate-pulse" />
+            <div className="h-72 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] rounded-[16px] animate-pulse" />
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* 1. KPI SUMMARY ROW */}
+          <div className="space-y-2.5">
+            <h2 className="text-[12px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">KPI SUMMARY</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] space-y-1.5 shadow-xs hover:border-[#B28D18]/50 dark:hover:border-[#383E4A] transition-colors">
+                <span className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">
+                  OVERALL PERFORMANCE
+                </span>
+                <div className="text-[#B28D18] dark:text-[#C9A52A] leading-none">
+                  <NumericValue size="kpi" value={fmt(data?.overallPerformance)} />
                 </div>
+              </div>
 
-                <div className="p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] space-y-1.5 shadow-xs hover:border-[#B28D18]/50 dark:hover:border-[#383E4A] transition-colors">
-                  <span className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">
-                    ON-TIME DELIVERY
-                  </span>
-                  <p className="text-[28px] sm:text-[32px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] font-mono leading-none">
-                    {fmt(data?.onTimeRate)}
-                  </p>
+              <div className="p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] space-y-1.5 shadow-xs hover:border-[#B28D18]/50 dark:hover:border-[#383E4A] transition-colors">
+                <span className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">
+                  ON-TIME DELIVERY
+                </span>
+                <div className="text-[#17202A] dark:text-[#F2F4F7] leading-none">
+                  <NumericValue size="kpi" value={fmt(data?.onTimeRate)} />
                 </div>
+              </div>
 
-                <div className="p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] space-y-1.5 shadow-xs hover:border-[#B28D18]/50 dark:hover:border-[#383E4A] transition-colors">
-                  <span className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">
-                    COMPLETION RATE
-                  </span>
-                  <p className="text-[28px] sm:text-[32px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] font-mono leading-none">
-                    {fmt(data?.taskCompletionRate)}
-                  </p>
+              <div className="p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] space-y-1.5 shadow-xs hover:border-[#B28D18]/50 dark:hover:border-[#383E4A] transition-colors">
+                <span className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">
+                  COMPLETION RATE
+                </span>
+                <div className="text-[#17202A] dark:text-[#F2F4F7] leading-none">
+                  <NumericValue size="kpi" value={fmt(data?.taskCompletionRate)} />
                 </div>
+              </div>
 
-                <div className="p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] space-y-1.5 shadow-xs hover:border-[#B28D18]/50 dark:hover:border-[#383E4A] transition-colors">
-                  <span className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">
-                    APPROVAL RATE
-                  </span>
-                  <p className="text-[28px] sm:text-[32px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] font-mono leading-none">
-                    {fmt(data?.approvalRate)}
-                  </p>
+              <div className="p-5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] space-y-1.5 shadow-xs hover:border-[#B28D18]/50 dark:hover:border-[#383E4A] transition-colors">
+                <span className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">
+                  APPROVAL RATE
+                </span>
+                <div className="text-[#17202A] dark:text-[#F2F4F7] leading-none">
+                  <NumericValue size="kpi" value={fmt(data?.approvalRate)} />
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* 2. EXECUTION & DELIVERY (TWO-COLUMN DESKTOP LAYOUT) */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* LEFT: EXECUTION TREND */}
-              <div className="p-5 sm:p-6 rounded-[16px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] space-y-4 shadow-xs flex flex-col justify-between">
+          {/* 2. EXECUTION & DELIVERY (TWO-COLUMN DESKTOP LAYOUT) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            {/* LEFT: EXECUTION TREND */}
+            <div className="p-5 sm:p-6 rounded-[16px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] space-y-4 shadow-xs flex flex-col justify-between">
                 <div className="flex items-center justify-between border-b border-[#E5E7EB] dark:border-[#272D36] pb-3">
                   <div>
                     <h3 className="text-[16px] font-bold text-[#17202A] dark:text-[#F2F4F7]">Execution Trend</h3>
@@ -347,19 +346,19 @@ export function PerformanceWorkspace({ userRole = "CEO" }: PerformanceWorkspaceP
                 <div className="grid grid-cols-2 gap-3 flex-1 text-[13px]">
                   <div className="p-4 rounded-[12px] bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] flex flex-col justify-between">
                     <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">COMPLETED</span>
-                    <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-[22px]">{fmt(data?.deliveryHealth?.completed, false)}</span>
+                    <NumericValue size="card" className="text-emerald-600 dark:text-emerald-400" value={fmt(data?.deliveryHealth?.completed, false)} />
                   </div>
                   <div className="p-4 rounded-[12px] bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] flex flex-col justify-between">
                     <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">IN PROGRESS</span>
-                    <span className="font-mono font-extrabold text-[#17202A] dark:text-[#F2F4F7] text-[22px]">{fmt(data?.deliveryHealth?.inProgress, false)}</span>
+                    <NumericValue size="card" className="text-[#17202A] dark:text-[#F2F4F7]" value={fmt(data?.deliveryHealth?.inProgress, false)} />
                   </div>
                   <div className="p-4 rounded-[12px] bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] flex flex-col justify-between">
                     <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">OVERDUE</span>
-                    <span className="font-mono font-extrabold text-rose-600 dark:text-rose-400 text-[22px]">{fmt(data?.deliveryHealth?.overdue, false)}</span>
+                    <NumericValue size="card" className="text-rose-600 dark:text-rose-400" value={fmt(data?.deliveryHealth?.overdue, false)} />
                   </div>
                   <div className="p-4 rounded-[12px] bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] flex flex-col justify-between">
                     <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">BLOCKED</span>
-                    <span className="font-mono font-extrabold text-amber-600 dark:text-amber-400 text-[22px]">{fmt(data?.deliveryHealth?.blocked, false)}</span>
+                    <NumericValue size="card" className="text-amber-600 dark:text-amber-400" value={fmt(data?.deliveryHealth?.blocked, false)} />
                   </div>
                 </div>
               </div>
@@ -379,19 +378,19 @@ export function PerformanceWorkspace({ userRole = "CEO" }: PerformanceWorkspaceP
                 <div className="grid grid-cols-2 gap-3 flex-1 text-[13px]">
                   <div className="p-4 rounded-[12px] bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] flex flex-col justify-between">
                     <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">SUBMITTED</span>
-                    <span className="font-mono font-extrabold text-[#17202A] dark:text-[#F2F4F7] text-[22px]">{fmt(data?.quality?.submitted, false)}</span>
+                    <NumericValue size="card" className="text-[#17202A] dark:text-[#F2F4F7]" value={fmt(data?.quality?.submitted, false)} />
                   </div>
                   <div className="p-4 rounded-[12px] bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] flex flex-col justify-between">
                     <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">REVIEWED</span>
-                    <span className="font-mono font-extrabold text-[#17202A] dark:text-[#F2F4F7] text-[22px]">{fmt(data?.quality?.reviewed, false)}</span>
+                    <NumericValue size="card" className="text-[#17202A] dark:text-[#F2F4F7]" value={fmt(data?.quality?.reviewed, false)} />
                   </div>
                   <div className="p-4 rounded-[12px] bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] flex flex-col justify-between">
                     <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">APPROVED</span>
-                    <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400 text-[22px]">{fmt(data?.quality?.approved, false)}</span>
+                    <NumericValue size="card" className="text-emerald-600 dark:text-emerald-400" value={fmt(data?.quality?.approved, false)} />
                   </div>
                   <div className="p-4 rounded-[12px] bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] flex flex-col justify-between">
                     <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">REWORK</span>
-                    <span className="font-mono font-extrabold text-amber-600 dark:text-amber-400 text-[22px]">{fmt(data?.quality?.returned, false)}</span>
+                    <NumericValue size="card" className="text-amber-600 dark:text-amber-400" value={fmt(data?.quality?.returned, false)} />
                   </div>
                 </div>
               </div>
@@ -409,15 +408,15 @@ export function PerformanceWorkspace({ userRole = "CEO" }: PerformanceWorkspaceP
                     <div className="grid grid-cols-3 gap-1 pt-2 border-t border-[#E5E7EB] dark:border-[#1E242C]">
                       <div>
                         <span className="text-[10px] text-[#667085] dark:text-[#8B95A5] block">Perf</span>
-                        <span className="font-mono font-bold text-[#B28D18] dark:text-[#C9A52A] text-[13px]">{fmt(data?.coCeoPerformance?.avgPerformance)}</span>
+                        <NumericValue size="table" className="text-[#B28D18] dark:text-[#C9A52A]" value={fmt(data?.coCeoPerformance?.avgPerformance)} />
                       </div>
                       <div>
                         <span className="text-[10px] text-[#667085] dark:text-[#8B95A5] block">On-Time</span>
-                        <span className="font-mono font-bold text-[#17202A] dark:text-[#F2F4F7] text-[13px]">{fmt(data?.coCeoPerformance?.onTimeRate)}</span>
+                        <NumericValue size="table" className="text-[#17202A] dark:text-[#F2F4F7]" value={fmt(data?.coCeoPerformance?.onTimeRate)} />
                       </div>
                       <div>
                         <span className="text-[10px] text-[#667085] dark:text-[#8B95A5] block">Approved</span>
-                        <span className="font-mono font-bold text-[#17202A] dark:text-[#F2F4F7] text-[13px]">{fmt(data?.coCeoPerformance?.approvedWork, false)}</span>
+                        <NumericValue size="table" className="text-[#17202A] dark:text-[#F2F4F7]" value={fmt(data?.coCeoPerformance?.approvedWork, false)} />
                       </div>
                     </div>
                   </div>
@@ -427,15 +426,15 @@ export function PerformanceWorkspace({ userRole = "CEO" }: PerformanceWorkspaceP
                     <div className="grid grid-cols-3 gap-1 pt-2 border-t border-[#E5E7EB] dark:border-[#1E242C]">
                       <div>
                         <span className="text-[10px] text-[#667085] dark:text-[#8B95A5] block">Perf</span>
-                        <span className="font-mono font-bold text-[#B28D18] dark:text-[#C9A52A] text-[13px]">{fmt(data?.memberPerformance?.avgPerformance)}</span>
+                        <NumericValue size="table" className="text-[#B28D18] dark:text-[#C9A52A]" value={fmt(data?.memberPerformance?.avgPerformance)} />
                       </div>
                       <div>
                         <span className="text-[10px] text-[#667085] dark:text-[#8B95A5] block">On-Time</span>
-                        <span className="font-mono font-bold text-[#17202A] dark:text-[#F2F4F7] text-[13px]">{fmt(data?.memberPerformance?.onTimeRate)}</span>
+                        <NumericValue size="table" className="text-[#17202A] dark:text-[#F2F4F7]" value={fmt(data?.memberPerformance?.onTimeRate)} />
                       </div>
                       <div>
                         <span className="text-[10px] text-[#667085] dark:text-[#8B95A5] block">Approved</span>
-                        <span className="font-mono font-bold text-[#17202A] dark:text-[#F2F4F7] text-[13px]">{fmt(data?.memberPerformance?.approvedWork, false)}</span>
+                        <NumericValue size="table" className="text-[#17202A] dark:text-[#F2F4F7]" value={fmt(data?.memberPerformance?.approvedWork, false)} />
                       </div>
                     </div>
                   </div>
@@ -477,7 +476,6 @@ export function PerformanceWorkspace({ userRole = "CEO" }: PerformanceWorkspaceP
 
         {/* Mobile bottom clearance spacer to prevent bottom nav bar overlap */}
         <div className="h-14 w-full shrink-0 md:hidden" aria-hidden="true" />
-      </div>
     </div>
   );
 }

@@ -134,6 +134,30 @@ class EmailService {
 		return EmailTemplateBuilder.build(options);
 	}
 
+	// ── Helper to resolve Resend-compatible sender address ───────────────────
+	private getResendFromAddress(): string {
+		const fromName = env.MAIL_FROM_NAME || "ManMadhan Progress";
+		const configuredResendFrom = process.env.RESEND_FROM_EMAIL || env.RESEND_FROM_EMAIL;
+
+		if (configuredResendFrom) {
+			return configuredResendFrom.includes("<")
+				? configuredResendFrom
+				: `"${fromName}" <${configuredResendFrom}>`;
+		}
+
+		const fromUser = env.SMTP_USER || env.MAIL_USER || env.MAIL_FROM_ADDRESS || "";
+
+		// Resend API forbids sending from unverified third-party public domains (@gmail.com, @yahoo.com, etc.)
+		if (/@(gmail|yahoo|hotmail|outlook|live|icloud)\.com$/i.test(fromUser.trim())) {
+			logger.warn(
+				`[EmailService] Sender address '${fromUser}' uses an unverified public domain on Resend. Defaulting to 'onboarding@resend.dev'. Set RESEND_FROM_EMAIL in .env or verify your domain at https://resend.com/domains`,
+			);
+			return `"${fromName}" <onboarding@resend.dev>`;
+		}
+
+		return `"${fromName}" <${fromUser}>`;
+	}
+
 	// ── Core send method ──────────────────────────────────────────────────────
 	public async sendEmail(options: SendEmailOptions): Promise<SendResult> {
 		const fromName = env.MAIL_FROM_NAME || "ManMadhan Progress";
@@ -154,9 +178,10 @@ class EmailService {
 
 		// ── Direct execution for configured provider ──────────────────────────
 		if (this.provider === "resend" && this.resend) {
+			const resendFromAddress = this.getResendFromAddress();
 			try {
 				const { data, error } = await this.resend.emails.send({
-					from: fromAddress,
+					from: resendFromAddress,
 					to: [options.to],
 					subject: cleanSubject,
 					html: finalHtml,
@@ -164,14 +189,14 @@ class EmailService {
 				});
 
 				if (!error && data?.id) {
-					logger.info("Email dispatched");
+					logger.info({ messageId: data.id, from: resendFromAddress, to: options.to }, "Email dispatched via Resend API ✓");
 					return { success: true, messageId: data.id };
 				}
 
-				logger.error("Email delivery failed");
+				logger.error({ error: error?.message || error, from: resendFromAddress }, "Email delivery failed via Resend API");
 				return { success: false, error: error?.message || "Resend email delivery failed" };
 			} catch (resendErr: any) {
-				logger.error("Email delivery failed");
+				logger.error({ error: resendErr.message }, "Email delivery failed via Resend API");
 				return { success: false, error: resendErr.message };
 			}
 		}
@@ -202,19 +227,21 @@ class EmailService {
 			return { success: true, messageId: info.messageId };
 		} catch (err: any) {
 			if (this.resend) {
+				const resendFromAddress = this.getResendFromAddress();
 				try {
-					logger.warn({ err: err?.message || err }, "SMTP dispatch failed/timed out. Auto-retrying via Resend API...");
+					logger.warn({ err: err?.message || err, from: resendFromAddress }, "SMTP dispatch failed/timed out. Auto-retrying via Resend API...");
 					const { data, error } = await this.resend.emails.send({
-						from: fromAddress,
+						from: resendFromAddress,
 						to: [options.to],
 						subject: cleanSubject,
 						html: finalHtml,
 						text: options.text,
 					});
 					if (!error && data?.id) {
-						logger.info("Email dispatched via Resend fallback ✓");
+						logger.info({ messageId: data.id, from: resendFromAddress, to: options.to }, "Email dispatched via Resend fallback ✓");
 						return { success: true, messageId: data.id };
 					}
+					logger.error({ error: error?.message || error, from: resendFromAddress }, "Resend fallback delivery failed");
 				} catch (resendFallbackErr: any) {
 					logger.error({ err: resendFallbackErr?.message }, "Resend fallback dispatch failed");
 				}

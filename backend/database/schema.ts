@@ -355,6 +355,32 @@ export const projectGithub = pgTable("project_github", {
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// 6.7 Project Submissions
+export const projectSubmissions = pgTable("project_submissions", {
+	id: text("id").primaryKey(),
+	projectId: text("project_id")
+		.notNull()
+		.references(() => projects.id, { onDelete: "cascade" }),
+	workspaceId: text("workspace_id").notNull(),
+	title: text("title").notNull(),
+	description: text("description").notNull(),
+	submittedBy: text("submitted_by").notNull(),
+	submittedRole: text("submitted_role").default("CO-CEO"),
+	status: text("status").default("Under Review").notNull(), // Under Review, Approved, Changes Requested, Rejected
+	fileUrl: text("file_url"),
+	fileName: text("file_name"),
+	fileSize: integer("file_size"),
+	deploymentUrl: text("deployment_url"),
+	applicationUrl: text("application_url"),
+	repositoryUrl: text("repository_url"),
+	versionTag: text("version_tag"),
+	reviewerNotes: text("reviewer_notes"),
+	reviewedBy: text("reviewed_by"),
+	reviewedAt: timestamp("reviewed_at"),
+	submittedAt: timestamp("submitted_at").defaultNow().notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // 7. Tasks
 export const tasks = pgTable(
 	"tasks",
@@ -596,13 +622,83 @@ export const workspaceSettings = pgTable("workspace_settings", {
 	workspaceId: text("workspace_id")
 		.notNull()
 		.references(() => workspaces.id, { onDelete: "cascade" }),
+	timezone: text("timezone").default("Asia/Kolkata").notNull(),
 	allowAfterHoursWork: boolean("allow_after_hours_work")
 		.default(false)
 		.notNull(),
 	enforceWorkingHours: boolean("enforce_working_hours").default(true).notNull(),
 	workingHoursStart: text("working_hours_start").default("04:00").notNull(),
 	workingHoursEnd: text("working_hours_end").default("23:00").notNull(),
+	blockTaskExecution: boolean("block_task_execution").default(true).notNull(),
+	blockTaskSubmission: boolean("block_task_submission").default(true).notNull(),
+	blockProjectSubmission: boolean("block_project_submission").default(true).notNull(),
+	blockApprovalActions: boolean("block_approval_actions").default(true).notNull(),
+	blockTimerTracking: boolean("block_timer_tracking").default(true).notNull(),
+	deadlinePolicy: text("deadline_policy").default("preserve_calendar").notNull(),
+	notifyBeforeEnd: boolean("notify_before_end").default(true).notNull(),
+	notifyBeforeEndMinutes: integer("notify_before_end_minutes").default(15).notNull(),
+	notifyRestrictedStart: boolean("notify_restricted_start").default(true).notNull(),
+	notifyOperationalStart: boolean("notify_operational_start").default(true).notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// 13b. Organization Weekly Schedules
+export const organizationWeeklySchedules = pgTable("organization_weekly_schedules", {
+	id: text("id").primaryKey(),
+	workspaceId: text("workspace_id")
+		.notNull()
+		.references(() => workspaces.id, { onDelete: "cascade" }),
+	dayOfWeek: integer("day_of_week").notNull(),
+	isWorkingDay: boolean("is_working_day").default(true).notNull(),
+	startTime: text("start_time").default("04:00").notNull(),
+	endTime: text("end_time").default("23:00").notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// 13c. Organization Schedule Exceptions & Holidays
+export const organizationScheduleExceptions = pgTable("organization_schedule_exceptions", {
+	id: text("id").primaryKey(),
+	workspaceId: text("workspace_id")
+		.notNull()
+		.references(() => workspaces.id, { onDelete: "cascade" }),
+	date: text("date").notNull(),
+	reason: text("reason").notNull(),
+	exceptionType: text("exception_type").default("CLOSED").notNull(),
+	isClosed: boolean("is_closed").default(true).notNull(),
+	startTime: text("start_time"),
+	endTime: text("end_time"),
+	createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 13d. Organization Emergency Overrides
+export const organizationEmergencyOverrides = pgTable("organization_emergency_overrides", {
+	id: text("id").primaryKey(),
+	workspaceId: text("workspace_id")
+		.notNull()
+		.references(() => workspaces.id, { onDelete: "cascade" }),
+	activatedBy: text("activated_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+	reason: text("reason").notNull(),
+	durationMinutes: integer("duration_minutes").default(60).notNull(),
+	startTime: timestamp("start_time").defaultNow().notNull(),
+	endTime: timestamp("end_time").notNull(),
+	allowedActions: jsonb("allowed_actions").$type<string[]>().notNull(),
+	isActive: boolean("is_active").default(true).notNull(),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 13e. Organization Policy Audit History
+export const organizationPolicyHistory = pgTable("organization_policy_history", {
+	id: text("id").primaryKey(),
+	workspaceId: text("workspace_id")
+		.notNull()
+		.references(() => workspaces.id, { onDelete: "cascade" }),
+	changedBy: text("changed_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+	changeType: text("change_type").notNull(),
+	beforeState: jsonb("before_state"),
+	afterState: jsonb("after_state"),
+	reason: text("reason"),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // 14. Notifications
@@ -1128,20 +1224,35 @@ export const centralRequests = pgTable("central_requests", {
 	workspaceId: text("workspace_id").references(() => workspaces.id, {
 		onDelete: "cascade",
 	}),
-	requestType: text("request_type").notNull(), // PROJECT_ASSIGNMENT, PROJECT_CHANGE, TASK_APPROVAL, TASK_CHANGE, DOCUMENT_REVIEW, DEADLINE_CHANGE, GITHUB_VERIFICATION, OTHER
+	requestType: text("request_type").notNull(), // PROJECT_ASSIGNMENT, PROJECT_CHANGE, TASK_APPROVAL, TASK_CHANGE, DOCUMENT_REVIEW, DEADLINE_CHANGE, LEAVE_REQUEST, POLICY_REQUEST, OTHER
 	title: text("title").notNull(),
 	description: text("description"),
 	requesterId: text("requester_id")
 		.notNull()
 		.references(() => users.id, { onDelete: "cascade" }),
+	responsibleId: text("responsible_id").references(() => users.id, {
+		onDelete: "set null",
+	}),
+	accountableId: text("accountable_id").references(() => users.id, {
+		onDelete: "set null",
+	}),
 	approverId: text("approver_id").references(() => users.id, {
 		onDelete: "set null",
 	}),
-	status: text("status").default("PENDING").notNull(), // PENDING, IN_REVIEW, APPROVED, CHANGES_REQUESTED, REJECTED
+	status: text("status").default("PENDING").notNull(), // PENDING, UNDER_REVIEW, APPROVED, CHANGES_REQUESTED, REJECTED, EXPIRED, CANCELLED
+	priority: text("priority").default("Medium").notNull(), // Low, Medium, High, Urgent
 	rejectionReason: text("rejection_reason"),
-	entityType: text("entity_type"), // PROJECT, TASK, DOCUMENT, GITHUB
+	comment: text("comment"),
+	entityType: text("entity_type"), // PROJECT, TASK, DOCUMENT, LEAVE, EXTENSION, GITHUB
 	entityId: text("entity_id"),
 	metadata: jsonb("metadata").default({}),
+	dueAt: timestamp("due_at"),
+	openedAt: timestamp("opened_at"),
+	decisionAt: timestamp("decision_at"),
+	decisionActorId: text("decision_actor_id").references(() => users.id, {
+		onDelete: "set null",
+	}),
+	slaStatus: text("sla_status").default("ON_TIME").notNull(), // ON_TIME, APPROACHING, OVERDUE
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

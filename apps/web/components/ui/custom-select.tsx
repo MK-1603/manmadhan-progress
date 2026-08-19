@@ -9,7 +9,8 @@ export interface CustomSelectOption {
   label: string;
   sublabel?: string;
   badge?: string;
-  color?: string; // Optional custom indicator color (e.g. for Priority)
+  color?: string; // e.g. "bg-emerald-500", "bg-rose-500", etc.
+  icon?: React.ReactNode;
 }
 
 interface CustomSelectProps {
@@ -20,6 +21,9 @@ interface CustomSelectProps {
   disabled?: boolean;
   className?: string;
   triggerClassName?: string;
+  size?: "sm" | "md" | "lg";
+  icon?: React.ReactNode;
+  minDropdownWidth?: number;
 }
 
 export function CustomSelect({
@@ -28,7 +32,11 @@ export function CustomSelect({
   options,
   placeholder = "Select option...",
   disabled = false,
+  className = "",
   triggerClassName = "",
+  size = "md",
+  icon,
+  minDropdownWidth = 180,
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -52,23 +60,24 @@ export function CustomSelect({
   const updateCoords = () => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    const dropdownHeight = Math.min(options.length * 40 + 12, 240);
+    const dropdownHeight = Math.min(options.length * 40 + 12, 260);
     const spaceBelow = window.innerHeight - rect.bottom;
 
     const placement = spaceBelow < dropdownHeight && rect.top > dropdownHeight ? "top" : "bottom";
     const top = placement === "top" ? rect.top - dropdownHeight - 6 : rect.bottom + 6;
 
+    const computedWidth = Math.max(rect.width, minDropdownWidth);
     let left = rect.left;
     const safeMargin = 8;
-    if (left + rect.width > window.innerWidth - safeMargin) {
-      left = window.innerWidth - rect.width - safeMargin;
+    if (left + computedWidth > window.innerWidth - safeMargin) {
+      left = window.innerWidth - computedWidth - safeMargin;
     }
     if (left < safeMargin) left = safeMargin;
 
     setCoords({
       top,
       left,
-      width: rect.width, // Trigger-anchored exact width
+      width: computedWidth,
       placement,
     });
   };
@@ -87,7 +96,7 @@ export function CustomSelect({
     if (isOpen) {
       updateCoords();
       const handleResize = () => updateCoords();
-      const handleScroll = () => setIsOpen(false); // Close on parent/window scroll
+      const handleScroll = () => setIsOpen(false);
       window.addEventListener("resize", handleResize);
       window.addEventListener("scroll", handleScroll, true);
       return () => {
@@ -136,78 +145,97 @@ export function CustomSelect({
     };
   }, [isOpen, options, highlightedIndex, onChange]);
 
+  const sizeClasses = {
+    sm: "h-[34px] px-2.5 text-[11.5px]",
+    md: "h-[42px] px-3.5 text-[12.5px]",
+    lg: "h-[46px] px-4 text-[13px]",
+  }[size];
+
   return (
-    <div className="relative inline-block w-full font-sans">
+    <div className={`relative inline-block ${className || "w-full"} font-sans`}>
       <button
         ref={triggerRef}
         type="button"
         onClick={handleToggle}
         disabled={disabled}
-        className={`w-full h-[36px] px-3 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[7px] text-[11.5px] text-[#17202A] dark:text-[#F2F4F7] flex items-center justify-between transition-all outline-none disabled:opacity-50 cursor-pointer ${
-          isOpen ? "ring-1 ring-[#C9A52A] border-[#C9A52A] dark:ring-[#D4B12F] dark:border-[#D4B12F]" : ""
+        className={`w-full ${sizeClasses} bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[#17202A] dark:text-[#F2F4F7] flex items-center justify-between transition-all outline-none disabled:opacity-50 cursor-pointer hover:border-[#C9A52A]/60 dark:hover:border-[#D4B12F]/60 ${
+          isOpen
+            ? "ring-2 ring-[#C9A52A]/30 border-[#C9A52A] dark:ring-[#D4B12F]/30 dark:border-[#D4B12F] shadow-sm"
+            : ""
         } ${triggerClassName}`}
       >
-        <span className="truncate flex items-center gap-1.5">
+        <span className="truncate flex items-center gap-2">
+          {icon && <span className="shrink-0 text-[#667085] dark:text-[#8B95A5]">{icon}</span>}
           {selectedOption?.color && (
-            <span className={`w-2 h-2 rounded-full shrink-0 ${selectedOption.color}`} />
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedOption.color}`} />
           )}
           {selectedOption ? (
-            <span className="font-semibold">{selectedOption.label}</span>
+            <span className="font-semibold truncate">{selectedOption.label}</span>
           ) : (
-            <span className="text-[#667085] dark:text-[#8B95A5]">{placeholder}</span>
+            <span className="text-[#667085] dark:text-[#8B95A5] font-normal truncate">{placeholder}</span>
           )}
         </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-[#667085] dark:text-[#8B95A5] transition-transform shrink-0 ${isOpen ? "rotate-180 text-[#C9A52A]" : ""}`} />
+        <ChevronDown
+          className={`w-3.5 h-3.5 ml-1 text-[#667085] dark:text-[#8B95A5] transition-transform duration-200 shrink-0 ${
+            isOpen ? "rotate-180 text-[#C9A52A] dark:text-[#D4B12F]" : ""
+          }`}
+        />
       </button>
 
-      {mounted && isOpen && createPortal(
-        <div
-          ref={dropdownRef}
-          style={{
-            position: "fixed",
-            top: `${coords.top}px`,
-            left: `${coords.left}px`,
-            width: `${coords.width}px`,
-            zIndex: 999999,
-          }}
-          className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] shadow-2xl overflow-hidden py-1 max-h-[240px] overflow-y-auto font-sans animate-in fade-in-50 duration-100"
-        >
-          {options.map((opt, idx) => {
-            const isSelected = opt.value === value;
-            const isHighlighted = idx === highlightedIndex;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value);
-                  setIsOpen(false);
-                }}
-                onMouseEnter={() => setHighlightedIndex(idx)}
-                className={`w-full px-3 py-2 text-left text-[11.5px] flex items-center justify-between transition-colors cursor-pointer ${
-                  isSelected
-                    ? "bg-[#C9A52A]/10 text-[#C9A52A] dark:text-[#D4B12F] font-bold"
-                    : isHighlighted
-                    ? "bg-[#F3F4F6] dark:bg-[#181D24] text-[#17202A] dark:text-[#F2F4F7]"
-                    : "text-[#17202A] dark:text-[#F2F4F7]"
-                }`}
-              >
-                <div className="flex items-center gap-2 truncate">
-                  {opt.color && <span className={`w-2 h-2 rounded-full shrink-0 ${opt.color}`} />}
-                  <div className="truncate">
-                    <div className="font-semibold leading-snug truncate">{opt.label}</div>
-                    {opt.sublabel && (
-                      <div className="text-[10px] text-[#667085] dark:text-[#8B95A5] font-normal truncate">{opt.sublabel}</div>
-                    )}
+      {mounted &&
+        isOpen &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "fixed",
+              top: `${coords.top}px`,
+              left: `${coords.left}px`,
+              width: `${coords.width}px`,
+              zIndex: 999999,
+            }}
+            className="bg-[#FFFFFF] dark:bg-[#14181F] border border-[#E4E7EC] dark:border-[#28303C] rounded-[12px] shadow-[0_12px_36px_rgba(0,0,0,0.35)] overflow-hidden py-1.5 max-h-[260px] overflow-y-auto font-sans animate-in fade-in-50 zoom-in-95 duration-100"
+          >
+            {options.map((opt, idx) => {
+              const isSelected = opt.value === value;
+              const isHighlighted = idx === highlightedIndex;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setIsOpen(false);
+                  }}
+                  onMouseEnter={() => setHighlightedIndex(idx)}
+                  className={`w-full px-3 py-2 text-left text-[12px] flex items-center justify-between transition-colors cursor-pointer ${
+                    isSelected
+                      ? "bg-[#C9A52A]/15 text-[#C9A52A] dark:text-[#D4B12F] font-bold"
+                      : isHighlighted
+                      ? "bg-[#F3F4F6] dark:bg-[#1E242C] text-[#17202A] dark:text-[#F2F4F7]"
+                      : "text-[#17202A] dark:text-[#F2F4F7]"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    {opt.icon && <span className="shrink-0">{opt.icon}</span>}
+                    {opt.color && <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${opt.color}`} />}
+                    <div className="truncate">
+                      <div className="font-semibold leading-snug truncate">{opt.label}</div>
+                      {opt.sublabel && (
+                        <div className="text-[10.5px] text-[#667085] dark:text-[#8B95A5] font-normal truncate">
+                          {opt.sublabel}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                {isSelected && <Check className="w-3.5 h-3.5 text-[#C9A52A] dark:text-[#D4B12F] shrink-0" />}
-              </button>
-            );
-          })}
-        </div>,
-        document.body
-      )}
+                  {isSelected && <Check className="w-3.5 h-3.5 text-[#C9A52A] dark:text-[#D4B12F] shrink-0 ml-2" />}
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
+

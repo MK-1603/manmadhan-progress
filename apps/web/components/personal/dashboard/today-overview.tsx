@@ -1,8 +1,7 @@
 import React from "react";
 import { format } from "date-fns";
 import { Clock, CheckCircle2, Folder, Star } from "lucide-react";
-
-
+import { NumericValue } from "../../ui/numeric-value";
 
 export function TodayOverview({ 
   greetingName,
@@ -19,8 +18,6 @@ export function TodayOverview({
   const progressPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   const score = kpis?.score !== undefined ? kpis.score : null;
-
-
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -53,16 +50,14 @@ export function TodayOverview({
             <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Focus Time Today</span>
           </div>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold text-foreground">
-              {String(hours).padStart(2, "0")}h {String(minutes).padStart(2, "0")}m
-            </span>
-            <span className="text-sm text-muted-foreground">/ 06h 00m goal</span>
+            <NumericValue size="card" className="text-foreground" value={`${String(hours).padStart(2, "0")}h ${String(minutes).padStart(2, "0")}m`} />
+            <NumericValue size="table" className="text-muted-foreground" value="/ 06h 00m goal" />
           </div>
           <div className="w-full h-1 bg-border/50 rounded-full mt-3 overflow-hidden">
             <div className="h-full bg-amber-400 rounded-full" style={{ width: `${Math.min(((hours * 60 + minutes) / 360) * 100, 100)}%` }} />
           </div>
           <div className="mt-3 text-xs text-muted-foreground font-medium">
-            Yesterday: {Math.floor((kpis?.focusSecondsYesterday || 0) / 3600)}h {Math.floor(((kpis?.focusSecondsYesterday || 0) % 3600) / 60)}m
+            Yesterday: <NumericValue size="meta" value={`${Math.floor((kpis?.focusSecondsYesterday || 0) / 3600)}h ${Math.floor(((kpis?.focusSecondsYesterday || 0) % 3600) / 60)}m`} />
           </div>
         </div>
 
@@ -73,14 +68,14 @@ export function TodayOverview({
             <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Tasks Completed</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">{completed} / {total}</span>
-            <span className="text-sm text-muted-foreground">{progressPercent}% completed</span>
+            <NumericValue size="card" className="text-foreground" value={`${completed} / ${total}`} />
+            <NumericValue size="table" className="text-muted-foreground" value={`${progressPercent}% completed`} />
           </div>
           <div className="w-full h-1 bg-border/50 rounded-full mt-3 overflow-hidden">
             <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${progressPercent}%` }} />
           </div>
           <div className="mt-3 text-xs text-muted-foreground font-medium">
-            Yesterday: {kpis?.tasksCompletedYesterday || 0} / {kpis?.tasksTotalYesterday || 0}
+            Yesterday: <NumericValue size="meta" value={`${kpis?.tasksCompletedYesterday || 0} / ${kpis?.tasksTotalYesterday || 0}`} />
           </div>
         </div>
 
@@ -91,38 +86,38 @@ export function TodayOverview({
             <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Projects Active</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">{kpis?.activeProjectsCount || 0}</span>
+            <NumericValue size="card" className="text-foreground" value={kpis?.activeProjectsCount || 0} />
             <span className="text-sm text-muted-foreground">On track</span>
           </div>
           <div className="w-full h-1 bg-border/50 rounded-full mt-3 overflow-hidden">
             <div className="h-full bg-amber-500 rounded-full w-3/4" />
           </div>
           <div className="mt-3 text-xs text-muted-foreground font-medium">
-            Total Projects: {kpis?.totalProjectsCount || (kpis?.activeProjectsCount || 0)}
+            Active workspace projects
           </div>
         </div>
 
-        {/* Card 4: Today's Score */}
+        {/* Card 4: Daily Execution Score */}
         <div className="bg-card border border-border/50 rounded-xl p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
-            <Star className="w-4 h-4 text-blue-500" />
-            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Today's Score</span>
+            <Star className="w-4 h-4 text-amber-400" />
+            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Execution Score</span>
           </div>
           <div className="flex items-baseline gap-2">
             {score !== null ? (
               <>
-                <span className="text-2xl font-bold text-foreground">{score} / 10</span>
-                <span className="text-sm text-muted-foreground">Keep it up!</span>
+                <NumericValue size="card" className="text-foreground" value={score} />
+                <NumericValue size="table" className="text-muted-foreground" value="/ 100" />
               </>
             ) : (
-              <span className="text-lg font-semibold text-foreground mt-1">Not available yet</span>
+              <span className="text-sm font-medium text-muted-foreground">Calculating...</span>
             )}
           </div>
           <div className="w-full h-1 bg-border/50 rounded-full mt-3 overflow-hidden">
-            <div className="h-full bg-blue-500 rounded-full" style={{ width: score !== null ? `${(score/10)*100}%` : '0%' }} />
+            <div className="h-full bg-amber-400 rounded-full" style={{ width: `${score || 0}%` }} />
           </div>
           <div className="mt-3 text-xs text-muted-foreground font-medium">
-            Yesterday: {kpis?.scoreYesterday !== undefined ? `${kpis.scoreYesterday} / 10` : 'N/A'}
+            Based on completed output
           </div>
         </div>
       </div>

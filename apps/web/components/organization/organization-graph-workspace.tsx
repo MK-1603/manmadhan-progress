@@ -23,12 +23,12 @@ function getInitials(name?: string, email?: string): string {
   if (name && name.trim().length > 0) {
     const parts = name.trim().split(" ");
     if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    return parts[0].slice(0, 2).toUpperCase();
+    return parts[0][0].toUpperCase();
   }
   if (email && email.trim().length > 0) {
-    return email.slice(0, 2).toUpperCase();
+    return email[0].toUpperCase();
   }
-  return "U";
+  return "H";
 }
 
 export function OrganizationGraphWorkspace({ userRole = "CEO" }: OrganizationGraphWorkspaceProps) {
@@ -97,11 +97,13 @@ export function OrganizationGraphWorkspace({ userRole = "CEO" }: OrganizationGra
         const members = membersRes?.data?.data || [];
 
         if (members.length > 0 || activeCoCeos.length > 0) {
+          const ceoMember = members.find((m: any) => m.role === "CEO" || m.role === "SYSTEM_OWNER");
           const ceoNode: GraphMemberNode = {
-            id: user?.id || "ceo-root",
-            name: user?.displayName || user?.name || "CEO",
-            email: user?.email || "",
+            id: ceoMember?.id || "ceo-hemanth",
+            name: ceoMember?.name || ceoMember?.displayName || "HEMANTH",
+            email: ceoMember?.email || "hemanth@manmadhan.org",
             role: "CEO",
+            department: "Executive Leadership",
             status: "Active",
             projectsCount: 0,
             tasksCount: 0,

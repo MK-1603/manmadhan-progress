@@ -512,7 +512,7 @@ function SubmissionsTab({
     setSubFile(f);
   };
 
-  const handleSubmitDeliverable = () => {
+  const handleSubmitDeliverable = async () => {
     if (!subTitle.trim() || !subDesc.trim()) {
       setSubFileError("Title and deliverable description are required.");
       return;
@@ -523,33 +523,53 @@ function SubmissionsTab({
     }
 
     setIsSubmitting(true);
-    const newSub: ProjectSubmission = {
-      id: `sub-${Date.now()}`,
-      title: subTitle.trim(),
-      description: subDesc.trim(),
-      submittedBy: "Current User",
-      submittedRole: "CO-CEO",
-      submittedAt: new Date().toISOString(),
-      status: "Under Review",
-      fileName: subFile?.name,
-      fileSize: subFile?.size,
-      deploymentUrl: subDeployUrl.trim() || undefined,
-      applicationUrl: subAppUrl.trim() || undefined,
-      repositoryUrl: subRepoUrl.trim() || undefined,
-      versionTag: subVersion.trim() || undefined,
-    };
+    try {
+      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") || "" : "";
+      const res = await apiClient.post(`/org/projects/${projectId}/submissions${wsId ? `?workspaceId=${wsId}` : ""}`, {
+        title: subTitle.trim(),
+        description: subDesc.trim(),
+        deploymentUrl: subDeployUrl.trim() || null,
+        applicationUrl: subAppUrl.trim() || null,
+        repositoryUrl: subRepoUrl.trim() || null,
+        versionTag: subVersion.trim() || null,
+        fileName: subFile?.name || null,
+        fileSize: subFile?.size || null,
+      });
 
-    onAddSubmission(newSub);
-    setIsSubmitting(false);
-    setShowSubmitModal(false);
-    setSubTitle("");
-    setSubDesc("");
-    setSubDeployUrl("");
-    setSubAppUrl("");
-    setSubRepoUrl("");
-    setSubVersion("");
-    setSubFile(null);
-    setSubFileError(null);
+      if (res.data?.success && res.data.data) {
+        onAddSubmission(res.data.data);
+      } else {
+        const fallbackSub: ProjectSubmission = {
+          id: `sub-${Date.now()}`,
+          title: subTitle.trim(),
+          description: subDesc.trim(),
+          submittedBy: "User",
+          submittedRole: "CO-CEO",
+          submittedAt: new Date().toISOString(),
+          status: "Under Review",
+          fileName: subFile?.name,
+          fileSize: subFile?.size,
+          deploymentUrl: subDeployUrl.trim() || undefined,
+          applicationUrl: subAppUrl.trim() || undefined,
+          repositoryUrl: subRepoUrl.trim() || undefined,
+          versionTag: subVersion.trim() || undefined,
+        };
+        onAddSubmission(fallbackSub);
+      }
+      setShowSubmitModal(false);
+      setSubTitle("");
+      setSubDesc("");
+      setSubDeployUrl("");
+      setSubAppUrl("");
+      setSubRepoUrl("");
+      setSubVersion("");
+      setSubFile(null);
+      setSubFileError(null);
+    } catch (err: any) {
+      setSubFileError(err?.response?.data?.error || "Failed to submit deliverable.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const filtered = useMemo(() => {

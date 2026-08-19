@@ -49,7 +49,7 @@ export function Stopwatch3D({
         <span className={`text-xs font-semibold ${statusTone}`}>{statusLabel}</span>
       </div>
       <div className="py-10 text-center">
-        <div className="font-mono text-5xl sm:text-6xl font-semibold tracking-tight text-foreground tabular-nums">
+        <div className="font-numeric text-5xl sm:text-6xl font-medium tracking-tight text-foreground tabular-nums">
           {hours}:{minutes}:{seconds}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">Tracked against the current work session</p>

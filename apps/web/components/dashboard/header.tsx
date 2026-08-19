@@ -64,11 +64,16 @@ export function Header() {
   const { user, isLoading } = useAuth();
   const { socket } = useSocket();
 
+  const [mounted, setMounted] = useState(false);
+  const [orgWorkspace, setOrgWorkspace] = useState<any>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const isPersonalRoute = pathname?.startsWith("/personal");
   const userRole = (user?.role || "CEO").toUpperCase() as "CEO" | "CO_CEO" | "MEMBER";
   const pageTitle = getPageTitle(pathname);
-
-  const [orgWorkspace, setOrgWorkspace] = useState<any>(null);
 
   useEffect(() => {
     if (isLoading || !user) return;
@@ -104,7 +109,7 @@ export function Header() {
   const cleanOrgName =
     orgWorkspace?.name && orgWorkspace.name !== "Personal Workspace"
       ? orgWorkspace.name
-      : "MANMADHAN";
+      : "ManMadhan Workspace";
 
   // Canonical ActiveWorkspace state object
   const activeWorkspace: ActiveWorkspace = isPersonalRoute
@@ -172,8 +177,11 @@ export function Header() {
               aria-expanded={isSwitcherOpen}
               className="flex items-center gap-1 text-[12px] font-medium text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5] transition-colors cursor-pointer focus:outline-none -mt-0.5 group w-fit"
             >
-              <span className="truncate">
-                {isPersonal ? "Personal Workspace" : cleanOrgName}
+              <span className="truncate flex items-center gap-1.5" suppressHydrationWarning>
+                {mounted && !isPersonal && orgWorkspace?.logoUrl && (
+                  <img src={orgWorkspace.logoUrl} alt="" className="w-3.5 h-3.5 rounded object-contain shrink-0" />
+                )}
+                <span suppressHydrationWarning>{isPersonal ? "Personal Workspace" : cleanOrgName}</span>
               </span>
 
               <ChevronDown
@@ -231,7 +239,11 @@ export function Header() {
               `}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <Building className={`w-4 h-4 shrink-0 ${!isPersonal ? "text-[#B28D18] dark:text-[#D4B12F]" : ""}`} />
+                {orgWorkspace?.logoUrl ? (
+                  <img src={orgWorkspace.logoUrl} alt="" className="w-4 h-4 rounded object-contain shrink-0" />
+                ) : (
+                  <Building className={`w-4 h-4 shrink-0 ${!isPersonal ? "text-[#B28D18] dark:text-[#D4B12F]" : ""}`} />
+                )}
                 <div className="flex flex-col min-w-0">
                   <span className="text-xs font-semibold truncate leading-tight uppercase">
                     {cleanOrgName}

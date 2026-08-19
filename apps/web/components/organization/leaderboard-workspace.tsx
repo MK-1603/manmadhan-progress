@@ -12,6 +12,7 @@ import { useSocket } from "@/components/providers/socket-provider";
 import { useRegisterRefresh } from "@/components/providers/global-refresh-provider";
 import { PersonDetailDrawer } from "./person-detail-drawer";
 import Link from "next/link";
+import { NumericValue } from "../ui/numeric-value";
 
 type PeriodFilter = "today" | "7d" | "30d" | "90d";
 type RoleFilter = "ALL" | "CO-CEO" | "MEMBER";
@@ -434,7 +435,7 @@ export function LeaderboardWorkspace({ userRole = "CEO" }: LeaderboardWorkspaceP
 
                         <div className="pt-2 mt-2 border-t border-[#E5E7EB]/50 dark:border-[#272D36] flex items-center justify-between text-[12px]">
                           <span className="text-[11px] text-[#667085] dark:text-[#8B95A5]">Performance Score</span>
-                          <span className="font-mono text-[18px] font-extrabold text-[#B28D18] dark:text-[#C9A52A]">{item.score}</span>
+                          <NumericValue size="secondary" className="text-[#B28D18] dark:text-[#C9A52A]" value={item.score} />
                         </div>
                       </div>
                     ))}
@@ -461,8 +462,8 @@ export function LeaderboardWorkspace({ userRole = "CEO" }: LeaderboardWorkspaceP
                     className="grid grid-cols-12 px-6 py-3 items-center text-[13px] hover:bg-[#F8F9FA] dark:hover:bg-[#111419]/60 transition-colors cursor-pointer"
                   >
                     {/* Rank */}
-                    <div className="col-span-1 font-mono font-bold text-[#667085] dark:text-[#8B95A5] text-[13.5px]">
-                      #{String(item.rank).padStart(2, "0")}
+                    <div className="col-span-1 text-[#667085] dark:text-[#8B95A5]">
+                      <NumericValue size="table" value={`#${String(item.rank).padStart(2, "0")}`} />
                     </div>
 
                     {/* Person */}
@@ -488,18 +489,18 @@ export function LeaderboardWorkspace({ userRole = "CEO" }: LeaderboardWorkspaceP
                     </div>
 
                     {/* Approved Work */}
-                    <div className="col-span-2 font-mono text-[13px] text-[#17202A] dark:text-[#F2F4F7] font-semibold">
-                      {item.approvedTasks} approved
+                    <div className="col-span-2 text-[#17202A] dark:text-[#F2F4F7]">
+                      <NumericValue size="table" value={item.approvedTasks} unit="approved" />
                     </div>
 
                     {/* On-Time Rate */}
-                    <div className="col-span-2 font-mono text-[13px] text-[#667085] dark:text-[#8B95A5]">
-                      {item.onTimeRate}%
+                    <div className="col-span-2 text-[#667085] dark:text-[#8B95A5]">
+                      <NumericValue size="table" value={`${item.onTimeRate}%`} />
                     </div>
 
                     {/* Performance Score */}
-                    <div className="col-span-1 text-right font-mono font-extrabold text-[#B28D18] dark:text-[#C9A52A] text-[17px]">
-                      {item.score}
+                    <div className="col-span-1 text-right text-[#B28D18] dark:text-[#C9A52A]">
+                      <NumericValue size="secondary" value={item.score} />
                     </div>
                   </div>
                 ))}

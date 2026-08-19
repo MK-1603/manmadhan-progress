@@ -20,6 +20,21 @@ import {
 } from "lucide-react";
 import { useSocket } from "@/components/providers/socket-provider";
 import { useConfirm } from "@/hooks/use-confirm";
+import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
+
+const PRIORITY_SELECT_OPTIONS: CustomSelectOption[] = [
+  { value: "All", label: "All Priorities" },
+  { value: "Low", label: "Low Priority", color: "bg-slate-400" },
+  { value: "Medium", label: "Medium Priority", color: "bg-[#C9A52A]" },
+  { value: "High", label: "High Priority", color: "bg-amber-500" },
+  { value: "Urgent", label: "Urgent Priority", color: "bg-rose-500" },
+];
+
+const STATUS_SELECT_OPTIONS: CustomSelectOption[] = [
+  { value: "All", label: "All Statuses" },
+  { value: "Pending", label: "Pending", color: "bg-amber-500" },
+  { value: "Completed", label: "Completed", color: "bg-emerald-500" },
+];
 
 const PRIMARY_DESKTOP_TABS = [
   { id: "All", label: "All" },
@@ -338,27 +353,23 @@ export default function PersonalTasksPage() {
             />
           </div>
 
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="h-[42px] px-3.5 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[12.5px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none cursor-pointer hover:border-[#C9A52A]/50 transition-colors"
-          >
-            <option value="All">All Priorities</option>
-            <option value="Low">Low Priority</option>
-            <option value="Medium">Medium Priority</option>
-            <option value="High">High Priority</option>
-            <option value="Urgent">Urgent Priority</option>
-          </select>
+          <div className="w-[160px] shrink-0">
+            <CustomSelect
+              value={priorityFilter}
+              onChange={setPriorityFilter}
+              options={PRIORITY_SELECT_OPTIONS}
+              size="md"
+            />
+          </div>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-[42px] px-3.5 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[12.5px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none cursor-pointer hover:border-[#C9A52A]/50 transition-colors"
-          >
-            <option value="All">All Statuses</option>
-            <option value="Pending">Pending</option>
-            <option value="Completed">Completed</option>
-          </select>
+          <div className="w-[160px] shrink-0">
+            <CustomSelect
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={STATUS_SELECT_OPTIONS}
+              size="md"
+            />
+          </div>
         </div>
       </div>
 

@@ -28,7 +28,12 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 			req.query.workspaceId || req.body?.workspaceId || "",
 		).trim();
 
-		if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
+		if (
+			!workspaceId ||
+			workspaceId === "undefined" ||
+			workspaceId === "null" ||
+			workspaceId === "default-workspace"
+		) {
 			if (userId) {
 				const [m] = await db
 					.select()
@@ -37,37 +42,46 @@ const resolveWorkspace = async (req: Request, res: Response, next: any) => {
 					.limit(1);
 				if (m?.workspaceId) {
 					workspaceId = m.workspaceId;
-					req.body.workspaceId = workspaceId;
-					(req.query as any).workspaceId = workspaceId;
 				}
 			}
 		}
 
-		if (!workspaceId)
-			return res
-				.status(400)
-				.json({ success: false, error: "Workspace context required" });
-
-		const [member] = await db
-			.select()
-			.from(workspaceMembers)
-			.where(
-				and(
-					eq(workspaceMembers.workspaceId, workspaceId),
-					eq(workspaceMembers.userId, userId),
-				),
-			)
-			.limit(1);
-
-		if (!member) {
-			logger.warn(
-				`[AUTH DEBUG] 403 — userId=${userId} endpoint=my-work workspaceId=${workspaceId} — no exact membership found`,
-			);
-			return res
-				.status(403)
-				.json({ success: false, error: "Access denied to workspace" });
+		let member: any = null;
+		if (workspaceId && workspaceId !== "undefined" && workspaceId !== "null") {
+			[member] = await db
+				.select()
+				.from(workspaceMembers)
+				.where(
+					and(
+						eq(workspaceMembers.workspaceId, workspaceId),
+						eq(workspaceMembers.userId, userId),
+					),
+				)
+				.limit(1);
 		}
 
+		if (!member && userId) {
+			// Fallback: look up user's first organization membership
+			const [anyMember] = await db
+				.select()
+				.from(workspaceMembers)
+				.where(eq(workspaceMembers.userId, userId))
+				.limit(1);
+
+			if (anyMember) {
+				member = anyMember;
+				workspaceId = anyMember.workspaceId;
+			}
+		}
+
+		if (!member) {
+			return res
+				.status(403)
+				.json({ success: false, error: "Access denied to organization workspace" });
+		}
+
+		req.body.workspaceId = workspaceId;
+		(req.query as any).workspaceId = workspaceId;
 		(req as any).workspaceId = workspaceId;
 		(req as any).membership = member;
 		next();

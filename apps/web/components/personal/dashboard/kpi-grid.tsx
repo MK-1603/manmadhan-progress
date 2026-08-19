@@ -1,6 +1,7 @@
 import React from "react";
 import { Clock, CheckCircle2, Folder, Target, ArrowUp, ArrowDown } from "lucide-react";
 import Link from "next/link";
+import { NumericValue } from "../../ui/numeric-value";
 
 interface KpiCardProps {
   title: string;
@@ -42,25 +43,27 @@ export function KpiGrid({ data, className = "" }: { data: any; className?: strin
       <KpiCard title="Focus Time" icon={Clock} href="/personal/focus">
         {data.focusTime === "00h 00m" && !focusGoalText ? (
           <>
-            <span className="text-[26px] font-bold text-foreground leading-none">00h 00m</span>
+            <NumericValue size="card" className="text-foreground leading-none" value="00h 00m" />
             <p className="text-[12px] text-muted-foreground mt-1">No focus time yet</p>
           </>
         ) : (
           <>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-[26px] font-bold text-foreground leading-none">{data.focusTime}</span>
+              <NumericValue size="card" className="text-foreground leading-none" value={data.focusTime} />
               {focusGoalText && (
-                <span className="text-[14px] text-muted-foreground font-medium">{focusGoalText}</span>
+                <NumericValue size="table" className="text-muted-foreground" value={focusGoalText} />
               )}
             </div>
             <p className="text-[12px] text-muted-foreground mt-1">Focus today</p>
             {data.focusPercent != null && focusGoalText && (
-              <p className="text-[12px] text-foreground font-medium mt-0.5">{data.focusPercent}% of goal</p>
+              <p className="text-[12px] text-foreground font-medium mt-0.5">
+                <NumericValue size="meta" value={`${data.focusPercent}%`} /> of goal
+              </p>
             )}
             {focusTrend != null && (
               <p className={`text-[12px] flex items-center gap-1 font-medium mt-1 ${focusTrend >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
                 {focusTrend >= 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
-                {Math.abs(focusTrend)}% vs yesterday
+                <NumericValue size="meta" value={`${Math.abs(focusTrend)}%`} /> vs yesterday
               </p>
             )}
           </>
@@ -71,19 +74,21 @@ export function KpiGrid({ data, className = "" }: { data: any; className?: strin
       <KpiCard title="Tasks" icon={CheckCircle2} href="/personal/tasks">
         {!hasTasks ? (
           <>
-            <span className="text-[26px] font-bold text-foreground leading-none">0 / 0</span>
+            <NumericValue size="card" className="text-foreground leading-none" value="0 / 0" />
             <p className="text-[12px] text-muted-foreground mt-1">No tasks today</p>
           </>
         ) : (
           <>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-[26px] font-bold text-foreground leading-none">{data.tasksCompleted}</span>
-              <span className="text-[14px] text-muted-foreground font-medium">/ {data.tasksTotal}</span>
+              <NumericValue size="card" className="text-foreground leading-none" value={data.tasksCompleted} />
+              <NumericValue size="table" className="text-muted-foreground" value={`/ ${data.tasksTotal}`} />
             </div>
             <p className="text-[12px] text-muted-foreground mt-1">Completed today</p>
             {data.tasksPercent != null && (
               <>
-                <p className="text-[12px] text-foreground font-medium mt-0.5">{data.tasksPercent}% done</p>
+                <p className="text-[12px] text-foreground font-medium mt-0.5">
+                  <NumericValue size="meta" value={`${data.tasksPercent}%`} /> done
+                </p>
                 <div className="mt-2 w-full h-1 bg-muted rounded-full overflow-hidden">
                   <div
                     className="h-full bg-foreground rounded-full transition-all duration-500"
@@ -100,15 +105,19 @@ export function KpiGrid({ data, className = "" }: { data: any; className?: strin
       <KpiCard title="Projects" icon={Folder} href="/personal/projects">
         {!hasProjects ? (
           <>
-            <span className="text-[26px] font-bold text-foreground leading-none">0</span>
+            <NumericValue size="card" className="text-foreground leading-none" value={0} />
             <p className="text-[12px] text-muted-foreground mt-1">No active projects</p>
           </>
         ) : (
           <>
-            <span className="text-[26px] font-bold text-foreground leading-none">{data.projectsActive}</span>
+            <NumericValue size="card" className="text-foreground leading-none" value={data.projectsActive} />
             <p className="text-[12px] text-muted-foreground mt-1">Active projects</p>
             <p className={`text-[12px] font-medium mt-0.5 ${data.projectsAttention > 0 ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}`}>
-              {data.projectsAttention > 0 ? `${data.projectsAttention} need attention` : "All on track"}
+              {data.projectsAttention > 0 ? (
+                <><NumericValue size="meta" value={data.projectsAttention} /> need attention</>
+              ) : (
+                "All on track"
+              )}
             </p>
           </>
         )}
@@ -124,15 +133,15 @@ export function KpiGrid({ data, className = "" }: { data: any; className?: strin
         ) : (
           <>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-[26px] font-bold text-foreground leading-none">{data.score}</span>
-              <span className="text-[14px] text-muted-foreground font-medium">/ 100</span>
+              <NumericValue size="card" className="text-foreground leading-none" value={data.score} />
+              <NumericValue size="table" className="text-muted-foreground" value="/ 100" />
             </div>
             <p className="text-[12px] text-muted-foreground mt-1">
               {data.score >= 80 ? "Strong execution" : data.score >= 50 ? "Steady execution" : "Needs momentum"}
             </p>
             {data.scoreTrend != null && (
               <p className={`text-[12px] flex items-center gap-1 font-medium mt-0.5 ${data.scoreTrend >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
-                {data.scoreTrend >= 0 ? "+" : ""}{data.scoreTrend} vs yesterday
+                <NumericValue size="meta" value={`${data.scoreTrend >= 0 ? "+" : ""}${data.scoreTrend}`} /> vs yesterday
               </p>
             )}
           </>
@@ -142,3 +151,4 @@ export function KpiGrid({ data, className = "" }: { data: any; className?: strin
     </div>
   );
 }
+

@@ -42,6 +42,7 @@ import { orgTimelineRouter } from "./routes/org-timeline.routes";
 import { orgLearningRouter } from "./routes/org-learning.routes";
 import { orgCalendarRouter } from "./routes/org-calendar.routes";
 import { orgIntegrationsRouter } from "./routes/org-integrations.routes";
+import { orgWorkingHoursRouter } from "./routes/org-working-hours.routes";
 import { organizationRouter } from "./routes/organization.routes";
 import { automationRouter } from "./routes/automation.routes";
 import { personalAiChatRouter } from "./routes/personal/ai-chat.routes";
@@ -270,6 +271,8 @@ export const createApp = (): Express => {
 	app.use("/api/v1/org/automation", automationRouter);
 	app.use("/api/v1/org/integrations", orgIntegrationsRouter);
 	app.use("/api/org/integrations", orgIntegrationsRouter);
+	app.use("/api/v1/org/working-hours", orgWorkingHoursRouter);
+	app.use("/api/org/working-hours", orgWorkingHoursRouter);
 
 
 	// ── Database Records REST API ──

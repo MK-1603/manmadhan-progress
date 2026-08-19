@@ -83,20 +83,40 @@ export function CreateTaskModal({
 
     async function loadData() {
       try {
+        const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
+        const wsParam = workspaceId && workspaceId !== "undefined" && workspaceId !== "null" ? `?workspaceId=${workspaceId}` : "";
+
         const [dirRes, memRes, projRes] = await Promise.all([
-          apiClient.get("/org/directory").catch(() => null),
-          apiClient.get("/organization/members").catch(() => null),
-          apiClient.get("/org/projects").catch(() => null),
+          apiClient.get(`/org/directory${wsParam}`).catch(() => null),
+          apiClient.get(`/org/members${wsParam}`).catch(() => null),
+          apiClient.get(`/org/projects${wsParam}`).catch(() => null),
         ]);
 
-        let loadedMembers: any[] = [];
+        const memberMap = new Map<string, any>();
+
         if (dirRes?.data?.success && Array.isArray(dirRes.data.data)) {
-          loadedMembers = dirRes.data.data;
-        } else if (memRes?.data?.data && Array.isArray(memRes.data.data)) {
-          loadedMembers = memRes.data.data;
+          dirRes.data.data.forEach((m: any) => {
+            if (m && m.id) memberMap.set(m.id, m);
+          });
+        }
+        if (memRes?.data?.data && Array.isArray(memRes.data.data)) {
+          memRes.data.data.forEach((m: any) => {
+            if (m && m.id) {
+              const existing = memberMap.get(m.id) || {};
+              memberMap.set(m.id, { ...existing, ...m });
+            }
+          });
+        } else if (memRes?.data?.success && Array.isArray(memRes.data.data)) {
+          memRes.data.data.forEach((m: any) => {
+            if (m && m.id) {
+              const existing = memberMap.get(m.id) || {};
+              memberMap.set(m.id, { ...existing, ...m });
+            }
+          });
         }
 
-        if (loadedMembers.length > 0) setMembers(loadedMembers);
+        const combinedMembers = Array.from(memberMap.values());
+        if (combinedMembers.length > 0) setMembers(combinedMembers);
         if (projRes?.data?.data && Array.isArray(projRes.data.data)) setProjects(projRes.data.data);
       } catch (e) {
         console.error("Failed to load task creation data:", e);
@@ -108,15 +128,22 @@ export function CreateTaskModal({
   const filteredMembers = useMemo(() => {
     const userRole = (user?.role || "").toUpperCase();
     if (userRole === "MEMBER") return [];
-    if (userRole === "CO-CEO") {
-      return members.filter((m: any) => {
+
+    let result = members.filter((m: any) => m && m.id !== user?.id);
+
+    if (userRole === "CO-CEO" || userRole === "CO_CEO") {
+      const coCeoFiltered = result.filter((m: any) => {
         const mRole = String(m.role || "").toUpperCase();
         if (mRole === "CEO" || mRole === "CO-CEO" || mRole === "CO_CEO") return false;
         if (m.managerId) return m.managerId === user?.id;
         return true;
       });
+      if (coCeoFiltered.length > 0) return coCeoFiltered;
+      // Fallback: return non-CEO members
+      return result.filter((m: any) => String(m.role || "").toUpperCase() !== "CEO");
     }
-    return members;
+
+    return result;
   }, [members, user]);
 
   if (!isOpen) return null;
@@ -130,12 +157,15 @@ export function CreateTaskModal({
     setError(null);
     setIsSubmitting(true);
     try {
+      const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null;
       const res = await apiClient.post("/org/tasks/create", {
+        workspaceId: workspaceId && workspaceId !== "undefined" && workspaceId !== "null" ? workspaceId : undefined,
         title: title.trim(),
         description: description.trim() || title.trim(),
         type: taskType,
         priority,
         energyLevel,
+        assigneeId: assigneeId || null,
         assigneeUserId: assigneeId || null,
         projectId: taskType === "PROJECT WORK" ? projectId : null,
         deadline: deadline || null,
@@ -149,23 +179,10 @@ export function CreateTaskModal({
       });
 
       if (res.data?.success) {
-        onSuccess(res.data.data.task);
+        onSuccess(res.data.data);
         onClose();
       } else {
-        onSuccess({
-          id: `task-${Date.now()}`,
-          title: title.trim(),
-          description: description.trim(),
-          type: taskType,
-          priority,
-          energyLevel,
-          assigneeName: members.find((m) => m.id === assigneeId)?.name || "Unassigned",
-          projectName: taskType === "PROJECT WORK" ? "ManMadhan Progress V1" : "Standalone Task",
-          deadline: deadline || null,
-          progress: 0,
-          status: "Pending",
-        });
-        onClose();
+        setError(res.data?.error || "Failed to create task in workspace database.");
       }
     } catch (err: any) {
       setError(err.response?.data?.error || "Failed to create task.");

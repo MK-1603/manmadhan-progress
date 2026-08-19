@@ -9,6 +9,7 @@ import apiClient from "@/lib/api-client";
 import { GlobalSheet } from "@/components/ui/global-sheet";
 import { useAuth } from "@/components/auth/auth-context";
 import { CustomMemberSelect } from "@/components/ui/custom-member-select";
+import { AppSelect } from "@/components/ui/app-select";
 
 export type TaskType =
   | "LEARNING"
@@ -384,15 +385,14 @@ export function TaskCreateModal({
               <div className="p-3 bg-[#F8F9FA] dark:bg-[#111419] border border-[#E5E7EB] dark:border-[#272D36] rounded-[12px] grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] block mb-1">Document Type</label>
-                  <select
+                  <AppSelect
                     value={docType}
-                    onChange={(e) => setDocType(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#FFFFFF] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[8px] text-[12px]"
-                  >
-                    {["PRD", "TRD", "Technical Doc", "API Spec", "Security Report", "User Guide"].map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setDocType(val)}
+                    options={["PRD", "TRD", "Technical Doc", "API Spec", "Security Report", "User Guide"].map((d) => ({
+                      value: d,
+                      label: d,
+                    }))}
+                  />
                 </div>
                 <div>
                   <label className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] block mb-1">Expected Format</label>
@@ -423,15 +423,16 @@ export function TaskCreateModal({
             <div className="grid grid-cols-3 gap-2.5">
               <div>
                 <label className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] block mb-1">Priority</label>
-                <select
+                <AppSelect
                   value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-[#FFFFFF] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[10px] text-[12px] font-bold"
-                >
-                  {["Low", "Medium", "High", "Urgent"].map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setPriority(val)}
+                  options={[
+                    { value: "Low", label: "Low", color: "bg-blue-500" },
+                    { value: "Medium", label: "Medium", color: "bg-amber-500" },
+                    { value: "High", label: "High", color: "bg-rose-500" },
+                    { value: "Urgent", label: "Urgent", color: "bg-purple-500" },
+                  ]}
+                />
               </div>
 
               <div>
@@ -461,16 +462,14 @@ export function TaskCreateModal({
             {!projectId && projects.length > 0 && (
               <div>
                 <label className="text-[11px] font-bold text-[#667085] dark:text-[#8B95A5] block mb-1">Project (Optional)</label>
-                <select
+                <AppSelect
                   value={selectedProjectId}
-                  onChange={(e) => setSelectedProjectId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-[#FFFFFF] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[10px] text-[12px]"
-                >
-                  <option value="">No Project</option>
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedProjectId(val)}
+                  options={[
+                    { value: "", label: "No Project" },
+                    ...projects.map((p) => ({ value: p.id, label: p.name })),
+                  ]}
+                />
               </div>
             )}
 

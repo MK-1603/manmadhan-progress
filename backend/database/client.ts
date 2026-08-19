@@ -120,6 +120,29 @@ export const checkDatabaseConnection = async (): Promise<boolean> => {
 				error_message TEXT,
 				executed_at TIMESTAMP DEFAULT NOW() NOT NULL
 			);
+
+			CREATE TABLE IF NOT EXISTS project_submissions (
+				id TEXT PRIMARY KEY,
+				project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+				workspace_id TEXT NOT NULL,
+				title TEXT NOT NULL,
+				description TEXT NOT NULL,
+				submitted_by TEXT NOT NULL,
+				submitted_role TEXT DEFAULT 'CO-CEO',
+				status TEXT DEFAULT 'Under Review' NOT NULL,
+				file_url TEXT,
+				file_name TEXT,
+				file_size INTEGER,
+				deployment_url TEXT,
+				application_url TEXT,
+				repository_url TEXT,
+				version_tag TEXT,
+				reviewer_notes TEXT,
+				reviewed_by TEXT,
+				reviewed_at TIMESTAMP,
+				submitted_at TIMESTAMP DEFAULT NOW() NOT NULL,
+				created_at TIMESTAMP DEFAULT NOW() NOT NULL
+			);
 		`);
 		authClient.release();
 		authClient = undefined;
