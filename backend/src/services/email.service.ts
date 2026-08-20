@@ -93,7 +93,7 @@ class EmailService {
 		const pass = env.SMTP_PASS || env.MAIL_PASS || "";
 		const host = env.SMTP_HOST || "smtp.gmail.com";
 		const port = Number(env.SMTP_PORT || 587);
-		const secure = env.SMTP_SECURE || false;
+		const secure = port === 465 ? true : Boolean(env.SMTP_SECURE);
 
 		const configCheck = this.validateConfig();
 		if (!configCheck.isValid) {
@@ -316,37 +316,6 @@ class EmailService {
 		} catch (err: any) {
 			const errorCode = this.classifyError(err);
 			const errorMessage = err?.message || "Gmail SMTP delivery failed";
-
-			// On cloud platforms like Render where SMTP ports (587/465) are blocked on free tiers,
-			// attempt HTTPS Resend API fallback over Port 443 if RESEND_API_KEY is configured.
-			if (process.env.RESEND_API_KEY) {
-				try {
-					logger.info({ to: maskEmail(options.to) }, "[EMAIL] SMTP blocked by cloud host network. Retrying via Resend HTTPS API (Port 443)...");
-					const resendFrom = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
-					const resendRes = await fetch("https://api.resend.com/emails", {
-						method: "POST",
-						headers: {
-							"Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
-							"Content-Type": "application/json",
-						},
-						body: JSON.stringify({
-							from: resendFrom,
-							to: options.to,
-							subject: cleanSubject,
-							html: finalHtml,
-						}),
-					});
-
-					const resendData: any = await resendRes.json();
-					if (resendRes.ok && resendData.id) {
-						logger.info({ messageId: resendData.id, to: maskEmail(options.to) }, "[EMAIL] Email delivered successfully via Resend HTTPS API ✓");
-						return { success: true, messageId: resendData.id, accepted: [options.to] };
-					}
-					logger.warn({ resendData }, "[EMAIL] Resend HTTPS API fallback returned non-200 status");
-				} catch (resendErr: any) {
-					logger.warn({ err: resendErr?.message }, "[EMAIL] Resend HTTPS fallback attempt failed");
-				}
-			}
 
 			logger.error(
 				{
