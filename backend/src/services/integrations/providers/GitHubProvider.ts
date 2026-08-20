@@ -21,7 +21,7 @@ export class GitHubProvider implements IIntegrationProvider {
 			process.env.GITHUB_AUTH_CALLBACK_URL ||
 			(process.env.SERVER_URL
 				? `${process.env.SERVER_URL.replace(/\/$/, "")}/api/v1/auth/github/callback`
-				: "http://localhost:4100/api/v1/auth/github/callback");
+				: "http://localhost:4000/api/v1/auth/github/callback");
 		const scopes = "repo,user";
 
 		return `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}`;

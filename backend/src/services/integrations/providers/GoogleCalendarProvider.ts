@@ -20,7 +20,7 @@ export class GoogleCalendarProvider implements IIntegrationProvider {
 			process.env.GOOGLE_AUTH_CALLBACK_URL ||
 			(process.env.SERVER_URL
 				? `${process.env.SERVER_URL.replace(/\/$/, "")}/api/v1/auth/google/callback`
-				: "http://localhost:4100/api/v1/auth/google/callback");
+				: "http://localhost:4000/api/v1/auth/google/callback");
 
 		return new google.auth.OAuth2(
 			process.env.GOOGLE_CLIENT_ID,
