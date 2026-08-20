@@ -114,18 +114,19 @@ class EmailService {
 			await Promise.race([
 				this.nodemailerTransport.verify(),
 				new Promise<never>((_, reject) =>
-					setTimeout(() => reject(new Error("SMTP verification timeout (6s limit reached)")), 6000),
+					setTimeout(() => reject(new Error("SMTP verification timeout (15s limit reached)")), 15000),
 				),
 			]);
 			return true;
 		} catch (err: any) {
-			if (this.resend) {
-				logger.warn({ err: err?.message || err }, "SMTP connection blocked by cloud host network. Falling back to Resend API ✓");
+			const isExplicitSmtp = (env.EMAIL_PROVIDER || "").toLowerCase() === "smtp";
+			if (this.resend && !isExplicitSmtp) {
+				logger.warn({ err: err?.message || err }, "SMTP connection blocked by network. Falling back to Resend API ✓");
 				this.provider = "resend";
 				return true;
 			}
-			logger.warn({ err: err?.message || err }, "Email service connection check failed");
-			return false;
+			logger.warn({ err: err?.message || err }, "SMTP connection check failed — proceeding with configured transport");
+			return true;
 		}
 	}
 
