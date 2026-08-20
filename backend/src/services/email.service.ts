@@ -1,4 +1,8 @@
+import dns from "node:dns";
 import nodemailer from "nodemailer";
+
+// Enforce IPv4 resolution order before socket connections
+dns.setDefaultResultOrder("ipv4first");
 import { env } from "../../config/env.config";
 import { buildInviteUrl, buildClientUrl } from "../utils/url.utils";
 import { maskEmail } from "../utils/string.utils";

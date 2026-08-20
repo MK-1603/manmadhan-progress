@@ -1,4 +1,8 @@
+import dns from "node:dns";
 import http from "node:http";
+
+// Enforce IPv4 DNS resolution first to fix ENETUNREACH IPv6 socket failures
+dns.setDefaultResultOrder("ipv4first");
 import { and, eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { Server as SocketIOServer } from "socket.io";
