@@ -1,4 +1,5 @@
 import type { Express, Request, Response } from "express";
+import { emailService } from "../services/email.service";
 
 export const registerHealthEndpoints = (app: Express): void => {
 	app.get("/health", (_req: Request, res: Response) => {
@@ -8,6 +9,7 @@ export const registerHealthEndpoints = (app: Express): void => {
 			service: "manmadhan-progress-server",
 			version: "1.0.0",
 			environment: process.env.NODE_ENV || "development",
+			email: emailService.getHealthStatus(),
 		});
 	});
 

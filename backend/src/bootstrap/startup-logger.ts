@@ -166,7 +166,7 @@ class StartupLoggerClass {
 			"Gmail SMTP        \x1b[32m✓ Primary\x1b[0m",
 		);
 		box += makeTwoColRow(
-			"Resend Provider   \x1b[90mDisabled\x1b[0m",
+			"Gmail Transport   \x1b[32m✓ Port 587 (TLS)\x1b[0m",
 			"Groq Llama 3.3 70B\x1b[32m✓ Connected\x1b[0m",
 		);
 

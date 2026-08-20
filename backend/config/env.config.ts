@@ -45,8 +45,8 @@ export const env = {
 	APPLE_CLIENT_ID: process.env.APPLE_CLIENT_ID || "",
 	APPLE_CLIENT_SECRET: process.env.APPLE_CLIENT_SECRET || "",
 
-	// Mail Transport Settings
-	EMAIL_PROVIDER: process.env.EMAIL_PROVIDER || "smtp",
+	// Mail Transport Settings (Gmail SMTP)
+	EMAIL_PROVIDER: "smtp",
 	MAIL_MODE: process.env.MAIL_MODE || "gmail",
 	MAIL_USER: process.env.MAIL_USER || "manmadhannotify@gmail.com",
 	MAIL_PASS: process.env.MAIL_PASS || "",
@@ -54,19 +54,15 @@ export const env = {
 	MAIL_FROM_ADDRESS:
 		process.env.MAIL_FROM_ADDRESS || "manmadhannotify@gmail.com",
 
-	// Generic SMTPS Provider (local / self-hosted only)
+	// Gmail SMTP Transport
 	SMTP_HOST: process.env.SMTP_HOST || "smtp.gmail.com",
-	SMTP_PORT: parseInt(process.env.SMTP_PORT || "465", 10),
-	SMTP_SECURE: process.env.SMTP_SECURE === "true",
+	SMTP_PORT: parseInt(process.env.SMTP_PORT || "587", 10),
+	SMTP_SECURE: process.env.SMTP_SECURE === "true", // false by default for 587 STARTTLS
 	SMTP_USER: process.env.SMTP_USER || "manmadhannotify@gmail.com",
 	SMTP_PASS: process.env.SMTP_PASS || "",
 	EMAIL_FROM:
 		process.env.EMAIL_FROM ||
 		'"ManMadhan Progress" <manmadhannotify@gmail.com>',
-
-	// Resend HTTPS Email API — required on Render / Vercel / Railway
-	RESEND_API_KEY: process.env.RESEND_API_KEY || "",
-	RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
 
 	// Cloudinary Media Storage (fmiadecb)
 	CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || "fmiadecb",

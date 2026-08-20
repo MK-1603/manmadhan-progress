@@ -1,4 +1,3 @@
-import { Resend } from "resend";
 import nodemailer from "nodemailer";
 import { env } from "../../config/env.config";
 import { buildInviteUrl, buildClientUrl } from "../utils/url.utils";
@@ -8,6 +7,17 @@ import {
 	type EmailTemplateOptions,
 } from "./emails/template.builder";
 import { logger } from "./logger.service";
+
+export type EmailErrorCode =
+	| "SMTP_CONFIGURATION_ERROR"
+	| "SMTP_CONNECTION_ERROR"
+	| "SMTP_TIMEOUT"
+	| "SMTP_AUTHENTICATION_ERROR"
+	| "SMTP_TLS_ERROR"
+	| "SMTP_RECIPIENT_REJECTED"
+	| "SMTP_PROVIDER_ERROR"
+	| "EMAIL_TEMPLATE_ERROR"
+	| "EMAIL_UNKNOWN_ERROR";
 
 export interface SendEmailOptions {
 	to: string;
@@ -40,94 +50,185 @@ export interface SendEmailOptions {
 	mode?: "action" | "alert" | "digest" | "informational";
 }
 
-// ── Transport selection ──────────────────────────────────────────────────────
-// Priority:
-//   1. RESEND_API_KEY present → use Resend HTTPS API (works on Render / any host)
-//   2. Otherwise → Nodemailer SMTP / Gmail (local / self-hosted only)
-//
-// Render blocks outbound SMTP ports (465 / 587) on its free tier, so Nodemailer
-// will always time-out in production. Always set RESEND_API_KEY on Render.
-
-type SendResult = { success: boolean; messageId?: string; error?: string };
+export type SendResult = {
+	success: boolean;
+	messageId?: string;
+	accepted?: string[];
+	rejected?: string[];
+	error?: string;
+	errorCode?: EmailErrorCode;
+};
 
 class EmailService {
-	private resend: Resend | null = null;
 	private nodemailerTransport: nodemailer.Transporter | null = null;
-	private provider: "smtp" | "resend" = "smtp";
+	private isVerified = false;
+	private lastVerificationError: string | null = null;
 
 	constructor() {
-		this.provider = (env.EMAIL_PROVIDER || "smtp").toLowerCase() as "smtp" | "resend";
-		
-		if (process.env.RESEND_API_KEY || env.RESEND_API_KEY) {
-			this.resend = new Resend(process.env.RESEND_API_KEY || env.RESEND_API_KEY);
-		}
-
-		if (this.provider === "smtp") {
-			this.nodemailerTransport = this.buildNodemailerTransport();
-		}
-		logger.info("Email service initialized");
+		this.initTransporter();
 	}
 
-	// ── Nodemailer transport factory ─────────────────────────────────────────
-	private buildNodemailerTransport(): nodemailer.Transporter {
+	private validateConfig(): { isValid: boolean; missingKeys: string[] } {
+		const missingKeys: string[] = [];
+		const host = env.SMTP_HOST || "smtp.gmail.com";
 		const user = env.SMTP_USER || env.MAIL_USER;
 		const pass = env.SMTP_PASS || env.MAIL_PASS;
 
-		if (env.MAIL_MODE === "gmail" || env.SMTP_HOST === "smtp.gmail.com") {
-			return nodemailer.createTransport({
-				service: "gmail",
-				auth: {
-					user,
-					pass,
-				},
-				connectionTimeout: 8000,
-				greetingTimeout: 8000,
-				socketTimeout: 10000,
-			});
+		if (!host) missingKeys.push("SMTP_HOST");
+		if (!user) missingKeys.push("SMTP_USER / MAIL_USER");
+		if (!pass) missingKeys.push("SMTP_PASS / MAIL_PASS");
+
+		return {
+			isValid: missingKeys.length === 0,
+			missingKeys,
+		};
+	}
+
+	private initTransporter(): nodemailer.Transporter {
+		const user = env.SMTP_USER || env.MAIL_USER || "manmadhannotify@gmail.com";
+		const pass = env.SMTP_PASS || env.MAIL_PASS || "";
+		const host = env.SMTP_HOST || "smtp.gmail.com";
+		const port = Number(env.SMTP_PORT || 587);
+		const secure = env.SMTP_SECURE || false;
+
+		const configCheck = this.validateConfig();
+		if (!configCheck.isValid) {
+			logger.warn(
+				{ missingKeys: configCheck.missingKeys },
+				"[EMAIL] SMTP configuration incomplete — missing required parameters",
+			);
 		}
 
-		return nodemailer.createTransport({
-			host: env.SMTP_HOST || "smtp.gmail.com",
-			port: env.SMTP_PORT || 465,
-			secure: env.SMTP_SECURE,
+		logger.info(
+			{
+				provider: "smtp",
+				host,
+				port,
+				secure,
+				authConfigured: Boolean(user && pass),
+			},
+			"[EMAIL] SMTP configuration loaded",
+		);
+
+		// Force family: 4 to resolve IPv6 ENETUNREACH issues with smtp.gmail.com
+		this.nodemailerTransport = nodemailer.createTransport({
+			host,
+			port,
+			secure, // false for port 587 STARTTLS
 			auth: {
 				user,
 				pass,
 			},
-			connectionTimeout: 8000,
-			greetingTimeout: 8000,
-			socketTimeout: 10000,
-			tls: { rejectUnauthorized: false },
-		});
+			family: 4, // IPv4 preference (fixes ENETUNREACH 2607:f8b0:400e:c1b::6c:465)
+			connectionTimeout: 10000,
+			greetingTimeout: 10000,
+			socketTimeout: 15000,
+			tls: {
+				rejectUnauthorized: false,
+			},
+		} as nodemailer.TransportOptions);
+
+		return this.nodemailerTransport;
 	}
 
 	// ── Connection verification ──────────────────────────────────────────────
 	public async verifyConnection(): Promise<boolean> {
-		if (this.provider === "resend" && this.resend) {
-			return true;
-		}
-
 		try {
 			if (!this.nodemailerTransport) {
-				this.nodemailerTransport = this.buildNodemailerTransport();
+				this.initTransporter();
 			}
+
+			const user = env.SMTP_USER || env.MAIL_USER;
+			const pass = env.SMTP_PASS || env.MAIL_PASS;
+			const host = env.SMTP_HOST || "smtp.gmail.com";
+			const port = Number(env.SMTP_PORT || 587);
+			const secure = env.SMTP_SECURE || false;
+
+			if (!user || !pass) {
+				logger.warn("[EMAIL] SMTP connection check failed: Missing authentication credentials");
+				this.isVerified = false;
+				this.lastVerificationError = "Missing credentials";
+				return false;
+			}
+
 			await Promise.race([
-				this.nodemailerTransport.verify(),
+				this.nodemailerTransport!.verify(),
 				new Promise<never>((_, reject) =>
-					setTimeout(() => reject(new Error("SMTP verification timeout (15s limit reached)")), 15000),
+					setTimeout(
+						() => reject(new Error("SMTP verification timeout (15s limit reached)")),
+						15000,
+					),
 				),
 			]);
+
+			this.isVerified = true;
+			this.lastVerificationError = null;
+
+			logger.info(
+				{
+					provider: "smtp",
+					host,
+					port,
+					secure,
+					authConfigured: true,
+					verification: "SUCCESS",
+				},
+				"[EMAIL] SMTP connection verification: SUCCESS",
+			);
+
 			return true;
 		} catch (err: any) {
-			const isExplicitSmtp = (env.EMAIL_PROVIDER || "").toLowerCase() === "smtp";
-			if (this.resend && !isExplicitSmtp) {
-				logger.warn({ err: err?.message || err }, "SMTP connection blocked by network. Falling back to Resend API ✓");
-				this.provider = "resend";
-				return true;
-			}
-			logger.warn({ err: err?.message || err }, "SMTP connection check failed — proceeding with configured transport");
-			return true;
+			this.isVerified = false;
+			this.lastVerificationError = err?.message || String(err);
+
+			logger.warn(
+				{
+					provider: "smtp",
+					host: env.SMTP_HOST || "smtp.gmail.com",
+					port: Number(env.SMTP_PORT || 587),
+					error: this.lastVerificationError,
+					verification: "FAILED",
+				},
+				"[EMAIL] SMTP connection verification: FAILED",
+			);
+
+			return false;
 		}
+	}
+
+	public getHealthStatus() {
+		return {
+			provider: "smtp",
+			host: env.SMTP_HOST || "smtp.gmail.com",
+			port: Number(env.SMTP_PORT || 587),
+			secure: env.SMTP_SECURE || false,
+			status: this.isVerified ? "ready" : "degraded",
+			...(this.lastVerificationError ? { lastError: this.lastVerificationError } : {}),
+		};
+	}
+
+	private classifyError(err: any): EmailErrorCode {
+		const message = (err?.message || String(err)).toLowerCase();
+
+		if (message.includes("econnrefused") || message.includes("enetunreach") || message.includes("etimedout")) {
+			return "SMTP_CONNECTION_ERROR";
+		}
+		if (message.includes("timeout")) {
+			return "SMTP_TIMEOUT";
+		}
+		if (message.includes("invalid login") || message.includes("auth") || message.includes("535")) {
+			return "SMTP_AUTHENTICATION_ERROR";
+		}
+		if (message.includes("tls") || message.includes("ssl") || message.includes("certificate")) {
+			return "SMTP_TLS_ERROR";
+		}
+		if (message.includes("recipient") || message.includes("550") || message.includes("mailbox")) {
+			return "SMTP_RECIPIENT_REJECTED";
+		}
+		if (message.includes("template")) {
+			return "EMAIL_TEMPLATE_ERROR";
+		}
+		return "SMTP_PROVIDER_ERROR";
 	}
 
 	// ── Template builder (delegates to EmailTemplateBuilder) ─────────────────
@@ -135,81 +236,46 @@ class EmailService {
 		return EmailTemplateBuilder.build(options);
 	}
 
-	// ── Helper to resolve Resend-compatible sender address ───────────────────
-	private getResendFromAddress(): string {
-		const fromName = env.MAIL_FROM_NAME || "ManMadhan Progress";
-		const configuredResendFrom = process.env.RESEND_FROM_EMAIL || env.RESEND_FROM_EMAIL;
-
-		if (configuredResendFrom) {
-			return configuredResendFrom.includes("<")
-				? configuredResendFrom
-				: `"${fromName}" <${configuredResendFrom}>`;
-		}
-
-		const fromUser = env.SMTP_USER || env.MAIL_USER || env.MAIL_FROM_ADDRESS || "";
-
-		// Resend API forbids sending from unverified third-party public domains (@gmail.com, @yahoo.com, etc.)
-		if (/@(gmail|yahoo|hotmail|outlook|live|icloud)\.com$/i.test(fromUser.trim())) {
-			logger.warn(
-				`[EmailService] Sender address '${fromUser}' uses an unverified public domain on Resend. Defaulting to 'onboarding@resend.dev'. Set RESEND_FROM_EMAIL in .env or verify your domain at https://resend.com/domains`,
-			);
-			return `"${fromName}" <onboarding@resend.dev>`;
-		}
-
-		return `"${fromName}" <${fromUser}>`;
-	}
-
 	// ── Core send method ──────────────────────────────────────────────────────
 	public async sendEmail(options: SendEmailOptions): Promise<SendResult> {
 		const fromName = env.MAIL_FROM_NAME || "ManMadhan Progress";
-		const fromUser = env.SMTP_USER || env.MAIL_USER || env.MAIL_FROM_ADDRESS;
-		const fromAddress = `"${fromName}" <${fromUser}>`;
+		const fromUser = env.SMTP_USER || env.MAIL_USER || env.MAIL_FROM_ADDRESS || "manmadhannotify@gmail.com";
+		const fromAddress = env.EMAIL_FROM || `"${fromName}" <${fromUser}>`;
 
 		const cleanSubject = options.subject
 			.replace(/BullMQ/gi, "System")
 			.replace(/Async task with auto-cleanup/gi, "Task Update");
 
-		const finalHtml = options.html?.includes("<html")
-			? options.html
-			: this.buildTemplate({
-					...options,
-					title: options.title || cleanSubject,
-					descriptions: options.html ? [options.html] : options.text ? [options.text] : [],
-				});
-
-		// ── Direct execution for configured provider ──────────────────────────
-		if (this.provider === "resend" && this.resend) {
-			const resendFromAddress = this.getResendFromAddress();
-			try {
-				const { data, error } = await this.resend.emails.send({
-					from: resendFromAddress,
-					to: [options.to],
-					subject: cleanSubject,
-					html: finalHtml,
-					text: options.text,
-				});
-
-				if (!error && data?.id) {
-					logger.info({ messageId: data.id, from: resendFromAddress, to: options.to }, "Email dispatched via Resend API ✓");
-					return { success: true, messageId: data.id };
-				}
-
-				logger.error({ error: error?.message || error, from: resendFromAddress }, "Email delivery failed via Resend API");
-				return { success: false, error: error?.message || "Resend email delivery failed" };
-			} catch (resendErr: any) {
-				logger.error({ error: resendErr.message }, "Email delivery failed via Resend API");
-				return { success: false, error: resendErr.message };
-			}
+		let finalHtml = "";
+		try {
+			finalHtml = options.html?.includes("<html")
+				? options.html
+				: this.buildTemplate({
+						...options,
+						title: options.title || cleanSubject,
+						descriptions: options.html ? [options.html] : options.text ? [options.text] : [],
+					});
+		} catch (templateErr: any) {
+			const errorCode = this.classifyError(templateErr);
+			logger.error(
+				{ error: templateErr?.message, errorCode, to: maskEmail(options.to) },
+				"[EMAIL] Email template generation failed",
+			);
+			return { success: false, error: "Failed to render email template", errorCode };
 		}
 
-		// ── Gmail SMTP Execution ──────────────────────────────────────────────
 		try {
 			if (!this.nodemailerTransport) {
-				this.nodemailerTransport = this.buildNodemailerTransport();
+				this.initTransporter();
 			}
 
+			logger.info(
+				{ provider: "smtp", host: env.SMTP_HOST || "smtp.gmail.com", to: maskEmail(options.to), subject: cleanSubject },
+				"[EMAIL] Dispatching email via Gmail SMTP...",
+			);
+
 			const info: any = await Promise.race([
-				this.nodemailerTransport.sendMail({
+				this.nodemailerTransport!.sendMail({
 					from: fromAddress,
 					to: options.to,
 					subject: cleanSubject,
@@ -218,39 +284,48 @@ class EmailService {
 				}),
 				new Promise<never>((_, reject) =>
 					setTimeout(
-						() => reject(new Error("Gmail SMTP dispatch timed out after 8000ms")),
-						8000,
+						() => reject(new Error("Gmail SMTP dispatch timed out after 12000ms")),
+						12000,
 					),
 				),
 			]);
 
-			logger.info("Email dispatched");
-			return { success: true, messageId: info.messageId };
+			const messageId = info.messageId || info.response;
+			const accepted = Array.isArray(info.accepted) ? info.accepted : [options.to];
+			const rejected = Array.isArray(info.rejected) ? info.rejected : [];
+
+			logger.info(
+				{
+					provider: "smtp",
+					messageId,
+					accepted,
+					rejected,
+					to: maskEmail(options.to),
+				},
+				"[EMAIL] Email successfully dispatched via Gmail SMTP ✓",
+			);
+
+			return { success: true, messageId, accepted, rejected };
 		} catch (err: any) {
-			if (this.resend) {
-				const resendFromAddress = this.getResendFromAddress();
-				try {
-					logger.warn({ err: err?.message || err, from: resendFromAddress }, "SMTP dispatch failed/timed out. Auto-retrying via Resend API...");
-					const { data, error } = await this.resend.emails.send({
-						from: resendFromAddress,
-						to: [options.to],
-						subject: cleanSubject,
-						html: finalHtml,
-						text: options.text,
-					});
-					if (!error && data?.id) {
-						logger.info({ messageId: data.id, from: resendFromAddress, to: options.to }, "Email dispatched via Resend fallback ✓");
-						return { success: true, messageId: data.id };
-					}
-					logger.error({ error: error?.message || error, from: resendFromAddress }, "Resend fallback delivery failed");
-				} catch (resendFallbackErr: any) {
-					logger.error({ err: resendFallbackErr?.message }, "Resend fallback dispatch failed");
-				}
-			}
-			logger.error("Email delivery failed");
+			const errorCode = this.classifyError(err);
+			const errorMessage = err?.message || "Gmail SMTP delivery failed";
+
+			logger.error(
+				{
+					provider: "smtp",
+					host: env.SMTP_HOST || "smtp.gmail.com",
+					port: Number(env.SMTP_PORT || 587),
+					error_type: errorCode,
+					error: errorMessage,
+					to: maskEmail(options.to),
+				},
+				"[EMAIL] EMAIL_SEND_FAILED",
+			);
+
 			return {
 				success: false,
-				error: "We couldn't send the verification code. Please try again.",
+				error: errorMessage,
+				errorCode,
 			};
 		}
 	}
@@ -436,3 +511,4 @@ class EmailService {
 }
 
 export const emailService = new EmailService();
+
