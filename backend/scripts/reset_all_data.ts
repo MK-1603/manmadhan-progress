@@ -82,12 +82,13 @@ async function resetAllData() {
 		}
 	}
 
-	// 3. Create Clean CEO Account: Hemanth (hemanthmm1107@gmail.com / Welcome@123)
+	// 3. Create Clean CEO Account: MM1107 (hemanthmm1107@gmail.com / Welcome@123)
 	console.log("\nCreating CEO Account:");
 	console.log("   Email    : hemanthmm1107@gmail.com");
+	console.log("   Name     : MM1107");
 	console.log("   Password : Welcome@123");
 	console.log("   Role     : CEO");
-	console.log("   Onboarding: Completed (firstLoginCompleted = true)");
+	console.log("   Onboarding: First Login Required (firstLoginCompleted = false)");
 
 	const ceoUserId = uuidv4();
 	const orgWorkspaceId = uuidv4();
@@ -97,18 +98,18 @@ async function resetAllData() {
 	await db.insert(users).values({
 		id: ceoUserId,
 		email: "hemanthmm1107@gmail.com",
-		name: "Hemanth",
-		displayName: "Hemanth",
+		name: "MM1107",
+		displayName: "MM1107",
 		role: "CEO",
 		status: "Activated",
 		isVerified: true,
 		isOtpEnabled: false,
 		isGoogleEnabled: false,
-		firstLoginCompleted: true,
-		onboardingStatus: "COMPLETED",
+		firstLoginCompleted: false,
+		onboardingStatus: "FIRST_LOGIN_REQUIRED",
 		systemOwner: true,
-		batchNumber: "CEO",
-		employeeId: "HEMANTH-CEO",
+		batchNumber: "MM1107",
+		employeeId: "MM1107-CEO",
 		passwordHash,
 		createdAt: new Date(),
 	});

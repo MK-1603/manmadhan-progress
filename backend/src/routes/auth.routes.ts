@@ -137,27 +137,44 @@ authRouter.post("/login/password", async (req, res, next) => {
 			});
 		}
 
-		// 5. First-login onboarding OTP flow check
+		// 5. First-login onboarding flow (OTP bypassed for simple setup)
 		if (!user.firstLoginCompleted || user.onboardingStatus !== "COMPLETED") {
-			await OtpService.sendOTP(cleanEmail, {
-				isFirstLogin: true,
-				userName: user.displayName || user.name || cleanEmail.split("@")[0],
-			});
-			await db
-				.update(users)
-				.set({ onboardingStatus: "OTP_REQUIRED" })
-				.where(eq(users.id, user.id));
+			let currentStep = "PASSWORD_CREATION";
+			if (user.onboardingStatus === "PERSONAL_SETUP_REQUIRED") {
+				currentStep = "PROFILE_SETUP";
+			} else if (user.onboardingStatus === "ORGANIZATION_SETUP_REQUIRED") {
+				currentStep = "ORGANIZATION_SETUP";
+			} else if (user.onboardingStatus === "ONBOARDING_DETAILS_VALIDATED") {
+				currentStep = "REVIEW_SETUP";
+			} else {
+				await db
+					.update(users)
+					.set({ onboardingStatus: "PASSWORD_CHANGE_REQUIRED" })
+					.where(eq(users.id, user.id));
+			}
+
+			const tempToken = jwt.sign(
+				{
+					id: user.id,
+					email: user.email,
+					intent: "setup",
+					step: currentStep,
+				},
+				env.JWT_SECRET,
+				{ expiresIn: "30m" },
+			);
 
 			await AuditService.logEvent(
 				user.id,
 				"FIRST_LOGIN_STARTED",
-				"Password verified. OTP challenge dispatched for first-login activation.",
+				"Password verified. First-login onboarding started directly (OTP requirement bypassed).",
 				req.ip || "",
 			);
 
 			return res.json({
 				success: true,
-				nextStep: "OTP_VERIFICATION",
+				nextStep: currentStep,
+				tempToken,
 				email: user.email,
 			});
 		}
