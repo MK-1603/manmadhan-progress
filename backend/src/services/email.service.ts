@@ -114,7 +114,7 @@ class EmailService {
 			"[EMAIL] SMTP configuration loaded",
 		);
 
-		// Force family: 4 to resolve IPv6 ENETUNREACH issues with smtp.gmail.com
+		// Force family: 4 and custom DNS lookup to resolve IPv6 ENETUNREACH issues with smtp.gmail.com
 		this.nodemailerTransport = nodemailer.createTransport({
 			host,
 			port,
@@ -124,6 +124,9 @@ class EmailService {
 				pass,
 			},
 			family: 4, // IPv4 preference (fixes ENETUNREACH 2607:f8b0:400e:c1b::6c:465)
+			lookup: (hostname: string, _options: any, callback: any) => {
+				dns.lookup(hostname, { family: 4 }, callback);
+			},
 			connectionTimeout: 10000,
 			greetingTimeout: 10000,
 			socketTimeout: 15000,
