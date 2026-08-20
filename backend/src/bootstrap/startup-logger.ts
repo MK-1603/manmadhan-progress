@@ -173,15 +173,23 @@ class StartupLoggerClass {
 		box += midBorder;
 
 		// Endpoints Section
+		const hostUrl = (
+			process.env.SERVER_URL ||
+			process.env.RENDER_EXTERNAL_URL ||
+			(env.NODE_ENV === "production" ? env.CLIENT_URL : `http://localhost:${port}`)
+		).replace(/\/+$/, "");
+
+		const wsUrl = hostUrl.replace(/^http/, "ws");
+
 		box += makeRow("\x1b[1mEndpoints\x1b[0m");
 		box += makeRow("");
 		box += makeRow(
-			`REST API    \x1b[4;34mhttp://localhost:${port}/api/v1\x1b[0m`,
+			`REST API    \x1b[4;34m${hostUrl}/api/v1\x1b[0m`,
 		);
 		box += makeRow(
-			`Health      \x1b[4;34mhttp://localhost:${port}/health\x1b[0m`,
+			`Health      \x1b[4;34m${hostUrl}/health\x1b[0m`,
 		);
-		box += makeRow(`Socket.IO   \x1b[4;34mws://localhost:${port}\x1b[0m`);
+		box += makeRow(`Socket.IO   \x1b[4;34m${wsUrl}\x1b[0m`);
 
 		box += midBorder;
 
@@ -245,7 +253,7 @@ class StartupLoggerClass {
 			: "\x1b[1;33mDATABASE UNAVAILABLE (DEGRADED)\x1b[0m";
 		box += makeRow(`Status : ${statusStr}`);
 		box += makeRow(
-			`Backend server listening at \x1b[1mhttp://localhost:${port}\x1b[0m`,
+			`Backend server listening at \x1b[1m${hostUrl}\x1b[0m`,
 		);
 
 		box += botBorder;

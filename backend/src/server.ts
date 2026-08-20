@@ -273,9 +273,10 @@ const startServer = async () => {
 
 	// Phase 9: APPLICATION Listening & Single Atomic Dashboard Render
 	httpServer.listen(Number(port), "0.0.0.0", () => {
+		const serverUrl = process.env.SERVER_URL || process.env.RENDER_EXTERNAL_URL || `port ${port}`;
 		startupLogger.info(
 			"APPLICATION",
-			`Express API Server listening on http://localhost:${port}`,
+			`Express API Server listening on ${serverUrl}`,
 		);
 		startupLogger.flushAndRenderDashboard(port, startTime, isDbConnected);
 	});
