@@ -128,7 +128,7 @@ export function PersonDetailDrawer({ person, onClose }: PersonDetailDrawerProps)
                   {isCeo
                     ? "Organization Founder / Head"
                     : isCoCeo
-                    ? "Sai Krishnan · CEO"
+                    ? "Organization CEO"
                     : person.managerName
                     ? `${person.managerName} · CO-CEO`
                     : "Organization Leadership"}
@@ -308,7 +308,7 @@ export function PersonDetailDrawer({ person, onClose }: PersonDetailDrawerProps)
                   {isCeo
                     ? "Organization Founder / Head"
                     : isCoCeo
-                    ? "Sai Krishnan · CEO"
+                    ? "Organization CEO"
                     : person.managerName
                     ? `${person.managerName} · CO-CEO`
                     : "Organization Leadership"}

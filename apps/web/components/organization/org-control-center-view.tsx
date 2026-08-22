@@ -557,7 +557,7 @@ export function OrgControlCenterView({ basePath }: OrgControlCenterViewProps) {
 								<div className="flex items-center justify-around py-2 px-2 rounded-xl bg-card/60 border border-border/40 text-center">
 									<div>
 										<span className="text-[9px] font-mono font-bold text-amber-500 uppercase">CEO</span>
-										<p className="text-xs font-bold text-foreground mt-0.5 truncate max-w-[120px]">{workspace?.ownerName || "Sai Krishnan"}</p>
+										<p className="text-xs font-bold text-foreground mt-0.5 truncate max-w-[120px]">{workspace?.ownerName || "CEO"}</p>
 									</div>
 									<div className="text-muted-foreground text-xs">↓</div>
 									<div>

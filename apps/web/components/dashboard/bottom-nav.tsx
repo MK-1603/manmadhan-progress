@@ -32,7 +32,7 @@ export function BottomNav({ workspace, role }: BottomNavProps) {
 
   const isPersonal = workspace === "personal";
   const userRole = (role || (user?.role || "CEO")).toUpperCase() as "CEO" | "CO-CEO" | "MEMBER";
-  const userName = user?.displayName || user?.name || "Sai Krishnan S";
+  const userName = user?.displayName || user?.name || user?.email?.split("@")[0] || "User";
   const userInitials = userName
     .split(" ")
     .map((n) => n[0])

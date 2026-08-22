@@ -155,7 +155,7 @@ async function resetDevDatabase() {
 	console.table(counts);
 
 	if (counts["projects"] === 0 && counts["tasks"] === 0 && counts["organization_prompts"] === 0) {
-		console.log("\n✅ RESET SUCCESSFUL: Database clean & seeded for CEO: saikrishnanmk1603@gmail.com (Batch: MK1603, Password: Welcome@123)");
+		console.log("\n✅ RESET SUCCESSFUL: Database clean & seeded for CEO: hemanthmm1107@gmail.com (Batch: MM1107, Password: Welcome@123)");
 	} else {
 		console.warn("\n⚠️ WARNING: Some table counts are non-zero. Check table verification log above.");
 	}

@@ -79,26 +79,26 @@ async function seedCleanTestAccounts() {
 
 	// 4. Seed FIRST ACCOUNT: Seeded CEO Account
 	const ceoUserId = uuidv4();
-	const ceoEmail = "saikrishnanmk1603@gmail.com";
+	const ceoEmail = "hemanthmm1107@gmail.com";
 	const defaultPassword = "Welcome@123";
 	const hashedCeoPassword = AuthService.hashPassword(defaultPassword);
 
 	console.log("\nSeeding FIRST TEST ACCOUNT (CEO):");
 	console.log(`   Email   : ${ceoEmail}`);
 	console.log(`   Role    : CEO`);
-	console.log(`   Batch   : MK1603`);
+	console.log(`   Batch   : MM1107`);
 	console.log(`   First Login Completed : false`);
 	console.log(`   Is Google Enabled     : false`);
 
 	await db.insert(users).values({
 		id: ceoUserId,
 		email: ceoEmail,
-		name: "Saikrishnan",
-		displayName: "Saikrishnan (CEO)",
+		name: "MM1107",
+		displayName: "MM1107",
 		role: "CEO",
 		status: "Created",
-		batchNumber: "MK1603",
-		employeeId: "MK1603",
+		batchNumber: "MM1107",
+		employeeId: "MM1107-CEO",
 		passwordHash: hashedCeoPassword,
 		isVerified: true,
 		isInvited: true,

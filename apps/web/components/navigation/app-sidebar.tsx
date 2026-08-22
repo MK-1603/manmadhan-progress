@@ -501,15 +501,15 @@ export function AppSidebar({
             }`}
         >
           <div
-            title={isCollapsed ? `${user?.displayName || user?.name || "Sai Krishnan S"} (${isPersonal ? "Personal" : effectiveRole})` : undefined}
+            title={isCollapsed ? `${user?.displayName || user?.name || user?.email?.split("@")[0] || "User"} (${isPersonal ? "Personal" : effectiveRole})` : undefined}
             className="w-8 h-8 rounded-full bg-[#B28D18]/15 dark:bg-[#D4B12F]/15 border border-[#B28D18]/20 dark:border-[#D4B12F]/20 flex items-center justify-center shrink-0 text-[#B28D18] dark:text-[#D4B12F] font-bold text-xs font-mono"
           >
-            {(user?.displayName || user?.name || user?.email || "S").charAt(0).toUpperCase()}
+            {(user?.displayName || user?.name || user?.email || "U").charAt(0).toUpperCase()}
           </div>
           {!isCollapsed && (
             <div className="flex flex-col text-left min-w-0">
               <span className="text-[13px] font-semibold text-[#17202A] dark:text-[#F2F3F5] truncate leading-tight">
-                {user?.displayName || user?.name || "Sai Krishnan S"}
+                {user?.displayName || user?.name || user?.email?.split("@")[0] || "User"}
               </span>
               <span className="text-[11px] text-[#667085] dark:text-[#8B94A3] truncate leading-tight mt-0.5">
                 {isPersonal ? "Personal" : effectiveRole}

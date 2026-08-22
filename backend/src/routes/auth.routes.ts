@@ -93,6 +93,7 @@ authRouter.post("/login/password", async (req, res, next) => {
 		// 3. Account status & setup state validation
 		const userStatus = (user.status || "").toLowerCase();
 		if (userStatus === "suspended" || userStatus === "disabled" || userStatus === "locked") {
+			logger.warn({ cleanEmail }, "[LOGIN FAIL] Account is suspended/disabled/locked");
 			return res.status(403).json({
 				success: false,
 				code: "ACCOUNT_SUSPENDED",
@@ -101,6 +102,7 @@ authRouter.post("/login/password", async (req, res, next) => {
 			});
 		}
 		if (userStatus === "deleted") {
+			logger.warn({ cleanEmail }, "[LOGIN FAIL] Account is deleted");
 			return res.status(403).json({
 				success: false,
 				code: "ACCOUNT_DELETED",
@@ -109,6 +111,7 @@ authRouter.post("/login/password", async (req, res, next) => {
 			});
 		}
 		if (user.isInvited && (!user.passwordHash || !user.firstLoginCompleted)) {
+			logger.warn({ cleanEmail }, "[LOGIN FAIL] Account is pending setup (not completed)");
 			return res.status(400).json({
 				success: false,
 				code: "ACCOUNT_PENDING_SETUP",

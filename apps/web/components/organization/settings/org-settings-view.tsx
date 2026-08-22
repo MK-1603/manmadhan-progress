@@ -91,7 +91,7 @@ export function OrgSettingsView({ userRole, basePath }: OrgSettingsViewProps) {
 							<SettingsIcon className="w-5 h-5 text-gold dark:text-[#F0BC2B]" /> Organization Settings
 						</h1>
 						<p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-[240px] sm:max-w-none">
-							ManMadhan Organization · Workspace Code MK1603 · Role Controls ({userRole})
+							ManMadhan Organization · Workspace Code {user?.batchNumber || "AUTHORIZED"} · Role Controls ({userRole})
 						</p>
 					</div>
 				</div>

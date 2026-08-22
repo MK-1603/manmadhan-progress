@@ -91,7 +91,7 @@ export function OrgProfileView({ userRole, basePath }: OrgProfileViewProps) {
     {
       id: "code",
       title: "Workspace & Batch Code",
-      description: "Canonical workspace code (MK1603) and authorized batch context.",
+      description: "Canonical workspace code and authorized batch context.",
       icon: Award,
     },
     {
@@ -127,7 +127,7 @@ export function OrgProfileView({ userRole, basePath }: OrgProfileViewProps) {
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">Organization Profile</h1>
           <p className="text-xs text-muted-foreground font-medium mt-0.5">
-            Manage organization identity, workspace code MK1603, and role assignments.
+            Manage organization identity, workspace code, and role assignments.
           </p>
         </div>
       </header>
@@ -141,12 +141,12 @@ export function OrgProfileView({ userRole, basePath }: OrgProfileViewProps) {
 
             <div className="space-y-1">
               <h2 className="text-base font-bold text-foreground">{orgName}</h2>
-              <p className="text-xs text-muted-foreground font-medium">Batch Context: MK1603</p>
+              <p className="text-xs text-muted-foreground font-medium">Batch Context: {user?.batchNumber || "AUTHORIZED"}</p>
             </div>
 
             <div className="flex gap-2">
               <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-gold/10 text-gold border border-gold/20">
-                MK1603
+                {user?.batchNumber || "AUTHORIZED"}
               </span>
               <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
                 ROLE: {userRole}
@@ -280,7 +280,7 @@ export function OrgProfileView({ userRole, basePath }: OrgProfileViewProps) {
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-foreground">CANONICAL WORKSPACE CODE</span>
                     <span className="px-3 py-1 rounded-lg bg-gold text-black font-black text-xs">
-                      MK1603
+                      {user?.batchNumber || "AUTHORIZED"}
                     </span>
                   </div>
                   <p className="text-[11px] text-muted-foreground font-medium">
@@ -328,7 +328,7 @@ export function OrgProfileView({ userRole, basePath }: OrgProfileViewProps) {
                 <div className="p-4 rounded-xl border border-border bg-card text-xs space-y-1">
                   <p className="font-bold text-foreground">Organization Session Active</p>
                   <p className="text-[10px] text-muted-foreground font-medium">
-                    Context: MK1603 • Authorized at {new Date().toLocaleTimeString()}
+                    Context: {user?.batchNumber || "AUTHORIZED"} • Authorized at {new Date().toLocaleTimeString()}
                   </p>
                 </div>
               </div>

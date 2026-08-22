@@ -54,7 +54,7 @@ export function ProfileDropdown({
 
   const getInitials = (u: any) => {
     const raw = u?.displayName || u?.name || (u?.email ? u.email.split("@")[0] : "");
-    if (!raw?.trim()) return "SK";
+    if (!raw?.trim()) return "U";
     const parts = raw.trim().split(/\s+/);
     return parts.length >= 2
       ? (parts[0][0] + parts[1][0]).toUpperCase()
@@ -62,8 +62,8 @@ export function ProfileDropdown({
   };
 
   const userInitials = getInitials(user);
-  const userName = user?.displayName || user?.name || "Sai Krishnan S";
-  const userEmail = user?.email || "saikrishnanmk1603@gmail.com";
+  const userName = user?.displayName || user?.name || user?.email?.split("@")[0] || "User";
+  const userEmail = user?.email || "";
   const cleanOrgName = orgWorkspace?.name && orgWorkspace.name !== "Personal Workspace" ? orgWorkspace.name : "MANMADHAN";
 
   const handleSwitchWorkspace = (target: "personal" | "org") => {

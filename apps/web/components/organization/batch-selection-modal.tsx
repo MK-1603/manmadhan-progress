@@ -35,7 +35,7 @@ export function BatchSelectionModal({ isOpen, onClose, onSelectBatch }: BatchSel
       .then((res) => {
         if (res.data?.success) {
           const fetchedBatches: Batch[] = [
-            { batchId: "MK1603", batchName: "MK1603", isPrimary: true },
+            { batchId: "MM1107", batchName: "MM1107", isPrimary: true },
             { batchId: "AE2358", batchName: "AE2358", isPrimary: false },
             { batchId: "SS0778", batchName: "SS0778", isPrimary: false },
           ];

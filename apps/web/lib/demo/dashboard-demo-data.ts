@@ -95,11 +95,11 @@ export interface DashboardDataShape {
 
 export const MOCK_CEO_USER: DemoUser = {
   id: "usr_ceo_001",
-  name: "Sai Krishnan S",
-  displayName: "Sai Krishnan S",
+  name: "MM1107",
+  displayName: "MM1107",
   role: "CEO",
-  email: "sai@manmadhan.org",
-  initials: "SK",
+  email: "hemanthmm1107@gmail.com",
+  initials: "MM",
 };
 
 export const FULL_DEMO_DASHBOARD_DATA: DashboardDataShape = {
@@ -200,7 +200,7 @@ export const FULL_DEMO_DASHBOARD_DATA: DashboardDataShape = {
       status: "Active",
       progress: 78,
       priority: "High",
-      owner: "Sai Krishnan S",
+      owner: "MM1107",
     },
     {
       id: "proj_002",
@@ -224,7 +224,7 @@ export const FULL_DEMO_DASHBOARD_DATA: DashboardDataShape = {
       status: "Planning",
       progress: 24,
       priority: "Medium",
-      owner: "Sai Krishnan S",
+      owner: "MM1107",
     },
   ],
   deadlineWatch: {
@@ -358,7 +358,7 @@ export const FULL_DEMO_DASHBOARD_DATA: DashboardDataShape = {
     },
     {
       id: "act_005",
-      userName: "Sai Krishnan S",
+      userName: "MM1107",
       eventType: "created",
       details: "created Launch checklist project task",
       createdAt: new Date(Date.now() - 120 * 60 * 1000).toISOString(),

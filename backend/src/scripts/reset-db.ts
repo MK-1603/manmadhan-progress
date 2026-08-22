@@ -33,13 +33,13 @@ export async function resetDatabase() {
     const ceoUserId = randomUUID();
     const tempPassword = "Welcome@123";
     const passwordHash = AuthService.hashPassword(tempPassword);
-    const email = "saikrishnanmk1603@gmail.com";
+    const email = "hemanthmm1107@gmail.com";
 
     await db.insert(users).values({
       id: ceoUserId,
       email,
-      name: "Sai Krishnan",
-      displayName: "Sai Krishnan",
+      name: "MM1107",
+      displayName: "MM1107",
       passwordHash,
       role: "CEO",
       status: "Activated",
@@ -50,8 +50,8 @@ export async function resetDatabase() {
       isOtpEnabled: true,
       isInvited: true,
       systemOwner: true,
-      employeeId: "MK1603",
-      batchNumber: "MK1603",
+      employeeId: "MM1107-CEO",
+      batchNumber: "MM1107",
       timezone: "Asia/Kolkata",
       language: "English",
       dateFormat: "DD MMM YYYY",

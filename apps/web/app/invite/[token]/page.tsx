@@ -839,7 +839,7 @@ export default function InvitePage() {
                           type="text"
                           required
                           autoFocus
-                          placeholder="e.g. Sai Krishnan"
+                          placeholder="e.g. Hemanth Kumar"
                           className={`w-full h-12 border focus:border-[#D4AF37] focus:-translate-y-[1px] px-3.5 rounded-xl text-xs sm:text-sm outline-none transition-all duration-150 ${
                             isLight ? "bg-[#FFFFFF] border-[#E4E4E7] text-[#18181B]" : "bg-[#171717] border-[#2A2A2A] text-[#F5F5F5]"
                           }`}

@@ -37,7 +37,7 @@ export function ProfileHomeView({ basePath }: ProfileHomeViewProps) {
     .toUpperCase()
     .substring(0, 2);
 
-  const userName = user?.displayName || user?.name || "Sai Krishnan S";
+  const userName = user?.displayName || user?.name || user?.email?.split("@")[0] || "User";
   const userRole = user?.role || "CEO";
   const roleDisplay = isPersonal
     ? "Personal Workspace"
@@ -123,7 +123,7 @@ export function ProfileHomeView({ basePath }: ProfileHomeViewProps) {
           {roleDisplay}
         </span>
         <span className="text-[12px] font-normal text-[#667085] dark:text-[#8B95A5] mt-0.5">
-          {user?.email || "saikrishnanmk1603@gmail.com"}
+          {user?.email || ""}
         </span>
       </div>
 
