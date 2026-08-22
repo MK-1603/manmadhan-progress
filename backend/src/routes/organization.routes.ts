@@ -350,7 +350,30 @@ organizationRouter.get(
 	requireLeadership,
 	async (req: Request, res: Response) => {
 		try {
-			const workspaceId = String(req.query.workspaceId);
+			let workspaceId = String(req.query.workspaceId || "").trim();
+			const userId = (req as any).user?.id;
+
+			if (
+				!workspaceId ||
+				workspaceId === "default" ||
+				workspaceId === "undefined" ||
+				workspaceId === "null"
+			) {
+				const memberList = await db
+					.select()
+					.from(workspaceMembers)
+					.where(eq(workspaceMembers.userId, userId))
+					.limit(1);
+				if (memberList.length > 0 && memberList[0].workspaceId) {
+					workspaceId = memberList[0].workspaceId;
+				} else {
+					const wsList = await db.select().from(workspaces).limit(1);
+					if (wsList.length > 0 && wsList[0].id) {
+						workspaceId = wsList[0].id;
+					}
+				}
+			}
+
 			const now = new Date();
 
 			// Total members
