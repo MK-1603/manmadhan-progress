@@ -112,30 +112,6 @@ async function resetAndReseedWithDummyAccounts() {
 			employeeId: "MM1107-CEO",
 			systemOwner: true,
 		},
-		{
-			email: "coceo.test@manmadhan.com",
-			name: "Co-CEO Test",
-			displayName: "Co-CEO Test",
-			role: "CO-CEO",
-			batchNumber: "TEST-COCEO",
-			employeeId: "COCEO-001",
-		},
-		{
-			email: "manager.test@manmadhan.com",
-			name: "Manager Test",
-			displayName: "Manager Test",
-			role: "MANAGER",
-			batchNumber: "TEST-MGR",
-			employeeId: "MGR-001",
-		},
-		{
-			email: "member.test@manmadhan.com",
-			name: "Member Test",
-			displayName: "Member Test",
-			role: "MEMBER",
-			batchNumber: "TEST-MBR",
-			employeeId: "MBR-001",
-		},
 	];
 
 	console.log("\n2. Reseeding Multi-Role Accounts (Password: Welcome@123):");
