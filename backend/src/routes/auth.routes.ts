@@ -79,6 +79,7 @@ authRouter.post("/login/password", async (req, res, next) => {
 			.limit(1);
 
 		if (userList.length === 0) {
+			logger.warn({ cleanEmail }, "[LOGIN FAIL] User email address not found in database");
 			return res.status(401).json({
 				success: false,
 				code: "INVALID_CREDENTIALS",
@@ -123,6 +124,7 @@ authRouter.post("/login/password", async (req, res, next) => {
 		);
 
 		if (!isValidPassword) {
+			logger.warn({ cleanEmail }, "[LOGIN FAIL] Incorrect password attempt");
 			await AuditService.logEvent(
 				user.id,
 				"LOGIN_FAILED",

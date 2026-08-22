@@ -12,8 +12,14 @@ export const enforceWorkExecutionPolicy = async (
 	res: Response,
 	next: NextFunction,
 ) => {
-	// Allow all pre-flight and auth routes to bypass
-	if (req.method === "OPTIONS" || req.originalUrl.startsWith("/api/v1/auth") || req.originalUrl.startsWith("/api/v1/org/working-hours")) {
+	// 1. Allow all read-only queries (GET / HEAD / OPTIONS), auth, and schedule management routes to bypass
+	if (
+		req.method === "GET" ||
+		req.method === "HEAD" ||
+		req.method === "OPTIONS" ||
+		req.originalUrl.startsWith("/api/v1/auth") ||
+		req.originalUrl.startsWith("/api/v1/org/working-hours")
+	) {
 		return next();
 	}
 
@@ -37,7 +43,12 @@ export const enforceWorkExecutionPolicy = async (
 		}
 
 		const userId = decoded.id;
-		const userRole = decoded.role || "MEMBER";
+		const userRole = String(decoded.role || "MEMBER").toUpperCase();
+
+		// 2. Executive Oversight (CEO / CO-CEO) always bypasses operational time restrictions
+		if (userRole === "CEO" || userRole === "CO-CEO") {
+			return next();
+		}
 
 		let workspaceId = req.query.workspaceId || req.body.workspaceId;
 		if (
