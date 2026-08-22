@@ -5,9 +5,9 @@ import { users, workspaceMembers, workspaces } from "../database/schema";
 import { AuthService } from "../src/services/auth.service";
 
 // ─── CEO Bootstrap Credentials ────────────────────────────────────────────────
-const CEO_EMAIL    = "saikrishnanmk1603@gmail.com";
-const CEO_NAME     = "Sai Krishnan";
-const BATCH_NUMBER = "MK1603";
+const CEO_EMAIL    = "hemanthmm1107@gmail.com";
+const CEO_NAME     = "MM1107";
+const BATCH_NUMBER = "MM1107";
 const CEO_PASSWORD = "Welcome@123";
 // ──────────────────────────────────────────────────────────────────────────────
 

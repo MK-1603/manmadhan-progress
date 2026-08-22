@@ -43,7 +43,7 @@ export class OtpService {
   }
 
   /**
-   * Masks email for secure logging (e.g., saikrishnanmk1603@gmail.com -> s***@gmail.com)
+   * Masks email for secure logging (e.g., user@gmail.com -> u***@gmail.com)
    */
   private static maskEmail(email: string): string {
     const parts = email.split("@");

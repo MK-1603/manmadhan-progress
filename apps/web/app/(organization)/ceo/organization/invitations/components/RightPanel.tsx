@@ -238,7 +238,7 @@ export function RightPanel({ onInvitationSent }: RightPanelProps) {
               <Hash className="absolute left-3 top-3 w-3.5 h-3.5 text-muted-foreground" />
               <Input 
                 className="pl-9 h-10 text-xs bg-layer-2 border-border/50 focus:border-gold" 
-                placeholder="MK1603" 
+                placeholder="MM1107" 
                 value={batchNumber} 
                 onChange={e => setBatchNumber(e.target.value)} 
               />

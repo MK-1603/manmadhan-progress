@@ -199,7 +199,7 @@ export function DesktopInviteModal({ isOpen, onClose, onSuccess, coCeos }: Deskt
             <input
               type="text"
               disabled={dispatchState !== "READY" && dispatchState !== "FAILED"}
-              placeholder="e.g. MK1603"
+              placeholder="e.g. MM1107"
               maxLength={6}
               value={batchId}
               onChange={(e) => {

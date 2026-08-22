@@ -9,7 +9,7 @@ async function runFirstLoginTest() {
   console.log("========================================================\n");
 
   const baseURL = "http://localhost:4100/api/v1";
-  const testEmail = "saikrishnanmk1603@gmail.com";
+  const testEmail = "hemanthmm1107@gmail.com";
   const testPassword = "Welcome@123";
 
   // STEP 1: Ensure user is in initial First-Login state

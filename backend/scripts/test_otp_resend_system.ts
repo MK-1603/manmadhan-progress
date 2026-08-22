@@ -8,12 +8,17 @@ async function runOtpResendAuditTest() {
   console.log("  MANMADHAN PROGRESS V1 — OTP RESEND SYSTEM AUDIT TEST");
   console.log("========================================================\n");
 
-  const testEmail = "saikrishnanmk1603@gmail.com";
+  const testEmail = "hemanthmm1107@gmail.com";
+  console.log(`Auditing OTP Resend System for ${testEmail}...`);
 
-  // Ensure user exists
-  const existingUser = await db.select().from(users).where(ilike(users.email, testEmail)).limit(1);
-  if (existingUser.length === 0) {
-    console.error("❌ Test user saikrishnanmk1603@gmail.com not found. Please seed the database first.");
+  const userList = await db
+    .select()
+    .from(users)
+    .where(ilike(users.email, testEmail))
+    .limit(1);
+
+  if (userList.length === 0) {
+    console.error(`❌ Test user ${testEmail} not found. Please seed the database first.`);
     process.exit(1);
   }
 

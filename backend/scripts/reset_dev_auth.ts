@@ -15,8 +15,8 @@ async function resetDevAuth() {
     process.exit(1);
   }
 
-  const targetEmail = "saikrishnanmk1603@gmail.com";
-  const targetBatch = "MK1603";
+  const targetEmail = "hemanthmm1107@gmail.com";
+  const targetBatch = "MM1107";
   const rawPassword = "Welcome@123";
 
   console.log("[STEP 1] Cleaning up stale development authentication data...");

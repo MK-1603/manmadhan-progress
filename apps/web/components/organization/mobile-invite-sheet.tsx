@@ -389,7 +389,7 @@ export function MobileInviteSheet({ isOpen, onClose, onSuccess, coCeos }: Mobile
                   <input
                     type="text"
                     disabled={dispatchState !== "READY" && dispatchState !== "FAILED"}
-                    placeholder="e.g. MK1603"
+                    placeholder="e.g. MM1107"
                     maxLength={6}
                     value={batchId}
                     onChange={(e) => {

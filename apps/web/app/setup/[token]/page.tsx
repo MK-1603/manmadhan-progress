@@ -822,7 +822,7 @@ export default function SetupPage() {
                         <label className={`text-xs font-medium block ${isLight ? "text-[#71717A]" : "text-[#A1A1AA]"}`}>Batch / Cohort ID</label>
                         <input
                           type="text"
-                          placeholder="e.g. MK1603"
+                          placeholder="e.g. MM1107"
                           maxLength={6}
                           className={`w-full h-12 border focus:border-[#D4AF37] focus:-translate-y-[1px] px-3.5 rounded-xl text-xs sm:text-sm outline-none transition-all duration-150 font-mono tracking-widest uppercase ${
                             isLight ? "bg-[#FFFFFF] border-[#E4E4E7] text-[#18181B]" : "bg-[#171717] border-[#2A2A2A] text-[#F5F5F5]"
@@ -836,7 +836,7 @@ export default function SetupPage() {
                           }}
                         />
                         <p className={`text-[11px] pt-0.5 ${isLight ? "text-[#9CA3AF]" : "text-[#71717A]"}`}>
-                          Format: 2 letters + 4 digits (e.g. MK1603, SS0778)
+                          Format: 2 letters + 4 digits (e.g. MM1107, SS0778)
                         </p>
                       </div>
 

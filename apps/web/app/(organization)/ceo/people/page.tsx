@@ -652,7 +652,7 @@ export default function CEOPeoplePage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. MK1603"
+                  placeholder="e.g. MM1107"
                   maxLength={6}
                   value={leftFormBatchId}
                   onChange={(e) => {

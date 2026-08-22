@@ -105,7 +105,7 @@ export async function resetDatabase() {
     console.log("CEO");
     console.log("");
     console.log(`Batch:`);
-    console.log("MK1603");
+    console.log("MM1107");
     console.log("");
     console.log(`Status:`);
     console.log("ACTIVE");

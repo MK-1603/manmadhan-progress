@@ -151,7 +151,7 @@ export function InvitePersonDrawer({ isOpen, onClose, onSuccess }: InvitePersonD
               <input
                 type="text"
                 disabled={dispatchState !== "READY" && dispatchState !== "FAILED"}
-                placeholder="e.g. MK1603"
+                placeholder="e.g. MM1107"
                 value={batchId}
                 onChange={(e) => setBatchId(e.target.value)}
                 className="w-full h-[42px] px-3.5 bg-[#07090D] border border-[#272D36] rounded-[11px] text-[13px] text-[#F2F4F7] placeholder-[#667085] outline-none focus:border-[#C9A52A] transition-colors disabled:opacity-50"
