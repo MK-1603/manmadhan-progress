@@ -2008,7 +2008,7 @@ export function AuthForm({
                         {profile.displayName.trim() || "Your display name"}
                       </span>
                       <div className="flex items-center gap-2 text-[11px] font-mono text-[#9AA2AF] mt-0.5">
-                        <span>MK1603</span>
+                        <span>{profile.batchNumber || user?.batchNumber || "AUTHORIZED"}</span>
                         <span>·</span>
                         <span className="text-[#39D393] font-semibold flex items-center gap-1">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#39D393] animate-pulse" />
@@ -2233,10 +2233,10 @@ export function AuthForm({
                       </div>
                       <div className="min-w-0 flex-1">
                         <span className="text-xs sm:text-sm font-semibold text-[#F3FFF0] block truncate">
-                          {profile.displayName || "Sai Krishnan S"}
+                          {profile.displayName || user?.displayName || user?.name || "User"}
                         </span>
                         <div className="flex items-center gap-1.5 text-[11px] font-mono text-[#9AA2AF] mt-0.5">
-                          <span>MK1603</span>
+                          <span>{profile.batchNumber || user?.batchNumber || "AUTHORIZED"}</span>
                           <span>·</span>
                           <span className="text-[#39D393] font-semibold flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#39D393]" />

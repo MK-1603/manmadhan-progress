@@ -106,7 +106,7 @@ async function resetAndReseedWithDummyAccounts() {
 		{
 			email: "hemanthmm1107@gmail.com",
 			name: "MM1107",
-			displayName: "MM1107 (CEO)",
+			displayName: "MM1107",
 			role: "CEO",
 			batchNumber: "MM1107",
 			employeeId: "MM1107-CEO",

@@ -704,7 +704,7 @@ authRouter.post("/setup/profile", verifyTempToken, async (req, res) => {
 			language: language || "English",
 			dateFormat,
 			timeFormat,
-			batchNumber: batchNumber || "MK1603",
+			batchNumber: batchNumber ? String(batchNumber).trim() : null,
 			onboardingStatus: "ORGANIZATION_SETUP_REQUIRED",
 		})
 		.where(eq(users.id, setupUser.id));
