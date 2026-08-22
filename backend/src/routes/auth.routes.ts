@@ -240,6 +240,11 @@ authRouter.post("/forgot-password", async (req, res, next) => {
 			);
 			const resetUrl = `${env.CLIENT_URL}/reset-password?token=${resetToken}`;
 
+			logger.info(
+				{ email: cleanEmail, resetUrl },
+				`[PASSWORD RESET LINK] Reset URL generated for ${cleanEmail}: ${resetUrl}`,
+			);
+
 			await emailService.sendPasswordResetLinkEmail({
 				to: cleanEmail,
 				userName: user.displayName || user.name || cleanEmail.split("@")[0],

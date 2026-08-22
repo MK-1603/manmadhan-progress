@@ -6,9 +6,19 @@ import { v4 as uuidv4 } from "uuid";
 import fs from "fs";
 import path from "path";
 
-async function resetAndReseed() {
+interface SeedAccount {
+	email: string;
+	name: string;
+	displayName: string;
+	role: string;
+	batchNumber: string;
+	employeeId: string;
+	systemOwner?: boolean;
+}
+
+async function resetAndReseedWithDummyAccounts() {
 	console.log("==================================================");
-	console.log("MANMADHAN PROGRESS — COMPLETE DATABASE RESET & RESEED");
+	console.log("MANMADHAN PROGRESS — COMPLETE RESET & MULTI-ROLE SEED");
 	console.log("==================================================");
 
 	console.log("1. Fetching all database table names...");
@@ -48,7 +58,7 @@ async function resetAndReseed() {
 		try {
 			await db.execute(sql.raw(`TRUNCATE TABLE ${tableString} CASCADE;`));
 		} catch (_e) {
-			console.log("Single query failed, executing fallback per-table delete...");
+			console.log("Fallback per-table delete...");
 			for (const table of allTables) {
 				try {
 					await db.execute(sql.raw(`DELETE FROM "${table}";`));
@@ -78,41 +88,8 @@ async function resetAndReseed() {
 		} catch (_e) {}
 	}
 
-	// 3. Create Reseeded CEO Account: hemanthmm1107@gmail.com / MM1107 / Welcome@123 / firstLogin: false
-	console.log("\n2. Reseeding CEO Account:");
-	console.log("   Email               : hemanthmm1107@gmail.com");
-	console.log("   Name                : MM1107");
-	console.log("   Display Name        : MM1107");
-	console.log("   Password            : Welcome@123");
-	console.log("   Role                : CEO");
-	console.log("   First Login Completed: false");
-	console.log("   Onboarding Status   : FIRST_LOGIN_REQUIRED");
-
-	const ceoUserId = uuidv4();
+	// 3. Create Main Organization Workspace
 	const orgWorkspaceId = uuidv4();
-	const personalWorkspaceId = uuidv4();
-	const passwordHash = AuthService.hashPassword("Welcome@123");
-
-	await db.insert(users).values({
-		id: ceoUserId,
-		email: "hemanthmm1107@gmail.com",
-		name: "MM1107",
-		displayName: "MM1107",
-		role: "CEO",
-		status: "Activated",
-		isVerified: true,
-		isOtpEnabled: false,
-		isGoogleEnabled: false,
-		firstLoginCompleted: true,
-		onboardingStatus: "COMPLETED",
-		systemOwner: true,
-		batchNumber: "MM1107",
-		employeeId: "MM1107-CEO",
-		passwordHash,
-		createdAt: new Date(),
-	});
-
-	// 4. Create Organization Workspace
 	await db.insert(workspaces).values({
 		id: orgWorkspaceId,
 		name: "ManMadhan Organization Workspace",
@@ -122,34 +99,103 @@ async function resetAndReseed() {
 		createdAt: new Date(),
 	});
 
-	await db.insert(workspaceMembers).values({
-		id: uuidv4(),
-		workspaceId: orgWorkspaceId,
-		userId: ceoUserId,
-		role: "CEO",
-		createdAt: new Date(),
-	});
+	// 4. Define Test Dummy Accounts for Each Role
+	const passwordHash = AuthService.hashPassword("Welcome@123");
 
-	// 5. Create CEO Personal Workspace
-	await db.insert(workspaces).values({
-		id: personalWorkspaceId,
-		name: "MM1107's Personal Workspace",
-		shortName: "Personal",
-		description: "Personal focus & daily execution workspace",
-		type: "personal",
-		createdAt: new Date(),
-	});
+	const accountsToSeed: SeedAccount[] = [
+		{
+			email: "hemanthmm1107@gmail.com",
+			name: "MM1107",
+			displayName: "MM1107 (CEO)",
+			role: "CEO",
+			batchNumber: "MM1107",
+			employeeId: "MM1107-CEO",
+			systemOwner: true,
+		},
+		{
+			email: "coceo.test@manmadhan.com",
+			name: "Co-CEO Test",
+			displayName: "Co-CEO Test",
+			role: "CO-CEO",
+			batchNumber: "TEST-COCEO",
+			employeeId: "COCEO-001",
+		},
+		{
+			email: "manager.test@manmadhan.com",
+			name: "Manager Test",
+			displayName: "Manager Test",
+			role: "MANAGER",
+			batchNumber: "TEST-MGR",
+			employeeId: "MGR-001",
+		},
+		{
+			email: "member.test@manmadhan.com",
+			name: "Member Test",
+			displayName: "Member Test",
+			role: "MEMBER",
+			batchNumber: "TEST-MBR",
+			employeeId: "MBR-001",
+		},
+	];
 
-	await db.insert(workspaceMembers).values({
-		id: uuidv4(),
-		workspaceId: personalWorkspaceId,
-		userId: ceoUserId,
-		role: "OWNER",
-		createdAt: new Date(),
-	});
+	console.log("\n2. Reseeding Multi-Role Accounts (Password: Welcome@123):");
+
+	for (const acc of accountsToSeed) {
+		const userId = uuidv4();
+		const personalWorkspaceId = uuidv4();
+
+		// Insert User (Seeded in First-Login Pending status for Universal OTP verification testing)
+		await db.insert(users).values({
+			id: userId,
+			email: acc.email,
+			name: acc.name,
+			displayName: acc.displayName,
+			role: acc.role,
+			status: "Activated",
+			isVerified: true,
+			isOtpEnabled: false,
+			isGoogleEnabled: false,
+			firstLoginCompleted: false,
+			onboardingStatus: "PENDING",
+			systemOwner: Boolean(acc.systemOwner),
+			batchNumber: acc.batchNumber,
+			employeeId: acc.employeeId,
+			passwordHash,
+			createdAt: new Date(),
+		});
+
+		// Insert Org Workspace Membership
+		await db.insert(workspaceMembers).values({
+			id: uuidv4(),
+			workspaceId: orgWorkspaceId,
+			userId,
+			role: acc.role,
+			createdAt: new Date(),
+		});
+
+		// Insert Personal Workspace
+		await db.insert(workspaces).values({
+			id: personalWorkspaceId,
+			name: `${acc.name}'s Personal Workspace`,
+			shortName: "Personal",
+			description: "Personal focus & daily execution workspace",
+			type: "personal",
+			createdAt: new Date(),
+		});
+
+		await db.insert(workspaceMembers).values({
+			id: uuidv4(),
+			workspaceId: personalWorkspaceId,
+			userId,
+			role: "OWNER",
+			createdAt: new Date(),
+		});
+
+		console.log(`   [${acc.role.padEnd(7)}] ${acc.email.padEnd(28)} | Password: Welcome@123`);
+	}
 
 	console.log("\n==================================================");
-	console.log("DATABASE RESET & RESEED VERIFICATION");
+	console.log("DATABASE RESET & MULTI-ROLE SEED VERIFICATION");
 	console.log("==================================================");
 
 	const counts: Record<string, number> = {};
@@ -166,18 +212,11 @@ async function resetAndReseed() {
 
 	console.table(counts);
 
-	console.log("\n✅ COMPLETE DATABASE RESET & RESEED SUCCESSFUL!");
-	console.log("==================================================");
-	console.log("ACCOUNT DETAILS:");
-	console.log("   Email              : hemanthmm1107@gmail.com");
-	console.log("   Name               : MM1107");
-	console.log("   Temp Password      : Welcome@123");
-	console.log("   Role               : CEO");
-	console.log("   First Login        : false (firstLoginCompleted = false, onboardingStatus = FIRST_LOGIN_REQUIRED)");
+	console.log("\n✅ ALL DUMMY TEST ACCOUNTS SEEDED SUCCESSFULLY!");
 	console.log("==================================================");
 }
 
-resetAndReseed()
+resetAndReseedWithDummyAccounts()
 	.then(() => process.exit(0))
 	.catch((err) => {
 		console.error("Reset error:", err);
