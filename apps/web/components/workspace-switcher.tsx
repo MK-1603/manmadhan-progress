@@ -46,10 +46,10 @@ export function WorkspaceSwitcher({ isCollapsed, isMobile }: WorkspaceSwitcherPr
         </div>
         {(!isCollapsed || isMobile) && (
           <div className="flex flex-col text-left overflow-hidden whitespace-nowrap justify-center min-w-0">
-            <span className="text-xs font-bold text-foreground truncate leading-none">
+            <span className="text-xs font-bold text-foreground truncate leading-none" suppressHydrationWarning>
               {!isPersonal ? "Organization" : "Personal"}
             </span>
-            <span className="text-[10px] font-medium text-muted-foreground truncate leading-tight mt-1">
+            <span className="text-[10px] font-medium text-muted-foreground truncate leading-tight mt-1" suppressHydrationWarning>
               {!isPersonal ? "Enterprise OS" : "Personal Mode"}
             </span>
           </div>

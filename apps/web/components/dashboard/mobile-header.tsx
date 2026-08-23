@@ -131,10 +131,10 @@ export function MobileHeader({
 
         {/* CENTER: True Viewport Centered Page Title & Subtitle */}
         <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center pointer-events-none max-w-[50vw]">
-          <h1 className="text-[18px] font-semibold text-[#17202A] dark:text-[#F2F3F5] tracking-[-0.01em] leading-[22px] truncate">
+          <h1 className="text-[18px] font-semibold text-[#17202A] dark:text-[#F2F3F5] tracking-[-0.01em] leading-[22px] truncate" suppressHydrationWarning>
             {title}
           </h1>
-          <span className="text-[12px] font-normal text-[#667085] dark:text-[#8B94A3] leading-[16px] truncate mt-[4px]">
+          <span className="text-[12px] font-normal text-[#667085] dark:text-[#8B94A3] leading-[16px] truncate mt-[4px]" suppressHydrationWarning>
             {isPersonal ? "Personal Workspace" : "ManMadhan"}
           </span>
         </div>
@@ -246,14 +246,14 @@ export function MobileHeader({
               {/* Fixed Bottom Account Area */}
               <div className="p-3 border-t border-[#E4E7EC] dark:border-[#292F38] bg-[#F8F9FB] dark:bg-[#15181D] shrink-0 space-y-2">
                 <div className="flex items-center gap-3 px-2 py-1">
-                  <div className="w-9 h-9 rounded-full bg-[#D4B12F]/15 text-[#D4B12F] flex items-center justify-center font-bold text-xs shrink-0 border border-[#D4B12F]/30">
+                  <div className="w-9 h-9 rounded-full bg-[#D4B12F]/15 text-[#D4B12F] flex items-center justify-center font-bold text-xs shrink-0 border border-[#D4B12F]/30" suppressHydrationWarning>
                     {userInitials}
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[14px] font-semibold text-[#17202A] dark:text-[#F2F4F7] truncate">
+                    <span className="text-[14px] font-semibold text-[#17202A] dark:text-[#F2F4F7] truncate" suppressHydrationWarning>
                       {userName}
                     </span>
-                    <span className="text-[12px] font-medium text-[#667085] dark:text-[#8B94A3] truncate">
+                    <span className="text-[12px] font-medium text-[#667085] dark:text-[#8B94A3] truncate" suppressHydrationWarning>
                       {isPersonal ? "Personal Workspace" : `${userRole} · ManMadhan`}
                     </span>
                   </div>

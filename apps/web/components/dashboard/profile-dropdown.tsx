@@ -91,6 +91,7 @@ export function ProfileDropdown({
       aria-label="Open profile menu"
       title="User Profile"
       className="w-10 h-10 rounded-full flex items-center justify-center bg-[#B28D18]/15 dark:bg-[#D4B12F]/15 border border-[#B28D18]/25 dark:border-[#D4B12F]/25 text-[#B28D18] dark:text-[#D4B12F] font-bold text-xs font-mono shrink-0 cursor-pointer focus:outline-none transition-colors hover:brightness-105"
+      suppressHydrationWarning
     >
       {userInitials}
     </button>
@@ -109,14 +110,14 @@ export function ProfileDropdown({
       <div className="flex flex-col space-y-3 text-xs">
         {/* 1. IDENTITY HEADER */}
         <div className="flex items-center gap-3 pb-3 border-b border-[#E5E7EB] dark:border-[#24282E]">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#B28D18]/15 dark:bg-[#D4B12F]/15 border border-[#B28D18]/25 dark:border-[#D4B12F]/25 text-[#B28D18] dark:text-[#D4B12F] font-bold text-xs font-mono shrink-0">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#B28D18]/15 dark:bg-[#D4B12F]/15 border border-[#B28D18]/25 dark:border-[#D4B12F]/25 text-[#B28D18] dark:text-[#D4B12F] font-bold text-xs font-mono shrink-0" suppressHydrationWarning>
             {userInitials}
           </div>
           <div className="flex flex-col min-w-0">
-            <span className="font-semibold text-sm text-[#17202A] dark:text-[#F2F3F5] truncate leading-tight">
+            <span className="font-semibold text-sm text-[#17202A] dark:text-[#F2F3F5] truncate leading-tight" suppressHydrationWarning>
               {userName}
             </span>
-            <span className="text-xs text-[#667085] dark:text-[#8B94A3] truncate leading-tight mt-0.5">
+            <span className="text-xs text-[#667085] dark:text-[#8B94A3] truncate leading-tight mt-0.5" suppressHydrationWarning>
               {isPersonal ? "Personal" : userRole}
             </span>
           </div>

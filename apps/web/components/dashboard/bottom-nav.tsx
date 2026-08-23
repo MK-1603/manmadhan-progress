@@ -112,6 +112,7 @@ export function BottomNav({ workspace, role }: BottomNavProps) {
                     ? "bg-[#D4B12F]/25 border-2 border-[#D4B12F] text-[#D4B12F] shadow-xs"
                     : "bg-[#D4B12F]/15 dark:bg-[#D4B12F]/15 border border-[#D4B12F]/25 text-[#B28D18] dark:text-[#D4B12F]"
                 }`}
+                suppressHydrationWarning
               >
                 {userInitials}
               </div>
