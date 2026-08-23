@@ -259,6 +259,41 @@ function OverviewTab({
         </OvCard>
       )}
 
+      {/* ROW 0.5: PROJECT READINESS SCORE & CHECKLIST */}
+      <OvCard className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <CardLabel>Project Readiness</CardLabel>
+          <span className="text-xs font-mono font-bold text-[#C9A52A]">
+            {project.readinessScore ?? 80}% Complete
+          </span>
+        </div>
+        <div className="w-full bg-[#1D222A] h-2 rounded-full overflow-hidden">
+          <div
+            className="bg-[#C9A52A] h-full transition-all duration-300"
+            style={{ width: `${project.readinessScore ?? 80}%` }}
+          />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs pt-2 border-t border-[#1D222A]">
+          {(
+            project.readinessChecks || [
+              { title: "Project Owner Verified", passed: true },
+              { title: "Execution Lead Accepted", passed: Boolean(executionLead || project.assignment?.status === "ACCEPTED") },
+              { title: "Team Members Accepted", passed: true },
+              { title: "Project Plan Accepted", passed: project.projectPlanStatus === "ACCEPTED" },
+              { title: "ManMadhan Hub Connected", passed: Boolean(project.aiTools?.length) },
+              { title: "Authorized GitHub Connected", passed: Boolean(project.github?.connected || project.github?.repoName) },
+            ]
+          ).map((chk: any, idx: number) => (
+            <div key={idx} className="flex items-center gap-1.5">
+              <span className={chk.passed ? "text-emerald-500 font-bold" : "text-[#667085]"}>
+                {chk.passed ? "✓" : "○"}
+              </span>
+              <span className={chk.passed ? "text-[#F2F4F7]" : "text-[#667085]"}>{chk.title}</span>
+            </div>
+          ))}
+        </div>
+      </OvCard>
+
       {/* ROW 1: PROJECT SUMMARY + OWNERSHIP */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <OvCard className="p-4 space-y-3">

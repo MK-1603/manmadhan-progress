@@ -39,6 +39,11 @@ export class GitHubIntegrationService {
 		email?: string,
 		avatarUrl?: string,
 	) {
+		// Enforce Organization Authorization Policy
+		if (email && (email.endsWith("@unauthorized.edu") || email.endsWith("@guest.com"))) {
+			throw new Error("GitHub account is not authorized for this organization.");
+		}
+
 		// Remove existing connection on same slot if any
 		await db
 			.delete(githubConnections)

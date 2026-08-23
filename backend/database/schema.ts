@@ -251,6 +251,7 @@ export const projects = pgTable("projects", {
 	}),
 	tags: jsonb("tags").default([]),
 	plan: jsonb("plan"),
+	projectPlanStatus: text("project_plan_status").default("PENDING").notNull(), // PENDING, ACCEPTED, CHANGES_REQUESTED
 	ownerId: text("owner_id")
 		.notNull()
 		.references(() => users.id),
@@ -274,6 +275,7 @@ export const projectMembers = pgTable("project_members", {
 		.notNull()
 		.references(() => users.id, { onDelete: "cascade" }),
 	role: text("role").default("MEMBER").notNull(), // OWNER, EXECUTION_LEAD, MEMBER
+	status: text("status").default("INVITED").notNull(), // INVITED, ACCEPTED, DECLINED
 	assignedById: text("assigned_by_id").references(() => users.id, { onDelete: "set null" }),
 	assignedAt: timestamp("assigned_at").defaultNow().notNull(),
 });

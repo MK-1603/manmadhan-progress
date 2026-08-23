@@ -43,6 +43,10 @@ async function syncProjectExecutionOS() {
     // 5. Project AI Tools table
     `ALTER TABLE project_ai_tools ADD COLUMN IF NOT EXISTS assigned_to_user_id text REFERENCES users(id) ON DELETE SET NULL;`,
     `ALTER TABLE project_ai_tools ADD COLUMN IF NOT EXISTS project_phase text DEFAULT 'Execution';`,
+
+    // 6. Project Lifecycle status columns
+    `ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_plan_status text NOT NULL DEFAULT 'PENDING';`,
+    `ALTER TABLE project_members ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'INVITED';`,
   ];
 
   for (const q of queries) {

@@ -3884,4 +3884,185 @@ orgProjectsRouter.delete(
 	},
 );
 
+// ─── POST Accept Project Assignment (POST /:id/accept-assignment) ──────────────
+orgProjectsRouter.post(
+	"/:id/accept-assignment",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const id = req.params.id as string;
+			const userId = (req as any).user?.id;
+			const workspaceId = (req as any).workspaceId;
+
+			const [pa] = await db
+				.select()
+				.from(projectAssignments)
+				.where(and(eq(projectAssignments.projectId, id), eq(projectAssignments.assignedToUserId, userId)))
+				.orderBy(desc(projectAssignments.createdAt))
+				.limit(1);
+
+			if (pa) {
+				await db
+					.update(projectAssignments)
+					.set({ status: "ACCEPTED", acceptedAt: new Date(), updatedAt: new Date() })
+					.where(eq(projectAssignments.id, pa.id));
+			}
+
+			await db
+				.update(projects)
+				.set({ status: "AWAITING_SETUP", updatedAt: new Date() })
+				.where(eq(projects.id, id));
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "EXECUTION_LEAD_ACCEPTED",
+				details: `User ${userId} accepted project assignment for project ${id}`,
+				createdAt: new Date(),
+			});
+
+			try {
+				socketService.emitToWorkspace(workspaceId, "project.assignment.accepted", { projectId: id, userId });
+				socketService.emitToWorkspace(workspaceId, "project_updated", { projectId: id });
+			} catch (e) {}
+
+			res.json({ success: true, message: "Project assignment accepted successfully" });
+		} catch (err: any) {
+			logger.error(`Accept assignment error: ${err.message}`);
+			res.status(500).json({ success: false, error: "Failed to accept assignment" });
+		}
+	},
+);
+
+// ─── POST Decline Project Assignment (POST /:id/decline-assignment) ────────────
+orgProjectsRouter.post(
+	"/:id/decline-assignment",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const id = req.params.id as string;
+			const userId = (req as any).user?.id;
+			const workspaceId = (req as any).workspaceId;
+			const { reason } = req.body;
+
+			const [pa] = await db
+				.select()
+				.from(projectAssignments)
+				.where(and(eq(projectAssignments.projectId, id), eq(projectAssignments.assignedToUserId, userId)))
+				.orderBy(desc(projectAssignments.createdAt))
+				.limit(1);
+
+			if (pa) {
+				await db
+					.update(projectAssignments)
+					.set({ status: "DECLINED", rejectionReason: reason || null, declinedAt: new Date(), updatedAt: new Date() })
+					.where(eq(projectAssignments.id, pa.id));
+			}
+
+			await db
+				.update(projects)
+				.set({ status: "AWAITING_ACCEPTANCE", executionLeadId: null, updatedAt: new Date() })
+				.where(eq(projects.id, id));
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "EXECUTION_LEAD_DECLINED",
+				details: `User ${userId} declined project assignment for project ${id}`,
+				createdAt: new Date(),
+			});
+
+			try {
+				socketService.emitToWorkspace(workspaceId, "project.assignment.declined", { projectId: id, userId, reason });
+				socketService.emitToWorkspace(workspaceId, "project_updated", { projectId: id });
+			} catch (e) {}
+
+			res.json({ success: true, message: "Project assignment declined" });
+		} catch (err: any) {
+			logger.error(`Decline assignment error: ${err.message}`);
+			res.status(500).json({ success: false, error: "Failed to decline assignment" });
+		}
+	},
+);
+
+// ─── POST Accept Project Plan (POST /:id/accept-plan) ─────────────────────────
+orgProjectsRouter.post(
+	"/:id/accept-plan",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const id = req.params.id as string;
+			const userId = (req as any).user?.id;
+			const workspaceId = (req as any).workspaceId;
+
+			await db
+				.update(projects)
+				.set({ projectPlanStatus: "ACCEPTED", updatedAt: new Date() })
+				.where(eq(projects.id, id));
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "PROJECT_PLAN_ACCEPTED",
+				details: `User ${userId} accepted project execution plan for project ${id}`,
+				createdAt: new Date(),
+			});
+
+			try {
+				socketService.emitToWorkspace(workspaceId, "project.plan.accepted", { projectId: id, userId });
+				socketService.emitToWorkspace(workspaceId, "project_updated", { projectId: id });
+			} catch (e) {}
+
+			res.json({ success: true, message: "Project plan accepted successfully" });
+		} catch (err: any) {
+			logger.error(`Accept plan error: ${err.message}`);
+			res.status(500).json({ success: false, error: "Failed to accept project plan" });
+		}
+	},
+);
+
+// ─── POST Accept Member Invitation (POST /:id/accept-member) ───────────────────
+orgProjectsRouter.post(
+	"/:id/accept-member",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const id = req.params.id as string;
+			const userId = (req as any).user?.id;
+			const workspaceId = (req as any).workspaceId;
+
+			await db
+				.update(projectMembers)
+				.set({ status: "ACCEPTED" })
+				.where(and(eq(projectMembers.projectId, id), eq(projectMembers.userId, userId)));
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				userId,
+				workspaceId,
+				eventType: "MEMBER_ACCEPTED",
+				details: `User ${userId} accepted membership invitation for project ${id}`,
+				createdAt: new Date(),
+			});
+
+			try {
+				socketService.emitToWorkspace(workspaceId, "project.member.accepted", { projectId: id, userId });
+				socketService.emitToWorkspace(workspaceId, "project_updated", { projectId: id });
+			} catch (e) {}
+
+			res.json({ success: true, message: "Member invitation accepted" });
+		} catch (err: any) {
+			logger.error(`Accept member error: ${err.message}`);
+			res.status(500).json({ success: false, error: "Failed to accept member invitation" });
+		}
+	},
+);
+
 export default orgProjectsRouter;

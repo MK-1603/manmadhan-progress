@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { X, Loader2, Sparkles, ChevronRight, UserCheck, Bot, Calendar, Layers, AlertCircle, ArrowLeft, Plus, Check } from "lucide-react";
+import { X, Loader2, Sparkles, ChevronRight, UserCheck, Bot, Calendar, Layers, AlertCircle, ArrowLeft, Check, Command } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 
@@ -30,6 +30,18 @@ interface CreateProjectModalProps {
   onSuccess: (project?: any) => void;
 }
 
+const QUICK_ADD_CHIPS = [
+  { label: "Title", key: "Project Title: " },
+  { label: "Description", key: "Project Description: " },
+  { label: "Assignee", key: "Assignee: " },
+  { label: "Members", key: "Members: " },
+  { label: "Deadline", key: "Deadline: " },
+  { label: "Requirements", key: "Requirements: " },
+  { label: "Milestones", key: "Milestones: " },
+  { label: "GitHub", key: "GitHub: " },
+  { label: "Hub Tools", key: "ManMadhan Hub: " },
+];
+
 export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProjectModalProps) {
   const router = useRouter();
 
@@ -53,6 +65,11 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionPosition, setMentionPosition] = useState<number>(0);
   const [selectedMentionIndex, setSelectedMentionIndex] = useState<number>(0);
+
+  // ── Slash Command State ────────────────────────────────────────────────────
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  const [slashPosition, setSlashPosition] = useState<number>(0);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ── Structured Intent (Extracted by AI for Review Stage) ────────────────────
@@ -103,7 +120,32 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
     loadDirectory();
   }, [isOpen]);
 
-  // ── Autocomplete Mention Filter Options ─────────────────────────────────────
+  // ── Quick Add Chip Click Handler (Inserts Key ONLY) ──────────────────────────
+  const handleQuickAddClick = (chipKey: string) => {
+    if (!textareaRef.current) {
+      setPromptText((prev) => prev + (prev.endsWith("\n") || prev === "" ? "" : "\n") + chipKey);
+      return;
+    }
+
+    const cursorPos = textareaRef.current.selectionStart || promptText.length;
+    const textBefore = promptText.slice(0, cursorPos);
+    const textAfter = promptText.slice(cursorPos);
+    const prefix = textBefore.length > 0 && !textBefore.endsWith("\n") ? "\n" : "";
+
+    const insertedText = prefix + chipKey;
+    const newText = textBefore + insertedText + textAfter;
+    setPromptText(newText);
+
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const newPos = cursorPos + insertedText.length;
+        textareaRef.current.setSelectionRange(newPos, newPos);
+      }
+    }, 0);
+  };
+
+  // ── Mention Filter Options ──────────────────────────────────────────────────
   const mentionOptions = useMemo(() => {
     if (mentionQuery === null) return [];
     const q = mentionQuery.toLowerCase();
@@ -131,7 +173,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
     return options;
   }, [mentionQuery, allUsers, currentUser]);
 
-  // ── Textarea @Mention Detector ──────────────────────────────────────────────
+  // ── Textarea @Mention Detector & / Command Detector ─────────────────────────
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setPromptText(val);
@@ -139,19 +181,34 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
 
     const cursorPos = e.target.selectionStart;
     const textBeforeCursor = val.slice(0, cursorPos);
-    const lastAtIndex = textBeforeCursor.lastIndexOf("@");
 
+    // Check @ mention
+    const lastAtIndex = textBeforeCursor.lastIndexOf("@");
     if (lastAtIndex !== -1) {
       const query = textBeforeCursor.slice(lastAtIndex + 1);
       if (!/\s/.test(query)) {
         setMentionQuery(query);
         setMentionPosition(lastAtIndex);
         setSelectedMentionIndex(0);
+        setSlashQuery(null);
+        return;
+      }
+    }
+
+    // Check / slash command
+    const lastSlashIndex = textBeforeCursor.lastIndexOf("/");
+    if (lastSlashIndex !== -1 && (lastSlashIndex === 0 || /\s/.test(textBeforeCursor[lastSlashIndex - 1]))) {
+      const query = textBeforeCursor.slice(lastSlashIndex + 1);
+      if (!/\s/.test(query)) {
+        setSlashQuery(query);
+        setSlashPosition(lastSlashIndex);
+        setMentionQuery(null);
         return;
       }
     }
 
     setMentionQuery(null);
+    setSlashQuery(null);
   };
 
   const handleSelectMention = (option: typeof mentionOptions[0]) => {
@@ -169,6 +226,24 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
       if (textareaRef.current) {
         textareaRef.current.focus();
         const newCursorPos = mentionPosition + inserted.length;
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+  };
+
+  const handleSelectSlashChip = (chipKey: string) => {
+    if (slashPosition === null || !textareaRef.current) return;
+
+    const beforeSlash = promptText.slice(0, slashPosition);
+    const afterSlash = promptText.slice(textareaRef.current.selectionStart);
+    const newText = beforeSlash + chipKey + afterSlash;
+    setPromptText(newText);
+    setSlashQuery(null);
+
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const newCursorPos = slashPosition + chipKey.length;
         textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
       }
     }, 0);
@@ -248,10 +323,10 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
           executionLead: leadUser,
           members: memberList,
           milestones: plan.milestones || [
-            { name: "M1 — Foundation & Setup", description: "Core project setup and initial alignment" },
-            { name: "M2 — Requirements & Architecture", description: "System architecture and functional specs" },
-            { name: "M3 — Execution & Development", description: "Primary implementation phase" },
-            { name: "M4 — Testing & Launch", description: "QA testing, bug fixes, and deployment" },
+            { name: "M1 Foundation & Setup", description: "Core project setup and initial alignment" },
+            { name: "M2 Requirements & Architecture", description: "System architecture and functional specs" },
+            { name: "M3 Execution & Implementation", description: "Primary implementation phase" },
+            { name: "M4 Testing & Deployment", description: "QA testing, bug fixes, and deployment" },
           ],
           hubTools: proj.hubTools || [
             { name: "Claude", purpose: "Architecture & Documentation" },
@@ -316,41 +391,26 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-[#0B0D10] border border-[#272D36] rounded-[20px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-white font-sans">
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-[#1D222A] flex items-center justify-between bg-[#111419] shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#C9A52A]/15 border border-[#C9A52A]/30 flex items-center justify-center text-[#C9A52A]">
-              <Sparkles className="w-4 h-4" />
-            </div>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-xl bg-[#0B0D10] border border-[#272D36] rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-white font-sans">
+        {/* Simplified Compact Header */}
+        <div className="px-5 py-3.5 border-b border-[#1D222A] flex items-center justify-between bg-[#111419] shrink-0">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[#C9A52A]" />
             <div>
-              <h2 className="text-[15px] font-bold text-[#F2F4F7]">Create Project with AI</h2>
-              <p className="text-[11px] text-[#667085]">
-                {stage === "COMPOSE" ? "Describe what you want the team to execute." : "Review AI-extracted execution plan."}
-              </p>
+              <h2 className="text-sm font-bold text-[#F2F4F7]">Create Project</h2>
+              <p className="text-[11px] text-[#667085]">Describe what you want to execute.</p>
             </div>
           </div>
-
-          {/* Two-Stage Progress Indicator */}
-          <div className="flex items-center gap-2 text-[11px] font-mono">
-            <span className={`px-2 py-0.5 rounded font-bold ${stage === "COMPOSE" ? "bg-[#C9A52A] text-black" : "bg-[#1D222A] text-[#667085]"}`}>
-              1. Compose
-            </span>
-            <span className="text-[#667085]">──</span>
-            <span className={`px-2 py-0.5 rounded font-bold ${stage === "REVIEW" ? "bg-[#C9A52A] text-black" : "bg-[#1D222A] text-[#667085]"}`}>
-              2. Review
-            </span>
-            <button onClick={onClose} className="ml-3 p-1.5 rounded-lg text-[#667085] hover:text-white hover:bg-[#1D222A] transition-colors">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          <button onClick={onClose} className="p-1 rounded-lg text-[#667085] hover:text-white hover:bg-[#1D222A] transition-colors">
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 overflow-y-auto space-y-4 flex-1">
+        <div className="p-4 overflow-y-auto space-y-3 flex-1">
           {error && (
-            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -358,29 +418,29 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
 
           {/* ── STAGE 1: SINGLE PROMPT COMPOSER ───────────────────────────────────── */}
           {stage === "COMPOSE" && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="relative">
                 <textarea
                   ref={textareaRef}
                   value={promptText}
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
-                  placeholder="Describe the project you want to execute... (Use @mention for team members)"
-                  rows={6}
-                  className="w-full p-4 bg-[#111419] border border-[#272D36] focus:border-[#C9A52A] rounded-2xl text-[13px] text-[#F2F4F7] placeholder-[#667085] outline-none transition-all resize-none leading-relaxed"
+                  placeholder="Describe what you want to execute..."
+                  rows={5}
+                  className="w-full p-3.5 bg-[#111419] border border-[#272D36] focus:border-[#C9A52A] rounded-xl text-xs text-[#F2F4F7] placeholder-[#667085] outline-none transition-all resize-none leading-relaxed"
                 />
 
                 {/* Real-time @Mention Autocomplete Dropdown */}
                 {mentionQuery !== null && mentionOptions.length > 0 && (
-                  <div className="absolute left-4 bottom-4 z-50 w-64 bg-[#15191F] border border-[#272D36] rounded-xl shadow-2xl overflow-hidden py-1">
-                    <p className="px-3 py-1 text-[10px] font-bold text-[#667085] uppercase tracking-wider border-b border-[#1D222A]">
+                  <div className="absolute left-3 bottom-3 z-50 w-60 bg-[#15191F] border border-[#272D36] rounded-xl shadow-2xl overflow-hidden py-1">
+                    <p className="px-3 py-1 text-[9.5px] font-bold text-[#667085] uppercase tracking-wider border-b border-[#1D222A]">
                       Assign Team Member
                     </p>
                     {mentionOptions.map((opt, idx) => (
                       <button
                         key={opt.id}
                         onClick={() => handleSelectMention(opt)}
-                        className={`w-full px-3 py-2 text-left flex items-center justify-between text-xs cursor-pointer transition-colors ${
+                        className={`w-full px-3 py-1.5 text-left flex items-center justify-between text-xs cursor-pointer transition-colors ${
                           idx === selectedMentionIndex ? "bg-[#C9A52A]/20 text-[#C9A52A] font-bold" : "text-[#F2F4F7] hover:bg-[#1D222A]"
                         }`}
                       >
@@ -390,32 +450,60 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                     ))}
                   </div>
                 )}
+
+                {/* Real-time Slash Command Dropdown */}
+                {slashQuery !== null && (
+                  <div className="absolute left-3 bottom-3 z-50 w-56 bg-[#15191F] border border-[#272D36] rounded-xl shadow-2xl overflow-hidden py-1">
+                    <p className="px-3 py-1 text-[9.5px] font-bold text-[#667085] uppercase tracking-wider border-b border-[#1D222A]">
+                      Quick Commands
+                    </p>
+                    {QUICK_ADD_CHIPS.map((chip) => (
+                      <button
+                        key={chip.label}
+                        onClick={() => handleSelectSlashChip(chip.key)}
+                        className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-xs text-[#F2F4F7] hover:bg-[#1D222A] cursor-pointer"
+                      >
+                        <Command className="w-3 h-3 text-[#C9A52A]" />
+                        <span>/{chip.label.toLowerCase()}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* Prompt Syntax Hints (Instructions, NOT Form Inputs) */}
-              <div className="p-3.5 bg-[#111419]/60 rounded-xl border border-[#1D222A] space-y-1.5 text-[11px] text-[#667085]">
-                <p className="font-bold text-[#8B95A5] uppercase tracking-wider text-[9.5px]">PROMPT HINT GUIDE (Natural or Structured Text Supported)</p>
-                <p className="leading-relaxed">
-                  <strong className="text-[#F2F4F7]">Example:</strong> &quot;Build Dental Patient Portal. Owner: @me. Execution Lead: @SHRIRAM. Members: @ARUN for frontend. Finish by 10 September. Use Claude and Figma from ManMadhan Hub.&quot;
-                </p>
+              {/* Quick Add Chips Section */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-bold text-[#667085] uppercase tracking-wider">Quick Add</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_ADD_CHIPS.map((chip) => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      onClick={() => handleQuickAddClick(chip.key)}
+                      className="px-2.5 py-1 bg-[#111419] hover:bg-[#1A1F26] border border-[#272D36] hover:border-[#C9A52A]/50 rounded-lg text-[11px] font-medium text-[#8B95A5] hover:text-[#F2F4F7] transition-all cursor-pointer"
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Compose Stage CTA */}
-              <div className="pt-2 flex justify-end">
+              <div className="pt-1 flex justify-end">
                 <button
                   onClick={handleParsePrompt}
                   disabled={!promptText.trim() || isParsing}
-                  className="inline-flex items-center gap-2 px-5 h-[42px] rounded-xl bg-[#C9A52A] text-black font-bold text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
+                  className="inline-flex items-center gap-1.5 px-4 h-[38px] rounded-xl bg-[#C9A52A] text-black font-bold text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
                 >
                   {isParsing ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Extracting Project Intent...</span>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Analyzing...</span>
                     </>
                   ) : (
                     <>
                       <span>Review Project</span>
-                      <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+                      <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
                     </>
                   )}
                 </button>
@@ -425,103 +513,71 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
 
           {/* ── STAGE 2: SINGLE-VIEWPORT REVIEW SCREEN ──────────────────────────────── */}
           {stage === "REVIEW" && extractedIntent && (
-            <div className="space-y-4 font-sans text-xs">
-              {/* Project Card */}
-              <div className="p-4 bg-[#111419] rounded-xl border border-[#272D36] space-y-2">
+            <div className="space-y-3 font-sans text-xs">
+              {/* Project Title & Priority */}
+              <div className="p-3 bg-[#111419] rounded-xl border border-[#272D36] space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[9.5px] font-bold text-[#C9A52A] bg-[#C9A52A]/10 px-2 py-0.5 rounded border border-[#C9A52A]/20 uppercase tracking-wider">
-                    {extractedIntent.priority} Priority Project
+                  <span className="text-[9px] font-bold text-[#C9A52A] bg-[#C9A52A]/10 px-2 py-0.5 rounded uppercase">
+                    {extractedIntent.priority} Priority
                   </span>
                   {extractedIntent.deadline && (
                     <span className="text-[11px] font-mono text-[#8B95A5] flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5 text-[#C9A52A]" /> Due: {extractedIntent.deadline}
+                      <Calendar className="w-3 h-3 text-[#C9A52A]" /> {extractedIntent.deadline}
                     </span>
                   )}
                 </div>
-                <h3 className="text-[16px] font-bold text-[#F2F4F7]">{extractedIntent.title}</h3>
-                <p className="text-[#8B95A5] leading-relaxed line-clamp-2">{extractedIntent.description}</p>
+                <h3 className="text-sm font-bold text-[#F2F4F7]">{extractedIntent.title}</h3>
+                <p className="text-[#8B95A5] line-clamp-2">{extractedIntent.description}</p>
               </div>
 
-              {/* 2-Column Summary Matrix */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Ownership & Roles */}
-                <div className="p-3.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-2">
-                  <p className="text-[10px] font-bold text-[#667085] uppercase tracking-wider flex items-center gap-1.5">
-                    <UserCheck className="w-3.5 h-3.5 text-[#C9A52A]" /> Roles & Assignment
-                  </p>
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center bg-[#0B0D10] p-2 rounded-lg border border-[#1D222A]">
-                      <span className="text-[#8B95A5]">Project Owner:</span>
-                      <span className="font-bold text-[#F2F4F7]">You · CEO</span>
-                    </div>
-                    <div className="flex justify-between items-center bg-[#0B0D10] p-2 rounded-lg border border-[#1D222A]">
-                      <span className="text-[#8B95A5]">Execution Lead:</span>
-                      <span className="font-bold text-[#C9A52A]">
-                        {extractedIntent.executionLead ? `@${extractedIntent.executionLead.name || extractedIntent.executionLead.email}` : "None"}
-                      </span>
-                    </div>
-                  </div>
+              {/* Compact 2-Column Summary Matrix */}
+              <div className="grid grid-cols-2 gap-2.5 text-[11px]">
+                <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
+                  <span className="text-[9.5px] font-bold text-[#667085] uppercase">Owner</span>
+                  <p className="font-bold text-[#F2F4F7]">You · CEO</p>
                 </div>
 
-                {/* Team Members & Responsibilities */}
-                <div className="p-3.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-2">
-                  <p className="text-[10px] font-bold text-[#667085] uppercase tracking-wider flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-blue-500" /> Team & Responsibilities
+                <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
+                  <span className="text-[9.5px] font-bold text-[#667085] uppercase">Execution Lead</span>
+                  <p className="font-bold text-[#C9A52A]">
+                    {extractedIntent.executionLead ? `@${extractedIntent.executionLead.name || extractedIntent.executionLead.email}` : "None"}
                   </p>
-                  {extractedIntent.members.length > 0 ? (
-                    <div className="space-y-1 max-h-24 overflow-y-auto">
-                      {extractedIntent.members.map((m, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-[#0B0D10] p-1.5 rounded border border-[#1D222A] text-[11px]">
-                          <span className="font-bold text-[#F2F4F7]">@{m.user.name || m.user.email}</span>
-                          <span className="text-[#8B95A5]">{m.responsibility || "Execution Member"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[#667085] italic py-1">No additional team members assigned.</p>
-                  )}
                 </div>
               </div>
 
-              {/* Milestones & Hub Tools */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-2">
-                  <p className="text-[10px] font-bold text-[#667085] uppercase tracking-wider flex items-center gap-1.5">
-                    <Check className="w-3.5 h-3.5 text-emerald-500" /> Milestones ({extractedIntent.milestones.length} Suggested)
+              <div className="grid grid-cols-2 gap-2.5 text-[11px]">
+                <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
+                  <span className="text-[9.5px] font-bold text-[#667085] uppercase">Members</span>
+                  <p className="font-semibold text-[#F2F4F7]">
+                    {extractedIntent.members.length > 0
+                      ? extractedIntent.members.map((m) => `@${m.user.name || m.user.email}`).join(", ")
+                      : "None"}
                   </p>
-                  <div className="space-y-1 max-h-24 overflow-y-auto">
-                    {extractedIntent.milestones.map((m, idx) => (
-                      <div key={idx} className="p-1.5 bg-[#0B0D10] rounded border border-[#1D222A] text-[11px] font-semibold text-[#F2F4F7]">
-                        {m.name}
-                      </div>
-                    ))}
-                  </div>
                 </div>
 
-                <div className="p-3.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-2">
-                  <p className="text-[10px] font-bold text-[#667085] uppercase tracking-wider flex items-center gap-1.5">
-                    <Bot className="w-3.5 h-3.5 text-purple-500" /> ManMadhan Hub Tools
+                <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
+                  <span className="text-[9.5px] font-bold text-[#667085] uppercase">Hub Tools</span>
+                  <p className="font-semibold text-purple-400">
+                    {extractedIntent.hubTools.length > 0 ? extractedIntent.hubTools.map((t) => t.name).join(" · ") : "None"}
                   </p>
-                  {extractedIntent.hubTools.length > 0 ? (
-                    <div className="space-y-1 max-h-24 overflow-y-auto">
-                      {extractedIntent.hubTools.map((t, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-[#0B0D10] p-1.5 rounded border border-[#1D222A] text-[11px]">
-                          <span className="font-bold text-[#F2F4F7]">{t.name}</span>
-                          <span className="text-[#8B95A5]">{t.purpose}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-[#667085] italic py-1">No Hub tools requested.</p>
-                  )}
                 </div>
               </div>
 
-              {/* Review Stage Buttons */}
-              <div className="pt-2 flex items-center justify-between">
+              {/* Milestones Summary */}
+              <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
+                <span className="text-[9.5px] font-bold text-[#667085] uppercase">
+                  Milestones ({extractedIntent.milestones.length} suggested)
+                </span>
+                <p className="text-[#8B95A5] line-clamp-1">
+                  {extractedIntent.milestones.map((m) => m.name).join(" → ")}
+                </p>
+              </div>
+
+              {/* Review Buttons */}
+              <div className="pt-1 flex items-center justify-between">
                 <button
                   onClick={() => setStage("COMPOSE")}
-                  className="inline-flex items-center gap-1.5 px-4 h-[38px] rounded-xl border border-[#272D36] text-[#8B95A5] hover:text-white hover:bg-[#1D222A] transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1 px-3 h-[34px] rounded-lg border border-[#272D36] text-[#8B95A5] hover:text-white hover:bg-[#1D222A] transition-colors cursor-pointer text-xs"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" /> Edit Prompt
                 </button>
@@ -529,17 +585,17 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                 <button
                   onClick={handleConfirmCreateProject}
                   disabled={isSubmitting}
-                  className="inline-flex items-center gap-2 px-6 h-[40px] rounded-xl bg-[#C9A52A] text-black font-bold text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
+                  className="inline-flex items-center gap-1.5 px-5 h-[36px] rounded-xl bg-[#C9A52A] text-black font-bold text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Creating Project Workspace...</span>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Creating...</span>
                     </>
                   ) : (
                     <>
                       <span>Create Project</span>
-                      <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+                      <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
                     </>
                   )}
                 </button>
