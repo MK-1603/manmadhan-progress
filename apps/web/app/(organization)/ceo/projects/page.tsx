@@ -736,9 +736,9 @@ export default function ProjectsPage() {
 
         {/* ── CONTEXTUAL BULK ACTION TOOLBAR (DESKTOP) ── */}
         {selectedIds.length > 0 && (
-          <div className="shrink-0 hidden md:flex items-center justify-between p-2 rounded-[12px] bg-zinc-900 dark:bg-[#1C2128] text-white border border-zinc-800 dark:border-[#272D36] shadow-lg animate-in fade-in duration-150">
+          <div className="shrink-0 hidden md:flex items-center justify-between p-2 rounded-[12px] bg-white dark:bg-[#1C2128] text-zinc-900 dark:text-white border border-zinc-200 dark:border-[#272D36] shadow-lg animate-in fade-in duration-150">
             <div className="flex items-center gap-3">
-              <span className="text-[12px] font-extrabold text-[#C9A52A] px-2.5 py-1 rounded-[6px] bg-[#C9A52A]/15 border border-[#C9A52A]/30">
+              <span className="text-[12px] font-extrabold text-[#C9A52A] px-2.5 py-1 rounded-[6px] bg-[#C9A52A]/10 dark:bg-[#C9A52A]/15 border border-[#C9A52A]/30">
                 {selectedIds.length} {selectedIds.length === 1 ? "project selected" : "projects selected"}
               </span>
             </div>
@@ -747,54 +747,54 @@ export default function ProjectsPage() {
               <button
                 type="button"
                 onClick={() => setBulkActionType("assign")}
-                className="px-3 h-[32px] rounded-[6px] bg-white/10 hover:bg-white/20 text-white text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 h-[32px] rounded-[6px] bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 text-zinc-900 dark:text-white border border-zinc-200 dark:border-transparent text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <UserPlus className="w-3.5 h-3.5" />
+                <UserPlus className="w-3.5 h-3.5 text-[#C9A52A]" />
                 <span>Assign</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setBulkActionType("status")}
-                className="px-3 h-[32px] rounded-[6px] bg-white/10 hover:bg-white/20 text-white text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 h-[32px] rounded-[6px] bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 text-zinc-900 dark:text-white border border-zinc-200 dark:border-transparent text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <CheckSquare className="w-3.5 h-3.5" />
+                <CheckSquare className="w-3.5 h-3.5 text-[#C9A52A]" />
                 <span>Status</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setBulkActionType("archive")}
-                className="px-3 h-[32px] rounded-[6px] bg-white/10 hover:bg-white/20 text-white text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 h-[32px] rounded-[6px] bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 text-zinc-900 dark:text-white border border-zinc-200 dark:border-transparent text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <Archive className="w-3.5 h-3.5" />
+                <Archive className="w-3.5 h-3.5 text-amber-500" />
                 <span>Archive</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setBulkActionType("priority")}
-                className="px-3 h-[32px] rounded-[6px] bg-white/10 hover:bg-white/20 text-white text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 h-[32px] rounded-[6px] bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 text-zinc-900 dark:text-white border border-zinc-200 dark:border-transparent text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <AlertCircle className="w-3.5 h-3.5" />
+                <AlertCircle className="w-3.5 h-3.5 text-[#C9A52A]" />
                 <span>Priority</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setBulkActionType("delete")}
-                className="px-3 h-[32px] rounded-[6px] bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 h-[32px] rounded-[6px] bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 dark:hover:bg-rose-500/30 border border-rose-500/20 dark:border-transparent text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete</span>
               </button>
 
-              <div className="w-[1px] h-4 bg-zinc-700 mx-1" />
+              <div className="w-[1px] h-4 bg-zinc-300 dark:bg-zinc-700 mx-1" />
 
               <button
                 type="button"
                 onClick={() => setSelectedIds([])}
-                className="px-2.5 py-1 text-zinc-400 hover:text-white text-[11.5px] font-medium transition-colors cursor-pointer"
+                className="px-2.5 py-1 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white text-[11.5px] font-medium transition-colors cursor-pointer"
               >
                 Clear selection
               </button>
@@ -1372,14 +1372,14 @@ export default function ProjectsPage() {
       )}
       {/* Fixed Mobile Bottom Selection Bar (<768px) */}
       {selectedIds.length > 0 && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-[150] bg-zinc-900 dark:bg-[#1C2128] border-t border-zinc-800 dark:border-[#272D36] p-3 shadow-2xl animate-in slide-in-from-bottom duration-200 font-sans">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-[150] bg-white dark:bg-[#1C2128] border-t border-zinc-200 dark:border-[#272D36] p-3 shadow-2xl animate-in slide-in-from-bottom duration-200 font-sans">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[12.5px] font-bold text-[#C9A52A]">
               {selectedIds.length} {selectedIds.length === 1 ? "project selected" : "projects selected"}
             </span>
             <button
               onClick={() => setSelectedIds([])}
-              className="text-[12px] font-bold text-zinc-400 hover:text-white"
+              className="text-[12px] font-bold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
             >
               Cancel
             </button>
@@ -1388,30 +1388,30 @@ export default function ProjectsPage() {
           <div className="grid grid-cols-4 gap-2">
             <button
               onClick={() => setBulkActionType("assign")}
-              className="h-[36px] rounded-[8px] bg-white/10 text-white font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer"
+              className="h-[36px] rounded-[8px] bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 text-zinc-900 dark:text-white border border-zinc-200 dark:border-transparent font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer"
             >
-              <UserPlus className="w-3.5 h-3.5" />
+              <UserPlus className="w-3.5 h-3.5 text-[#C9A52A]" />
               <span>Assign</span>
             </button>
             <button
               onClick={() => setBulkActionType("status")}
-              className="h-[36px] rounded-[8px] bg-white/10 text-white font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer"
+              className="h-[36px] rounded-[8px] bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 text-zinc-900 dark:text-white border border-zinc-200 dark:border-transparent font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer"
             >
-              <CheckSquare className="w-3.5 h-3.5" />
+              <CheckSquare className="w-3.5 h-3.5 text-[#C9A52A]" />
               <span>Status</span>
             </button>
             <button
               onClick={() => setBulkActionType("archive")}
-              className="h-[36px] rounded-[8px] bg-white/10 text-white font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer"
+              className="h-[36px] rounded-[8px] bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 text-zinc-900 dark:text-white border border-zinc-200 dark:border-transparent font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer"
             >
-              <Archive className="w-3.5 h-3.5" />
+              <Archive className="w-3.5 h-3.5 text-amber-500" />
               <span>Archive</span>
             </button>
             <button
               onClick={() => setBulkActionType("priority")}
-              className="h-[36px] rounded-[8px] bg-white/10 text-white font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer"
+              className="h-[36px] rounded-[8px] bg-zinc-100 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/20 text-zinc-900 dark:text-white border border-zinc-200 dark:border-transparent font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer"
             >
-              <AlertCircle className="w-3.5 h-3.5" />
+              <AlertCircle className="w-3.5 h-3.5 text-[#C9A52A]" />
               <span>Priority</span>
             </button>
           </div>
