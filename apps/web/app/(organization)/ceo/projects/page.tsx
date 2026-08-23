@@ -77,7 +77,7 @@ export default function ProjectsPage() {
   const [deadlineFilter, setDeadlineFilter] = useState("All");
   const [progressFilter, setProgressFilter] = useState("All");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
-  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // Selection & Actions State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -585,88 +585,69 @@ export default function ProjectsPage() {
         {/* ── COMPACT CONTROL FILTER BAR ── */}
         <div className="shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 p-2 rounded-[12px] bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] shadow-2xs">
           
-          {/* Search Box */}
-          <div className="relative flex-1 w-full sm:max-w-sm">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-[#8B95A5]" />
-            <input
-              type="text"
-              placeholder="Search projects..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-[36px] pl-9 pr-3.5 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[8px] text-[12px] text-zinc-900 dark:text-[#F2F4F7] placeholder-zinc-400 dark:placeholder-[#667085] outline-none focus:border-[#C9A52A]"
-            />
-            {search && (
-              <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-900 dark:hover:text-[#F2F4F7]">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+          {/* Search & Filter Row (Same Line on Mobile & Desktop) */}
+          <div className="flex items-center gap-2 flex-1 w-full sm:max-w-md">
+            {/* Search Input Box */}
+            <div className="relative flex-1">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-[#8B95A5]" />
+              <input
+                type="text"
+                placeholder="Search projects..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full h-[36px] pl-9 pr-8 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[8px] text-[12px] text-zinc-900 dark:text-[#F2F4F7] placeholder-zinc-400 dark:placeholder-[#667085] outline-none focus:border-[#C9A52A]"
+              />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-900 dark:hover:text-[#F2F4F7]">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Unified Filter Button (Triggers Centered Filter Modal) */}
+            <button
+              type="button"
+              onClick={() => setIsFilterOpen(true)}
+              className="h-[36px] px-3.5 rounded-[8px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] text-zinc-900 dark:text-[#F2F4F7] font-semibold text-[12px] flex items-center gap-2 transition-colors hover:border-[#C9A52A]/50 cursor-pointer shrink-0"
+            >
+              <Filter className="w-3.5 h-3.5 text-[#C9A52A]" />
+              <span>Filter</span>
+              {activeTotalFiltersCount > 0 ? (
+                <span className="px-1.5 py-0.5 rounded-full bg-[#C9A52A] text-[#0B0D10] text-[10px] font-extrabold leading-none">
+                  {activeTotalFiltersCount}
+                </span>
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-zinc-400 dark:text-[#667085]" />
+              )}
+            </button>
           </div>
 
-          {/* Unified Filter Button & View Mode Controls */}
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            {/* Desktop Unified Filter Popover */}
-            <div className="hidden sm:block">
-              <CustomDropdown
-                label="Filter"
-                value=""
-                onChange={() => {}}
-                options={[]}
-                isMoreFilters={true}
-                moreFiltersContent={unifiedFilterContentNode}
-                activeFilterCount={activeTotalFiltersCount}
-                onClearFilters={handleClearAllFilters}
-                minDropdownWidth={320}
-              />
-            </div>
-
-            {/* Mobile Unified Filter Button (Triggers Bottom Sheet) */}
-            <div className="sm:hidden w-full">
-              <button
-                type="button"
-                onClick={() => setIsMobileFilterOpen(true)}
-                className="w-full h-[36px] px-3.5 rounded-[8px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] text-zinc-900 dark:text-[#F2F4F7] font-semibold text-[12px] flex items-center justify-between transition-colors hover:border-[#C9A52A]/50 cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <Filter className="w-3.5 h-3.5 text-[#C9A52A]" />
-                  <span>Filter</span>
-                </div>
-                {activeTotalFiltersCount > 0 ? (
-                  <span className="px-2 py-0.5 rounded-full bg-[#C9A52A] text-[#0B0D10] text-[10.5px] font-extrabold">
-                    {activeTotalFiltersCount}
-                  </span>
-                ) : (
-                  <ChevronDown className="w-3.5 h-3.5 text-zinc-400 dark:text-[#667085]" />
-                )}
-              </button>
-            </div>
-
-            {/* View Mode Toggle (Desktop Only) */}
-            <div className="hidden md:flex items-center p-0.5 rounded-[8px] bg-zinc-100 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36]">
-              <button
-                type="button"
-                onClick={() => setViewMode("table")}
-                className={`px-3 h-[30px] rounded-[6px] text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  viewMode === "table"
-                    ? "bg-[#C9A52A] text-[#0B0D10]"
-                    : "text-zinc-600 dark:text-[#8B95A5] hover:text-zinc-900 dark:hover:text-[#F2F4F7]"
-                }`}
-              >
-                <List className="w-3.5 h-3.5" />
-                <span>Table</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("board")}
-                className={`px-3 h-[30px] rounded-[6px] text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  viewMode === "board"
-                    ? "bg-[#C9A52A] text-[#0B0D10]"
-                    : "text-zinc-600 dark:text-[#8B95A5] hover:text-zinc-900 dark:hover:text-[#F2F4F7]"
-                }`}
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Board</span>
-              </button>
-            </div>
+          {/* View Mode Toggle (Table / Board) */}
+          <div className="hidden md:flex items-center p-0.5 rounded-[8px] bg-zinc-100 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36]">
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={`px-3 h-[30px] rounded-[6px] text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === "table"
+                  ? "bg-[#C9A52A] text-[#0B0D10]"
+                  : "text-zinc-600 dark:text-[#8B95A5] hover:text-zinc-900 dark:hover:text-[#F2F4F7]"
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>Table</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("board")}
+              className={`px-3 h-[30px] rounded-[6px] text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === "board"
+                  ? "bg-[#C9A52A] text-[#0B0D10]"
+                  : "text-zinc-600 dark:text-[#8B95A5] hover:text-zinc-900 dark:hover:text-[#F2F4F7]"
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Board</span>
+            </button>
           </div>
         </div>
 
@@ -1100,51 +1081,51 @@ export default function ProjectsPage() {
         onConfirm={handleExecuteSingleDelete}
       />
 
-      {/* Mobile Filter Bottom Sheet */}
-      {isMobileFilterOpen && (
+      {/* Centered Filter Modal Dialog (Desktop & Mobile) */}
+      {isFilterOpen && (
         <div
-          className="fixed inset-0 z-[200] sm:hidden flex flex-col justify-end bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
-          onClick={() => setIsMobileFilterOpen(false)}
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+          onClick={() => setIsFilterOpen(false)}
         >
           <div
-            className="w-full bg-white dark:bg-[#15191F] border-t border-zinc-200 dark:border-[#272D36] rounded-t-[20px] shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden font-sans"
+            className="w-full max-w-md bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[16px] shadow-2xl flex flex-col max-h-[85vh] overflow-hidden font-sans"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Sheet Header */}
+            {/* Modal Header */}
             <div className="px-5 py-3.5 border-b border-zinc-200 dark:border-[#272D36] flex items-center justify-between bg-zinc-50 dark:bg-[#111419] shrink-0">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-[#C9A52A]" />
                 <h3 className="text-[15px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">
-                  Filters {activeTotalFiltersCount > 0 && `· ${activeTotalFiltersCount}`}
+                  Filter Projects {activeTotalFiltersCount > 0 && `· ${activeTotalFiltersCount}`}
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setIsMobileFilterOpen(false)}
+                onClick={() => setIsFilterOpen(false)}
                 className="w-8 h-8 rounded-full bg-zinc-200/60 dark:bg-[#272D36]/60 text-zinc-500 dark:text-[#8B95A5] hover:text-zinc-900 dark:hover:text-[#F2F4F7] flex items-center justify-center transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Sheet Content (Scrollable) */}
+            {/* Modal Content (Scrollable) */}
             <div className="p-5 overflow-y-auto space-y-4 flex-1">
               {unifiedFilterContentNode}
             </div>
 
-            {/* Sheet Sticky Footer */}
+            {/* Modal Sticky Footer */}
             <div className="p-4 border-t border-zinc-200 dark:border-[#272D36] bg-zinc-50 dark:bg-[#111419] flex items-center justify-between gap-3 shrink-0">
               <button
                 type="button"
                 onClick={handleClearAllFilters}
-                className="flex-1 h-[38px] rounded-[8px] border border-zinc-200 dark:border-[#272D36] bg-white dark:bg-[#15191F] text-rose-600 dark:text-rose-400 font-bold text-[12.5px] cursor-pointer"
+                className="flex-1 h-[38px] rounded-[8px] border border-zinc-200 dark:border-[#272D36] bg-white dark:bg-[#15191F] text-rose-600 dark:text-rose-400 font-bold text-[12.5px] cursor-pointer hover:bg-rose-500/10 transition-colors"
               >
                 Clear Filters
               </button>
               <button
                 type="button"
-                onClick={() => setIsMobileFilterOpen(false)}
-                className="flex-1 h-[38px] rounded-[8px] bg-[#C9A52A] text-[#0B0D10] font-bold text-[12.5px] cursor-pointer"
+                onClick={() => setIsFilterOpen(false)}
+                className="flex-1 h-[38px] rounded-[8px] bg-[#C9A52A] text-[#0B0D10] font-bold text-[12.5px] cursor-pointer hover:opacity-90 transition-opacity"
               >
                 Apply
               </button>
