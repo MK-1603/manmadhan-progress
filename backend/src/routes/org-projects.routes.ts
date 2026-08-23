@@ -684,7 +684,7 @@ orgProjectsRouter.post(
 
 			// ── ATOMIC DATABASE TRANSACTION ─────────────────────────────────
 			await db.transaction(async (tx) => {
-				// 1. Create Core Project Record
+				// 1. Create Core Project Record (Owner = Authenticated CEO)
 				const [p] = await tx
 					.insert(projects)
 					.values({
@@ -698,7 +698,7 @@ orgProjectsRouter.post(
 						priority: priority || "Medium",
 						progress: 0,
 						health: "HEALTHY",
-						ownerId: assignedToUserId,
+						ownerId: userId,
 						createdBy: userId,
 						startDate: parsedStartDate,
 						deadline: projectDeadline,
@@ -1611,6 +1611,130 @@ orgProjectsRouter.delete(
 	},
 );
 
+// ─── Helper: Enrich Project Record with Task Progress, Health & User Info ───
+async function enrichProjectRecord(p: typeof projects.$inferSelect) {
+	let totalTasks = 0;
+	let completedTasks = 0;
+	let overdueTasks = 0;
+	let blockedTasks = 0;
+	let milestoneCount = 0;
+
+	try {
+		const taskList = await db
+			.select()
+			.from(tasks)
+			.where(eq(tasks.projectId, p.id));
+
+		totalTasks = taskList.length;
+		completedTasks = taskList.filter(
+			(t) => t.status === "Completed" || t.status === "Approved",
+		).length;
+		blockedTasks = taskList.filter((t) => t.status === "Blocked").length;
+
+		const now = new Date();
+		overdueTasks = taskList.filter((t) => {
+			if (t.status === "Completed" || t.status === "Approved") return false;
+			if (!t.deadline) return false;
+			const d = new Date(t.deadline);
+			return d < now;
+		}).length;
+
+		const msCount = await db
+			.select({ count: sql<number>`count(*)` })
+			.from(milestones)
+			.where(eq(milestones.projectId, p.id));
+		milestoneCount = msCount?.[0] ? Number(msCount[0].count) || 0 : 0;
+	} catch (_e) {}
+
+	const progress =
+		totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : p.progress || 0;
+
+	const now = new Date();
+	let health = "HEALTHY";
+	const isProjectOverdue =
+		p.deadline &&
+		new Date(p.deadline) < now &&
+		p.status !== "COMPLETED" &&
+		p.status !== "Completed";
+
+	if (isProjectOverdue || overdueTasks >= 3 || blockedTasks >= 2) {
+		health = "CRITICAL";
+	} else if (
+		overdueTasks > 0 ||
+		blockedTasks > 0 ||
+		(p.deadline &&
+			new Date(p.deadline).getTime() - now.getTime() < 3 * 24 * 3600 * 1000 &&
+			progress < 50)
+	) {
+		health = "AT_RISK";
+	}
+
+	// Fetch Owner User
+	let ownerName = "CEO Owner";
+	let ownerEmail = "";
+	let ownerRole = "CEO";
+	if (p.ownerId) {
+		try {
+			const [u] = await db
+				.select({ displayName: users.displayName, email: users.email, role: users.role })
+				.from(users)
+				.where(eq(users.id, p.ownerId))
+				.limit(1);
+			if (u) {
+				ownerName = u.displayName || u.email || "CEO Owner";
+				ownerEmail = u.email || "";
+				ownerRole = u.role || "CEO";
+			}
+		} catch (_e) {}
+	}
+
+	// Fetch Assignee User from projectAssignments
+	let assignedToUserId: string | null = null;
+	let assignedUserName: string | null = null;
+	let assignedUserEmail: string | null = null;
+	let assignedUserRole: string | null = null;
+
+	try {
+		const [pa] = await db
+			.select({
+				assignedToUserId: projectAssignments.assignedToUserId,
+				displayName: users.displayName,
+				email: users.email,
+				role: users.role,
+			})
+			.from(projectAssignments)
+			.leftJoin(users, eq(projectAssignments.assignedToUserId, users.id))
+			.where(eq(projectAssignments.projectId, p.id))
+			.orderBy(desc(projectAssignments.createdAt))
+			.limit(1);
+
+		if (pa && pa.assignedToUserId) {
+			assignedToUserId = pa.assignedToUserId;
+			assignedUserName = pa.displayName || pa.email || "Assignee";
+			assignedUserEmail = pa.email || "";
+			assignedUserRole = pa.role || "CO-CEO";
+		}
+	} catch (_e) {}
+
+	return {
+		...p,
+		health,
+		progress,
+		totalTasks,
+		completedTasks,
+		overdueTasks,
+		blockedTasks,
+		milestoneCount,
+		ownerName,
+		ownerEmail,
+		ownerRole,
+		assignedToUserId,
+		assignedUserName,
+		assignedUserEmail,
+		assignedUserRole,
+	};
+}
+
 // ─── List Projects (GET /) ───────────────────────────────────────────────────
 orgProjectsRouter.get(
 	"/",
@@ -1669,39 +1793,9 @@ orgProjectsRouter.get(
 					.orderBy(desc(projects.createdAt));
 			}
 
-			// Enrich with task counts + progress
+			// Enrich with task counts, health, progress & user details
 			const enriched = await Promise.all(
-				projectList.map(async (p) => {
-					let total = 0;
-					let completed = 0;
-					let countVal = 0;
-					try {
-						const taskList = await db
-							.select()
-							.from(tasks)
-							.where(eq(tasks.projectId, p.id));
-						total = taskList.length;
-						completed = taskList.filter(
-							(t) => t.status === "Completed" || t.status === "Approved",
-						).length;
-						const msCount = await db
-							.select({ count: sql<number>`count(*)` })
-							.from(milestones)
-							.where(eq(milestones.projectId, p.id));
-						countVal = msCount?.[0] ? Number(msCount[0].count) || 0 : 0;
-					} catch (_e) {}
-
-					const progress =
-						total > 0 ? Math.round((completed / total) * 100) : p.progress || 0;
-
-					return {
-						...p,
-						progress,
-						totalTasks: total,
-						completedTasks: completed,
-						milestoneCount: countVal,
-					};
-				}),
+				projectList.map((p) => enrichProjectRecord(p)),
 			);
 
 			res.json({ success: true, data: enriched });
@@ -1962,13 +2056,48 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 			logger.error(`Fetch project submissions error: ${e.message}`);
 		}
 
+		// Calculate Dynamic Health Model
+		const now = new Date();
+		const blockedTasks = formattedTasks.filter((t) => t.status === "Blocked").length;
+		const overdueTasks = formattedTasks.filter(
+			(t) =>
+				t.deadline &&
+				new Date(t.deadline) < now &&
+				t.status !== "Completed" &&
+				t.status !== "Approved",
+		).length;
+
+		let health = "HEALTHY";
+		const isProjectOverdue =
+			project.deadline &&
+			new Date(project.deadline) < now &&
+			project.status !== "COMPLETED" &&
+			project.status !== "Completed";
+
+		if (isProjectOverdue || overdueTasks >= 3 || blockedTasks >= 2) {
+			health = "CRITICAL";
+		} else if (
+			overdueTasks > 0 ||
+			blockedTasks > 0 ||
+			(project.deadline &&
+				new Date(project.deadline).getTime() - now.getTime() < 3 * 24 * 3600 * 1000 &&
+				progress < 50)
+		) {
+			health = "AT_RISK";
+		}
+
 		res.json({
 			success: true,
 			data: {
 				...project,
+				health,
 				progress,
 				ownerName,
 				ownerEmail,
+				assignedToUserId: projectAssignmentData?.assignedTo?.id || null,
+				assignedUserName: projectAssignmentData?.assignedTo?.name || null,
+				assignedUserEmail: projectAssignmentData?.assignedTo?.email || null,
+				assignedUserRole: projectAssignmentData?.assignedTo?.role || null,
 				assignment: projectAssignmentData,
 				milestones: normalizedMilestones,
 				requirements: projRequirements,
@@ -1984,13 +2113,8 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 					inProgress: formattedTasks.filter(
 						(t) => t.status === "In Progress" || t.status === "Accepted",
 					).length,
-					overdue: formattedTasks.filter(
-						(t) =>
-							t.deadline &&
-							new Date(t.deadline) < new Date() &&
-							t.status !== "Completed" &&
-							t.status !== "Approved",
-					).length,
+					overdue: overdueTasks,
+					blocked: blockedTasks,
 				},
 			},
 		});

@@ -28,6 +28,15 @@ const STATUS_BADGE: Record<string, { bg: string; text: string; dot: string }> = 
   Archived: { bg: "bg-slate-500/10 border-slate-500/20 dark:bg-slate-500/10", text: "text-slate-600 dark:text-slate-400", dot: "bg-slate-400" },
 };
 
+const HEALTH_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+  HEALTHY: { bg: "bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400", text: "Healthy", label: "Healthy" },
+  Healthy: { bg: "bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400", text: "Healthy", label: "Healthy" },
+  AT_RISK: { bg: "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400", text: "At Risk", label: "At Risk" },
+  "At Risk": { bg: "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400", text: "At Risk", label: "At Risk" },
+  CRITICAL: { bg: "bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-400", text: "Critical", label: "Critical" },
+  Critical: { bg: "bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-400", text: "Critical", label: "Critical" },
+};
+
 const PRIORITY_BADGE: Record<string, { text: string; dot: string }> = {
   Critical: { text: "text-rose-600 dark:text-rose-500 font-bold", dot: "bg-rose-500" },
   CRITICAL: { text: "text-rose-600 dark:text-rose-500 font-bold", dot: "bg-rose-500" },
@@ -468,6 +477,30 @@ export default function ProjectsPage() {
     : "/ceo"
     : "/ceo";
 
+  function setBulkActionType(arg0: string): void {
+    throw new Error("Function not implemented.");
+  }
+
+  function handleSelectAllToggle(event: MouseEvent<HTMLButtonElement, MouseEvent>): void {
+    throw new Error("Function not implemented.");
+  }
+
+  function setBulkAssigneeId(value: string): void {
+    throw new Error("Function not implemented.");
+  }
+
+  function handleExecuteBulkAction(event: MouseEvent<HTMLButtonElement, MouseEvent>): void {
+    throw new Error("Function not implemented.");
+  }
+
+  function setBulkStatusValue(st: string): void {
+    throw new Error("Function not implemented.");
+  }
+
+  function setBulkPriorityValue(pr: string): void {
+    throw new Error("Function not implemented.");
+  }
+
   return (
     <div className="w-full h-full min-h-0 overflow-hidden bg-[#F6F7F9] dark:bg-[#0B0E12] text-zinc-900 dark:text-[#F2F4F7] font-sans flex flex-col select-none transition-colors duration-150">
       
@@ -784,6 +817,10 @@ export default function ProjectsPage() {
                   const deadlineInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
                   const isMenuOpen = activeActionMenuId === p.id;
 
+                  function toggleSelectProject(id: any) {
+                    throw new Error("Function not implemented.");
+                  }
+
                   return (
                     <div
                       key={p.id}
@@ -880,8 +917,8 @@ export default function ProjectsPage() {
                         </p>
                       )}
 
-                      {/* Status + Priority Dots */}
-                      <div className="flex items-center gap-3 text-[11.5px]">
+                      {/* Status + Priority + Health Dots */}
+                      <div className="flex items-center gap-3 text-[11.5px] flex-wrap">
                         <span className={`inline-flex items-center gap-1.5 font-bold ${statusObj.text}`}>
                           <span className={`w-2 h-2 rounded-full ${statusObj.dot}`} />
                           <span>{p.status}</span>
@@ -891,6 +928,12 @@ export default function ProjectsPage() {
                           <span className={`w-1.5 h-1.5 rounded-full ${priorityObj.dot}`} />
                           <span>{p.priority || "Medium"}</span>
                         </span>
+
+                        {p.health && (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-bold border ${HEALTH_BADGE[p.health]?.bg || "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"}`}>
+                            <span>{HEALTH_BADGE[p.health]?.label || p.health}</span>
+                          </span>
+                        )}
                       </div>
 
                       {/* Deadline Label */}
@@ -959,6 +1002,10 @@ export default function ProjectsPage() {
                         const deadlineInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
                         const isMenuOpen = activeActionMenuId === p.id;
                         const isRowSelected = selectedIds.includes(p.id);
+
+                        function toggleSelectProject(id: any) {
+                          throw new Error("Function not implemented.");
+                        }
 
                         return (
                           <tr key={p.id} className={`hover:bg-zinc-50 dark:hover:bg-[#111419]/80 transition-colors h-[54px] group ${isRowSelected ? "bg-[#C9A52A]/5" : ""}`}>
@@ -1029,12 +1076,19 @@ export default function ProjectsPage() {
                               )}
                             </td>
 
-                            {/* STATUS */}
+                            {/* STATUS & HEALTH */}
                             <td className="px-4 py-2.5">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${statusObj.bg} ${statusObj.text}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${statusObj.dot}`} />
-                                <span>{p.status}</span>
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${statusObj.bg} ${statusObj.text}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${statusObj.dot}`} />
+                                  <span>{p.status}</span>
+                                </span>
+                                {p.health && (
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${HEALTH_BADGE[p.health]?.bg || "bg-emerald-500/10 border-emerald-500/20 text-emerald-600"}`}>
+                                    <span>{HEALTH_BADGE[p.health]?.label || p.health}</span>
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             {/* PRIORITY */}
