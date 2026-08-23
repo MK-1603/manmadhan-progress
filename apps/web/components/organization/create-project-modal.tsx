@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { X, Loader2, Sparkles, ChevronRight, UserCheck, Bot, Calendar, Layers, AlertCircle, ArrowLeft, Check, Command, ChevronDown, ChevronUp, HelpCircle, FileText, Zap } from "lucide-react";
+import { X, Loader2, FolderPlus, ChevronRight, UserCheck, Bot, Calendar, Layers, AlertCircle, ArrowLeft, Check, Command, ChevronDown, ChevronUp, HelpCircle, Zap } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 
@@ -501,22 +501,24 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-xl bg-[#0B0D10] border border-[#272D36] rounded-2xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden text-white font-sans">
-        {/* Header */}
-        <div className="px-5 py-3 border-b border-[#1D222A] flex items-center justify-between bg-[#111419] shrink-0">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[#C9A52A]" />
+      <div className="w-full max-w-xl bg-[#0B0D10] border border-[#272D36] rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-white font-sans">
+        {/* Sleek Header - Clean icon without duplicate sparkles */}
+        <div className="px-5 py-3.5 border-b border-[#1D222A] flex items-center justify-between bg-[#111419] shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-[#C9A52A]/15 border border-[#C9A52A]/30 flex items-center justify-center text-[#C9A52A]">
+              <FolderPlus className="w-4 h-4" />
+            </div>
             <div>
-              <h2 className="text-sm font-bold text-[#F2F4F7]">✦ Create Project</h2>
+              <h2 className="text-sm font-bold text-[#F2F4F7]">Create Project</h2>
               <p className="text-[11px] text-[#667085]">Describe what you want to execute.</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-[#667085] hover:text-white hover:bg-[#1D222A] transition-colors">
+          <button onClick={onClose} className="p-1 rounded-lg text-[#667085] hover:text-white hover:bg-[#1D222A] transition-colors cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Modal Body */}
+        {/* Scrollable Modal Content Body */}
         <div className="p-4 overflow-y-auto space-y-3 flex-1">
           {error && (
             <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
@@ -532,13 +534,13 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
               <div className="flex items-center gap-2 justify-end">
                 <button
                   onClick={() => setPendingExampleText(null)}
-                  className="px-2.5 py-1 rounded border border-amber-500/40 text-amber-200 hover:bg-amber-500/20 text-[11px]"
+                  className="px-2.5 py-1 rounded border border-amber-500/40 text-amber-200 hover:bg-amber-500/20 text-[11px] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmOverwriteExample}
-                  className="px-2.5 py-1 rounded bg-[#C9A52A] text-black font-bold text-[11px]"
+                  className="px-2.5 py-1 rounded bg-[#C9A52A] text-black font-bold text-[11px] cursor-pointer"
                 >
                   Use Example
                 </button>
@@ -635,7 +637,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                 )}
               </div>
 
-              {/* Collapsible Examples Accordion */}
+              {/* Collapsible Examples Accordion with Distinct Inner Scroll Container */}
               <div className="border border-[#1D222A] rounded-xl bg-[#111419]/50 overflow-hidden text-xs">
                 <button
                   type="button"
@@ -649,9 +651,9 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                 </button>
 
                 {showExamples && (
-                  <div className="p-3 border-t border-[#1D222A] space-y-2 text-[11px]">
+                  <div className="p-2 border-t border-[#1D222A] bg-[#0E1116] max-h-44 overflow-y-auto space-y-2 text-[11px]">
                     {PROMPT_EXAMPLES.map((ex, idx) => (
-                      <div key={idx} className="p-2.5 bg-[#0B0D10] rounded-lg border border-[#1D222A] flex items-center justify-between gap-2">
+                      <div key={idx} className="p-2 bg-[#15191F] rounded-lg border border-[#272D36] flex items-center justify-between gap-2">
                         <div>
                           <p className="font-bold text-[#F2F4F7]">{ex.title}</p>
                           <p className="text-[10.5px] text-[#667085] line-clamp-1">{ex.text}</p>
@@ -667,27 +669,6 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                     ))}
                   </div>
                 )}
-              </div>
-
-              {/* Compose Stage CTA */}
-              <div className="pt-1 flex justify-end">
-                <button
-                  onClick={handleParsePrompt}
-                  disabled={!promptText.trim() || isParsing}
-                  className="inline-flex items-center gap-1.5 px-4 h-[38px] rounded-xl bg-[#C9A52A] text-black font-bold text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
-                >
-                  {isParsing ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Analyzing...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Review Project</span>
-                      <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
-                    </>
-                  )}
-                </button>
               </div>
             </div>
           )}
@@ -750,33 +731,58 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                   {extractedIntent.milestones.map((m) => m.name).join(" → ")}
                 </p>
               </div>
+            </div>
+          )}
+        </div>
 
-              <div className="pt-1 flex items-center justify-between">
-                <button
-                  onClick={() => setStage("COMPOSE")}
-                  className="inline-flex items-center gap-1 px-3 h-[34px] rounded-lg border border-[#272D36] text-[#8B95A5] hover:text-white hover:bg-[#1D222A] transition-colors cursor-pointer text-xs"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" /> Edit Prompt
-                </button>
+        {/* Sticky Fixed Bottom Action Footer */}
+        <div className="px-5 py-3 border-t border-[#1D222A] bg-[#111419] flex items-center justify-between shrink-0">
+          {stage === "COMPOSE" ? (
+            <div className="flex items-center justify-end w-full">
+              <button
+                onClick={handleParsePrompt}
+                disabled={!promptText.trim() || isParsing}
+                className="inline-flex items-center gap-1.5 px-5 h-[38px] rounded-xl bg-[#C9A52A] text-black font-bold text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
+              >
+                {isParsing ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Analyzing...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Review Project</span>
+                    <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between w-full">
+              <button
+                onClick={() => setStage("COMPOSE")}
+                className="inline-flex items-center gap-1 px-3.5 h-[36px] rounded-lg border border-[#272D36] text-[#8B95A5] hover:text-white hover:bg-[#1D222A] transition-colors cursor-pointer text-xs"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Edit Prompt
+              </button>
 
-                <button
-                  onClick={handleConfirmCreateProject}
-                  disabled={isSubmitting}
-                  className="inline-flex items-center gap-1.5 px-5 h-[36px] rounded-xl bg-[#C9A52A] text-black font-bold text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Creating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Create Project</span>
-                      <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
-                    </>
-                  )}
-                </button>
-              </div>
+              <button
+                onClick={handleConfirmCreateProject}
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-1.5 px-5 h-[38px] rounded-xl bg-[#C9A52A] text-black font-bold text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Creating...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Create Project</span>
+                    <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </>
+                )}
+              </button>
             </div>
           )}
         </div>
