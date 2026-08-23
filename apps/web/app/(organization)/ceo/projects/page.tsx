@@ -4,7 +4,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   Plus, FolderKanban, Search, AlertCircle,
   Trash2, ChevronRight, LayoutGrid, List,
-  Edit, X, MoreVertical, ArrowUpRight, Filter, ChevronDown
+  Edit, X, MoreVertical, ArrowUpRight, Filter, ChevronDown,
+  UserPlus, CheckSquare, Archive, Check, Minus
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
@@ -95,6 +96,30 @@ export default function ProjectsPage() {
   const [deleteConfirmSingleId, setDeleteConfirmSingleId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
+
+  // Bulk Actions State
+  const [bulkActionType, setBulkActionType] = useState<"assign" | "status" | "priority" | "archive" | "delete" | null>(null);
+  const [bulkAssigneeId, setBulkAssigneeId] = useState<string>("");
+  const [bulkStatusValue, setBulkStatusValue] = useState<string>("Active");
+  const [bulkPriorityValue, setBulkPriorityValue] = useState<string>("Medium");
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+  const [orgMembers, setOrgMembers] = useState<any[]>([]);
+
+  const fetchEligibleAssignees = useCallback(async () => {
+    try {
+      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+      const res = await apiClient.get<{ success: boolean; data: { all: any[] } }>(
+        `/org/projects/eligible-assignees${wsId ? `?workspaceId=${wsId}` : ""}`
+      );
+      if (res.data?.success && res.data?.data?.all) {
+        setOrgMembers(res.data.data.all);
+      }
+    } catch (_e) {}
+  }, []);
+
+  useEffect(() => {
+    fetchEligibleAssignees();
+  }, [fetchEligibleAssignees]);
 
   // Drag & drop state for Board view
   const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null);
@@ -269,6 +294,55 @@ export default function ProjectsPage() {
       return matchSearch && matchStatus && matchPriority && matchOwner && matchAssignee && matchDeadline && matchProgress;
     });
   }, [realProjects, search, statusFilter, priorityFilter, ownerFilter, assigneeFilter, deadlineFilter, progressFilter]);
+
+  // Selection memoized calculations & action handlers
+  const isAllSelected = useMemo(() => {
+    return filtered.length > 0 && filtered.every((p) => selectedIds.includes(p.id));
+  }, [filtered, selectedIds]);
+
+  const isSomeSelected = useMemo(() => {
+    return selectedIds.length > 0 && !isAllSelected;
+  }, [selectedIds, isAllSelected]);
+
+  const toggleSelectProject = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllToggle = () => {
+    if (isAllSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filtered.map((p) => p.id));
+    }
+  };
+
+  const handleExecuteBulkAction = async () => {
+    if (!bulkActionType || selectedIds.length === 0) return;
+    setIsBulkSubmitting(true);
+    try {
+      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+      const actionData: any = {};
+      if (bulkActionType === "assign") actionData.assigneeId = bulkAssigneeId;
+      if (bulkActionType === "status") actionData.status = bulkStatusValue;
+      if (bulkActionType === "priority") actionData.priority = bulkPriorityValue;
+
+      await apiClient.post(`/org/projects/bulk${wsId ? `?workspaceId=${wsId}` : ""}`, {
+        projectIds: selectedIds,
+        action: bulkActionType,
+        actionData,
+      });
+
+      setSelectedIds([]);
+      setBulkActionType(null);
+      fetchProjects();
+    } catch (err: any) {
+      console.error("Bulk action failed:", err);
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  };
 
   // Live KPI Summary Counts
   const kpis = useMemo(() => {
@@ -476,30 +550,6 @@ export default function ProjectsPage() {
     : window.location.pathname.startsWith("/member") ? "/member"
     : "/ceo"
     : "/ceo";
-
-  function setBulkActionType(arg0: string): void {
-    throw new Error("Function not implemented.");
-  }
-
-  function handleSelectAllToggle(event: MouseEvent<HTMLButtonElement, MouseEvent>): void {
-    throw new Error("Function not implemented.");
-  }
-
-  function setBulkAssigneeId(value: string): void {
-    throw new Error("Function not implemented.");
-  }
-
-  function handleExecuteBulkAction(event: MouseEvent<HTMLButtonElement, MouseEvent>): void {
-    throw new Error("Function not implemented.");
-  }
-
-  function setBulkStatusValue(st: string): void {
-    throw new Error("Function not implemented.");
-  }
-
-  function setBulkPriorityValue(pr: string): void {
-    throw new Error("Function not implemented.");
-  }
 
   return (
     <div className="w-full h-full min-h-0 overflow-hidden bg-[#F6F7F9] dark:bg-[#0B0E12] text-zinc-900 dark:text-[#F2F4F7] font-sans flex flex-col select-none transition-colors duration-150">
