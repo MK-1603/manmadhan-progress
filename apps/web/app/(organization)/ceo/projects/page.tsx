@@ -651,6 +651,74 @@ export default function ProjectsPage() {
           </div>
         </div>
 
+        {/* ── CONTEXTUAL BULK ACTION TOOLBAR (DESKTOP) ── */}
+        {selectedIds.length > 0 && (
+          <div className="shrink-0 hidden md:flex items-center justify-between p-2 rounded-[12px] bg-zinc-900 dark:bg-[#1C2128] text-white border border-zinc-800 dark:border-[#272D36] shadow-lg animate-in fade-in duration-150">
+            <div className="flex items-center gap-3">
+              <span className="text-[12px] font-extrabold text-[#C9A52A] px-2.5 py-1 rounded-[6px] bg-[#C9A52A]/15 border border-[#C9A52A]/30">
+                {selectedIds.length} {selectedIds.length === 1 ? "project selected" : "projects selected"}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setBulkActionType("assign")}
+                className="px-3 h-[32px] rounded-[6px] bg-white/10 hover:bg-white/20 text-white text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Assign</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBulkActionType("status")}
+                className="px-3 h-[32px] rounded-[6px] bg-white/10 hover:bg-white/20 text-white text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <CheckSquare className="w-3.5 h-3.5" />
+                <span>Status</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBulkActionType("archive")}
+                className="px-3 h-[32px] rounded-[6px] bg-white/10 hover:bg-white/20 text-white text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Archive className="w-3.5 h-3.5" />
+                <span>Archive</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBulkActionType("priority")}
+                className="px-3 h-[32px] rounded-[6px] bg-white/10 hover:bg-white/20 text-white text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>Priority</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBulkActionType("delete")}
+                className="px-3 h-[32px] rounded-[6px] bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
+
+              <div className="w-[1px] h-4 bg-zinc-700 mx-1" />
+
+              <button
+                type="button"
+                onClick={() => setSelectedIds([])}
+                className="px-2.5 py-1 text-zinc-400 hover:text-white text-[11.5px] font-medium transition-colors cursor-pointer"
+              >
+                Clear selection
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ── HERO PROJECT WORKSPACE CONTAINER (Fills remaining height, Y-Scroll) ── */}
         <div className="flex-1 min-h-0 bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[14px] shadow-2xs overflow-hidden flex flex-col">
           {loading ? (
@@ -723,12 +791,28 @@ export default function ProjectsPage() {
                     >
                       {/* Top Row: Title + Action Menu */}
                       <div className="flex items-start justify-between gap-2">
-                        <Link
-                          href={`${basePath}/projects/${p.id}`}
-                          className="text-[16px] font-semibold text-zinc-900 dark:text-[#F2F4F7] hover:text-[#C9A52A] leading-snug line-clamp-1 flex-1 py-1"
-                        >
-                          {p.name}
-                        </Link>
+                        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelectProject(p.id);
+                            }}
+                            className={`w-5 h-5 rounded border flex items-center justify-center transition-colors cursor-pointer shrink-0 mt-0.5 ${
+                              selectedIds.includes(p.id)
+                                ? "bg-[#C9A52A] border-[#C9A52A] text-[#0B0D10]"
+                                : "border-zinc-300 dark:border-[#272D36] bg-white dark:bg-[#15191F]"
+                            }`}
+                          >
+                            {selectedIds.includes(p.id) && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                          </button>
+                          <Link
+                            href={`${basePath}/projects/${p.id}`}
+                            className="text-[16px] font-semibold text-zinc-900 dark:text-[#F2F4F7] hover:text-[#C9A52A] leading-snug line-clamp-1 py-1"
+                          >
+                            {p.name}
+                          </Link>
+                        </div>
 
                         <div className="relative shrink-0">
                           <button
@@ -755,6 +839,17 @@ export default function ProjectsPage() {
                               </div>
 
                               <div className="py-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    toggleSelectProject(p.id);
+                                    setActiveActionMenuId(null);
+                                  }}
+                                  className="w-full px-3 py-1.5 text-[12px] font-medium text-zinc-900 dark:text-[#F2F4F7] hover:bg-[#C9A52A]/10 hover:text-[#C9A52A] rounded-[6px] flex items-center gap-2 transition-colors text-left cursor-pointer"
+                                >
+                                  <CheckSquare className="w-3.5 h-3.5" />
+                                  <span>{selectedIds.includes(p.id) ? "Deselect" : "Select"}</span>
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => { setEditingProject(p); setActiveActionMenuId(null); }}
@@ -829,6 +924,24 @@ export default function ProjectsPage() {
                   <table className="w-full text-left text-[12.5px] border-collapse">
                     <thead className="sticky top-0 z-20 bg-zinc-100 dark:bg-[#111419] border-b border-zinc-200 dark:border-[#272D36] text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider">
                       <tr className="h-[42px]">
+                        <th className="w-10 px-3 py-3 text-left">
+                          <button
+                            type="button"
+                            onClick={handleSelectAllToggle}
+                            aria-label="Select All Projects"
+                            className="w-4 h-4 rounded border border-zinc-300 dark:border-[#272D36] flex items-center justify-center transition-colors cursor-pointer bg-white dark:bg-[#15191F] hover:border-[#C9A52A]"
+                          >
+                            {isAllSelected ? (
+                              <div className="w-full h-full bg-[#C9A52A] rounded-xs flex items-center justify-center text-[#0B0D10]">
+                                <Check className="w-3 h-3 stroke-[3]" />
+                              </div>
+                            ) : isSomeSelected ? (
+                              <div className="w-full h-full bg-[#C9A52A]/20 border border-[#C9A52A] rounded-xs flex items-center justify-center text-[#C9A52A]">
+                                <Minus className="w-3 h-3 stroke-[3]" />
+                              </div>
+                            ) : null}
+                          </button>
+                        </th>
                         <th className="px-4 py-3 min-w-[260px]">PROJECT</th>
                         <th className="px-4 py-3 min-w-[130px]">OWNER</th>
                         <th className="px-4 py-3 min-w-[130px]">ASSIGNEE</th>
@@ -845,9 +958,29 @@ export default function ProjectsPage() {
                         const priorityObj = PRIORITY_BADGE[p.priority] || PRIORITY_BADGE.Medium;
                         const deadlineInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
                         const isMenuOpen = activeActionMenuId === p.id;
+                        const isRowSelected = selectedIds.includes(p.id);
 
                         return (
-                          <tr key={p.id} className="hover:bg-zinc-50 dark:hover:bg-[#111419]/80 transition-colors h-[54px] group">
+                          <tr key={p.id} className={`hover:bg-zinc-50 dark:hover:bg-[#111419]/80 transition-colors h-[54px] group ${isRowSelected ? "bg-[#C9A52A]/5" : ""}`}>
+                            
+                            {/* CHECKBOX CELL */}
+                            <td className="w-10 px-3 py-2.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelectProject(p.id);
+                                }}
+                                aria-label={`Select ${p.name}`}
+                                className={`w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer ${
+                                  isRowSelected
+                                    ? "bg-[#C9A52A] border-[#C9A52A] text-[#0B0D10]"
+                                    : "border-zinc-300 dark:border-[#272D36] bg-white dark:bg-[#15191F] hover:border-[#C9A52A]"
+                                }`}
+                              >
+                                {isRowSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                              </button>
+                            </td>
                             
                             {/* PROJECT IDENTITY */}
                             <td className="px-4 py-2.5">
@@ -1128,6 +1261,287 @@ export default function ProjectsPage() {
                 className="flex-1 h-[38px] rounded-[8px] bg-[#C9A52A] text-[#0B0D10] font-bold text-[12.5px] cursor-pointer hover:opacity-90 transition-opacity"
               >
                 Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Fixed Mobile Bottom Selection Bar (<768px) */}
+      {selectedIds.length > 0 && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-[150] bg-zinc-900 dark:bg-[#1C2128] border-t border-zinc-800 dark:border-[#272D36] p-3 shadow-2xl animate-in slide-in-from-bottom duration-200 font-sans">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[12.5px] font-bold text-[#C9A52A]">
+              {selectedIds.length} {selectedIds.length === 1 ? "project selected" : "projects selected"}
+            </span>
+            <button
+              onClick={() => setSelectedIds([])}
+              className="text-[12px] font-bold text-zinc-400 hover:text-white"
+            >
+              Cancel
+            </button>
+          </div>
+
+          <div className="grid grid-cols-4 gap-2">
+            <button
+              onClick={() => setBulkActionType("assign")}
+              className="h-[36px] rounded-[8px] bg-white/10 text-white font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Assign</span>
+            </button>
+            <button
+              onClick={() => setBulkActionType("status")}
+              className="h-[36px] rounded-[8px] bg-white/10 text-white font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span>Status</span>
+            </button>
+            <button
+              onClick={() => setBulkActionType("archive")}
+              className="h-[36px] rounded-[8px] bg-white/10 text-white font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <Archive className="w-3.5 h-3.5" />
+              <span>Archive</span>
+            </button>
+            <button
+              onClick={() => setBulkActionType("priority")}
+              className="h-[36px] rounded-[8px] bg-white/10 text-white font-bold text-[11.5px] flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>Priority</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── BULK ASSIGN MODAL ── */}
+      {bulkActionType === "assign" && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150" onClick={() => setBulkActionType(null)}>
+          <div className="w-full max-w-md bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[16px] shadow-2xl p-5 space-y-4 font-sans" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-[#272D36] pb-3">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-[#C9A52A]" />
+                <h3 className="text-[15px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">
+                  Assign {selectedIds.length} {selectedIds.length === 1 ? "Project" : "Projects"}
+                </h3>
+              </div>
+              <button onClick={() => setBulkActionType(null)} className="p-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-[#F2F4F7]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-[12px] text-zinc-500 dark:text-[#8B95A5] leading-normal">
+              Select a CO-CEO or Member to assign execution responsibility for the selected projects. Project ownership remains CEO automatically.
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-[10.5px] font-bold uppercase tracking-wider text-zinc-500 dark:text-[#8B95A5]">
+                Select Assignee (CO-CEO / Member)
+              </label>
+              <select
+                value={bulkAssigneeId}
+                onChange={(e) => setBulkAssigneeId(e.target.value)}
+                className="w-full h-[40px] px-3 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[8px] text-[12.5px] font-medium text-zinc-900 dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
+              >
+                <option value="">-- Choose Member --</option>
+                {orgMembers.map((m) => (
+                  <option key={m.id || m.userId} value={m.userId || m.id}>
+                    {m.name || m.user?.displayName || "Team Member"} ({m.role || "MEMBER"})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-200 dark:border-[#272D36]">
+              <button onClick={() => setBulkActionType(null)} className="px-4 h-[36px] rounded-[8px] border border-zinc-200 dark:border-[#272D36] text-[12px] font-bold text-zinc-700 dark:text-[#F2F4F7]">
+                Cancel
+              </button>
+              <button
+                disabled={!bulkAssigneeId || isBulkSubmitting}
+                onClick={handleExecuteBulkAction}
+                className="px-4 h-[36px] rounded-[8px] bg-[#C9A52A] disabled:opacity-50 text-[#0B0D10] text-[12px] font-bold cursor-pointer"
+              >
+                {isBulkSubmitting ? "Assigning..." : "Apply Assignment"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── BULK STATUS MODAL ── */}
+      {bulkActionType === "status" && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150" onClick={() => setBulkActionType(null)}>
+          <div className="w-full max-w-md bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[16px] shadow-2xl p-5 space-y-4 font-sans" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-[#272D36] pb-3">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="w-4 h-4 text-[#C9A52A]" />
+                <h3 className="text-[15px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">
+                  Change Status ({selectedIds.length} {selectedIds.length === 1 ? "project" : "projects"})
+                </h3>
+              </div>
+              <button onClick={() => setBulkActionType(null)} className="p-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-[#F2F4F7]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {["Planning", "Active", "On Hold", "Completed", "Archived"].map((st) => (
+                <label
+                  key={st}
+                  className={`flex items-center gap-3 p-3 rounded-[8px] cursor-pointer border transition-colors ${
+                    bulkStatusValue === st
+                      ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]"
+                      : "bg-zinc-50 dark:bg-[#111419] border-zinc-200 dark:border-[#272D36] text-zinc-900 dark:text-[#F2F4F7]"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="bulkStatus"
+                    checked={bulkStatusValue === st}
+                    onChange={() => setBulkStatusValue(st)}
+                    className="accent-[#C9A52A] w-4 h-4 cursor-pointer"
+                  />
+                  <span className="font-bold text-[13px]">{st}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-200 dark:border-[#272D36]">
+              <button onClick={() => setBulkActionType(null)} className="px-4 h-[36px] rounded-[8px] border border-zinc-200 dark:border-[#272D36] text-[12px] font-bold text-zinc-700 dark:text-[#F2F4F7]">
+                Cancel
+              </button>
+              <button
+                disabled={isBulkSubmitting}
+                onClick={handleExecuteBulkAction}
+                className="px-4 h-[36px] rounded-[8px] bg-[#C9A52A] disabled:opacity-50 text-[#0B0D10] text-[12px] font-bold cursor-pointer"
+              >
+                {isBulkSubmitting ? "Updating..." : "Update Status"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── BULK PRIORITY MODAL ── */}
+      {bulkActionType === "priority" && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150" onClick={() => setBulkActionType(null)}>
+          <div className="w-full max-w-md bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[16px] shadow-2xl p-5 space-y-4 font-sans" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-[#272D36] pb-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-[#C9A52A]" />
+                <h3 className="text-[15px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">
+                  Change Priority ({selectedIds.length} {selectedIds.length === 1 ? "project" : "projects"})
+                </h3>
+              </div>
+              <button onClick={() => setBulkActionType(null)} className="p-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-[#F2F4F7]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {["Low", "Medium", "High", "Critical"].map((pr) => (
+                <label
+                  key={pr}
+                  className={`flex items-center gap-3 p-3 rounded-[8px] cursor-pointer border transition-colors ${
+                    bulkPriorityValue === pr
+                      ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]"
+                      : "bg-zinc-50 dark:bg-[#111419] border-zinc-200 dark:border-[#272D36] text-zinc-900 dark:text-[#F2F4F7]"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="bulkPriority"
+                    checked={bulkPriorityValue === pr}
+                    onChange={() => setBulkPriorityValue(pr)}
+                    className="accent-[#C9A52A] w-4 h-4 cursor-pointer"
+                  />
+                  <span className="font-bold text-[13px]">{pr}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-200 dark:border-[#272D36]">
+              <button onClick={() => setBulkActionType(null)} className="px-4 h-[36px] rounded-[8px] border border-zinc-200 dark:border-[#272D36] text-[12px] font-bold text-zinc-700 dark:text-[#F2F4F7]">
+                Cancel
+              </button>
+              <button
+                disabled={isBulkSubmitting}
+                onClick={handleExecuteBulkAction}
+                className="px-4 h-[36px] rounded-[8px] bg-[#C9A52A] disabled:opacity-50 text-[#0B0D10] text-[12px] font-bold cursor-pointer"
+              >
+                {isBulkSubmitting ? "Updating..." : "Update Priority"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── BULK ARCHIVE MODAL ── */}
+      {bulkActionType === "archive" && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150" onClick={() => setBulkActionType(null)}>
+          <div className="w-full max-w-md bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[16px] shadow-2xl p-5 space-y-4 font-sans" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-[#272D36] pb-3">
+              <div className="flex items-center gap-2">
+                <Archive className="w-4 h-4 text-amber-500" />
+                <h3 className="text-[15px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">
+                  Archive {selectedIds.length} {selectedIds.length === 1 ? "Project" : "Projects"}?
+                </h3>
+              </div>
+              <button onClick={() => setBulkActionType(null)} className="p-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-[#F2F4F7]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-[12.5px] text-zinc-600 dark:text-[#8B95A5] leading-relaxed">
+              These projects will be removed from the active project workspace list but will remain available in the Archived status view.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-200 dark:border-[#272D36]">
+              <button onClick={() => setBulkActionType(null)} className="px-4 h-[36px] rounded-[8px] border border-zinc-200 dark:border-[#272D36] text-[12px] font-bold text-zinc-700 dark:text-[#F2F4F7]">
+                Cancel
+              </button>
+              <button
+                disabled={isBulkSubmitting}
+                onClick={handleExecuteBulkAction}
+                className="px-4 h-[36px] rounded-[8px] bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-[#0B0D10] text-[12px] font-bold cursor-pointer transition-colors"
+              >
+                {isBulkSubmitting ? "Archiving..." : "Archive Projects"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── BULK DELETE MODAL ── */}
+      {bulkActionType === "delete" && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150" onClick={() => setBulkActionType(null)}>
+          <div className="w-full max-w-md bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[16px] shadow-2xl p-5 space-y-4 font-sans" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-[#272D36] pb-3">
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-rose-500" />
+                <h3 className="text-[15px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">
+                  Delete {selectedIds.length} {selectedIds.length === 1 ? "Project" : "Projects"}?
+                </h3>
+              </div>
+              <button onClick={() => setBulkActionType(null)} className="p-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-[#F2F4F7]">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-[8px] text-[12px] text-rose-600 dark:text-rose-400">
+              <strong>Warning:</strong> This action will permanently remove {selectedIds.length} project records and all associated team assignments. This operation cannot be undone.
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-200 dark:border-[#272D36]">
+              <button onClick={() => setBulkActionType(null)} className="px-4 h-[36px] rounded-[8px] border border-zinc-200 dark:border-[#272D36] text-[12px] font-bold text-zinc-700 dark:text-[#F2F4F7]">
+                Cancel
+              </button>
+              <button
+                disabled={isBulkSubmitting}
+                onClick={handleExecuteBulkAction}
+                className="px-4 h-[36px] rounded-[8px] bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white text-[12px] font-bold cursor-pointer transition-colors"
+              >
+                {isBulkSubmitting ? "Deleting..." : "Permanently Delete"}
               </button>
             </div>
           </div>

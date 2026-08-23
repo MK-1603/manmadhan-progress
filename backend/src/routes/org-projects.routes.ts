@@ -244,7 +244,317 @@ orgProjectsRouter.post(
 			logger.error(`Analyze project error: ${err?.message || String(err)}`);
 			res.status(500).json({
 				success: false,
-				error: err.message || "Failed to analyze project prompt",
+			});
+		}
+	},
+);
+
+// ─── Bulk Projects Management (Assign, Status, Priority, Archive, Delete) ──────
+orgProjectsRouter.post(
+	"/bulk",
+	resolveWorkspace,
+	requireMembership,
+	requireLeadership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const userRole = (
+				(req as any).membership?.role ||
+				(req as any).user?.role ||
+				"MEMBER"
+			).toUpperCase();
+
+			const { projectIds, action, actionData } = req.body;
+
+			if (!Array.isArray(projectIds) || projectIds.length === 0) {
+				return res
+					.status(400)
+					.json({ success: false, error: "projectIds array is required" });
+			}
+
+			if (!action || typeof action !== "string") {
+				return res
+					.status(400)
+					.json({ success: false, error: "Action is required" });
+			}
+
+			// Fetch matching projects belonging to this workspace
+			const targetProjects = await db
+				.select()
+				.from(projects)
+				.where(
+					and(
+						eq(projects.workspaceId, workspaceId),
+						inArray(projects.id, projectIds),
+					),
+				);
+
+			if (targetProjects.length === 0) {
+				return res
+					.status(404)
+					.json({ success: false, error: "No matching projects found in workspace" });
+			}
+
+			let updatedCount = 0;
+			let failedCount = 0;
+			const updatedProjectIds: string[] = [];
+
+			if (action === "assign") {
+				const { assigneeId } = actionData || {};
+				if (!assigneeId) {
+					return res
+						.status(400)
+						.json({ success: false, error: "assigneeId is required for assign action" });
+				}
+
+				// Validate target assignee belongs to workspace
+				const [assigneeUser] = await db
+					.select({
+						id: users.id,
+						displayName: users.displayName,
+						email: users.email,
+						role: workspaceMembers.role,
+					})
+					.from(workspaceMembers)
+					.innerJoin(users, eq(workspaceMembers.userId, users.id))
+					.where(
+						and(
+							eq(workspaceMembers.workspaceId, workspaceId),
+							eq(users.id, assigneeId),
+						),
+					)
+					.limit(1);
+
+				if (!assigneeUser) {
+					return res
+						.status(400)
+						.json({ success: false, error: "Target assignee does not belong to this organization" });
+				}
+
+				for (const proj of targetProjects) {
+					try {
+						await db
+							.update(projects)
+							.set({ updatedAt: new Date() })
+							.where(eq(projects.id, proj.id));
+
+						const [existingAss] = await db
+							.select()
+							.from(projectAssignments)
+							.where(
+								and(
+									eq(projectAssignments.projectId, proj.id),
+									eq(projectAssignments.workspaceId, workspaceId),
+								),
+							)
+							.limit(1);
+
+						if (existingAss) {
+							await db
+								.update(projectAssignments)
+								.set({ assignedToUserId: assigneeId, updatedAt: new Date() })
+								.where(eq(projectAssignments.id, existingAss.id));
+						} else {
+							await db.insert(projectAssignments).values({
+								id: uuidv4(),
+								projectId: proj.id,
+								workspaceId,
+								createdByUserId: proj.ownerId || userId,
+								assignedToUserId: assigneeId,
+								assignmentType: "CEO_TO_CO_CEO",
+								status: "ACCEPTED",
+								createdAt: new Date(),
+								updatedAt: new Date(),
+							});
+						}
+
+						socketService.emitToUser(assigneeId, "PROJECT_ASSIGNED", {
+							projectId: proj.id,
+							title: proj.name,
+						});
+						updatedCount++;
+						updatedProjectIds.push(proj.id);
+					} catch (_err) {
+						failedCount++;
+					}
+				}
+
+				if (updatedCount > 0) {
+					const notificationMsg =
+						updatedCount === 1
+							? `You have been assigned 1 project by the ${userRole}`
+							: `You have been assigned ${updatedCount} projects by the ${userRole}`;
+
+					await db.insert(notifications).values({
+						id: uuidv4(),
+						userId: assigneeId,
+						workspaceId,
+						title: "BULK PROJECT ASSIGNMENT",
+						message: notificationMsg,
+						type: "PROJECT_ASSIGNMENT",
+						priority: "High",
+						isRead: false,
+					});
+
+					await db.insert(auditLogs).values({
+						id: uuidv4(),
+						userId,
+						workspaceId,
+						eventType: "BULK_PROJECT_ASSIGNED",
+						details: `${userRole} bulk assigned ${updatedCount} projects to user ${assigneeId}`,
+						createdAt: new Date(),
+					});
+				}
+			} else if (action === "status") {
+				const { status } = actionData || {};
+				if (!status) {
+					return res
+						.status(400)
+						.json({ success: false, error: "status is required for status action" });
+				}
+
+				for (const proj of targetProjects) {
+					try {
+						await db
+							.update(projects)
+							.set({ status, updatedAt: new Date() })
+							.where(eq(projects.id, proj.id));
+						updatedCount++;
+						updatedProjectIds.push(proj.id);
+					} catch (_err) {
+						failedCount++;
+					}
+				}
+
+				if (updatedCount > 0) {
+					await db.insert(auditLogs).values({
+						id: uuidv4(),
+						userId,
+						workspaceId,
+						eventType: "BULK_PROJECT_STATUS_CHANGED",
+						details: `${userRole} bulk changed status to ${status} for ${updatedCount} projects`,
+						createdAt: new Date(),
+					});
+				}
+			} else if (action === "priority") {
+				const { priority } = actionData || {};
+				if (!priority) {
+					return res
+						.status(400)
+						.json({ success: false, error: "priority is required for priority action" });
+				}
+
+				for (const proj of targetProjects) {
+					try {
+						await db
+							.update(projects)
+							.set({ priority, updatedAt: new Date() })
+							.where(eq(projects.id, proj.id));
+						updatedCount++;
+						updatedProjectIds.push(proj.id);
+					} catch (_err) {
+						failedCount++;
+					}
+				}
+
+				if (updatedCount > 0) {
+					await db.insert(auditLogs).values({
+						id: uuidv4(),
+						userId,
+						workspaceId,
+						eventType: "BULK_PROJECT_PRIORITY_CHANGED",
+						details: `${userRole} bulk changed priority to ${priority} for ${updatedCount} projects`,
+						createdAt: new Date(),
+					});
+				}
+			} else if (action === "archive") {
+				for (const proj of targetProjects) {
+					try {
+						await db
+							.update(projects)
+							.set({ status: "ARCHIVED", updatedAt: new Date() })
+							.where(eq(projects.id, proj.id));
+						updatedCount++;
+						updatedProjectIds.push(proj.id);
+					} catch (_err) {
+						failedCount++;
+					}
+				}
+
+				if (updatedCount > 0) {
+					await db.insert(auditLogs).values({
+						id: uuidv4(),
+						userId,
+						workspaceId,
+						eventType: "BULK_PROJECT_ARCHIVED",
+						details: `${userRole} bulk archived ${updatedCount} projects`,
+						createdAt: new Date(),
+					});
+				}
+			} else if (action === "delete") {
+				if (userRole !== "CEO" && userRole !== "ADMIN") {
+					return res
+						.status(403)
+						.json({ success: false, error: "Only CEO or Admin can perform bulk delete" });
+				}
+
+				for (const proj of targetProjects) {
+					try {
+						await db
+							.delete(projectAssignments)
+							.where(eq(projectAssignments.projectId, proj.id));
+						await db.delete(projects).where(eq(projects.id, proj.id));
+						updatedCount++;
+						updatedProjectIds.push(proj.id);
+					} catch (_err) {
+						failedCount++;
+					}
+				}
+
+				if (updatedCount > 0) {
+					await db.insert(auditLogs).values({
+						id: uuidv4(),
+						userId,
+						workspaceId,
+						eventType: "BULK_PROJECT_DELETED",
+						details: `${userRole} bulk deleted ${updatedCount} projects`,
+						createdAt: new Date(),
+					});
+				}
+			} else {
+				return res.status(400).json({ success: false, error: "Invalid action" });
+			}
+
+			try {
+				socketService.emitToWorkspace(workspaceId, "PROJECTS_BULK_UPDATED", {
+					action,
+					projectIds: updatedProjectIds,
+					updatedCount,
+				});
+				socketService.emitToWorkspace(workspaceId, "project.updated", {
+					action,
+					projectIds: updatedProjectIds,
+				});
+			} catch (e) {}
+
+			res.json({
+				success: true,
+				updatedCount,
+				failedCount,
+				updatedProjectIds,
+				message:
+					failedCount > 0
+						? `${updatedCount} projects updated. ${failedCount} projects could not be updated.`
+						: `${updatedCount} project${updatedCount === 1 ? "" : "s"} updated successfully.`,
+			});
+		} catch (err: any) {
+			logger.error(
+				`Bulk projects operation error: ${err?.message || String(err)}`,
+			);
+			res.status(500).json({
+				success: false,
+				error: err.message || "Failed to execute bulk projects operation",
 			});
 		}
 	},
