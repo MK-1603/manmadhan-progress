@@ -391,7 +391,7 @@ export default function ProjectsPage() {
     : "/ceo";
 
   return (
-    <div className="w-full h-screen min-h-[100dvh] overflow-hidden bg-[#F6F7F9] dark:bg-[#0B0E12] text-zinc-900 dark:text-[#F2F4F7] font-sans flex flex-col select-none transition-colors duration-150">
+    <div className="w-full h-full min-h-0 overflow-hidden bg-[#F6F7F9] dark:bg-[#0B0E12] text-zinc-900 dark:text-[#F2F4F7] font-sans flex flex-col select-none transition-colors duration-150">
       
       {/* ── 100VH DESKTOP & RESPONSIVE MAIN WORKSPACE WRAPPER ── */}
       <div className="flex-1 min-h-0 flex flex-col p-3 sm:p-6 max-w-[1700px] w-full mx-auto space-y-3 sm:space-y-4 overflow-hidden">

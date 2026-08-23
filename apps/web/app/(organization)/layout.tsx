@@ -33,7 +33,8 @@ export default function OrganizationLayout({ children }: { children: React.React
   const isFixedViewportPage =
     pathname?.includes("/graph") ||
     pathname?.includes("/leaderboard") ||
-    pathname?.includes("/tasks");
+    pathname?.includes("/tasks") ||
+    pathname?.includes("/projects");
 
   return (
     <GlobalRefreshProvider>
