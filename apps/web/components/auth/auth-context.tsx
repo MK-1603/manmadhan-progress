@@ -266,6 +266,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(heartbeat);
   }, [authStatus, refreshUser]);
 
+  // Multi-tab storage synchronization: sync login / logout across open tabs
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "auth_token" || e.key === "token") {
+        if (!e.newValue) {
+          setUser(null);
+          setAuthStatus("unauthenticated");
+        } else if (e.newValue !== e.oldValue) {
+          refreshUser();
+        }
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [refreshUser]);
+
   const isProtected =
     pathname?.startsWith("/ceo") ||
     pathname?.startsWith("/co-ceo") ||

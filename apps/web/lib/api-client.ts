@@ -144,22 +144,17 @@ apiClient.interceptors.response.use(
     // Handle 401 Unauthorized Session Expiration
     if (error.response?.status === 401) {
 
-      // Never retry refresh/login/me endpoints to avoid infinite loops
+      // Never retry refresh or login endpoints to avoid infinite loops
       const isAuthEndpoint =
-        originalRequest?.url?.includes("/auth/me") ||
         originalRequest?.url?.includes("/auth/refresh") ||
         originalRequest?.url?.includes("/auth/login");
 
       if (isAuthEndpoint || originalRequest?._retry || explicitLoggingOut) {
-        if (isAuthEndpoint && originalRequest?.url?.includes("/auth/me")) {
-          // Silent non-authenticated response for initial auth check
-          return Promise.reject(error);
-        }
         clearAuthStorage();
         return Promise.reject(error);
       }
 
-      // Mark this request so it won't retry again
+      // Mark this request so it won't retry infinitely
       originalRequest._retry = true;
 
       // Deduplicate: if a refresh is already in-flight, wait for shared promise lock
@@ -172,19 +167,22 @@ apiClient.interceptors.response.use(
       const newToken = await refreshPromise;
 
       if (newToken) {
-        // Retry the original request ONCE with the fresh token
+        // Retry the original request (including /auth/me) with the fresh access token
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return apiClient(originalRequest);
       }
 
-      // Refresh failed — clear session and redirect to login
+      // Refresh failed — clear session and redirect to login if on protected route
       clearAuthStorage();
       if (
         typeof window !== "undefined" &&
         !window.location.pathname.startsWith("/login") &&
         !explicitLoggingOut
       ) {
-        window.location.href = "/login";
+        const isPublicPage = window.location.pathname === "/" || window.location.pathname === "/activate";
+        if (!isPublicPage) {
+          window.location.href = "/login";
+        }
       }
       return Promise.reject(new Error("Session expired. Please sign in again."));
     }
