@@ -16,16 +16,16 @@ import { DeleteConfirmationModal } from "@/components/organization/delete-confir
 import { CustomDropdown } from "@/components/ui/custom-dropdown";
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; dot: string }> = {
-  ACTIVE: { bg: "bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-500/10 light:bg-emerald-50 text-emerald-500 dark:text-emerald-400 light:text-emerald-700", dot: "bg-emerald-500" },
-  Active: { bg: "bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-500/10 light:bg-emerald-50 text-emerald-500 dark:text-emerald-400 light:text-emerald-700", dot: "bg-emerald-500" },
-  PLANNING: { bg: "bg-blue-500/10 border-blue-500/20 dark:bg-blue-500/10 light:bg-blue-50 text-blue-500 dark:text-blue-400 light:text-blue-700", dot: "bg-blue-500" },
-  Planning: { bg: "bg-blue-500/10 border-blue-500/20 dark:bg-blue-500/10 light:bg-blue-50 text-blue-500 dark:text-blue-400 light:text-blue-700", dot: "bg-blue-500" },
-  ON_HOLD: { bg: "bg-amber-500/10 border-amber-500/20 dark:bg-amber-500/10 light:bg-amber-50 text-amber-500 dark:text-amber-400 light:text-amber-700", dot: "bg-amber-500" },
-  "On Hold": { bg: "bg-amber-500/10 border-amber-500/20 dark:bg-amber-500/10 light:bg-amber-50 text-amber-500 dark:text-amber-400 light:text-amber-700", dot: "bg-amber-500" },
-  COMPLETED: { bg: "bg-purple-500/10 border-purple-500/20 dark:bg-purple-500/10 light:bg-purple-50 text-purple-400 dark:text-purple-300 light:text-purple-700", dot: "bg-purple-400" },
-  Completed: { bg: "bg-purple-500/10 border-purple-500/20 dark:bg-purple-500/10 light:bg-purple-50 text-purple-400 dark:text-purple-300 light:text-purple-700", dot: "bg-purple-400" },
-  ARCHIVED: { bg: "bg-slate-500/10 border-slate-500/20 dark:bg-slate-500/10 light:bg-zinc-100 text-slate-400 dark:text-slate-400 light:text-zinc-600", dot: "bg-slate-400" },
-  Archived: { bg: "bg-slate-500/10 border-slate-500/20 dark:bg-slate-500/10 light:bg-zinc-100 text-slate-400 dark:text-slate-400 light:text-zinc-600", dot: "bg-slate-400" },
+  ACTIVE: { bg: "bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-500/10 light:bg-emerald-50", text: "text-emerald-500 dark:text-emerald-400 light:text-emerald-700", dot: "bg-emerald-500" },
+  Active: { bg: "bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-500/10 light:bg-emerald-50", text: "text-emerald-500 dark:text-emerald-400 light:text-emerald-700", dot: "bg-emerald-500" },
+  PLANNING: { bg: "bg-blue-500/10 border-blue-500/20 dark:bg-blue-500/10 light:bg-blue-50", text: "text-blue-500 dark:text-blue-400 light:text-blue-700", dot: "bg-blue-500" },
+  Planning: { bg: "bg-blue-500/10 border-blue-500/20 dark:bg-blue-500/10 light:bg-blue-50", text: "text-blue-500 dark:text-blue-400 light:text-blue-700", dot: "bg-blue-500" },
+  ON_HOLD: { bg: "bg-amber-500/10 border-amber-500/20 dark:bg-amber-500/10 light:bg-amber-50", text: "text-amber-500 dark:text-amber-400 light:text-amber-700", dot: "bg-amber-500" },
+  "On Hold": { bg: "bg-amber-500/10 border-amber-500/20 dark:bg-amber-500/10 light:bg-amber-50", text: "text-amber-500 dark:text-amber-400 light:text-amber-700", dot: "bg-amber-500" },
+  COMPLETED: { bg: "bg-purple-500/10 border-purple-500/20 dark:bg-purple-500/10 light:bg-purple-50", text: "text-purple-400 dark:text-purple-300 light:text-purple-700", dot: "bg-purple-400" },
+  Completed: { bg: "bg-purple-500/10 border-purple-500/20 dark:bg-purple-500/10 light:bg-purple-50", text: "text-purple-400 dark:text-purple-300 light:text-purple-700", dot: "bg-purple-400" },
+  ARCHIVED: { bg: "bg-slate-500/10 border-slate-500/20 dark:bg-slate-500/10 light:bg-zinc-100", text: "text-slate-400 dark:text-slate-400 light:text-zinc-600", dot: "bg-slate-400" },
+  Archived: { bg: "bg-slate-500/10 border-slate-500/20 dark:bg-slate-500/10 light:bg-zinc-100", text: "text-slate-400 dark:text-slate-400 light:text-zinc-600", dot: "bg-slate-400" },
 };
 
 const PRIORITY_BADGE: Record<string, { text: string; dot: string }> = {
