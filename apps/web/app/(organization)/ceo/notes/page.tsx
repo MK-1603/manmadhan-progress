@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Notebook, Plus, Search, Loader2, AlertCircle, Pin, Trash2, X } from "lucide-react";
 import apiClient from "@/lib/api-client";
+import { useConfirm } from "@/hooks/use-confirm";
 
 function timeAgo(d: string) {
   const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
@@ -12,6 +13,7 @@ function timeAgo(d: string) {
 }
 
 export default function CEONotesPage() {
+  const { confirm } = useConfirm();
   const [notes, setNotes]       = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState("");
@@ -48,7 +50,13 @@ export default function CEONotesPage() {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Delete this note?")) return;
+    const ok = await confirm({
+      title: "Delete Note",
+      description: "Are you sure you want to delete this note? This action cannot be undone.",
+      confirmLabel: "Delete Note",
+      variant: "destructive",
+    });
+    if (!ok) return;
     setDeleting(id);
     try {
       await apiClient.delete(`/personal/notes/${id}`);

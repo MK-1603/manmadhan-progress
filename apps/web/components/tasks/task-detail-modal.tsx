@@ -8,6 +8,7 @@ import apiClient from "@/lib/api-client";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { useAuth } from "@/components/auth/auth-context";
+import { useConfirm } from "@/hooks/use-confirm";
 
 interface TaskDetailModalProps {
   task: any | null;
@@ -18,6 +19,7 @@ interface TaskDetailModalProps {
 
 export function TaskDetailModal({ task, isOpen, onClose, onUpdate }: TaskDetailModalProps) {
   const { user } = useAuth();
+  const { confirm } = useConfirm();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSubmittingStatus, setIsSubmittingStatus] = useState(false);
@@ -148,7 +150,13 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate }: TaskDetailM
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Are you sure you want to delete task "${task.title}"?`)) return;
+    const ok = await confirm({
+      title: "Delete Task",
+      description: `Are you sure you want to delete task "${task.title}"? This action cannot be undone.`,
+      confirmLabel: "Delete Task",
+      variant: "destructive",
+    });
+    if (!ok) return;
     setError(null);
     setIsDeleting(true);
     try {

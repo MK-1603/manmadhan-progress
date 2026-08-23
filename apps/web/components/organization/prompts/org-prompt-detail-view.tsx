@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { PremiumCard } from "@/components/ui/premium-card";
 import apiClient from "@/lib/api-client";
+import { useConfirm } from "@/hooks/use-confirm";
 
 interface OrgPromptDetailViewProps {
 	promptId: string;
@@ -16,6 +17,7 @@ interface OrgPromptDetailViewProps {
 
 export function OrgPromptDetailView({ promptId, basePath }: OrgPromptDetailViewProps) {
 	const router = useRouter();
+	const { confirm } = useConfirm();
 	const [prompt, setPrompt] = useState<any>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
@@ -51,7 +53,13 @@ export function OrgPromptDetailView({ promptId, basePath }: OrgPromptDetailViewP
 	};
 
 	const handleDelete = async () => {
-		if (!confirm("Are you sure you want to delete this prompt?")) return;
+		const ok = await confirm({
+			title: "Delete Prompt",
+			description: "Are you sure you want to delete this prompt? This action cannot be undone.",
+			confirmLabel: "Delete Prompt",
+			variant: "destructive",
+		});
+		if (!ok) return;
 		try {
 			const res = await apiClient.delete(`/org/prompts/${promptId}`);
 			if (res.data.success) {

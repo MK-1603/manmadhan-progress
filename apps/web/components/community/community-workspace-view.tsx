@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { PremiumCard } from "@/components/ui/premium-card";
 import { useAuth } from "@/components/auth/auth-context";
+import { useConfirm } from "@/hooks/use-confirm";
 
 interface CommunityWorkspaceViewProps {
 	initialMode?: "list" | "create";
@@ -15,6 +16,7 @@ interface CommunityWorkspaceViewProps {
 
 export function CommunityWorkspaceView({ initialMode = "list" }: CommunityWorkspaceViewProps) {
 	const { user } = useAuth();
+	const { confirm } = useConfirm();
 	const router = useRouter();
 
 	const [viewMode, setViewMode] = useState<"list" | "create" | "detail" | "edit">(initialMode);
@@ -168,7 +170,13 @@ export function CommunityWorkspaceView({ initialMode = "list" }: CommunityWorksp
 
 	// CRUD 3: DELETE COMMUNITY
 	const handleDeleteCommunity = async (id: string, name: string) => {
-		if (!confirm(`Are you sure you want to delete community '${name}'? This action cannot be undone.`)) return;
+		const ok = await confirm({
+			title: "Delete Community",
+			description: `Are you sure you want to delete community '${name}'? This action cannot be undone.`,
+			confirmLabel: "Delete Community",
+			variant: "destructive",
+		});
+		if (!ok) return;
 
 		setCommunities(communities.filter(c => c.id !== id));
 		setSelectedCommunity(null);

@@ -150,7 +150,13 @@ export default function PersonalTasksPage() {
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this task?")) return;
+    const ok = await confirm({
+      title: "Delete Task",
+      description: "Are you sure you want to delete this task? This action cannot be undone.",
+      confirmLabel: "Delete Task",
+      variant: "destructive",
+    });
+    if (!ok) return;
     setTasks((p) => p.filter((t) => t.id !== id));
     try {
       await apiClient.delete(`/personal/tasks/${id}`);
