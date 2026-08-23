@@ -1133,11 +1133,101 @@ orgProjectsRouter.put(
 				details: JSON.stringify({ message: `Project updated: "${updated.name}"` }),
 			});
 
+			// Sync calendar event if deadline or name changed
+			if (deadline || name) {
+				try {
+					const [existingCal] = await db
+						.select()
+						.from(calendarEvents)
+						.where(eq(calendarEvents.projectId, id))
+						.limit(1);
+
+					if (existingCal) {
+						const calUpdates: any = {};
+						if (name?.trim()) calUpdates.title = `[Project Deadline] ${name.trim()}`;
+						if (deadline) {
+							calUpdates.startTime = new Date(deadline);
+							calUpdates.endTime = new Date(deadline);
+						}
+						await db.update(calendarEvents).set(calUpdates).where(eq(calendarEvents.id, existingCal.id));
+					} else if (deadline) {
+						await db.insert(calendarEvents).values({
+							id: uuidv4(),
+							workspaceId,
+							projectId: id,
+							title: `[Project Deadline] ${(name || existing.name).trim()}`,
+							description: existing.description || `Project deadline for ${(name || existing.name).trim()}`,
+							startTime: new Date(deadline),
+							endTime: new Date(deadline),
+							createdById: userId,
+							createdAt: new Date(),
+						});
+					}
+				} catch (calErr: any) {
+					logger.warn(`Calendar update notice on project update: ${calErr?.message}`);
+				}
+			}
+
 			socketService.emitToWorkspace(workspaceId, "project.updated", updated);
 			res.json({ success: true, data: updated });
 		} catch (err: any) {
 			logger.error(`Update project error: ${err?.message || String(err)}`);
 			res.status(500).json({ success: false, error: "Failed to update project" });
+		}
+	},
+);
+
+// ─── Delete Single Project (DELETE /:id) ──────────────────────────────────────
+orgProjectsRouter.delete(
+	"/:id",
+	resolveWorkspace,
+	requireMembership,
+	requireLeadership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const id = req.params.id as string;
+
+			const [existing] = await db
+				.select()
+				.from(projects)
+				.where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
+				.limit(1);
+
+			if (!existing) {
+				return res.status(404).json({ success: false, error: "Project not found" });
+			}
+
+			// Clean up associated records
+			try { await db.delete(tasks).where(eq(tasks.projectId, id)); } catch (e) {}
+			try { await db.delete(milestones).where(eq(milestones.projectId, id)); } catch (e) {}
+			try { await db.delete(projectMilestonesV2).where(eq(projectMilestonesV2.projectId, id)); } catch (e) {}
+			try { await db.delete(projectAssignments).where(eq(projectAssignments.projectId, id)); } catch (e) {}
+			try { await db.delete(projectDocuments).where(eq(projectDocuments.projectId, id)); } catch (e) {}
+			try { await db.delete(projectDocumentsV2).where(eq(projectDocumentsV2.projectId, id)); } catch (e) {}
+			try { await db.delete(projectRequirements).where(eq(projectRequirements.projectId, id)); } catch (e) {}
+			try { await db.delete(projectFeatures).where(eq(projectFeatures.projectId, id)); } catch (e) {}
+			try { await db.delete(calendarEvents).where(eq(calendarEvents.projectId, id)); } catch (e) {}
+
+			await db.delete(projects).where(eq(projects.id, id));
+
+			await db.insert(auditLogs).values({
+				id: uuidv4(),
+				actorId: userId,
+				workspaceId,
+				action: "PROJECT_DELETED",
+				entityType: "PROJECT",
+				entityId: id,
+				metadata: JSON.stringify({ projectName: existing.name }),
+				createdAt: new Date(),
+			});
+
+			socketService.emitToWorkspace(workspaceId, "project.deleted", { id });
+			res.json({ success: true, message: `Project "${existing.name}" deleted successfully` });
+		} catch (err: any) {
+			logger.error(`Delete project error: ${err?.message || String(err)}`);
+			res.status(500).json({ success: false, error: "Failed to delete project" });
 		}
 	},
 );
