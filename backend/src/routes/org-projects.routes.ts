@@ -265,18 +265,25 @@ orgProjectsRouter.post(
 			const {
 				title,
 				description,
+				mandate,
 				startDate,
 				deadline,
 				priority = "Medium",
 				assignedToUserId,
+				memberUserIds = [],
 				assignmentType = "CEO_TO_CO_CEO",
 				responsibleCoCeoId,
 				prompt,
-				analysisData,
-				initialTasks,
+				goals = [],
+				deliverables = [],
+				initialTasks = [],
+				idempotencyKey,
 			} = req.body;
 
-			if (!title?.trim()) {
+			const projectTitle = (title || "").trim();
+			const projectDescription = description || mandate || prompt || null;
+
+			if (!projectTitle) {
 				return res
 					.status(400)
 					.json({ success: false, error: "Project title is required" });
@@ -285,7 +292,49 @@ orgProjectsRouter.post(
 			if (!assignedToUserId) {
 				return res
 					.status(400)
-					.json({ success: false, error: "Assigned user is required" });
+					.json({ success: false, error: "Project Assignee is required" });
+			}
+
+			// ── Idempotency Protection ─────────────────────────────────────
+			if (idempotencyKey && typeof idempotencyKey === "string") {
+				const [existingLog] = await db
+					.select()
+					.from(auditLogs)
+					.where(
+						and(
+							eq(auditLogs.workspaceId, workspaceId),
+							eq(auditLogs.eventType, "PROJECT_CREATED"),
+							sql`details LIKE ${`%idempotency:${idempotencyKey}%`}`
+						)
+					)
+					.limit(1);
+
+				if (existingLog) {
+					return res.json({
+						success: true,
+						message: "Project created (idempotency match)",
+						data: { existing: true },
+					});
+				}
+			}
+
+			// ── Duplicate Project Name Validation (Same Workspace) ──────────
+			const [dupProject] = await db
+				.select()
+				.from(projects)
+				.where(
+					and(
+						eq(projects.workspaceId, workspaceId),
+						eq(projects.name, projectTitle)
+					)
+				)
+				.limit(1);
+
+			if (dupProject) {
+				return res.status(400).json({
+					success: false,
+					error: `A project named "${projectTitle}" already exists in this organization workspace. Please use a unique name.`,
+				});
 			}
 
 			// Validate dates if provided
@@ -295,7 +344,7 @@ orgProjectsRouter.post(
 			if (parsedStartDate && projectDeadline && parsedStartDate > projectDeadline) {
 				return res.status(400).json({
 					success: false,
-					error: "Start date cannot be after project deadline.",
+					error: "Start date cannot be strictly after project deadline.",
 				});
 			}
 
@@ -482,6 +531,36 @@ orgProjectsRouter.post(
 					});
 				}
 
+				// 2b. Create Project Member Assignments if additional team members provided
+				if (Array.isArray(memberUserIds) && memberUserIds.length > 0) {
+					for (const mId of memberUserIds) {
+						if (!mId || mId === assignedToUserId) continue;
+						await tx.insert(projectAssignments).values({
+							id: uuidv4(),
+							projectId,
+							workspaceId,
+							createdByUserId: userId,
+							assignedToUserId: mId,
+							responsibleCoCeoId: coCeoVal,
+							assignmentType: "CEO_TO_MEMBER",
+							status: "ACCEPTED",
+							createdAt: new Date(),
+							updatedAt: new Date(),
+						});
+
+						await tx.insert(notifications).values({
+							id: uuidv4(),
+							userId: mId,
+							workspaceId,
+							title: "PROJECT MEMBER ASSIGNED",
+							message: `You have been added as a project team member to "${projectTitle}"`,
+							type: "PROJECT_ASSIGNMENT",
+							priority: "Medium",
+							isRead: false,
+						});
+					}
+				}
+
 				// 7. Notification Record for Assigned User
 				const [assigneeUser] = await tx
 					.select()
@@ -495,7 +574,7 @@ orgProjectsRouter.post(
 					userId: assignedToUserId,
 					workspaceId,
 					title: "PROJECT ASSIGNED",
-					message: `You have been assigned to project "${title.trim()}" (Role: ${assigneeRole})`,
+					message: `You have been assigned to project "${projectTitle}" (Role: ${assigneeRole})`,
 					type: "PROJECT_ASSIGNMENT",
 					priority: "High",
 					isRead: false,
@@ -508,7 +587,7 @@ orgProjectsRouter.post(
 					projectId,
 					userId,
 					action: "PROJECT_CREATED",
-					details: JSON.stringify({ message: `Project created: "${title.trim()}"` }),
+					details: JSON.stringify({ message: `Project created: "${projectTitle}"` }),
 					createdAt: new Date(),
 				});
 
@@ -531,13 +610,16 @@ orgProjectsRouter.post(
 					entityType: "PROJECT",
 					entityId: projectId,
 					metadata: JSON.stringify({
-						projectName: title.trim(),
+						projectName: projectTitle,
 						assignmentType,
 						assignedToUserId,
 						responsibleCoCeoId: coCeoVal,
+						memberUserIds,
 						priority,
 						initialTasksCount: createdInitialTasks.length,
+						idempotencyKey: idempotencyKey || null,
 					}),
+					details: `Organization Project "${projectTitle}" created (idempotency:${idempotencyKey || "none"})`,
 					createdAt: new Date(),
 				});
 			});
