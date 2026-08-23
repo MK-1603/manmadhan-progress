@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   Plus, FolderKanban, Search, AlertCircle,
   Trash2, ChevronRight, LayoutGrid, List,
-  Edit, X, MoreVertical, ArrowUpRight
+  Edit, X, MoreVertical, ArrowUpRight, Filter, ChevronDown
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
