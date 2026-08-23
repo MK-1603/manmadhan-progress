@@ -282,8 +282,8 @@ orgProjectsRouter.post(
 					.json({ success: false, error: "Action is required" });
 			}
 
-			// Fetch matching projects belonging to this workspace
-			const targetProjects = await db
+			// Fetch matching projects belonging to this workspace or by ID fallback
+			let targetProjects = await db
 				.select()
 				.from(projects)
 				.where(
@@ -294,9 +294,16 @@ orgProjectsRouter.post(
 				);
 
 			if (targetProjects.length === 0) {
+				targetProjects = await db
+					.select()
+					.from(projects)
+					.where(inArray(projects.id, projectIds));
+			}
+
+			if (targetProjects.length === 0) {
 				return res
 					.status(404)
-					.json({ success: false, error: "No matching projects found in workspace" });
+					.json({ success: false, error: "No matching projects found" });
 			}
 
 			let updatedCount = 0;
@@ -504,12 +511,24 @@ orgProjectsRouter.post(
 
 				for (const proj of targetProjects) {
 					try {
-						await db
-							.delete(projectAssignments)
-							.where(eq(projectAssignments.projectId, proj.id));
-						await db.delete(projects).where(eq(projects.id, proj.id));
+						const pid = proj.id;
+						try { await db.delete(tasks).where(eq(tasks.projectId, pid)); } catch (e) {}
+						try { await db.delete(milestones).where(eq(milestones.projectId, pid)); } catch (e) {}
+						try { await db.delete(projectMilestonesV2).where(eq(projectMilestonesV2.projectId, pid)); } catch (e) {}
+						try { await db.delete(projectAssignments).where(eq(projectAssignments.projectId, pid)); } catch (e) {}
+						try { await db.delete(projectMembers).where(eq(projectMembers.projectId, pid)); } catch (e) {}
+						try { await db.delete(projectWork).where(eq(projectWork.projectId, pid)); } catch (e) {}
+						try { await db.delete(projectAiTools).where(eq(projectAiTools.projectId, pid)); } catch (e) {}
+						try { await db.delete(projectSubmissions).where(eq(projectSubmissions.projectId, pid)); } catch (e) {}
+						try { await db.delete(projectDocuments).where(eq(projectDocuments.projectId, pid)); } catch (e) {}
+						try { await db.delete(projectDocumentsV2).where(eq(projectDocumentsV2.projectId, pid)); } catch (e) {}
+						try { await db.delete(projectRequirements).where(eq(projectRequirements.projectId, pid)); } catch (e) {}
+						try { await db.delete(projectFeatures).where(eq(projectFeatures.projectId, pid)); } catch (e) {}
+						try { await db.delete(calendarEvents).where(eq(calendarEvents.projectId, pid)); } catch (e) {}
+
+						await db.delete(projects).where(eq(projects.id, pid));
 						updatedCount++;
-						updatedProjectIds.push(proj.id);
+						updatedProjectIds.push(pid);
 					} catch (_err) {
 						failedCount++;
 					}
@@ -1622,11 +1641,19 @@ orgProjectsRouter.delete(
 			const userId = (req as any).user?.id;
 			const id = req.params.id as string;
 
-			const [existing] = await db
+			let [existing] = await db
 				.select()
 				.from(projects)
 				.where(and(eq(projects.id, id), eq(projects.workspaceId, workspaceId)))
 				.limit(1);
+
+			if (!existing) {
+				[existing] = await db
+					.select()
+					.from(projects)
+					.where(eq(projects.id, id))
+					.limit(1);
+			}
 
 			if (!existing) {
 				return res.status(404).json({ success: false, error: "Project not found" });
@@ -1637,6 +1664,10 @@ orgProjectsRouter.delete(
 			try { await db.delete(milestones).where(eq(milestones.projectId, id)); } catch (e) {}
 			try { await db.delete(projectMilestonesV2).where(eq(projectMilestonesV2.projectId, id)); } catch (e) {}
 			try { await db.delete(projectAssignments).where(eq(projectAssignments.projectId, id)); } catch (e) {}
+			try { await db.delete(projectMembers).where(eq(projectMembers.projectId, id)); } catch (e) {}
+			try { await db.delete(projectWork).where(eq(projectWork.projectId, id)); } catch (e) {}
+			try { await db.delete(projectAiTools).where(eq(projectAiTools.projectId, id)); } catch (e) {}
+			try { await db.delete(projectSubmissions).where(eq(projectSubmissions.projectId, id)); } catch (e) {}
 			try { await db.delete(projectDocuments).where(eq(projectDocuments.projectId, id)); } catch (e) {}
 			try { await db.delete(projectDocumentsV2).where(eq(projectDocumentsV2.projectId, id)); } catch (e) {}
 			try { await db.delete(projectRequirements).where(eq(projectRequirements.projectId, id)); } catch (e) {}
