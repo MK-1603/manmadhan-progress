@@ -1825,6 +1825,8 @@ orgProjectsRouter.get(
 	requireMembership,
 	async (req: Request, res: Response) => {
 		try {
+			res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+			res.setHeader("Pragma", "no-cache");
 			const workspaceId = (req as any).workspaceId;
 			const userId = (req as any).user?.id;
 			const membership = (req as any).membership;
@@ -1895,6 +1897,8 @@ orgProjectsRouter.get(
 // ─── Get Single Project Details (GET /:id) ──────────────────────────────────
 orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 	try {
+		res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+		res.setHeader("Pragma", "no-cache");
 		const id = req.params.id as string;
 		if (!id || id === "undefined" || id === "null") {
 			return res

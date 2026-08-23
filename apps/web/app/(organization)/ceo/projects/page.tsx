@@ -149,7 +149,7 @@ export default function ProjectsPage() {
     setLoading(true);
     try {
       const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
-      const res = await apiClient.get(`/org/projects${wsId ? `?workspaceId=${wsId}` : ""}`);
+      const res = await apiClient.get(`/org/projects?_t=${Date.now()}${wsId ? `&workspaceId=${wsId}` : ""}`);
       if (res.data?.success) {
         setRealProjects(res.data.data || []);
         setError("");
@@ -327,6 +327,10 @@ export default function ProjectsPage() {
       if (bulkActionType === "assign") actionData.assigneeId = bulkAssigneeId;
       if (bulkActionType === "status") actionData.status = bulkStatusValue;
       if (bulkActionType === "priority") actionData.priority = bulkPriorityValue;
+
+      if (bulkActionType === "delete") {
+        setRealProjects((prev) => prev.filter((p) => !selectedIds.includes(p.id)));
+      }
 
       await apiClient.post(`/org/projects/bulk${wsId ? `?workspaceId=${wsId}` : ""}`, {
         projectIds: selectedIds,
