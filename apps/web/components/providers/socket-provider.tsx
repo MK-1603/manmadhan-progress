@@ -254,7 +254,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       destroySocket();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
   }, [user?.id]);
 
   return (

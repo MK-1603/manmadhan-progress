@@ -779,7 +779,7 @@ export function AuthForm({
         }
       } else {
         // Normal password login flow
-        const res = await apiClient.post("/auth/login/password", { email: email.trim(), password });
+        const res = await apiClient.post("/auth/login/password", { email: email.trim().toLowerCase(), password });
         if (res.data.success) {
           if (res.data.nextStep === "OTP_VERIFICATION") {
             setLoadingState("SENT");
@@ -1090,6 +1090,9 @@ export function AuthForm({
                     disabled={loadingState !== ""}
                     placeholder="Work email"
                     enterKeyHint="next"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     className="w-full h-[56px] rounded-[14px] bg-[#FFFFFF] dark:bg-[#151A22] border border-[#D9DDE3] dark:border-[#29313B] px-4 text-sm text-[#171A1F] dark:text-[#F3FFF0] placeholder:text-[#9CA3AF] dark:placeholder:text-[#7F8896] outline-none focus:outline-none focus:ring-0 focus:border-[#B99625] dark:focus:border-[#DDB52F] transition-all duration-200 shadow-xs peer disabled:bg-[#F3F4F6] dark:disabled:bg-[#10141A] disabled:border-[#E5E7EB] dark:disabled:border-[#222831] disabled:text-[#9CA3AF] dark:disabled:text-[#606977] disabled:cursor-not-allowed"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}

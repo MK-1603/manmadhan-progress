@@ -5,6 +5,7 @@ import {
   History, Search, Loader2, AlertCircle, Folder, CheckSquare, Users, CheckCircle2,
   Zap, Clock, User, X, ShieldCheck, RefreshCw, ChevronRight, SlidersHorizontal
 } from "lucide-react";
+import Link from "next/link";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
 import { useRegisterRefresh } from "@/components/providers/global-refresh-provider";
@@ -416,8 +417,8 @@ export default function CEOTimelinePage() {
                 </p>
               </div>
               <div className="flex items-center justify-center gap-2 pt-1">
-                <a href="/ceo/projects" className="px-4 h-[34px] rounded-[8px] bg-[#C9A52A] text-[#0B0D10] text-[12px] font-bold inline-flex items-center">View Projects</a>
-                <a href="/ceo/tasks" className="px-4 h-[34px] rounded-[8px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-bold inline-flex items-center">View Tasks</a>
+                <Link href="/ceo/projects" className="px-4 h-[34px] rounded-[8px] bg-[#C9A52A] text-[#0B0D10] text-[12px] font-bold inline-flex items-center">View Projects</Link>
+                <Link href="/ceo/tasks" className="px-4 h-[34px] rounded-[8px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-bold inline-flex items-center">View Tasks</Link>
               </div>
             </div>
           ) : (
