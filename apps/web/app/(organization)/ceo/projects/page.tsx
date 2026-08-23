@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
-  Plus, FolderKanban, Search, Loader2, AlertCircle,
+  Plus, FolderKanban, Search, AlertCircle,
   Trash2, RefreshCw, ChevronRight, LayoutGrid, List,
-  Edit, Check, X, ChevronDown, MoreVertical, Calendar, Shield, Users, ArrowUpRight
+  Edit, X, MoreVertical, ArrowUpRight
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
@@ -13,18 +13,19 @@ import Link from "next/link";
 import { CreateProjectModal } from "@/components/organization/create-project-modal";
 import { EditProjectModal } from "@/components/organization/edit-project-modal";
 import { DeleteConfirmationModal } from "@/components/organization/delete-confirmation-modal";
+import { CustomDropdown } from "@/components/ui/custom-dropdown";
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; dot: string }> = {
-  ACTIVE: { bg: "bg-emerald-500/10 border-emerald-500/20", text: "text-emerald-500", dot: "bg-emerald-500" },
-  Active: { bg: "bg-emerald-500/10 border-emerald-500/20", text: "text-emerald-500", dot: "bg-emerald-500" },
-  PLANNING: { bg: "bg-blue-500/10 border-blue-500/20", text: "text-blue-500", dot: "bg-blue-500" },
-  Planning: { bg: "bg-blue-500/10 border-blue-500/20", text: "text-blue-500", dot: "bg-blue-500" },
-  ON_HOLD: { bg: "bg-amber-500/10 border-amber-500/20", text: "text-amber-500", dot: "bg-amber-500" },
-  "On Hold": { bg: "bg-amber-500/10 border-amber-500/20", text: "text-amber-500", dot: "bg-amber-500" },
-  COMPLETED: { bg: "bg-purple-500/10 border-purple-500/20", text: "text-purple-400", dot: "bg-purple-400" },
-  Completed: { bg: "bg-purple-500/10 border-purple-500/20", text: "text-purple-400", dot: "bg-purple-400" },
-  ARCHIVED: { bg: "bg-slate-500/10 border-slate-500/20", text: "text-slate-400", dot: "bg-slate-400" },
-  Archived: { bg: "bg-slate-500/10 border-slate-500/20", text: "text-slate-400", dot: "bg-slate-400" },
+  ACTIVE: { bg: "bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-500/10 light:bg-emerald-50 text-emerald-500 dark:text-emerald-400 light:text-emerald-700", dot: "bg-emerald-500" },
+  Active: { bg: "bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-500/10 light:bg-emerald-50 text-emerald-500 dark:text-emerald-400 light:text-emerald-700", dot: "bg-emerald-500" },
+  PLANNING: { bg: "bg-blue-500/10 border-blue-500/20 dark:bg-blue-500/10 light:bg-blue-50 text-blue-500 dark:text-blue-400 light:text-blue-700", dot: "bg-blue-500" },
+  Planning: { bg: "bg-blue-500/10 border-blue-500/20 dark:bg-blue-500/10 light:bg-blue-50 text-blue-500 dark:text-blue-400 light:text-blue-700", dot: "bg-blue-500" },
+  ON_HOLD: { bg: "bg-amber-500/10 border-amber-500/20 dark:bg-amber-500/10 light:bg-amber-50 text-amber-500 dark:text-amber-400 light:text-amber-700", dot: "bg-amber-500" },
+  "On Hold": { bg: "bg-amber-500/10 border-amber-500/20 dark:bg-amber-500/10 light:bg-amber-50 text-amber-500 dark:text-amber-400 light:text-amber-700", dot: "bg-amber-500" },
+  COMPLETED: { bg: "bg-purple-500/10 border-purple-500/20 dark:bg-purple-500/10 light:bg-purple-50 text-purple-400 dark:text-purple-300 light:text-purple-700", dot: "bg-purple-400" },
+  Completed: { bg: "bg-purple-500/10 border-purple-500/20 dark:bg-purple-500/10 light:bg-purple-50 text-purple-400 dark:text-purple-300 light:text-purple-700", dot: "bg-purple-400" },
+  ARCHIVED: { bg: "bg-slate-500/10 border-slate-500/20 dark:bg-slate-500/10 light:bg-zinc-100 text-slate-400 dark:text-slate-400 light:text-zinc-600", dot: "bg-slate-400" },
+  Archived: { bg: "bg-slate-500/10 border-slate-500/20 dark:bg-slate-500/10 light:bg-zinc-100 text-slate-400 dark:text-slate-400 light:text-zinc-600", dot: "bg-slate-400" },
 };
 
 const PRIORITY_BADGE: Record<string, { text: string; dot: string }> = {
@@ -34,30 +35,30 @@ const PRIORITY_BADGE: Record<string, { text: string; dot: string }> = {
   HIGH: { text: "text-amber-500 font-bold", dot: "bg-amber-500" },
   Medium: { text: "text-[#C9A52A] font-semibold", dot: "bg-[#C9A52A]" },
   MEDIUM: { text: "text-[#C9A52A] font-semibold", dot: "bg-[#C9A52A]" },
-  Low: { text: "text-slate-400 font-normal", dot: "bg-slate-400" },
-  LOW: { text: "text-slate-400 font-normal", dot: "bg-slate-400" },
+  Low: { text: "text-slate-400 dark:text-slate-400 light:text-zinc-500 font-normal", dot: "bg-slate-400" },
+  LOW: { text: "text-slate-400 dark:text-slate-400 light:text-zinc-500 font-normal", dot: "bg-slate-400" },
 };
 
-function fmtDeadlineLabel(dateStr?: string | null, status?: string): { dateText: string; relText: string; isOverdue: boolean } {
-  if (!dateStr) return { dateText: "—", relText: "No deadline", isOverdue: false };
+function fmtDeadlineLabel(dateStr?: string | null, status?: string): { dateText: string; relText: string; isOverdue: boolean; diffDays: number } {
+  if (!dateStr) return { dateText: "—", relText: "No deadline", isOverdue: false, diffDays: 999 };
   try {
     const target = new Date(dateStr);
     const now = new Date();
     const isCompleted = (status || "").toUpperCase() === "COMPLETED";
 
     const dateText = target.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    if (isCompleted) return { dateText, relText: "Completed", isOverdue: false };
+    if (isCompleted) return { dateText, relText: "Completed", isOverdue: false, diffDays: 999 };
 
     const diffDays = Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays < 0) {
-      return { dateText, relText: `Overdue by ${Math.abs(diffDays)}d`, isOverdue: true };
+      return { dateText, relText: `Overdue by ${Math.abs(diffDays)}d`, isOverdue: true, diffDays };
     } else if (diffDays === 0) {
-      return { dateText, relText: "Due today", isOverdue: false };
+      return { dateText, relText: "Due today", isOverdue: false, diffDays };
     } else {
-      return { dateText, relText: `${diffDays} days left`, isOverdue: false };
+      return { dateText, relText: `${diffDays} days left`, isOverdue: false, diffDays };
     }
   } catch {
-    return { dateText: dateStr, relText: "", isOverdue: false };
+    return { dateText: dateStr, relText: "", isOverdue: false, diffDays: 999 };
   }
 }
 
@@ -73,6 +74,8 @@ export default function ProjectsPage() {
   const [priorityFilter, setPriorityFilter] = useState("All");
   const [ownerFilter, setOwnerFilter] = useState("All");
   const [assigneeFilter, setAssigneeFilter] = useState("All");
+  const [deadlineFilter, setDeadlineFilter] = useState("All");
+  const [progressFilter, setProgressFilter] = useState("All");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
 
   // Selection & Actions State
@@ -157,6 +160,42 @@ export default function ProjectsPage() {
     return Array.from(set);
   }, [realProjects]);
 
+  // Dropdown options formatted for CustomDropdown
+  const statusDropdownOptions = useMemo(
+    () => [
+      { value: "All", label: "All" },
+      { value: "Active", label: "Active", dotColor: "bg-emerald-500" },
+      { value: "Planning", label: "Planning", dotColor: "bg-blue-500" },
+      { value: "On Hold", label: "On Hold", dotColor: "bg-amber-500" },
+      { value: "Completed", label: "Completed", dotColor: "bg-purple-400" },
+      { value: "Archived", label: "Archived", dotColor: "bg-slate-400" },
+    ],
+    []
+  );
+
+  const priorityDropdownOptions = useMemo(
+    () => [
+      { value: "All", label: "All" },
+      { value: "Critical", label: "Critical", dotColor: "bg-rose-500" },
+      { value: "High", label: "High", dotColor: "bg-amber-500" },
+      { value: "Medium", label: "Medium", dotColor: "bg-[#C9A52A]" },
+      { value: "Low", label: "Low", dotColor: "bg-slate-400" },
+    ],
+    []
+  );
+
+  const ownerDropdownOptions = useMemo(() => {
+    const opts = [{ value: "All", label: "All" }];
+    ownerOptions.forEach((o) => opts.push({ value: o, label: o }));
+    return opts;
+  }, [ownerOptions]);
+
+  const assigneeDropdownOptions = useMemo(() => {
+    const opts = [{ value: "All", label: "All" }];
+    assigneeOptions.forEach((a) => opts.push({ value: a, label: a }));
+    return opts;
+  }, [assigneeOptions]);
+
   // Filtered Project Items
   const filtered = useMemo(() => {
     return realProjects.filter((p) => {
@@ -194,19 +233,101 @@ export default function ProjectsPage() {
         p.assigneeName === assigneeFilter ||
         p.assignedToUser?.name === assigneeFilter;
 
-      return matchSearch && matchStatus && matchPriority && matchOwner && matchAssignee;
+      const dInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
+      const matchDeadline =
+        deadlineFilter === "All" ||
+        (deadlineFilter === "Overdue" && dInfo.isOverdue) ||
+        (deadlineFilter === "DueToday" && dInfo.diffDays === 0) ||
+        (deadlineFilter === "DueThisWeek" && dInfo.diffDays >= 0 && dInfo.diffDays <= 7);
+
+      const prog = p.progress || 0;
+      const matchProgress =
+        progressFilter === "All" ||
+        (progressFilter === "NotStarted" && prog === 0) ||
+        (progressFilter === "InProgress" && prog > 0 && prog < 100) ||
+        (progressFilter === "Completed" && prog >= 100);
+
+      return matchSearch && matchStatus && matchPriority && matchOwner && matchAssignee && matchDeadline && matchProgress;
     });
-  }, [realProjects, search, statusFilter, priorityFilter, ownerFilter, assigneeFilter]);
+  }, [realProjects, search, statusFilter, priorityFilter, ownerFilter, assigneeFilter, deadlineFilter, progressFilter]);
 
   // Live KPI Summary Counts
   const kpis = useMemo(() => {
     const total = realProjects.length;
-    const active = realProjects.filter(p => (p.status || "").toUpperCase() === "ACTIVE").length;
-    const planning = realProjects.filter(p => (p.status || "").toUpperCase() === "PLANNING").length;
-    const onHold = realProjects.filter(p => (p.status || "").toUpperCase() === "ON_HOLD").length;
-    const completed = realProjects.filter(p => (p.status || "").toUpperCase() === "COMPLETED").length;
+    const active = realProjects.filter((p) => (p.status || "").toUpperCase() === "ACTIVE").length;
+    const planning = realProjects.filter((p) => (p.status || "").toUpperCase() === "PLANNING").length;
+    const onHold = realProjects.filter((p) => (p.status || "").toUpperCase() === "ON_HOLD").length;
+    const completed = realProjects.filter((p) => (p.status || "").toUpperCase() === "COMPLETED").length;
     return { total, active, planning, onHold, completed };
   }, [realProjects]);
+
+  // More Filters Popover Node
+  const activeMoreFiltersCount = (deadlineFilter !== "All" ? 1 : 0) + (progressFilter !== "All" ? 1 : 0);
+
+  const handleClearMoreFilters = () => {
+    setDeadlineFilter("All");
+    setProgressFilter("All");
+  };
+
+  const moreFiltersContentNode = (
+    <div className="space-y-3 text-[12px] font-sans">
+      <div>
+        <div className="text-[10.5px] font-bold text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-500 uppercase tracking-wider mb-1.5">
+          Deadline
+        </div>
+        <div className="space-y-1">
+          {[
+            { id: "All", name: "All" },
+            { id: "Overdue", name: "Overdue" },
+            { id: "DueToday", name: "Due Today" },
+            { id: "DueThisWeek", name: "Due This Week" },
+          ].map((df) => (
+            <label
+              key={df.id}
+              className="flex items-center gap-2 cursor-pointer text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 font-medium"
+            >
+              <input
+                type="radio"
+                name="deadlineFilter"
+                checked={deadlineFilter === df.id}
+                onChange={() => setDeadlineFilter(df.id)}
+                className="accent-[#C9A52A]"
+              />
+              <span>{df.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="pt-2 border-t border-[#272D36] dark:border-[#272D36] light:border-zinc-200">
+        <div className="text-[10.5px] font-bold text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-500 uppercase tracking-wider mb-1.5">
+          Progress
+        </div>
+        <div className="space-y-1">
+          {[
+            { id: "All", name: "All" },
+            { id: "NotStarted", name: "Not Started (0%)" },
+            { id: "InProgress", name: "In Progress (1-99%)" },
+            { id: "Completed", name: "Completed (100%)" },
+          ].map((pf) => (
+            <label
+              key={pf.id}
+              className="flex items-center gap-2 cursor-pointer text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 font-medium"
+            >
+              <input
+                type="radio"
+                name="progressFilter"
+                checked={progressFilter === pf.id}
+                onChange={() => setProgressFilter(pf.id)}
+                className="accent-[#C9A52A]"
+              />
+              <span>{pf.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 
   // Single Project Deletion
   const handleExecuteSingleDelete = async () => {
@@ -261,23 +382,23 @@ export default function ProjectsPage() {
     : "/ceo";
 
   return (
-    <div className="w-full h-screen overflow-hidden bg-[#0B0E12] text-[#F2F4F7] font-sans flex flex-col select-none">
+    <div className="w-full h-screen overflow-hidden bg-[#0B0E12] dark:bg-[#0B0E12] light:bg-[#F6F7F9] text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 font-sans flex flex-col select-none transition-colors duration-150">
       
       {/* ── 100VH DESKTOP & RESPONSIVE MAIN WORKSPACE WRAPPER ── */}
       <div className="flex-1 min-h-0 flex flex-col p-4 sm:p-6 max-w-[1700px] w-full mx-auto space-y-4">
         
         {/* ── FIXED PAGE HEADER & ORG CONTEXT ── */}
-        <div className="shrink-0 flex items-center justify-between gap-4 border-b border-[#272D36] pb-3.5">
+        <div className="shrink-0 flex items-center justify-between gap-4 border-b border-[#272D36] dark:border-[#272D36] light:border-zinc-200 pb-3.5">
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-[22px] font-extrabold text-[#F2F4F7] tracking-tight leading-none">
+              <h1 className="text-[22px] font-extrabold text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 tracking-tight leading-none">
                 Projects
               </h1>
               <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-[#C9A52A]/10 text-[#C9A52A] font-bold border border-[#C9A52A]/20">
                 ManMadhan Organization
               </span>
             </div>
-            <p className="text-[12px] text-[#8B95A5] mt-1">
+            <p className="text-[12px] text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-500 mt-1">
               Plan, execute, and track organization work from one single-surface execution workspace.
             </p>
           </div>
@@ -286,7 +407,7 @@ export default function ProjectsPage() {
             <button
               type="button"
               onClick={fetchProjects}
-              className="h-[38px] px-3.5 rounded-[9px] bg-[#15191F] border border-[#272D36] text-[#8B95A5] hover:text-[#F2F4F7] text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="h-[38px] px-3.5 rounded-[9px] bg-[#15191F] dark:bg-[#15191F] light:bg-white border border-[#272D36] dark:border-[#272D36] light:border-zinc-300 text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-700 hover:text-[#F2F4F7] dark:hover:text-[#F2F4F7] light:hover:text-zinc-900 text-[12px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               title="Refresh projects"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -296,7 +417,7 @@ export default function ProjectsPage() {
             <button
               type="button"
               onClick={() => setIsCreateOpen(true)}
-              className="h-[38px] px-4 rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold text-[12px] flex items-center justify-center gap-1.5 cursor-pointer hover:opacity-90 transition-opacity shadow-xs whitespace-nowrap"
+              className="h-[38px] px-4 rounded-[9px] bg-[#C9A52A] text-[#0B0D10] font-bold text-[12px] flex items-center justify-center gap-1.5 cursor-pointer hover:opacity-90 transition-opacity shadow-xs whitespace-nowrap"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>+ New Project</span>
@@ -318,78 +439,88 @@ export default function ProjectsPage() {
         )}
 
         {/* ── COMPACT STATUS SUMMARY BAR ── */}
-        <div className="shrink-0 flex items-center justify-between px-4 py-2.5 rounded-[12px] bg-[#15191F] border border-[#272D36] text-[12px]">
+        <div className="shrink-0 flex items-center justify-between px-4 py-2.5 rounded-[12px] bg-[#15191F] dark:bg-[#15191F] light:bg-white border border-[#272D36] dark:border-[#272D36] light:border-zinc-200 text-[12px] shadow-2xs">
           <div className="flex items-center gap-6 overflow-x-auto [scrollbar-width:none]">
             <button
               onClick={() => setStatusFilter("All")}
-              className={`flex items-center gap-2 cursor-pointer transition-colors ${statusFilter === "All" ? "text-[#C9A52A] font-bold" : "text-[#8B95A5] hover:text-[#F2F4F7]"}`}
+              className={`flex items-center gap-2 cursor-pointer transition-colors ${
+                statusFilter === "All" ? "text-[#C9A52A] font-bold" : "text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-600 hover:text-[#F2F4F7] dark:hover:text-[#F2F4F7] light:hover:text-zinc-900"
+              }`}
             >
               <span className="font-mono text-[13px] font-extrabold">{kpis.total}</span>
               <span>Total Projects</span>
             </button>
 
-            <span className="w-px h-3.5 bg-[#272D36]" />
+            <span className="w-px h-3.5 bg-[#272D36] dark:bg-[#272D36] light:bg-zinc-200" />
 
             <button
               onClick={() => setStatusFilter("Active")}
-              className={`flex items-center gap-2 cursor-pointer transition-colors ${statusFilter === "Active" ? "text-emerald-400 font-bold" : "text-[#8B95A5] hover:text-[#F2F4F7]"}`}
+              className={`flex items-center gap-2 cursor-pointer transition-colors ${
+                statusFilter === "Active" ? "text-emerald-400 font-bold" : "text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-600 hover:text-[#F2F4F7] dark:hover:text-[#F2F4F7] light:hover:text-zinc-900"
+              }`}
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-mono text-[13px] font-extrabold text-emerald-400">{kpis.active}</span>
+              <span className="font-mono text-[13px] font-extrabold text-emerald-500 dark:text-emerald-400 light:text-emerald-600">{kpis.active}</span>
               <span>Active</span>
             </button>
 
-            <span className="w-px h-3.5 bg-[#272D36]" />
+            <span className="w-px h-3.5 bg-[#272D36] dark:bg-[#272D36] light:bg-zinc-200" />
 
             <button
               onClick={() => setStatusFilter("Planning")}
-              className={`flex items-center gap-2 cursor-pointer transition-colors ${statusFilter === "Planning" ? "text-blue-400 font-bold" : "text-[#8B95A5] hover:text-[#F2F4F7]"}`}
+              className={`flex items-center gap-2 cursor-pointer transition-colors ${
+                statusFilter === "Planning" ? "text-blue-400 font-bold" : "text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-600 hover:text-[#F2F4F7] dark:hover:text-[#F2F4F7] light:hover:text-zinc-900"
+              }`}
             >
               <span className="w-2 h-2 rounded-full bg-blue-500" />
-              <span className="font-mono text-[13px] font-extrabold text-blue-400">{kpis.planning}</span>
+              <span className="font-mono text-[13px] font-extrabold text-blue-500 dark:text-blue-400 light:text-blue-600">{kpis.planning}</span>
               <span>Planning</span>
             </button>
 
-            <span className="w-px h-3.5 bg-[#272D36]" />
+            <span className="w-px h-3.5 bg-[#272D36] dark:bg-[#272D36] light:bg-zinc-200" />
 
             <button
               onClick={() => setStatusFilter("On Hold")}
-              className={`flex items-center gap-2 cursor-pointer transition-colors ${statusFilter === "On Hold" ? "text-amber-400 font-bold" : "text-[#8B95A5] hover:text-[#F2F4F7]"}`}
+              className={`flex items-center gap-2 cursor-pointer transition-colors ${
+                statusFilter === "On Hold" ? "text-amber-400 font-bold" : "text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-600 hover:text-[#F2F4F7] dark:hover:text-[#F2F4F7] light:hover:text-zinc-900"
+              }`}
             >
               <span className="w-2 h-2 rounded-full bg-amber-500" />
-              <span className="font-mono text-[13px] font-extrabold text-amber-400">{kpis.onHold}</span>
+              <span className="font-mono text-[13px] font-extrabold text-amber-500 dark:text-amber-400 light:text-amber-600">{kpis.onHold}</span>
               <span>On Hold</span>
             </button>
 
-            <span className="w-px h-3.5 bg-[#272D36]" />
+            <span className="w-px h-3.5 bg-[#272D36] dark:bg-[#272D36] light:bg-zinc-200" />
 
             <button
               onClick={() => setStatusFilter("Completed")}
-              className={`flex items-center gap-2 cursor-pointer transition-colors ${statusFilter === "Completed" ? "text-purple-400 font-bold" : "text-[#8B95A5] hover:text-[#F2F4F7]"}`}
+              className={`flex items-center gap-2 cursor-pointer transition-colors ${
+                statusFilter === "Completed" ? "text-purple-400 font-bold" : "text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-600 hover:text-[#F2F4F7] dark:hover:text-[#F2F4F7] light:hover:text-zinc-900"
+              }`}
             >
               <span className="w-2 h-2 rounded-full bg-purple-400" />
-              <span className="font-mono text-[13px] font-extrabold text-purple-400">{kpis.completed}</span>
+              <span className="font-mono text-[13px] font-extrabold text-purple-400 light:text-purple-600">{kpis.completed}</span>
               <span>Completed</span>
             </button>
           </div>
 
-          <div className="hidden lg:flex items-center gap-2 text-[11px] text-[#667085]">
+          <div className="hidden lg:flex items-center gap-2 text-[11px] text-[#667085] dark:text-[#667085] light:text-zinc-400">
             <span>Workspace Isolated</span>
           </div>
         </div>
 
         {/* ── COMPACT CONTROL FILTER BAR ── */}
-        <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 p-2 rounded-[12px] bg-[#15191F] border border-[#272D36]">
+        <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 p-2 rounded-[12px] bg-[#15191F] dark:bg-[#15191F] light:bg-white border border-[#272D36] dark:border-[#272D36] light:border-zinc-200 shadow-2xs">
           
           {/* Search Box */}
           <div className="relative flex-1 min-w-[240px] max-w-sm">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#8B95A5]" />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-400" />
             <input
               type="text"
               placeholder="Search projects by name, mandate, owner..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-[36px] pl-9 pr-3.5 bg-[#111419] border border-[#272D36] rounded-[8px] text-[12px] text-[#F2F4F7] placeholder-[#667085] outline-none focus:border-[#C9A52A]"
+              className="w-full h-[36px] pl-9 pr-3.5 bg-[#111419] dark:bg-[#111419] light:bg-zinc-50 border border-[#272D36] dark:border-[#272D36] light:border-zinc-200 rounded-[8px] text-[12px] text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 placeholder-[#667085] dark:placeholder-[#667085] light:placeholder-zinc-400 outline-none focus:border-[#C9A52A]"
             />
             {search && (
               <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#667085] hover:text-[#F2F4F7]">
@@ -398,56 +529,70 @@ export default function ProjectsPage() {
             )}
           </div>
 
-          {/* Filter Dropdowns */}
+          {/* Reusable Custom Dropdown Filters */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Status Select */}
-            <select
+            {/* Status Dropdown */}
+            <CustomDropdown
+              label="Status"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-[36px] px-3 bg-[#111419] border border-[#272D36] rounded-[8px] text-[12px] text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
-            >
-              <option value="All">Status: All</option>
-              <option value="Active">Status: Active</option>
-              <option value="Planning">Status: Planning</option>
-              <option value="On Hold">Status: On Hold</option>
-              <option value="Completed">Status: Completed</option>
-              <option value="Archived">Status: Archived</option>
-            </select>
+              onChange={setStatusFilter}
+              options={statusDropdownOptions}
+              minDropdownWidth={180}
+            />
 
-            {/* Priority Select */}
-            <select
+            {/* Priority Dropdown */}
+            <CustomDropdown
+              label="Priority"
               value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="h-[36px] px-3 bg-[#111419] border border-[#272D36] rounded-[8px] text-[12px] text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
-            >
-              <option value="All">Priority: All</option>
-              <option value="Critical">Priority: Critical</option>
-              <option value="High">Priority: High</option>
-              <option value="Medium">Priority: Medium</option>
-              <option value="Low">Priority: Low</option>
-            </select>
+              onChange={setPriorityFilter}
+              options={priorityDropdownOptions}
+              minDropdownWidth={180}
+            />
 
-            {/* Owner Select */}
-            {ownerOptions.length > 0 && (
-              <select
-                value={ownerFilter}
-                onChange={(e) => setOwnerFilter(e.target.value)}
-                className="h-[36px] px-3 bg-[#111419] border border-[#272D36] rounded-[8px] text-[12px] text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
-              >
-                <option value="All">Owner: All</option>
-                {ownerOptions.map((o) => (
-                  <option key={o} value={o}>Owner: {o}</option>
-                ))}
-              </select>
-            )}
+            {/* Owner Dropdown */}
+            <CustomDropdown
+              label="Owner"
+              value={ownerFilter}
+              onChange={setOwnerFilter}
+              options={ownerDropdownOptions}
+              searchable={ownerOptions.length > 3}
+              searchPlaceholder="Search owners..."
+              minDropdownWidth={200}
+            />
+
+            {/* Assignee Dropdown */}
+            <CustomDropdown
+              label="Assignee"
+              value={assigneeFilter}
+              onChange={setAssigneeFilter}
+              options={assigneeDropdownOptions}
+              searchable={assigneeOptions.length > 3}
+              searchPlaceholder="Search assignees..."
+              minDropdownWidth={200}
+            />
+
+            {/* More Filters Dropdown */}
+            <CustomDropdown
+              label="More Filters"
+              value=""
+              onChange={() => {}}
+              options={[]}
+              isMoreFilters={true}
+              moreFiltersContent={moreFiltersContentNode}
+              activeFilterCount={activeMoreFiltersCount}
+              onClearFilters={handleClearMoreFilters}
+              minDropdownWidth={220}
+            />
 
             {/* View Mode Toggle */}
-            <div className="flex items-center p-0.5 rounded-[8px] bg-[#111419] border border-[#272D36]">
+            <div className="flex items-center p-0.5 rounded-[8px] bg-[#111419] dark:bg-[#111419] light:bg-zinc-100 border border-[#272D36] dark:border-[#272D36] light:border-zinc-200">
               <button
                 type="button"
                 onClick={() => setViewMode("table")}
                 className={`px-3 h-[30px] rounded-[6px] text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  viewMode === "table" ? "bg-[#C9A52A] text-[#0B0D10]" : "text-[#8B95A5] hover:text-[#F2F4F7]"
+                  viewMode === "table"
+                    ? "bg-[#C9A52A] text-[#0B0D10]"
+                    : "text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-600 hover:text-[#F2F4F7] dark:hover:text-[#F2F4F7] light:hover:text-zinc-900"
                 }`}
               >
                 <List className="w-3.5 h-3.5" />
@@ -457,7 +602,9 @@ export default function ProjectsPage() {
                 type="button"
                 onClick={() => setViewMode("board")}
                 className={`px-3 h-[30px] rounded-[6px] text-[11.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  viewMode === "board" ? "bg-[#C9A52A] text-[#0B0D10]" : "text-[#8B95A5] hover:text-[#F2F4F7]"
+                  viewMode === "board"
+                    ? "bg-[#C9A52A] text-[#0B0D10]"
+                    : "text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-600 hover:text-[#F2F4F7] dark:hover:text-[#F2F4F7] light:hover:text-zinc-900"
                 }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
@@ -468,14 +615,14 @@ export default function ProjectsPage() {
         </div>
 
         {/* ── HERO PROJECT WORKSPACE CONTAINER (Fills 100vh remaining height, Y-Scroll) ── */}
-        <div className="flex-1 min-h-0 bg-[#15191F] border border-[#272D36] rounded-[14px] shadow-xs overflow-hidden flex flex-col">
+        <div className="flex-1 min-h-0 bg-[#15191F] dark:bg-[#15191F] light:bg-white border border-[#272D36] dark:border-[#272D36] light:border-zinc-200 rounded-[14px] shadow-2xs overflow-hidden flex flex-col">
           {loading ? (
             <div className="p-6 space-y-3 animate-pulse my-auto">
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-[48px] bg-[#111419] rounded-[8px] w-full flex items-center justify-between px-4">
-                  <div className="w-1/3 h-4 bg-[#272D36] rounded" />
-                  <div className="w-1/6 h-4 bg-[#272D36] rounded" />
-                  <div className="w-1/6 h-4 bg-[#272D36] rounded" />
+                <div key={i} className="h-[48px] bg-[#111419] dark:bg-[#111419] light:bg-zinc-50 rounded-[8px] w-full flex items-center justify-between px-4">
+                  <div className="w-1/3 h-4 bg-[#272D36] dark:bg-[#272D36] light:bg-zinc-200 rounded" />
+                  <div className="w-1/6 h-4 bg-[#272D36] dark:bg-[#272D36] light:bg-zinc-200 rounded" />
+                  <div className="w-1/6 h-4 bg-[#272D36] dark:bg-[#272D36] light:bg-zinc-200 rounded" />
                 </div>
               ))}
             </div>
@@ -487,10 +634,10 @@ export default function ProjectsPage() {
               </div>
 
               <div className="space-y-1 max-w-sm">
-                <h3 className="text-[16px] font-extrabold text-[#F2F4F7]">
+                <h3 className="text-[16px] font-extrabold text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900">
                   {realProjects.length === 0 ? "No Projects Yet" : "No Matching Projects"}
                 </h3>
-                <p className="text-[12px] text-[#8B95A5] leading-relaxed">
+                <p className="text-[12px] text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-500 leading-relaxed">
                   {realProjects.length === 0
                     ? "Create your first organization project to begin execution."
                     : "No projects matched your active search or filter rules."}
@@ -507,8 +654,16 @@ export default function ProjectsPage() {
                 </button>
               ) : (
                 <button
-                  onClick={() => { setSearch(""); setStatusFilter("All"); setPriorityFilter("All"); setOwnerFilter("All"); }}
-                  className="px-4 h-[34px] rounded-[8px] bg-[#111419] border border-[#272D36] text-[12px] font-bold text-[#F2F4F7] hover:bg-[#272D36] transition-colors cursor-pointer"
+                  onClick={() => {
+                    setSearch("");
+                    setStatusFilter("All");
+                    setPriorityFilter("All");
+                    setOwnerFilter("All");
+                    setAssigneeFilter("All");
+                    setDeadlineFilter("All");
+                    setProgressFilter("All");
+                  }}
+                  className="px-4 h-[34px] rounded-[8px] bg-[#111419] dark:bg-[#111419] light:bg-zinc-100 border border-[#272D36] dark:border-[#272D36] light:border-zinc-300 text-[12px] font-bold text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 hover:bg-[#272D36] transition-colors cursor-pointer"
                 >
                   Clear Filters
                 </button>
@@ -518,7 +673,7 @@ export default function ProjectsPage() {
             /* ── DESKTOP HERO PROJECT TABLE ── */
             <div className="w-full flex-1 min-h-0 overflow-y-auto">
               <table className="w-full text-left text-[12.5px] border-collapse">
-                <thead className="sticky top-0 z-20 bg-[#111419] border-b border-[#272D36] text-[10.5px] font-bold text-[#8B95A5] uppercase tracking-wider">
+                <thead className="sticky top-0 z-20 bg-[#111419] dark:bg-[#111419] light:bg-zinc-100 border-b border-[#272D36] dark:border-[#272D36] light:border-zinc-200 text-[10.5px] font-bold text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-500 uppercase tracking-wider">
                   <tr className="h-[42px]">
                     <th className="px-4 py-3 min-w-[260px]">PROJECT</th>
                     <th className="px-4 py-3 min-w-[130px]">OWNER</th>
@@ -530,7 +685,7 @@ export default function ProjectsPage() {
                     <th className="px-4 py-3 text-right w-[60px]">ACTIONS</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#272D36]/60">
+                <tbody className="divide-y divide-[#272D36]/60 dark:divide-[#272D36]/60 light:divide-zinc-200">
                   {filtered.map((p) => {
                     const statusObj = STATUS_BADGE[p.status] || STATUS_BADGE.Archived;
                     const priorityObj = PRIORITY_BADGE[p.priority] || PRIORITY_BADGE.Medium;
@@ -538,7 +693,7 @@ export default function ProjectsPage() {
                     const isMenuOpen = activeActionMenuId === p.id;
 
                     return (
-                      <tr key={p.id} className="hover:bg-[#111419]/80 transition-colors h-[54px] group">
+                      <tr key={p.id} className="hover:bg-[#111419]/80 dark:hover:bg-[#111419]/80 light:hover:bg-zinc-50 transition-colors h-[54px] group">
                         
                         {/* PROJECT IDENTITY */}
                         <td className="px-4 py-2.5">
@@ -549,13 +704,13 @@ export default function ProjectsPage() {
                             <div className="min-w-0">
                               <Link
                                 href={`${basePath}/projects/${p.id}`}
-                                className="font-bold text-[#F2F4F7] group-hover:text-[#C9A52A] transition-colors flex items-center gap-1.5 line-clamp-1"
+                                className="font-bold text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 group-hover:text-[#C9A52A] transition-colors flex items-center gap-1.5 line-clamp-1"
                               >
                                 <span>{p.name}</span>
                                 <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-[#C9A52A]" />
                               </Link>
                               {(p.mandate || p.description || p.objective) && (
-                                <p className="text-[11px] text-[#8B95A5] line-clamp-1 mt-0.5">
+                                <p className="text-[11px] text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-500 line-clamp-1 mt-0.5">
                                   {p.mandate || p.description || p.objective}
                                 </p>
                               )}
@@ -564,9 +719,9 @@ export default function ProjectsPage() {
                         </td>
 
                         {/* OWNER */}
-                        <td className="px-4 py-2.5 font-medium text-[#F2F4F7]">
+                        <td className="px-4 py-2.5 font-medium text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900">
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-[#272D36] text-[#F2F4F7] text-[10px] font-extrabold flex items-center justify-center shrink-0">
+                            <div className="w-6 h-6 rounded-full bg-[#272D36] dark:bg-[#272D36] light:bg-zinc-200 text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-800 text-[10px] font-extrabold flex items-center justify-center shrink-0">
                               {(p.ownerName || "O").charAt(0).toUpperCase()}
                             </div>
                             <span className="truncate text-[12px]">{p.ownerName || p.ownerEmail || "Owner"}</span>
@@ -574,7 +729,7 @@ export default function ProjectsPage() {
                         </td>
 
                         {/* ASSIGNEE */}
-                        <td className="px-4 py-2.5 font-medium text-[#F2F4F7]">
+                        <td className="px-4 py-2.5 font-medium text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900">
                           {p.assignedUserName || p.assigneeName || p.assignedToUser?.name ? (
                             <div className="flex items-center gap-2">
                               <div className="w-6 h-6 rounded-full bg-[#C9A52A]/20 text-[#C9A52A] text-[10px] font-extrabold flex items-center justify-center shrink-0">
@@ -583,7 +738,7 @@ export default function ProjectsPage() {
                               <span className="truncate text-[12px]">{p.assignedUserName || p.assigneeName || p.assignedToUser?.name}</span>
                             </div>
                           ) : (
-                            <span className="text-[11px] text-[#667085] italic">Unassigned</span>
+                            <span className="text-[11px] text-[#667085] dark:text-[#667085] light:text-zinc-400 italic">Unassigned</span>
                           )}
                         </td>
 
@@ -606,9 +761,9 @@ export default function ProjectsPage() {
                         {/* DEADLINE */}
                         <td className="px-4 py-2.5 text-[11.5px]">
                           <div className="space-y-0.5">
-                            <div className="font-mono text-[#F2F4F7] font-semibold">{deadlineInfo.dateText}</div>
+                            <div className="font-mono text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 font-semibold">{deadlineInfo.dateText}</div>
                             {deadlineInfo.relText && (
-                              <div className={`text-[10.5px] ${deadlineInfo.isOverdue ? "text-rose-500 font-bold" : "text-[#8B95A5]"}`}>
+                              <div className={`text-[10.5px] ${deadlineInfo.isOverdue ? "text-rose-500 font-bold" : "text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-500"}`}>
                                 {deadlineInfo.relText}
                               </div>
                             )}
@@ -619,10 +774,10 @@ export default function ProjectsPage() {
                         <td className="px-4 py-2.5">
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-[11px] font-mono">
-                              <span className="text-[#8B95A5]">{p.completedTasks || 0}/{p.totalTasks || 0} tasks</span>
-                              <span className="font-bold text-[#F2F4F7]">{p.progress || 0}%</span>
+                              <span className="text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-500">{p.completedTasks || 0}/{p.totalTasks || 0} tasks</span>
+                              <span className="font-bold text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900">{p.progress || 0}%</span>
                             </div>
-                            <div className="h-1.5 w-full bg-[#111419] border border-[#272D36] rounded-full overflow-hidden">
+                            <div className="h-1.5 w-full bg-[#111419] dark:bg-[#111419] light:bg-zinc-200 border border-[#272D36] dark:border-[#272D36] light:border-zinc-300 rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-[#C9A52A] rounded-full transition-all duration-300"
                                 style={{ width: `${Math.min(100, Math.max(0, p.progress || 0))}%` }}
@@ -637,7 +792,7 @@ export default function ProjectsPage() {
                             <button
                               type="button"
                               onClick={() => setActiveActionMenuId(isMenuOpen ? null : p.id)}
-                              className="p-1.5 rounded-[6px] text-[#8B95A5] hover:text-[#F2F4F7] hover:bg-[#111419] transition-colors cursor-pointer"
+                              className="p-1.5 rounded-[6px] text-[#8B95A5] hover:text-[#F2F4F7] dark:hover:text-[#F2F4F7] light:hover:text-zinc-900 hover:bg-[#111419] dark:hover:bg-[#111419] light:hover:bg-zinc-100 transition-colors cursor-pointer"
                             >
                               <MoreVertical className="w-4 h-4" />
                             </button>
@@ -646,12 +801,12 @@ export default function ProjectsPage() {
                             {isMenuOpen && (
                               <div
                                 ref={actionMenuRef}
-                                className="absolute right-4 top-10 w-44 bg-[#15191F] border border-[#272D36] rounded-[10px] shadow-2xl z-50 p-1 divide-y divide-[#272D36]/60 text-left"
+                                className="absolute right-4 top-10 w-44 bg-[#15191F] dark:bg-[#15191F] light:bg-white border border-[#272D36] dark:border-[#272D36] light:border-zinc-200 rounded-[10px] shadow-2xl z-50 p-1 divide-y divide-[#272D36]/60 dark:divide-[#272D36]/60 light:divide-zinc-200 text-left"
                               >
                                 <div className="py-1">
                                   <Link
                                     href={`${basePath}/projects/${p.id}`}
-                                    className="w-full px-3 py-1.5 text-[12px] font-medium text-[#F2F4F7] hover:bg-[#C9A52A]/10 hover:text-[#C9A52A] rounded-[6px] flex items-center justify-between transition-colors block"
+                                    className="w-full px-3 py-1.5 text-[12px] font-medium text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 hover:bg-[#C9A52A]/10 hover:text-[#C9A52A] rounded-[6px] flex items-center justify-between transition-colors block"
                                   >
                                     <span>Open Project</span>
                                     <ChevronRight className="w-3.5 h-3.5" />
@@ -662,7 +817,7 @@ export default function ProjectsPage() {
                                   <button
                                     type="button"
                                     onClick={() => { setEditingProject(p); setActiveActionMenuId(null); }}
-                                    className="w-full px-3 py-1.5 text-[12px] font-medium text-[#F2F4F7] hover:bg-[#C9A52A]/10 hover:text-[#C9A52A] rounded-[6px] flex items-center gap-2 transition-colors text-left cursor-pointer"
+                                    className="w-full px-3 py-1.5 text-[12px] font-medium text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 hover:bg-[#C9A52A]/10 hover:text-[#C9A52A] rounded-[6px] flex items-center gap-2 transition-colors text-left cursor-pointer"
                                   >
                                     <Edit className="w-3.5 h-3.5" />
                                     <span>Edit Project</span>
@@ -692,17 +847,17 @@ export default function ProjectsPage() {
             /* ── DESKTOP BOARD VIEW ── */
             <div className="p-4 grid grid-cols-4 gap-4 w-full flex-1 min-h-0 overflow-y-auto">
               {["Planning", "Active", "On Hold", "Completed"].map((status) => {
-                const colProjects = filtered.filter(p => (p.status || "Planning").toUpperCase() === status.toUpperCase());
+                const colProjects = filtered.filter((p) => (p.status || "Planning").toUpperCase() === status.toUpperCase());
                 return (
                   <div
                     key={status}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => handleDropOnColumn(status, e)}
-                    className="bg-[#111419] border border-[#272D36] rounded-[12px] p-3 space-y-3 flex flex-col min-h-[360px]"
+                    className="bg-[#111419] dark:bg-[#111419] light:bg-zinc-50 border border-[#272D36] dark:border-[#272D36] light:border-zinc-200 rounded-[12px] p-3 space-y-3 flex flex-col min-h-[360px]"
                   >
-                    <div className="flex items-center justify-between border-b border-[#272D36] pb-2">
-                      <h3 className="text-[12.5px] font-extrabold text-[#F2F4F7] uppercase tracking-wider">{status}</h3>
-                      <span className="px-2 py-0.5 rounded-full bg-[#15191F] text-[#8B95A5] text-[11px] font-mono font-bold border border-[#272D36]">
+                    <div className="flex items-center justify-between border-b border-[#272D36] dark:border-[#272D36] light:border-zinc-200 pb-2">
+                      <h3 className="text-[12.5px] font-extrabold text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 uppercase tracking-wider">{status}</h3>
+                      <span className="px-2 py-0.5 rounded-full bg-[#15191F] dark:bg-[#15191F] light:bg-white text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-700 text-[11px] font-mono font-bold border border-[#272D36] dark:border-[#272D36] light:border-zinc-200">
                         {colProjects.length}
                       </span>
                     </div>
@@ -713,24 +868,24 @@ export default function ProjectsPage() {
                           key={p.id}
                           draggable
                           onDragStart={(e) => { e.dataTransfer.setData("text/plain", p.id); setDraggedProjectId(p.id); }}
-                          className="p-3.5 rounded-[10px] bg-[#15191F] border border-[#272D36] space-y-2.5 cursor-grab active:cursor-grabbing hover:border-[#C9A52A]/50 transition-colors shadow-2xs"
+                          className="p-3.5 rounded-[10px] bg-[#15191F] dark:bg-[#15191F] light:bg-white border border-[#272D36] dark:border-[#272D36] light:border-zinc-200 space-y-2.5 cursor-grab active:cursor-grabbing hover:border-[#C9A52A]/50 transition-colors shadow-2xs"
                         >
-                          <Link href={`${basePath}/projects/${p.id}`} className="text-[13px] font-bold text-[#F2F4F7] hover:text-[#C9A52A] block leading-snug">
+                          <Link href={`${basePath}/projects/${p.id}`} className="text-[13px] font-bold text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 hover:text-[#C9A52A] block leading-snug">
                             {p.name}
                           </Link>
 
                           {(p.mandate || p.description || p.objective) && (
-                            <p className="text-[11.5px] text-[#8B95A5] line-clamp-2 leading-relaxed">
+                            <p className="text-[11.5px] text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-500 line-clamp-2 leading-relaxed">
                               {p.mandate || p.description || p.objective}
                             </p>
                           )}
 
-                          <div className="pt-2 border-t border-[#272D36] space-y-1.5">
+                          <div className="pt-2 border-t border-[#272D36] dark:border-[#272D36] light:border-zinc-200 space-y-1.5">
                             <div className="flex items-center justify-between text-[11px]">
-                              <span className="text-[#8B95A5]">Progress</span>
-                              <span className="font-bold text-[#F2F4F7] font-mono">{p.progress || 0}%</span>
+                              <span className="text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-500">Progress</span>
+                              <span className="font-bold text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 font-mono">{p.progress || 0}%</span>
                             </div>
-                            <div className="h-1.5 w-full bg-[#111419] border border-[#272D36] rounded-full overflow-hidden">
+                            <div className="h-1.5 w-full bg-[#111419] dark:bg-[#111419] light:bg-zinc-200 border border-[#272D36] dark:border-[#272D36] light:border-zinc-300 rounded-full overflow-hidden">
                               <div className="h-full bg-[#C9A52A] rounded-full" style={{ width: `${p.progress || 0}%` }} />
                             </div>
                           </div>
