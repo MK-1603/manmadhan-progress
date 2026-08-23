@@ -54,7 +54,7 @@ function LoginContent() {
 
       <div className="flex items-center gap-2 pt-2">
         <span className="w-2 h-2 rounded-full bg-[#DDB52F] animate-pulse" />
-        <p className="text-xs text-[#9AA2AF] font-mono">
+        <p className="text-xs text-[#9AA2AF] font-mono" suppressHydrationWarning>
           {isLoading || authStatus === "initializing" ? "Checking secure session..." : "Opening authentication sheet..."}
         </p>
       </div>

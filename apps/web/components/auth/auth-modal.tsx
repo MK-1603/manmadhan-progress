@@ -13,8 +13,13 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 export function AuthModal() {
   const { isOpen, close, isDirty, authState } = useAuth();
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  const [mounted, setMounted] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleClose = useCallback(() => {
     if (isDirty || authState === "OTP_VERIFICATION") {
@@ -84,6 +89,8 @@ export function AuthModal() {
       }
     };
   }, [isOpen, handleClose]);
+
+  if (!mounted) return null;
 
   if (isDesktop) {
     return (
