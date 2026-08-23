@@ -128,6 +128,8 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
     socket.on("task.status_changed", handleRefresh);
     socket.on("project.created", handleRefresh);
     socket.on("project_created", handleRefresh);
+    socket.on("PROJECT_CREATED", handleRefresh);
+    socket.on("PROJECT_ASSIGNED", handleRefresh);
     socket.on("project.accepted", handleRefresh);
     socket.on("project.updated", handleRefresh);
     socket.on("notification.created", handleRefresh);
@@ -143,6 +145,8 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
       socket.off("task.status_changed", handleRefresh);
       socket.off("project.created", handleRefresh);
       socket.off("project_created", handleRefresh);
+      socket.off("PROJECT_CREATED", handleRefresh);
+      socket.off("PROJECT_ASSIGNED", handleRefresh);
       socket.off("project.accepted", handleRefresh);
       socket.off("project.updated", handleRefresh);
       socket.off("notification.created", handleRefresh);

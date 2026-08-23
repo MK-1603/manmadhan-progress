@@ -5,6 +5,7 @@ import { db } from "../../database/client";
 import {
 	activities,
 	auditLogs,
+	calendarEvents,
 	milestones,
 	notifications,
 	projectAssignments,
@@ -234,9 +235,7 @@ orgProjectsRouter.post(
 				return res
 					.status(400)
 					.json({ success: false, error: "Project prompt is required" });
-			}
-
-			const analysis = await ProjectAnalyzerService.analyzePrompt(
+const analysis = await ProjectAnalyzerService.analyzePrompt(
 				prompt.trim(),
 			);
 			res.json({ success: true, data: analysis });
@@ -261,17 +260,20 @@ orgProjectsRouter.post(
 		try {
 			const workspaceId = (req as any).workspaceId;
 			const userId = (req as any).user?.id;
-			const userRole = (req as any).workspaceRole || "MEMBER";
+			const userRole = (req as any).workspaceRole || (req as any).membership?.role || "MEMBER";
 
 			const {
 				title,
 				description,
+				startDate,
 				deadline,
+				priority = "Medium",
 				assignedToUserId,
 				assignmentType = "CEO_TO_CO_CEO",
 				responsibleCoCeoId,
 				prompt,
 				analysisData,
+				initialTasks,
 			} = req.body;
 
 			if (!title?.trim()) {
@@ -286,6 +288,17 @@ orgProjectsRouter.post(
 					.json({ success: false, error: "Assigned user is required" });
 			}
 
+			// Validate dates if provided
+			const parsedStartDate = startDate ? new Date(startDate) : null;
+			const projectDeadline = deadline ? new Date(deadline) : null;
+
+			if (parsedStartDate && projectDeadline && parsedStartDate > projectDeadline) {
+				return res.status(400).json({
+					success: false,
+					error: "Start date cannot be after project deadline.",
+				});
+			}
+
 			// Validate CEO -> Member assignment rules
 			if (userRole === "CEO" && assignmentType === "CEO_TO_MEMBER") {
 				if (!responsibleCoCeoId) {
@@ -298,51 +311,238 @@ orgProjectsRouter.post(
 			}
 
 			const projectId = uuidv4();
-			const projectDeadline = deadline ? new Date(deadline) : null;
-
-			// 1. Create Core Project Record
-			const [newProject] = await db
-				.insert(projects)
-				.values({
-					id: projectId,
-					workspaceId,
-					name: title.trim(),
-					description: description || prompt || null,
-					objective: prompt || null,
-					type: "ORGANIZATION",
-					status: "PLANNING",
-					priority: "Medium",
-					progress: 0,
-					health: "HEALTHY",
-					ownerId: assignedToUserId,
-					createdBy: userId,
-					deadline: projectDeadline,
-					createdAt: new Date(),
-					updatedAt: new Date(),
-				})
-				.returning();
-
-			// 2. Create Project Assignment Record
 			const assignmentId = uuidv4();
 			const coCeoVal =
 				typeof responsibleCoCeoId === "string" &&
 				responsibleCoCeoId.trim().length > 0
 					? responsibleCoCeoId.trim()
 					: assignedToUserId;
-			await db.insert(projectAssignments).values({
-				id: assignmentId,
-				projectId,
-				workspaceId,
-				createdByUserId: userId,
-				assignedToUserId,
-				responsibleCoCeoId: coCeoVal,
-				assignmentType: assignmentType || "CEO_TO_CO_CEO",
-				status: "PENDING_ACCEPTANCE",
-				createdAt: new Date(),
-				updatedAt: new Date(),
+
+			let newProject: any = null;
+			const milestoneRecords: any[] = [];
+			const createdInitialTasks: any[] = [];
+
+			// ── ATOMIC DATABASE TRANSACTION ─────────────────────────────────
+			await db.transaction(async (tx) => {
+				// 1. Create Core Project Record
+				const [p] = await tx
+					.insert(projects)
+					.values({
+						id: projectId,
+						workspaceId,
+						name: title.trim(),
+						description: description || prompt || null,
+						objective: prompt || null,
+						type: "ORGANIZATION",
+						status: "PLANNING",
+						priority: priority || "Medium",
+						progress: 0,
+						health: "HEALTHY",
+						ownerId: assignedToUserId,
+						createdBy: userId,
+						startDate: parsedStartDate,
+						deadline: projectDeadline,
+						createdAt: new Date(),
+						updatedAt: new Date(),
+					})
+					.returning();
+				newProject = p;
+
+				// 2. Create Project Assignment Record
+				await tx.insert(projectAssignments).values({
+					id: assignmentId,
+					projectId,
+					workspaceId,
+					createdByUserId: userId,
+					assignedToUserId,
+					responsibleCoCeoId: coCeoVal,
+					assignmentType: assignmentType || "CEO_TO_CO_CEO",
+					status: "PENDING_ACCEPTANCE",
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				});
+
+				// 3. Generate 6 Major Project Milestone Phases
+				const MILESTONE_PHASES = [
+					{ stage: 1, code: "MILESTONE_01_FOUNDATION", name: "M1 — Foundation Complete", desc: "Project charter, assignment validation & initial workspace setup" },
+					{ stage: 2, code: "MILESTONE_02_REQUIREMENTS", name: "M2 — Requirements Complete", desc: "PRD, TRD, and application user workflow specifications approved" },
+					{ stage: 3, code: "MILESTONE_03_ARCHITECTURE", name: "M3 — Architecture Complete", desc: "System architecture, database schema, and UI/UX design complete" },
+					{ stage: 4, code: "MILESTONE_04_IMPLEMENTATION", name: "M4 — Implementation Complete", desc: "Core application development and work package implementation" },
+					{ stage: 5, code: "MILESTONE_05_TESTING", name: "M5 — Testing Complete", desc: "Testing, security acceptance, and bug verification passed" },
+					{ stage: 6, code: "MILESTONE_06_FINAL_SUBMISSION", name: "M6 — Final Submission", desc: "Final deliverable review, repository connection & deployment" },
+				];
+
+				for (const m of MILESTONE_PHASES) {
+					const milestoneId = uuidv4();
+					await tx.insert(projectMilestonesV2).values({
+						id: milestoneId,
+						projectId,
+						stageNumber: m.stage,
+						milestoneCode: m.code,
+						name: m.name,
+						description: m.desc,
+						state: m.stage === 1 ? "AVAILABLE" : "LOCKED",
+						ownerUserId: assignedToUserId,
+						reviewerUserId: userId,
+						dependencies: m.stage > 1 ? [m.stage - 1] : [],
+						createdAt: new Date(),
+						updatedAt: new Date(),
+					});
+					milestoneRecords.push({ id: milestoneId, name: m.name, stage: m.stage });
+				}
+
+				// 4. Generate 11 Standardized Project Document Registry Folders
+				const DOCUMENT_FOLDERS = [
+					"0. Project Foundation",
+					"1. Product Requirements",
+					"2. Technical Requirements",
+					"3. Application Workflow",
+					"4. System Architecture",
+					"5. Database + API",
+					"6. UI/UX Design",
+					"7. Security + Permissions",
+					"8. AI Specification",
+					"9. Testing + Acceptance",
+					"10. Development Plan",
+				];
+
+				for (let idx = 0; idx < DOCUMENT_FOLDERS.length; idx++) {
+					const folderName = DOCUMENT_FOLDERS[idx];
+					const docId = uuidv4();
+					const folderPath = `Documents/Organization/Projects/${title.trim().replace(/\s+/g, "-")}/${folderName}`;
+					await tx.insert(projectDocumentsV2).values({
+						id: docId,
+						projectId,
+						milestoneId: milestoneRecords[0]?.id || null,
+						stageNumber: idx,
+						documentType: folderName.toUpperCase().replace(/[^A-Z0-9]/g, "_"),
+						title: folderName,
+						currentVersion: 1,
+						status: "DRAFT",
+						wordCount: 0,
+						folderPath,
+						createdById: userId,
+						createdAt: new Date(),
+						updatedAt: new Date(),
+					});
+				}
+
+				// 5. Initial Tasks Creation (if provided)
+				if (Array.isArray(initialTasks) && initialTasks.length > 0) {
+					for (const t of initialTasks) {
+						if (!t.title || typeof t.title !== "string" || !t.title.trim()) continue;
+						const taskId = uuidv4();
+						const taskDeadline = t.deadline ? new Date(t.deadline) : projectDeadline;
+						const taskAssigneeId = t.assigneeId || assignedToUserId;
+
+						const [newTask] = await tx.insert(tasks).values({
+							id: taskId,
+							projectId,
+							workspaceId,
+							title: t.title.trim(),
+							description: t.description || null,
+							status: "Assigned",
+							priority: t.priority || "Medium",
+							assigneeId: taskAssigneeId,
+							deadline: taskDeadline,
+							createdBy: userId,
+							milestoneId: milestoneRecords[0]?.id || null,
+							createdAt: new Date(),
+						}).returning();
+
+						createdInitialTasks.push(newTask);
+
+						// Calendar Event for Initial Task
+						await tx.insert(calendarEvents).values({
+							id: uuidv4(),
+							workspaceId,
+							projectId,
+							title: `[Task] ${t.title.trim()}`,
+							description: t.description || `Task for project ${title.trim()}`,
+							startTime: taskDeadline || new Date(),
+							endTime: taskDeadline || new Date(),
+							createdById: userId,
+							createdAt: new Date(),
+						});
+					}
+				}
+
+				// 6. Calendar Event for Project Start / Deadline
+				if (projectDeadline || parsedStartDate) {
+					await tx.insert(calendarEvents).values({
+						id: uuidv4(),
+						workspaceId,
+						projectId,
+						title: `[Project Deadline] ${title.trim()}`,
+						description: description || prompt || `Project milestone deadline for ${title.trim()}`,
+						startTime: parsedStartDate || projectDeadline || new Date(),
+						endTime: projectDeadline || parsedStartDate || new Date(),
+						createdById: userId,
+						createdAt: new Date(),
+					});
+				}
+
+				// 7. Notification Record for Assigned User
+				const [assigneeUser] = await tx
+					.select()
+					.from(users)
+					.where(eq(users.id, assignedToUserId))
+					.limit(1);
+				const assigneeRole = (assigneeUser?.role || "CO-CEO").toUpperCase();
+
+				await tx.insert(notifications).values({
+					id: uuidv4(),
+					userId: assignedToUserId,
+					workspaceId,
+					title: "PROJECT ASSIGNED",
+					message: `You have been assigned to project "${title.trim()}" (Role: ${assigneeRole})`,
+					type: "PROJECT_ASSIGNMENT",
+					priority: "High",
+					isRead: false,
+				});
+
+				// 8. Activity Timeline Records
+				await tx.insert(activities).values({
+					id: uuidv4(),
+					workspaceId,
+					projectId,
+					userId,
+					action: "PROJECT_CREATED",
+					details: JSON.stringify({ message: `Project created: "${title.trim()}"` }),
+					createdAt: new Date(),
+				});
+
+				await tx.insert(activities).values({
+					id: uuidv4(),
+					workspaceId,
+					projectId,
+					userId: assignedToUserId,
+					action: "PROJECT_ASSIGNED",
+					details: JSON.stringify({ message: `Project assigned to ${assignedToUserId}` }),
+					createdAt: new Date(),
+				});
+
+				// 9. Durable Audit Log Entry
+				await tx.insert(auditLogs).values({
+					id: uuidv4(),
+					actorId: userId,
+					workspaceId,
+					action: "PROJECT_CREATED",
+					entityType: "PROJECT",
+					entityId: projectId,
+					metadata: JSON.stringify({
+						projectName: title.trim(),
+						assignmentType,
+						assignedToUserId,
+						responsibleCoCeoId: coCeoVal,
+						priority,
+						initialTasksCount: createdInitialTasks.length,
+					}),
+					createdAt: new Date(),
+				});
 			});
 
-			// Dispatch Notification & Email to Assignee
+			// ── POST-COMMIT ASYNCHRONOUS SIDE-EFFECTS ───────────────────────
 			try {
 				const [assigneeUser] = await db
 					.select()
@@ -356,186 +556,32 @@ orgProjectsRouter.post(
 					.limit(1);
 				const assigneeRole = (assigneeUser?.role || "CO-CEO").toUpperCase();
 
-				await db.insert(notifications).values({
-					id: uuidv4(),
-					userId: assignedToUserId,
-					workspaceId,
-					title: "PROJECT ASSIGNED",
-					message: `You have been assigned to project "${title.trim()}" (Role: ${assigneeRole})`,
-					type: "PROJECT_ASSIGNMENT",
-					priority: "High",
-					isRead: false,
-				});
-
 				if (assigneeUser?.email) {
 					emailService
 						.sendProjectAssignmentEmail({
 							to: assigneeUser.email,
 							projectName: title.trim(),
-							assignerName:
-								creatorUser?.displayName || creatorUser?.name || "CEO",
+							assignerName: creatorUser?.displayName || creatorUser?.name || "CEO",
 							role: assigneeRole,
-							deadline: projectDeadline
-								? projectDeadline.toISOString().split("T")[0]
-								: null,
+							deadline: projectDeadline ? projectDeadline.toISOString().split("T")[0] : null,
 							projectId,
 						})
-						.catch((e) =>
-							logger.error(
-								`Async project assignment email error: ${e.message}`,
-							),
-						);
+						.catch((e) => logger.error(`Async project email notice: ${e.message}`));
 				}
-			} catch (notifErr: any) {
-				logger.error(
-					`Project notification dispatch error: ${notifErr.message}`,
-				);
+			} catch (e: any) {
+				logger.error(`Post-commit email dispatch notice: ${e.message}`);
 			}
 
-			// 3. Generate 6 Major Project Milestone Phases
-			const MILESTONE_PHASES = [
-				{
-					stage: 1,
-					code: "MILESTONE_01_FOUNDATION",
-					name: "M1 — Foundation Complete",
-					desc: "Project charter, assignment validation & initial workspace setup",
-				},
-				{
-					stage: 2,
-					code: "MILESTONE_02_REQUIREMENTS",
-					name: "M2 — Requirements Complete",
-					desc: "PRD, TRD, and application user workflow specifications approved",
-				},
-				{
-					stage: 3,
-					code: "MILESTONE_03_ARCHITECTURE",
-					name: "M3 — Architecture Complete",
-					desc: "System architecture, database schema, and UI/UX design complete",
-				},
-				{
-					stage: 4,
-					code: "MILESTONE_04_IMPLEMENTATION",
-					name: "M4 — Implementation Complete",
-					desc: "Core application development and work package implementation",
-				},
-				{
-					stage: 5,
-					code: "MILESTONE_05_TESTING",
-					name: "M5 — Testing Complete",
-					desc: "Testing, security acceptance, and bug verification passed",
-				},
-				{
-					stage: 6,
-					code: "MILESTONE_06_FINAL_SUBMISSION",
-					name: "M6 — Final Submission",
-					desc: "Final deliverable review, repository connection & deployment",
-				},
-			];
-
-			const milestoneRecords = [];
-			for (const m of MILESTONE_PHASES) {
-				const milestoneId = uuidv4();
-				await db.insert(projectMilestonesV2).values({
-					id: milestoneId,
-					projectId,
-					stageNumber: m.stage,
-					milestoneCode: m.code,
-					name: m.name,
-					description: m.desc,
-					state: m.stage === 1 ? "AVAILABLE" : "LOCKED",
-					ownerUserId: assignedToUserId,
-					reviewerUserId: userId,
-					dependencies: m.stage > 1 ? [m.stage - 1] : [],
-					createdAt: new Date(),
-					updatedAt: new Date(),
-				});
-				milestoneRecords.push({ id: milestoneId, name: m.name, stage: m.stage });
-			}
-
-			// 4. Generate 11 Standardized Project Document Registry Folders
-			const DOCUMENT_FOLDERS = [
-				"0. Project Foundation",
-				"1. Product Requirements",
-				"2. Technical Requirements",
-				"3. Application Workflow",
-				"4. System Architecture",
-				"5. Database + API",
-				"6. UI/UX Design",
-				"7. Security + Permissions",
-				"8. AI Specification",
-				"9. Testing + Acceptance",
-				"10. Development Plan",
-			];
-
-			for (let idx = 0; idx < DOCUMENT_FOLDERS.length; idx++) {
-				const folderName = DOCUMENT_FOLDERS[idx];
-				const docId = uuidv4();
-				const folderPath = `Documents/Organization/Projects/${title.trim().replace(/\s+/g, "-")}/${folderName}`;
-				await db.insert(projectDocumentsV2).values({
-					id: docId,
-					projectId,
-					milestoneId: milestoneRecords[0]?.id || null,
-					stageNumber: idx,
-					documentType: folderName.toUpperCase().replace(/[^A-Z0-9]/g, "_"),
-					title: folderName,
-					currentVersion: 1,
-					status: "DRAFT",
-					wordCount: 0,
-					folderPath,
-					createdById: userId,
-					createdAt: new Date(),
-					updatedAt: new Date(),
-				});
-			}
-
-			// 5. Record Real Initial Timeline Activity Events
-			await db.insert(activities).values({
-				id: uuidv4(),
-				workspaceId,
-				projectId,
-				userId,
-				action: "PROJECT_CREATED",
-				details: JSON.stringify({ message: `Project created by CEO: "${title.trim()}"` }),
-				createdAt: new Date(),
-			});
-
-			await db.insert(activities).values({
-				id: uuidv4(),
-				workspaceId,
-				projectId,
-				userId: assignedToUserId,
-				action: "PROJECT_ASSIGNED",
-				details: JSON.stringify({ message: `Project assigned to ${assignedToUserId}` }),
-				createdAt: new Date(),
-			});
-
-			// 4. Create Central Approval Request for Project Assignment
+			// Emit Real-Time Socket Events to Workspace & Assigned User
 			try {
-				await RequestEngineService.createRequest({
-					workspaceId,
-					requestType: "PROJECT_ASSIGNMENT",
-					title: `Project Assignment: ${title.trim()}`,
-					description: `Assigned role for ${title.trim()}. Deadline: ${projectDeadline ? projectDeadline.toDateString() : "Flexible"}.`,
-					requesterId: userId,
-					approverId: assignedToUserId,
-					entityType: "PROJECT",
-					entityId: projectId,
-					metadata: {
-						assignmentType,
-						responsibleCoCeoId,
-						prompt,
-						analysisData,
-					},
-				});
-			} catch (reqErr: any) {
-				logger.warn(`Central request creation notice: ${reqErr?.message || String(reqErr)}`);
-			}
-
-			// Emit Real-Time Socket Events to Workspace and Assigned User
-			try {
+				socketService.emitToWorkspace(workspaceId, "PROJECT_CREATED", newProject);
 				socketService.emitToWorkspace(workspaceId, "project.created", newProject);
-				socketService.emitToWorkspace(workspaceId, "project_created", newProject);
 				if (assignedToUserId) {
+					socketService.emitToUser(assignedToUserId, "PROJECT_ASSIGNED", {
+						type: "PROJECT_ASSIGNMENT",
+						projectId,
+						title: title.trim(),
+					});
 					socketService.emitToUser(assignedToUserId, "TASK_ASSIGNED", {
 						type: "PROJECT_ASSIGNMENT",
 						projectId,
@@ -548,7 +594,7 @@ orgProjectsRouter.post(
 					});
 				}
 			} catch (socketErr: any) {
-				logger.warn(`Project creation socket emit notice: ${socketErr?.message || String(socketErr)}`);
+				logger.warn(`Socket emit notice: ${socketErr?.message || String(socketErr)}`);
 			}
 
 			res.json({
@@ -557,13 +603,14 @@ orgProjectsRouter.post(
 					project: newProject,
 					assignmentId,
 					milestones: milestoneRecords,
+					initialTasks: createdInitialTasks,
 				},
 			});
 		} catch (err: any) {
-			logger.error(`Create project V2 error: ${err?.message || String(err)}`);
+			logger.error(`Create organization project v2 error: ${err?.message || String(err)}`);
 			res.status(500).json({
 				success: false,
-				error: err.message || "Failed to create project V2",
+				error: err.message || "Failed to create organization project",
 			});
 		}
 	},
