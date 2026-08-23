@@ -6,9 +6,18 @@ import {
   Plus, Check, Trash2, Search, ArrowRight, CheckCircle2, ChevronRight, UserCheck
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
-import { v4 as uuidv4 } from "uuid";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
+function generateUUID() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 interface AssigneeUser {
   id: string;
@@ -104,7 +113,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
       setShowAddTaskForm(false);
       setError("");
       setCreatedProjectResult(null);
-      setIdempotencyKey(uuidv4());
+      setIdempotencyKey(generateUUID());
 
       fetchDirectory();
     }
@@ -205,7 +214,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
   const handleAddInitialTask = () => {
     if (!taskTitleInput.trim()) return;
     const newTask: InitialTaskItem = {
-      id: uuidv4(),
+      id: generateUUID(),
       title: taskTitleInput.trim(),
       description: taskDescInput.trim(),
       assigneeId: taskAssigneeInput || assignedToUser?.id || "",
@@ -314,7 +323,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
       const res = await apiClient.post(`/org/projects/create-v2${validWsId ? `?workspaceId=${validWsId}` : ""}`, payload);
 
       if (res.data?.success) {
-        setCreatedProjectResult(res.data.data?.project || { id: uuidv4(), name: name.trim() });
+        setCreatedProjectResult(res.data.data?.project || { id: generateUUID(), name: name.trim() });
         onSuccess(res.data.data?.project);
       } else {
         setError(res.data?.error || "Failed to create organization project.");
