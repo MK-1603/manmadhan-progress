@@ -867,10 +867,6 @@ export default function ProjectsPage() {
                   const deadlineInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
                   const isMenuOpen = activeActionMenuId === p.id;
 
-                  function toggleSelectProject(id: any) {
-                    throw new Error("Function not implemented.");
-                  }
-
                   return (
                     <div
                       key={p.id}
@@ -1052,10 +1048,6 @@ export default function ProjectsPage() {
                         const deadlineInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
                         const isMenuOpen = activeActionMenuId === p.id;
                         const isRowSelected = selectedIds.includes(p.id);
-
-                        function toggleSelectProject(id: any) {
-                          throw new Error("Function not implemented.");
-                        }
 
                         return (
                           <tr key={p.id} className={`hover:bg-zinc-50 dark:hover:bg-[#111419]/80 transition-colors h-[54px] group ${isRowSelected ? "bg-[#C9A52A]/5" : ""}`}>
