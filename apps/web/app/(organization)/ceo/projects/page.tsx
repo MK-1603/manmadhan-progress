@@ -90,16 +90,25 @@ export default function ProjectsPage() {
   const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null);
   const actionMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close Action Dropdowns on Click Outside
+  // Close Action Dropdowns on Click Outside & Android Back Hardware Gesture
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
         setActiveActionMenuId(null);
       }
     }
+    function handlePopState() {
+      if (activeActionMenuId) {
+        setActiveActionMenuId(null);
+      }
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [activeActionMenuId]);
 
   const fetchProjects = useCallback(async () => {
     setLoading(true);
@@ -680,7 +689,7 @@ export default function ProjectsPage() {
           ) : (
             <>
               {/* ── MOBILE EXECUTIVE PROJECT CARDS (<768px) ── */}
-              <div className="md:hidden flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5 pb-24">
+              <div className="md:hidden flex-1 min-h-0 overflow-y-auto p-3 space-y-2.5 pb-[calc(88px+env(safe-area-inset-bottom,0px))]">
                 {filtered.map((p) => {
                   const statusObj = STATUS_BADGE[p.status] || STATUS_BADGE.Archived;
                   const priorityObj = PRIORITY_BADGE[p.priority] || PRIORITY_BADGE.Medium;
@@ -696,7 +705,7 @@ export default function ProjectsPage() {
                       <div className="flex items-start justify-between gap-2">
                         <Link
                           href={`${basePath}/projects/${p.id}`}
-                          className="text-[16px] font-semibold text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 hover:text-[#C9A52A] leading-snug line-clamp-1 flex-1"
+                          className="text-[16px] font-semibold text-[#F2F4F7] dark:text-[#F2F4F7] light:text-zinc-900 hover:text-[#C9A52A] leading-snug line-clamp-1 flex-1 py-1"
                         >
                           {p.name}
                         </Link>
@@ -705,7 +714,7 @@ export default function ProjectsPage() {
                           <button
                             type="button"
                             onClick={() => setActiveActionMenuId(isMenuOpen ? null : p.id)}
-                            className="p-1 rounded-[6px] text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-500 hover:text-[#F2F4F7] cursor-pointer"
+                            className="w-[44px] h-[44px] flex items-center justify-center rounded-[8px] text-[#8B95A5] dark:text-[#8B95A5] light:text-zinc-500 hover:text-[#F2F4F7] cursor-pointer"
                           >
                             <MoreVertical className="w-4 h-4" />
                           </button>
