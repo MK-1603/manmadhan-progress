@@ -605,22 +605,10 @@ orgProjectsRouter.post(
 				// 9. Durable Audit Log Entry
 				await tx.insert(auditLogs).values({
 					id: uuidv4(),
-					actorId: userId,
+					userId,
 					workspaceId,
-					action: "PROJECT_CREATED",
-					entityType: "PROJECT",
-					entityId: projectId,
-					metadata: JSON.stringify({
-						projectName: projectTitle,
-						assignmentType,
-						assignedToUserId,
-						responsibleCoCeoId: coCeoVal,
-						memberUserIds,
-						priority,
-						initialTasksCount: createdInitialTasks.length,
-						idempotencyKey: idempotencyKey || null,
-					}),
-					details: `Organization Project "${projectTitle}" created (idempotency:${idempotencyKey || "none"})`,
+					eventType: "PROJECT_CREATED",
+					details: `Organization Project "${projectTitle}" created (idempotency:${idempotencyKey || "none"}) - Assignee: ${assignedToUserId}`,
 					createdAt: new Date(),
 				});
 			});
@@ -1297,12 +1285,10 @@ orgProjectsRouter.delete(
 
 			await db.insert(auditLogs).values({
 				id: uuidv4(),
-				actorId: userId,
+				userId,
 				workspaceId,
-				action: "PROJECT_DELETED",
-				entityType: "PROJECT",
-				entityId: id,
-				metadata: JSON.stringify({ projectName: existing.name }),
+				eventType: "PROJECT_DELETED",
+				details: `Organization Project "${existing.name}" deleted`,
 				createdAt: new Date(),
 			});
 
