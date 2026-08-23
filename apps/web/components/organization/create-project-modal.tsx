@@ -603,15 +603,26 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                 </div>
 
                 {/* Owner */}
-                <div className="p-3 rounded-[8px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] flex items-center justify-between text-[12px]">
-                  <span className="text-zinc-500 dark:text-[#8B95A5]">Project Owner</span>
-                  <span className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{currentUser.name || "Authorized Owner"} ({currentUser.role || "CEO"})</span>
+                <div className="space-y-1.5">
+                  <label className="text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider">
+                    Project Owner
+                  </label>
+                  <div className="p-3 rounded-[8px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] flex items-center justify-between text-[12px]">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{currentUser.name || "Authorized CEO"}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-[#C9A52A]/15 text-[#C9A52A] text-[10px] font-extrabold uppercase border border-[#C9A52A]/30">
+                        {currentUser.role || "CEO"}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-zinc-400 dark:text-[#667085] italic">Project owner is automatically assigned to you.</span>
+                  </div>
                 </div>
 
                 {/* Assignee */}
                 <div className="space-y-1.5 relative" ref={assigneeDropdownRef}>
-                  <label className="text-[12px] font-bold text-zinc-900 dark:text-[#F2F4F7]">
-                    Project Assignee <span className="text-rose-500">*</span>
+                  <label className="text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider flex items-center justify-between">
+                    <span>Assign Project To (CO-CEO / Member)</span>
+                    <span className="text-rose-500">*</span>
                   </label>
 
                   {assignedToUser ? (

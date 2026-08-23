@@ -77,6 +77,7 @@ export default function ProjectsPage() {
   const [deadlineFilter, setDeadlineFilter] = useState("All");
   const [progressFilter, setProgressFilter] = useState("All");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   // Selection & Actions State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -270,21 +271,97 @@ export default function ProjectsPage() {
     return { total, active, planning, onHold, completed };
   }, [realProjects]);
 
-  // More Filters Popover Node
-  const activeMoreFiltersCount = (deadlineFilter !== "All" ? 1 : 0) + (progressFilter !== "All" ? 1 : 0);
+  // Total Active Filter Count
+  const activeTotalFiltersCount =
+    (statusFilter !== "All" ? 1 : 0) +
+    (priorityFilter !== "All" ? 1 : 0) +
+    (deadlineFilter !== "All" ? 1 : 0) +
+    (progressFilter !== "All" ? 1 : 0);
 
-  const handleClearMoreFilters = () => {
+  const handleClearAllFilters = () => {
+    setStatusFilter("All");
+    setPriorityFilter("All");
     setDeadlineFilter("All");
     setProgressFilter("All");
   };
 
-  const moreFiltersContentNode = (
-    <div className="space-y-3.5 text-[12px] font-sans">
+  const unifiedFilterContentNode = (
+    <div className="space-y-4 text-[12px] font-sans">
+      {/* STATUS */}
       <div>
+        <div className="text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider mb-2">
+          Status
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            { id: "All", name: "All" },
+            { id: "Active", name: "Active" },
+            { id: "Planning", name: "Planning" },
+            { id: "On Hold", name: "On Hold" },
+            { id: "Completed", name: "Completed" },
+            { id: "Archived", name: "Archived" },
+          ].map((st) => (
+            <label
+              key={st.id}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-[6px] cursor-pointer text-[12px] font-semibold border transition-colors ${
+                statusFilter === st.id
+                  ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]"
+                  : "bg-zinc-50 dark:bg-[#111419] border-zinc-200 dark:border-[#272D36] text-zinc-900 dark:text-[#F2F4F7] hover:border-[#C9A52A]/40"
+              }`}
+            >
+              <input
+                type="radio"
+                name="statusFilter"
+                checked={statusFilter === st.id}
+                onChange={() => setStatusFilter(st.id)}
+                className="accent-[#C9A52A] w-3.5 h-3.5 cursor-pointer"
+              />
+              <span className="truncate">{st.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* PRIORITY */}
+      <div className="pt-3 border-t border-zinc-200 dark:border-[#272D36]">
+        <div className="text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider mb-2">
+          Priority
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            { id: "All", name: "All" },
+            { id: "Low", name: "Low" },
+            { id: "Medium", name: "Medium" },
+            { id: "High", name: "High" },
+            { id: "Critical", name: "Critical" },
+          ].map((pr) => (
+            <label
+              key={pr.id}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-[6px] cursor-pointer text-[12px] font-semibold border transition-colors ${
+                priorityFilter === pr.id
+                  ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]"
+                  : "bg-zinc-50 dark:bg-[#111419] border-zinc-200 dark:border-[#272D36] text-zinc-900 dark:text-[#F2F4F7] hover:border-[#C9A52A]/40"
+              }`}
+            >
+              <input
+                type="radio"
+                name="priorityFilter"
+                checked={priorityFilter === pr.id}
+                onChange={() => setPriorityFilter(pr.id)}
+                className="accent-[#C9A52A] w-3.5 h-3.5 cursor-pointer"
+              />
+              <span className="truncate">{pr.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* DEADLINE */}
+      <div className="pt-3 border-t border-zinc-200 dark:border-[#272D36]">
         <div className="text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider mb-2">
           Deadline
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {[
             { id: "All", name: "All" },
             { id: "Overdue", name: "Overdue" },
@@ -308,11 +385,12 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      <div className="pt-2.5 border-t border-zinc-200 dark:border-[#272D36]">
+      {/* PROGRESS */}
+      <div className="pt-3 border-t border-zinc-200 dark:border-[#272D36]">
         <div className="text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider mb-2">
           Progress
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {[
             { id: "All", name: "All" },
             { id: "NotStarted", name: "Not Started (0%)" },
@@ -524,67 +602,42 @@ export default function ProjectsPage() {
             )}
           </div>
 
-          {/* Reusable Custom Dropdown Filters */}
-          <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
-            {/* Status Dropdown */}
-            <CustomDropdown
-              label="Status"
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={statusDropdownOptions}
-              minDropdownWidth={160}
-              className="w-full sm:w-auto"
-            />
-
-            {/* Priority Dropdown */}
-            <CustomDropdown
-              label="Priority"
-              value={priorityFilter}
-              onChange={setPriorityFilter}
-              options={priorityDropdownOptions}
-              minDropdownWidth={160}
-              className="w-full sm:w-auto"
-            />
-
-            {/* Owner Dropdown (Desktop Only) */}
-            <div className="hidden md:inline-block">
+          {/* Unified Filter Button & View Mode Controls */}
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            {/* Desktop Unified Filter Popover */}
+            <div className="hidden sm:block">
               <CustomDropdown
-                label="Owner"
-                value={ownerFilter}
-                onChange={setOwnerFilter}
-                options={ownerDropdownOptions}
-                searchable={ownerOptions.length > 3}
-                searchPlaceholder="Search owners..."
-                minDropdownWidth={200}
-              />
-            </div>
-
-            {/* Assignee Dropdown (Desktop Only) */}
-            <div className="hidden md:inline-block">
-              <CustomDropdown
-                label="Assignee"
-                value={assigneeFilter}
-                onChange={setAssigneeFilter}
-                options={assigneeDropdownOptions}
-                searchable={assigneeOptions.length > 3}
-                searchPlaceholder="Search assignees..."
-                minDropdownWidth={200}
-              />
-            </div>
-
-            {/* More Filters Dropdown (Desktop Only) */}
-            <div className="hidden md:inline-block">
-              <CustomDropdown
-                label="More Filters"
+                label="Filter"
                 value=""
                 onChange={() => {}}
                 options={[]}
                 isMoreFilters={true}
-                moreFiltersContent={moreFiltersContentNode}
-                activeFilterCount={activeMoreFiltersCount}
-                onClearFilters={handleClearMoreFilters}
-                minDropdownWidth={220}
+                moreFiltersContent={unifiedFilterContentNode}
+                activeFilterCount={activeTotalFiltersCount}
+                onClearFilters={handleClearAllFilters}
+                minDropdownWidth={320}
               />
+            </div>
+
+            {/* Mobile Unified Filter Button (Triggers Bottom Sheet) */}
+            <div className="sm:hidden w-full">
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(true)}
+                className="w-full h-[36px] px-3.5 rounded-[8px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] text-zinc-900 dark:text-[#F2F4F7] font-semibold text-[12px] flex items-center justify-between transition-colors hover:border-[#C9A52A]/50 cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Filter className="w-3.5 h-3.5 text-[#C9A52A]" />
+                  <span>Filter</span>
+                </div>
+                {activeTotalFiltersCount > 0 ? (
+                  <span className="px-2 py-0.5 rounded-full bg-[#C9A52A] text-[#0B0D10] text-[10.5px] font-extrabold">
+                    {activeTotalFiltersCount}
+                  </span>
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5 text-zinc-400 dark:text-[#667085]" />
+                )}
+              </button>
             </div>
 
             {/* View Mode Toggle (Desktop Only) */}
@@ -1046,6 +1099,59 @@ export default function ProjectsPage() {
         onClose={() => setDeleteConfirmSingleId(null)}
         onConfirm={handleExecuteSingleDelete}
       />
+
+      {/* Mobile Filter Bottom Sheet */}
+      {isMobileFilterOpen && (
+        <div
+          className="fixed inset-0 z-[200] sm:hidden flex flex-col justify-end bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+          onClick={() => setIsMobileFilterOpen(false)}
+        >
+          <div
+            className="w-full bg-white dark:bg-[#15191F] border-t border-zinc-200 dark:border-[#272D36] rounded-t-[20px] shadow-2xl flex flex-col max-h-[85dvh] overflow-hidden font-sans"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Sheet Header */}
+            <div className="px-5 py-3.5 border-b border-zinc-200 dark:border-[#272D36] flex items-center justify-between bg-zinc-50 dark:bg-[#111419] shrink-0">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 text-[#C9A52A]" />
+                <h3 className="text-[15px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">
+                  Filters {activeTotalFiltersCount > 0 && `· ${activeTotalFiltersCount}`}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="w-8 h-8 rounded-full bg-zinc-200/60 dark:bg-[#272D36]/60 text-zinc-500 dark:text-[#8B95A5] hover:text-zinc-900 dark:hover:text-[#F2F4F7] flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Sheet Content (Scrollable) */}
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              {unifiedFilterContentNode}
+            </div>
+
+            {/* Sheet Sticky Footer */}
+            <div className="p-4 border-t border-zinc-200 dark:border-[#272D36] bg-zinc-50 dark:bg-[#111419] flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={handleClearAllFilters}
+                className="flex-1 h-[38px] rounded-[8px] border border-zinc-200 dark:border-[#272D36] bg-white dark:bg-[#15191F] text-rose-600 dark:text-rose-400 font-bold text-[12.5px] cursor-pointer"
+              >
+                Clear Filters
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="flex-1 h-[38px] rounded-[8px] bg-[#C9A52A] text-[#0B0D10] font-bold text-[12.5px] cursor-pointer"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
