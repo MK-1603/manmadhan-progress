@@ -39,8 +39,8 @@ const QUICK_ADD_CHIPS = [
   { label: "Deadline", key: "Deadline: " },
   { label: "Requirements", key: "Requirements: " },
   { label: "Milestones", key: "Milestones: " },
+  { label: "Tools", key: "Tools: " },
   { label: "GitHub", key: "GitHub: " },
-  { label: "Hub", key: "ManMadhan Hub: " },
 ];
 
 const FULL_TEMPLATE_KEYS = [
@@ -51,9 +51,22 @@ const FULL_TEMPLATE_KEYS = [
   "Deadline: ",
   "Requirements: ",
   "Milestones: ",
+  "Tools: ",
   "GitHub: ",
-  "ManMadhan Hub: ",
   "Notes: ",
+];
+
+const SLASH_COMMANDS = [
+  { command: "/title", label: "/title", desc: "Insert Project Title field", key: "Project Title: " },
+  { command: "/description", label: "/description", desc: "Insert Project Description field", key: "Project Description: " },
+  { command: "/assignee", label: "/assignee", desc: "Insert Assignee field & trigger @people", key: "Assignee: @" },
+  { command: "/members", label: "/members", desc: "Insert Members field", key: "Members: @" },
+  { command: "/deadline", label: "/deadline", desc: "Insert Target Deadline field", key: "Deadline: " },
+  { command: "/requirements", label: "/requirements", desc: "Insert Requirements field", key: "Requirements: " },
+  { command: "/milestones", label: "/milestones", desc: "Insert Milestones field", key: "Milestones: " },
+  { command: "/tools", label: "/tools", desc: "Insert Tools selector field", key: "Tools: " },
+  { command: "/github", label: "/github", desc: "Insert GitHub connection field", key: "GitHub: " },
+  { command: "/notes", label: "/notes", desc: "Insert Notes field", key: "Notes: " },
 ];
 
 const PROMPT_EXAMPLES = [
@@ -73,16 +86,10 @@ const PROMPT_EXAMPLES = [
     desc: "Complete roles with target deadline",
   },
   {
-    title: "AI + Hub",
-    text: "Build an AI productivity platform. Use Claude and Figma from ManMadhan Hub. @SHRIRAM leads execution.",
-    desc: "Integrate ManMadhan Hub AI tools",
+    title: "Tools",
+    text: "Build an AI productivity platform using Claude and Figma. @SHRIRAM leads execution.",
+    desc: "Integrate AI & design tools",
   },
-];
-
-const HUB_TOOLS = [
-  { name: "@Claude", purpose: "Architecture & PRD Documentation" },
-  { name: "@Figma", purpose: "UI/UX Design Mockups" },
-  { name: "@GitHub Copilot", purpose: "Automated Code Generation" },
 ];
 
 export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProjectModalProps) {
@@ -116,6 +123,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
 
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [slashPosition, setSlashPosition] = useState<number>(0);
+  const [selectedSlashIndex, setSelectedSlashIndex] = useState<number>(0);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -177,7 +185,6 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
       return;
     }
 
-    // Preserve existing content and append only missing template keys
     const lowerPrompt = promptText.toLowerCase();
     const missingKeys: string[] = [];
 
@@ -200,10 +207,8 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
       return;
     }
 
-    // Check if key is already present in prompt
     const keyClean = chipKey.replace(":", "").trim().toLowerCase();
     if (promptText.toLowerCase().includes(keyClean) && textareaRef.current) {
-      // Focus line if already present
       textareaRef.current.focus();
       const pos = promptText.toLowerCase().indexOf(keyClean);
       textareaRef.current.setSelectionRange(pos, pos + chipKey.length);
@@ -249,7 +254,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
     }
   };
 
-  // ── Mention Autocomplete Filter Options ─────────────────────────────────────
+  // ── Mention Autocomplete Filter Options (@ = PEOPLE ONLY) ───────────────────
   const mentionOptions = useMemo(() => {
     if (mentionQuery === null) return [];
     const q = mentionQuery.toLowerCase();
@@ -263,6 +268,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
       },
     ];
 
+    // Filter ONLY organization people
     allUsers.forEach((u) => {
       if (u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q)) {
         options.push({
@@ -274,21 +280,17 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
       }
     });
 
-    // Add Hub tools if user types after hub context
-    HUB_TOOLS.forEach((h) => {
-      if (h.name.toLowerCase().includes(q)) {
-        options.push({
-          id: h.name,
-          label: h.name,
-          subLabel: `ManMadhan Hub Tool · ${h.purpose}`,
-        });
-      }
-    });
-
     return options;
   }, [mentionQuery, allUsers, currentUser]);
 
-  // ── Textarea Keyboard & Change Events ───────────────────────────────────────
+  // ── Slash Command Filter Options (/ = COMMANDS ONLY) ────────────────────────
+  const filteredSlashCommands = useMemo(() => {
+    if (slashQuery === null) return [];
+    const q = slashQuery.toLowerCase();
+    return SLASH_COMMANDS.filter((cmd) => cmd.command.toLowerCase().includes(q) || cmd.desc.toLowerCase().includes(q));
+  }, [slashQuery]);
+
+  // ── Textarea Change & Keyboard Handlers ─────────────────────────────────────
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setPromptText(val);
@@ -315,6 +317,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
       if (!/\s/.test(query)) {
         setSlashQuery(query);
         setSlashPosition(lastSlashIndex);
+        setSelectedSlashIndex(0);
         setMentionQuery(null);
         return;
       }
@@ -363,6 +366,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle @ Mention navigation
     if (mentionQuery !== null && mentionOptions.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -375,6 +379,23 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
         handleSelectMention(mentionOptions[selectedMentionIndex]);
       } else if (e.key === "Escape") {
         setMentionQuery(null);
+      }
+      return;
+    }
+
+    // Handle / Slash Command navigation
+    if (slashQuery !== null && filteredSlashCommands.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedSlashIndex((prev) => (prev + 1) % filteredSlashCommands.length);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedSlashIndex((prev) => (prev - 1 + filteredSlashCommands.length) % filteredSlashCommands.length);
+      } else if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        handleSelectSlashChip(filteredSlashCommands[selectedSlashIndex].key);
+      } else if (e.key === "Escape") {
+        setSlashQuery(null);
       }
     }
   };
@@ -502,7 +523,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full max-w-xl bg-[#0B0D10] border border-[#272D36] rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-white font-sans">
-        {/* Sleek Header - Clean icon without duplicate sparkles */}
+        {/* Header */}
         <div className="px-5 py-3.5 border-b border-[#1D222A] flex items-center justify-between bg-[#111419] shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-lg bg-[#C9A52A]/15 border border-[#C9A52A]/30 flex items-center justify-center text-[#C9A52A]">
@@ -557,16 +578,16 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                   value={promptText}
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
-                  placeholder="Describe what you want to execute... (Try typing @ for team or / for quick commands)"
+                  placeholder="Describe what you want to execute... (Use @ for people, / for commands)"
                   rows={5}
                   className="w-full p-3 bg-[#111419] border border-[#272D36] focus:border-[#C9A52A] rounded-xl text-xs text-[#F2F4F7] placeholder-[#667085] outline-none transition-all resize-none leading-relaxed"
                 />
 
-                {/* Autocomplete Dropdown */}
+                {/* Real-time @ Mention Dropdown (@ = PEOPLE ONLY) */}
                 {mentionQuery !== null && mentionOptions.length > 0 && (
-                  <div className="absolute left-3 bottom-3 z-50 w-64 bg-[#15191F] border border-[#272D36] rounded-xl shadow-2xl overflow-hidden py-1">
-                    <p className="px-3 py-1 text-[9.5px] font-bold text-[#667085] uppercase tracking-wider border-b border-[#1D222A]">
-                      Select Mention
+                  <div className="absolute left-3 bottom-3 z-50 w-64 bg-[#15191F] border border-[#272D36] rounded-xl shadow-2xl overflow-hidden py-1 max-h-48 overflow-y-auto">
+                    <p className="px-3 py-1 text-[9.5px] font-bold text-[#C9A52A] uppercase tracking-wider border-b border-[#1D222A]">
+                      Assign Organization Member
                     </p>
                     {mentionOptions.map((opt, idx) => (
                       <button
@@ -578,6 +599,30 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                       >
                         <span>{opt.label}</span>
                         <span className="text-[10px] text-[#667085]">{opt.subLabel}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Real-time / Slash Commands Dropdown (/ = COMMANDS ONLY) */}
+                {slashQuery !== null && filteredSlashCommands.length > 0 && (
+                  <div className="absolute left-3 bottom-3 z-50 w-64 bg-[#15191F] border border-[#272D36] rounded-xl shadow-2xl overflow-hidden py-1 max-h-48 overflow-y-auto">
+                    <p className="px-3 py-1 text-[9.5px] font-bold text-blue-400 uppercase tracking-wider border-b border-[#1D222A]">
+                      Quick Commands
+                    </p>
+                    {filteredSlashCommands.map((cmd, idx) => (
+                      <button
+                        key={cmd.command}
+                        onClick={() => handleSelectSlashChip(cmd.key)}
+                        className={`w-full px-3 py-1.5 text-left flex items-center justify-between text-xs cursor-pointer transition-colors ${
+                          idx === selectedSlashIndex ? "bg-blue-500/20 text-blue-400 font-bold" : "text-[#F2F4F7] hover:bg-[#1D222A]"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Command className="w-3 h-3 text-blue-400" />
+                          <span>{cmd.command}</span>
+                        </div>
+                        <span className="text-[9.5px] text-[#667085]">{cmd.desc}</span>
                       </button>
                     ))}
                   </div>
@@ -626,18 +671,18 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                     <div className="grid grid-cols-2 gap-2">
                       <div className="p-2 bg-[#0B0D10] rounded border border-[#1D222A]">
                         <span className="font-bold text-[#C9A52A]">@ People</span>
-                        <p className="text-[10px]">Type @ to mention team members or @me for yourself.</p>
+                        <p className="text-[10px]">Type @ to assign organization members or @me for yourself.</p>
                       </div>
                       <div className="p-2 bg-[#0B0D10] rounded border border-[#1D222A]">
                         <span className="font-bold text-blue-400">/ Commands</span>
-                        <p className="text-[10px]">Type / to trigger quick command fields.</p>
+                        <p className="text-[10px]">Type / to insert quick command fields into prompt.</p>
                       </div>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Collapsible Examples Accordion with Distinct Inner Scroll Container */}
+              {/* Collapsible Examples Accordion */}
               <div className="border border-[#1D222A] rounded-xl bg-[#111419]/50 overflow-hidden text-xs">
                 <button
                   type="button"
@@ -698,7 +743,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                 </div>
 
                 <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
-                  <span className="text-[9.5px] font-bold text-[#667085] uppercase">Execution Lead</span>
+                  <span className="text-[9.5px] font-bold text-[#C9A52A] uppercase">Execution Lead</span>
                   <p className="font-bold text-[#C9A52A]">
                     {extractedIntent.executionLead ? `@${extractedIntent.executionLead.name || extractedIntent.executionLead.email}` : "None"}
                   </p>
@@ -716,7 +761,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                 </div>
 
                 <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
-                  <span className="text-[9.5px] font-bold text-[#667085] uppercase">Hub Tools</span>
+                  <span className="text-[9.5px] font-bold text-[#667085] uppercase">Tools</span>
                   <p className="font-semibold text-purple-400">
                     {extractedIntent.hubTools.length > 0 ? extractedIntent.hubTools.map((t) => t.name).join(" · ") : "None"}
                   </p>
