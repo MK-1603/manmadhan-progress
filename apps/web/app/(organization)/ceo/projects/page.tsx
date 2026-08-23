@@ -433,35 +433,50 @@ export default function ProjectsPage() {
           </div>
         )}
 
-        {/* Compact Executive KPI Strip (~84px height) */}
+        {/* Premium Executive KPI Strip (~84px height) */}
         <div className="shrink-0 grid grid-cols-5 gap-3">
-          <div className="h-[84px] p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
-            <span className="text-[10.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">TOTAL</span>
-            <div className="text-[22px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{kpis.total}</div>
-            <p className="text-[10.5px] text-[#667085] dark:text-[#8B95A5]">All projects</p>
+          <div className="h-[84px] p-3.5 rounded-[14px] bg-gradient-to-b from-[#FFFFFF] to-[#F8F9FB] dark:from-[#15191F] dark:to-[#111419] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-xs hover:border-[#C9A52A]/40 transition-all">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider">TOTAL PROJECTS</span>
+              <span className="w-2 h-2 rounded-full bg-[#C9A52A]" />
+            </div>
+            <div className="text-[24px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none tracking-tight">{kpis.total}</div>
+            <p className="text-[10.5px] text-[#667085] dark:text-[#8B95A5]">All organization mandates</p>
           </div>
 
-          <div className="h-[84px] p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
-            <span className="text-[10.5px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">ACTIVE</span>
-            <div className="text-[22px] font-extrabold text-emerald-600 dark:text-emerald-400 leading-none">{kpis.active}</div>
-            <p className="text-[10.5px] text-[#667085] dark:text-[#8B95A5]">In execution</p>
+          <div className="h-[84px] p-3.5 rounded-[14px] bg-gradient-to-b from-[#FFFFFF] to-[#F8F9FB] dark:from-[#15191F] dark:to-[#111419] border border-emerald-500/20 flex flex-col justify-between shadow-xs hover:border-emerald-500/40 transition-all">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">ACTIVE</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
+            <div className="text-[24px] font-extrabold text-emerald-600 dark:text-emerald-400 leading-none tracking-tight">{kpis.active}</div>
+            <p className="text-[10.5px] text-[#667085] dark:text-[#8B95A5]">In active execution</p>
           </div>
 
-          <div className="h-[84px] p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
-            <span className="text-[10.5px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">PLANNING</span>
-            <div className="text-[22px] font-extrabold text-blue-600 dark:text-blue-400 leading-none">{kpis.planning}</div>
+          <div className="h-[84px] p-3.5 rounded-[14px] bg-gradient-to-b from-[#FFFFFF] to-[#F8F9FB] dark:from-[#15191F] dark:to-[#111419] border border-blue-500/20 flex flex-col justify-between shadow-xs hover:border-blue-500/40 transition-all">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">PLANNING</span>
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+            </div>
+            <div className="text-[24px] font-extrabold text-blue-600 dark:text-blue-400 leading-none tracking-tight">{kpis.planning}</div>
             <p className="text-[10.5px] text-[#667085] dark:text-[#8B95A5]">Preparing execution</p>
           </div>
 
-          <div className="h-[84px] p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
-            <span className="text-[10.5px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">ON HOLD</span>
-            <div className="text-[22px] font-extrabold text-amber-600 dark:text-amber-400 leading-none">{kpis.onHold}</div>
-            <p className="text-[10.5px] text-[#667085] dark:text-[#8B95A5]">Paused projects</p>
+          <div className="h-[84px] p-3.5 rounded-[14px] bg-gradient-to-b from-[#FFFFFF] to-[#F8F9FB] dark:from-[#15191F] dark:to-[#111419] border border-amber-500/20 flex flex-col justify-between shadow-xs hover:border-amber-500/40 transition-all">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">ON HOLD</span>
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+            </div>
+            <div className="text-[24px] font-extrabold text-amber-600 dark:text-amber-400 leading-none tracking-tight">{kpis.onHold}</div>
+            <p className="text-[10.5px] text-[#667085] dark:text-[#8B95A5]">Paused mandates</p>
           </div>
 
-          <div className="h-[84px] p-3 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex flex-col justify-between shadow-2xs">
-            <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">COMPLETED</span>
-            <div className="text-[22px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none">{kpis.completed}</div>
+          <div className="h-[84px] p-3.5 rounded-[14px] bg-gradient-to-b from-[#FFFFFF] to-[#F8F9FB] dark:from-[#15191F] dark:to-[#111419] border border-purple-500/20 flex flex-col justify-between shadow-xs hover:border-purple-500/40 transition-all">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">COMPLETED</span>
+              <span className="w-2 h-2 rounded-full bg-purple-500" />
+            </div>
+            <div className="text-[24px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] leading-none tracking-tight">{kpis.completed}</div>
             <p className="text-[10.5px] text-[#667085] dark:text-[#8B95A5]">Finished projects</p>
           </div>
         </div>
