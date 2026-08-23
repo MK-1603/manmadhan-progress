@@ -5,6 +5,7 @@ import { db } from "../../database/client";
 import {
 	activities,
 	auditLogs,
+	calendarEvents,
 	deadlineExtensions,
 	milestones,
 	notifications,
@@ -906,6 +907,27 @@ const createTaskHandler = async (req: Request, res: Response) => {
 			})
 			.returning();
 
+		// Record task calendar event if deadline or startTime is provided
+		if (task.deadline || task.startTime) {
+			try {
+				const startCal = task.startTime || task.deadline || new Date();
+				const endCal = task.deadline || task.startTime || new Date();
+				await db.insert(calendarEvents).values({
+					id: uuidv4(),
+					workspaceId,
+					projectId: cleanProjectId,
+					title: `[Task] ${title.trim()}`,
+					description: description || `Task due date for ${title.trim()}`,
+					startTime: startCal,
+					endTime: endCal,
+					createdById: userId,
+					createdAt: new Date(),
+				});
+			} catch (calErr: any) {
+				logger.warn(`Task calendar insertion notice: ${calErr?.message}`);
+			}
+		}
+
 		// Record Task Assignment Tracker entry if assigned
 		let assignmentId: string | null = null;
 		if (assigneeId) {
@@ -1160,6 +1182,42 @@ orgTasksRouter.patch(
 				details: `Task "${existing.title}" status changed to ${updates.status || existing.status}${updates.assigneeId ? ` and assigned to ${updates.assigneeId}` : ""}`,
 			});
 
+			// Sync calendar event if deadline or title changed
+			if (deadline !== undefined || title !== undefined) {
+				try {
+					const taskTitle = title?.trim() || existing.title;
+					const [existingCal] = await db
+						.select()
+						.from(calendarEvents)
+						.where(eq(calendarEvents.title, `[Task] ${existing.title}`))
+						.limit(1);
+
+					if (existingCal) {
+						const calUpdates: any = {};
+						if (title?.trim()) calUpdates.title = `[Task] ${title.trim()}`;
+						if (deadline) {
+							calUpdates.startTime = new Date(deadline);
+							calUpdates.endTime = new Date(deadline);
+						}
+						await db.update(calendarEvents).set(calUpdates).where(eq(calendarEvents.id, existingCal.id));
+					} else if (deadline) {
+						await db.insert(calendarEvents).values({
+							id: uuidv4(),
+							workspaceId,
+							projectId: existing.projectId,
+							title: `[Task] ${taskTitle}`,
+							description: description || existing.description || `Task due date for ${taskTitle}`,
+							startTime: new Date(deadline),
+							endTime: new Date(deadline),
+							createdById: userId,
+							createdAt: new Date(),
+						});
+					}
+				} catch (calErr: any) {
+					logger.warn(`Task update calendar notice: ${calErr?.message}`);
+				}
+			}
+
 			if (existing.projectId)
 				await db.insert(activities).values({
 					id: uuidv4(),
@@ -1262,6 +1320,7 @@ orgTasksRouter.delete(
 					.status(404)
 					.json({ success: false, error: "Task not found" });
 
+			try { await db.delete(calendarEvents).where(eq(calendarEvents.title, `[Task] ${existing.title}`)); } catch (e) {}
 			await db.delete(tasks).where(eq(tasks.id, id));
 			await db.insert(auditLogs).values({
 				id: uuidv4(),
