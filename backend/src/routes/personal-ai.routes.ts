@@ -49,6 +49,49 @@ The JSON schema must strictly follow this structure:
 - Do not create structural records unless explicitly requested or strongly implied.
 `;
 
+function generateFallbackPlan(prompt: string) {
+	const pLower = prompt.toLowerCase();
+	const isTomorrow = pLower.includes("tomorrow");
+	const isNextWeek = pLower.includes("next week") || pLower.includes("next monday");
+	const now = new Date();
+	let deadlineDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+	if (isTomorrow) {
+		deadlineDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+	} else if (isNextWeek) {
+		deadlineDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+	}
+
+	const cleanTitle = prompt.length > 60 ? `${prompt.slice(0, 57)}...` : prompt;
+
+	return {
+		projects: [
+			{
+				name: cleanTitle,
+				description: prompt,
+				deadline: deadlineDate.toISOString(),
+				estimatedEffort: 120,
+			},
+		],
+		tasks: [
+			{
+				title: `Initial execution for ${cleanTitle}`,
+				description: `Establish mandate and deliverables for ${cleanTitle}`,
+				deadline: deadlineDate.toISOString(),
+				estimatedMinutes: 45,
+			},
+		],
+		books: [],
+		podcasts: [],
+		calendarEvents: [],
+		reminders: [
+			{
+				title: `Review progress on ${cleanTitle}`,
+				remindAt: deadlineDate.toISOString(),
+			},
+		],
+	};
+}
+
 // 1. Generate Structured Plan from Prompt
 personalAiRouter.post("/plan", async (req: Request, res: Response) => {
 	try {
@@ -83,39 +126,42 @@ User Prompt: ${prompt}
 ${urlContext}
 `;
 
-		// 1. Call AI Service
-		const aiResponse = await aiService.generateWithSmartFailover(
-			`${PLAN_SYSTEM_PROMPT}\n\n${contextPrompt}`,
-			"groq", // Use fast model
-		);
-
-		// 2. Parse JSON
 		let planData: Record<string, unknown> = {};
+		let providerName = "heuristic-fallback";
+
 		try {
-			// Remove any potential markdown block backticks just in case
+			// 1. Call AI Service
+			const aiResponse = await aiService.generateWithSmartFailover(
+				`${PLAN_SYSTEM_PROMPT}\n\n${contextPrompt}`,
+				"groq", // Use fast model
+			);
+
+			// 2. Parse JSON
 			const cleanedText = aiResponse.text
 				.replace(/```json/g, "")
 				.replace(/```/g, "")
 				.trim();
 			planData = JSON.parse(cleanedText);
-		} catch (_parseError) {
-			logger.error(`AI returned invalid JSON: ${aiResponse.text}`);
-			return res.status(500).json({
-				success: false,
-				error: "AI failed to generate a valid structured plan.",
-			});
+			providerName = aiResponse.provider;
+		} catch (aiErr: any) {
+			logger.warn(
+				{ error: aiErr.message },
+				"AI Smart Failover unavailable. Generating structured heuristic plan fallback...",
+			);
+			planData = generateFallbackPlan(prompt);
 		}
 
 		res.json({
 			success: true,
 			data: planData,
-			provider: aiResponse.provider,
+			provider: providerName,
 		});
 	} catch (error: any) {
 		logger.error(`AI Plan Error: ${error.message}`);
-		res.status(500).json({
-			success: false,
-			error: `Failed to generate plan: ${error.message}`,
+		res.json({
+			success: true,
+			data: generateFallbackPlan(req.body?.prompt || "New Organization Mandate"),
+			provider: "heuristic-fallback",
 		});
 	}
 });

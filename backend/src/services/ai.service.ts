@@ -99,22 +99,42 @@ async function generateWithGroq(
 ): Promise<{ text: string; model: string }> {
 	if (!groqClient)
 		throw new Error("Groq API key not configured in backend/.env");
-	const modelName = env.GROQ_MODEL || "llama-3.3-70b-versatile";
-	const response = await groqClient.chat.completions.create({
-		model: modelName,
-		messages: [
-			{ role: "system", content: SYSTEM_INSTRUCTION },
-			{ role: "user", content: prompt },
-		],
-		max_tokens: 512,
-		temperature: 0.3,
-	});
-	providerHealth.groq.hitsToday++;
-	providerHealth.groq.totalHits++;
-	return {
-		text: response.choices[0]?.message?.content || "",
-		model: modelName,
-	};
+
+	const modelsToTry = [
+		env.GROQ_MODEL || "llama-3.3-70b-versatile",
+		"llama-3.1-8b-instant",
+		"llama3-70b-8192",
+		"mixtral-8x7b-32768",
+	];
+	let lastErr: any = null;
+
+	for (const modelName of modelsToTry) {
+		try {
+			const response = await groqClient.chat.completions.create({
+				model: modelName,
+				messages: [
+					{ role: "system", content: SYSTEM_INSTRUCTION },
+					{ role: "user", content: prompt },
+				],
+				max_tokens: 512,
+				temperature: 0.3,
+			});
+			providerHealth.groq.hitsToday++;
+			providerHealth.groq.totalHits++;
+			return {
+				text: response.choices[0]?.message?.content || "",
+				model: modelName,
+			};
+		} catch (err: any) {
+			lastErr = err;
+			logger.warn(
+				{ model: modelName, error: err.message },
+				`Groq model ${modelName} returned error. Trying fallback model...`,
+			);
+		}
+	}
+
+	throw lastErr || new Error("All Groq models failed");
 }
 
 async function generateWithGemini(
@@ -123,7 +143,12 @@ async function generateWithGemini(
 	if (!geminiClient)
 		throw new Error("Google Gemini API key not configured in backend/.env");
 
-	const modelsToTry = ["gemini-3.6-flash", "gemini-flash-latest"];
+	const modelsToTry = [
+		env.GEMINI_MODEL || "gemini-1.5-flash",
+		"gemini-1.5-flash-latest",
+		"gemini-2.0-flash",
+		"gemini-1.5-pro",
+	];
 	let lastErr: any = null;
 
 	for (const modelName of modelsToTry) {
