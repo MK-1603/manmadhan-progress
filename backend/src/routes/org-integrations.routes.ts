@@ -124,25 +124,28 @@ orgIntegrationsRouter.post("/hub/tools", async (req: Request, res: Response) => 
 orgIntegrationsRouter.post("/projects/:projectId/ai-tools", async (req: Request, res: Response) => {
   try {
     const { projectId } = req.params;
-    const { hubToolId, purpose, notes } = req.body;
+    const { hubToolId, purpose, assignedToUserId, projectPhase, notes } = req.body;
     const user = (req as any).user;
 
     if (!hubToolId || !purpose) {
       return res.status(400).json({ success: false, error: "hubToolId and purpose are required." });
     }
 
-    const link = await HubService.linkToolToProject({
+    const result = await HubService.linkToolToProject({
       projectId,
       hubToolId,
       purpose,
+      assignedToUserId,
+      projectPhase,
       notes,
       addedById: user?.id || "user-ceo-1",
     });
 
     return res.json({
       success: true,
-      data: link,
-      message: "Linked AI tool to project successfully.",
+      data: result.tool,
+      duplicate: result.duplicate,
+      message: result.duplicate ? "Tool is already linked to this project." : "Linked AI tool to project successfully.",
     });
   } catch (err: any) {
     logger.error(`Link Project AI Tool Error: ${err.message}`);

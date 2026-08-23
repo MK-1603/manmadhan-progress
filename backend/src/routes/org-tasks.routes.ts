@@ -766,6 +766,7 @@ const createTaskHandler = async (req: Request, res: Response) => {
 			description,
 			projectId,
 			milestoneId,
+			workId,
 			assigneeId: rawAssigneeId,
 			assigneeUserId,
 			priority,
@@ -787,6 +788,8 @@ const createTaskHandler = async (req: Request, res: Response) => {
 			projectId && projectId !== "NONE" ? projectId : null;
 		const cleanMilestoneId =
 			cleanProjectId && milestoneId ? milestoneId : null;
+		const cleanWorkId =
+			cleanProjectId && workId ? workId : null;
 
 		// Resolve target assignee: explicit assignee or Project Auto-Assignment fallback
 		let assigneeId: string | null = rawAssigneeId || assigneeUserId || null;
@@ -888,6 +891,7 @@ const createTaskHandler = async (req: Request, res: Response) => {
 				workspaceId,
 				projectId: cleanProjectId,
 				milestoneId: cleanMilestoneId,
+				workId: cleanWorkId,
 				title: title.trim(),
 				description: description || null,
 				priority: priority || "Medium",

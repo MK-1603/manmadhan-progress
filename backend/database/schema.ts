@@ -254,11 +254,51 @@ export const projects = pgTable("projects", {
 	ownerId: text("owner_id")
 		.notNull()
 		.references(() => users.id),
+	executionLeadId: text("execution_lead_id").references(() => users.id, {
+		onDelete: "set null",
+	}),
 	createdBy: text("created_by").references(() => users.id),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 	completedAt: timestamp("completed_at"),
 	archivedAt: timestamp("archived_at"),
+});
+
+// 6.0.1 Project Members
+export const projectMembers = pgTable("project_members", {
+	id: text("id").primaryKey(),
+	projectId: text("project_id")
+		.notNull()
+		.references(() => projects.id, { onDelete: "cascade" }),
+	userId: text("user_id")
+		.notNull()
+		.references(() => users.id, { onDelete: "cascade" }),
+	role: text("role").default("MEMBER").notNull(), // OWNER, EXECUTION_LEAD, MEMBER
+	assignedById: text("assigned_by_id").references(() => users.id, { onDelete: "set null" }),
+	assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+});
+
+// 6.0.2 Project Work Packages
+export const projectWork = pgTable("project_work", {
+	id: text("id").primaryKey(),
+	projectId: text("project_id")
+		.notNull()
+		.references(() => projects.id, { onDelete: "cascade" }),
+	workspaceId: text("workspace_id")
+		.notNull()
+		.references(() => workspaces.id, { onDelete: "cascade" }),
+	title: text("title").notNull(),
+	description: text("description"),
+	category: text("category").default("Development").notNull(),
+	status: text("status").default("Draft").notNull(), // Draft, Active, Blocked, Completed
+	ownerId: text("owner_id").references(() => users.id, { onDelete: "set null" }),
+	milestoneId: text("milestone_id").references(() => milestones.id, { onDelete: "set null" }),
+	startDate: timestamp("start_date"),
+	deadline: timestamp("deadline"),
+	deliverable: text("deliverable"),
+	createdById: text("created_by_id").references(() => users.id, { onDelete: "set null" }),
+	createdAt: timestamp("created_at").defaultNow().notNull(),
+	updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // 6.1 Milestones
@@ -441,6 +481,9 @@ export const tasks = pgTable(
 			.default(false)
 			.notNull(),
 		deliverable: text("deliverable"),
+		workId: text("work_id").references(() => projectWork.id, {
+			onDelete: "set null",
+		}),
 	},
 	(table) => ({
 		idxTasksWorkspaceAssigneeStatus: index(
@@ -1550,6 +1593,10 @@ export const projectAiTools = pgTable("project_ai_tools", {
 	toolCategory: text("tool_category"),
 	toolWebsite: text("tool_website"),
 	purpose: text("purpose").notNull(),
+	assignedToUserId: text("assigned_to_user_id").references(() => users.id, {
+		onDelete: "set null",
+	}),
+	projectPhase: text("project_phase").default("Execution"),
 	notes: text("notes"),
 	addedById: text("added_by_id")
 		.notNull()

@@ -438,19 +438,20 @@ export class CommandEngineService {
           throw new Error("No active project found to link AI tool.");
         }
 
-        const link = await HubService.linkToolToProject({
+        const linkRes = await HubService.linkToolToProject({
           projectId: projId,
           hubToolId: payload.fields.hubToolId || "hub-tool-claude",
           purpose: payload.fields.toolPurpose || "Architecture & documentation",
           addedById: context.userId,
         });
 
-        await this.recordAudit(context, "HUB_TOOL_LINKED_TO_PROJECT", "PROJECT_AI_TOOL", link.id);
-        await this.recordExecution(context, payload, link.id, "COMPLETED");
+        const toolId = linkRes.tool?.id || "pat-linked";
+        await this.recordAudit(context, "HUB_TOOL_LINKED_TO_PROJECT", "PROJECT_AI_TOOL", toolId);
+        await this.recordExecution(context, payload, toolId, "COMPLETED");
 
         return {
           success: true,
-          resultId: link.id,
+          resultId: toolId,
           message: `Linked **${payload.fields.hubToolName || "AI Tool"}** from ManMadhan Hub to project.`,
           redirectUrl: `/ceo/projects/${projId}`,
         };

@@ -48,6 +48,27 @@ async function requireProjectMembership(req: Request, projectId: string) {
 	return { ok: true as const, workspaceId: project.workspaceId };
 }
 
+// ── GET Start OAuth Flow ──────────────────────────────────────────────────────
+githubRouter.get("/oauth/start", async (req: Request, res: Response) => {
+	try {
+		const { slot = "ACCOUNT_A", state } = req.query;
+		const clientId = process.env.GITHUB_CLIENT_ID || process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID;
+		const redirectUri = process.env.GITHUB_REDIRECT_URI || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100"}/api/v1/github/oauth/callback`;
+
+		if (!clientId) {
+			return res.status(400).send("GitHub Client ID is not configured on the server.");
+		}
+
+		const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(
+			String(redirectUri),
+		)}&scope=repo,user,read:org&state=${encodeURIComponent(String(state || slot))}`;
+
+		res.redirect(githubAuthUrl);
+	} catch (err: any) {
+		res.status(500).json({ success: false, error: err.message || "Failed to start GitHub OAuth" });
+	}
+});
+
 // ── GET User Dual GitHub Accounts ──────────────────────────────────────────────
 githubRouter.get("/accounts", async (req: Request, res: Response) => {
 	try {

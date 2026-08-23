@@ -216,21 +216,49 @@ function OverviewTab({
 }) {
   const health = deriveHealth(project, completedCount, totalCount);
   const days = daysRemaining(project.deadline);
-  const completedMilestones = milestones.filter((m) => {
-    const s = (m.state || m.status || "").toUpperCase();
-    return s === "APPROVED" || s === "COMPLETED";
-  });
   const ownerName = project.ownerName || project.owner || "CEO";
-  const assignedTo = project.assignment?.assignedTo;
-  const requirements: any[] = project.requirements || [];
-  const firstReq = requirements[0];
+  const executionLead = project.executionLead || project.assignment?.assignedTo;
+  const members = project.members || project.team || [];
   const stats = project.stats || {};
   const overdueCount = stats.overdue || 0;
+  const blockedCount = stats.blocked || 0;
   const inProgressCount = stats.inProgress || 0;
-  const approvedSubmissions = submissions.filter((s) => s.status === "Approved").length;
+  const nextAction = project.nextAction || {
+    code: "INITIALIZE_WORK",
+    title: "Assign Initial Work & Tasks",
+    description: "Create project work packages and assign initial tasks to team members to kick off execution.",
+    targetTab: "WORK",
+  };
 
   return (
     <div className="space-y-4 font-sans">
+      {/* ROW 0: DYNAMIC NEXT REQUIRED ACTION */}
+      {nextAction && (
+        <OvCard className="p-4 bg-gradient-to-r from-[#C9A52A]/15 via-[#C9A52A]/5 to-transparent border-[#C9A52A]/30">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[9.5px] font-bold px-2 py-0.5 rounded bg-[#C9A52A] text-[#0A0A0A] uppercase tracking-wider">
+                  Next Required Action
+                </span>
+                <span className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+                  {nextAction.title}
+                </span>
+              </div>
+              <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5]">
+                {nextAction.description}
+              </p>
+            </div>
+            <button
+              onClick={() => onTabSwitch((nextAction.targetTab as TabId) || "WORK")}
+              className="inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12px] font-bold hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+            >
+              Take Action <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          </div>
+        </OvCard>
+      )}
+
       {/* ROW 1: PROJECT SUMMARY + OWNERSHIP */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <OvCard className="p-4 space-y-3">
@@ -270,25 +298,28 @@ function OverviewTab({
         </OvCard>
 
         <OvCard className="p-4 space-y-4">
-          <CardLabel>Project Ownership & Assignment</CardLabel>
+          <CardLabel>Project Ownership & Team</CardLabel>
           <div className="space-y-1.5">
-            <p className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5]">Project Owner</p>
+            <p className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5]">Project Owner (CEO)</p>
             <PersonRow name={ownerName} role="Chief Executive Officer" badge="Owner" />
           </div>
           <div className="space-y-1.5 pt-3 border-t border-[#F0F2F5] dark:border-[#1D222A]">
             <p className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5]">Execution Lead</p>
-            {assignedTo ? (
-              <PersonRow name={assignedTo.name || assignedTo.email || "CO-CEO"} role={assignedTo.role || "CO-CEO"} badge="Lead" />
+            {executionLead ? (
+              <PersonRow name={executionLead.name || executionLead.email || "CO-CEO"} role={executionLead.role || "CO-CEO"} badge="Lead" />
             ) : (
               <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] italic">No execution lead assigned.</p>
             )}
           </div>
           <div className="space-y-2 pt-3 border-t border-[#F0F2F5] dark:border-[#1D222A]">
-            <p className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5]">Assigned Members</p>
-            {(project.team || []).length > 0 ? (
-              <div className="space-y-2">
-                {(project.team || []).map((m: any) => (
-                  <PersonRow key={m.id || m.name} name={m.name || m.email} role={m.role} />
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5]">Assigned Members</p>
+              <span className="text-[10px] font-mono font-bold text-[#C9A52A]">{members.length} members</span>
+            </div>
+            {members.length > 0 ? (
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {members.map((m: any) => (
+                  <PersonRow key={m.id || m.userId || m.name} name={m.name || m.email} role={m.role || m.userRole || "Member"} />
                 ))}
               </div>
             ) : (
@@ -301,12 +332,19 @@ function OverviewTab({
       {/* ROW 2: HEALTH + EXECUTION SUMMARY */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <OvCard className="p-4 space-y-3">
-          <CardLabel>Project Health</CardLabel>
-          <div className="flex items-baseline gap-2">
-            <span className={`text-[20px] font-bold leading-none ${health.color}`}>●</span>
-            <span className={`text-[15px] font-bold ${health.color}`}>{health.label}</span>
+          <CardLabel>Project Health Evaluation</CardLabel>
+          <div className="space-y-2">
+            <div className="flex items-baseline gap-2">
+              <span className={`text-[20px] font-bold leading-none ${health.color}`}>●</span>
+              <span className={`text-[15px] font-bold ${health.color}`}>{health.label}</span>
+            </div>
+            {project.healthExplanation && (
+              <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] leading-relaxed bg-[#F8F9FB] dark:bg-[#111419] p-2.5 rounded-lg border border-[#E4E7EC] dark:border-[#272D36]">
+                {project.healthExplanation}
+              </p>
+            )}
           </div>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-[12px]">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-[12px] pt-1">
             <div>
               <p className="text-[#667085] dark:text-[#8B95A5]">Target Date</p>
               <p className="font-semibold font-mono text-[#17202A] dark:text-[#F2F4F7] mt-0.5">{fmtDate(project.deadline, "Flexible")}</p>
@@ -318,12 +356,12 @@ function OverviewTab({
               </p>
             </div>
             <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Overdue Work</p>
+              <p className="text-[#667085] dark:text-[#8B95A5]">Overdue Tasks</p>
               <p className={`font-semibold mt-0.5 ${overdueCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-[#17202A] dark:text-[#F2F4F7]"}`}>{overdueCount}</p>
             </div>
             <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Active Risks</p>
-              <p className="font-semibold text-[#17202A] dark:text-[#F2F4F7] mt-0.5">0</p>
+              <p className="text-[#667085] dark:text-[#8B95A5]">Blocked Tasks</p>
+              <p className={`font-semibold mt-0.5 ${blockedCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-[#17202A] dark:text-[#F2F4F7]"}`}>{blockedCount}</p>
             </div>
           </div>
         </OvCard>
@@ -339,20 +377,20 @@ function OverviewTab({
           </div>
           <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-[12px] pt-1">
             <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Assigned Work</p>
+              <p className="text-[#667085] dark:text-[#8B95A5]">Work Packages</p>
+              <p className="font-semibold text-[#17202A] dark:text-[#F2F4F7] mt-0.5">{(project.workPackages || []).length}</p>
+            </div>
+            <div>
+              <p className="text-[#667085] dark:text-[#8B95A5]">Total Tasks</p>
               <p className="font-semibold text-[#17202A] dark:text-[#F2F4F7] mt-0.5">{totalCount}</p>
             </div>
             <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Completed</p>
+              <p className="text-[#667085] dark:text-[#8B95A5]">Completed Tasks</p>
               <p className="font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">{completedCount}</p>
             </div>
             <div>
               <p className="text-[#667085] dark:text-[#8B95A5]">In Progress</p>
               <p className="font-semibold text-[#C9A52A] dark:text-[#D4B12F] mt-0.5">{inProgressCount}</p>
-            </div>
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Remaining</p>
-              <p className="font-semibold text-[#17202A] dark:text-[#F2F4F7] mt-0.5">{remainingCount}</p>
             </div>
           </div>
         </OvCard>
@@ -389,85 +427,211 @@ function OverviewTab({
 
 // ─── WORK TAB (PROJECT WORK / DELIVERABLES) ───────────────────────────────────
 
-function WorkTab({ tasks, onAddTask }: { tasks: any[]; onAddTask: () => void }) {
+function WorkTab({
+  project,
+  tasks,
+  onAddTask,
+  onWorkCreated,
+}: {
+  project: any;
+  tasks: any[];
+  onAddTask: () => void;
+  onWorkCreated?: () => void;
+}) {
+  const workPackages: any[] = project?.workPackages || [];
+  const [showCreateWorkModal, setShowCreateWorkModal] = useState(false);
+  const [workTitle, setWorkTitle] = useState("");
+  const [workDesc, setWorkDesc] = useState("");
+  const [workCategory, setWorkCategory] = useState("Development");
+  const [workDeliverable, setWorkDeliverable] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleCreateWorkPackage = async () => {
+    if (!workTitle.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const res = await apiClient.post(`/org/projects/${project.id}/work`, {
+        title: workTitle.trim(),
+        description: workDesc.trim() || undefined,
+        category: workCategory,
+        deliverable: workDeliverable.trim() || undefined,
+      });
+
+      if (res.data?.success) {
+        setShowCreateWorkModal(false);
+        setWorkTitle("");
+        setWorkDesc("");
+        setWorkDeliverable("");
+        if (onWorkCreated) onWorkCreated();
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Failed to create work package");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-4 font-sans">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#E4E7EC] dark:border-[#272D36]">
         <div>
-          <p className="text-[9.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-[0.1em]">Project Work</p>
+          <p className="text-[9.5px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-[0.1em]">Project Work & Work Packages</p>
           <h3 className="text-[16px] font-bold text-[#17202A] dark:text-[#F2F4F7] mt-0.5">
-            Assigned Deliverables for this Project
+            Architecture: Work Packages → Tasks → Deliverables
           </h3>
         </div>
-        <button
-          onClick={onAddTask}
-          className="inline-flex items-center gap-1.5 px-4 h-[38px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-semibold hover:opacity-90 transition-opacity cursor-pointer self-start sm:self-auto"
-        >
-          <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Assign Work
-        </button>
-      </div>
-
-      {tasks.length === 0 ? (
-        <OvCard className="p-8 text-center space-y-2">
-          <CheckSquare className="w-8 h-8 text-[#C9A52A] dark:text-[#D4B12F] mx-auto opacity-70" />
-          <p className="text-[13.5px] font-bold text-[#17202A] dark:text-[#F2F4F7]">No project work assigned yet.</p>
-          <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] max-w-md mx-auto">
-            Assign the first project deliverable when execution begins.
-          </p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCreateWorkModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 h-[38px] rounded-[9px] border border-[#E4E7EC] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7] text-[12.5px] font-semibold hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] transition-colors cursor-pointer"
+          >
+            <Layers className="w-3.5 h-3.5 text-blue-500" /> + Work Package
+          </button>
           <button
             onClick={onAddTask}
-            className="inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] border border-[#C9A52A]/40 text-[#C9A52A] dark:text-[#D4B12F] text-[12px] font-semibold hover:bg-[#C9A52A]/10 transition-colors cursor-pointer mx-auto mt-2"
+            className="inline-flex items-center gap-1.5 px-4 h-[38px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
           >
-            <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Assign Work
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> + Task
           </button>
-        </OvCard>
-      ) : (
-        <div className="space-y-3">
-          {tasks.map((t: any) => {
-            const status = t.status || "Active";
-            const isDone = status === "Completed" || status === "Approved" || status === "Done";
-            const isActive = status === "Active" || status === "In Progress" || status === "Accepted";
+        </div>
+      </div>
+
+      {workPackages.length > 0 && (
+        <div className="space-y-4">
+          {workPackages.map((wp: any) => {
+            const wpTasks = tasks.filter((t: any) => t.workId === wp.id || (!t.workId && workPackages.length === 1));
             return (
-              <OvCard key={t.id} className="p-4 hover:border-[#C9A52A] dark:hover:border-[#D4B12F] transition-all">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className={`text-[14px] font-bold ${isDone ? "line-through text-[#667085] dark:text-[#8B95A5]" : "text-[#17202A] dark:text-[#F2F4F7]"}`}>
-                        {t.title}
-                      </h4>
-                    </div>
-                    <div className="text-[12px] text-[#667085] dark:text-[#8B95A5]">
-                      Assigned to: <strong className="text-[#17202A] dark:text-[#F2F4F7] font-semibold">{t.assigneeName || "CO-CEO"}</strong>
-                    </div>
-                    <div className="flex items-center gap-2 text-[11px] pt-0.5">
-                      <span className={`font-bold px-2 py-0.5 rounded border uppercase ${isDone
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                          : isActive
-                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                            : "bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20"
-                        }`}>
-                        {status}
+              <OvCard key={wp.id} className="p-4 space-y-3 border-l-4 border-l-[#C9A52A]">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9.5px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 uppercase tracking-wider">
+                        {wp.category || "Work Package"}
                       </span>
-                      {t.priority && (
-                        <span className="font-semibold text-[#667085] dark:text-[#8B95A5]">· {t.priority}</span>
-                      )}
-                      {t.deadline && (
-                        <span className="font-mono text-[#667085] dark:text-[#8B95A5]">· Due {fmtDate(t.deadline)}</span>
-                      )}
+                      <h4 className="text-[14.5px] font-bold text-[#17202A] dark:text-[#F2F4F7]">{wp.title}</h4>
                     </div>
+                    {wp.description && (
+                      <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] mt-1">{wp.description}</p>
+                    )}
+                  </div>
+                  <span className="text-[11px] font-mono text-[#667085] dark:text-[#8B95A5] shrink-0">
+                    Lead: <strong className="text-[#17202A] dark:text-[#F2F4F7] font-semibold">{wp.ownerName || "CO-CEO"}</strong>
+                  </span>
+                </div>
+
+                {/* Child Tasks */}
+                <div className="pt-2 border-t border-[#F0F2F5] dark:border-[#1D222A] space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-[#667085] uppercase tracking-wider">
+                    <span>Tasks ({wpTasks.length})</span>
+                    {wp.deliverable && <span>Target Deliverable: {wp.deliverable}</span>}
                   </div>
 
-                  <button
-                    onClick={onAddTask}
-                    className="px-3.5 h-[34px] rounded-[7px] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-semibold text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] transition-colors cursor-pointer self-start sm:self-center"
-                  >
-                    View Work
-                  </button>
+                  {wpTasks.length === 0 ? (
+                    <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] italic py-1">No tasks linked to this work package yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {wpTasks.map((t: any) => {
+                        const isDone = t.status === "Completed" || t.status === "Approved";
+                        return (
+                          <div key={t.id} className="p-2.5 bg-[#F8F9FB] dark:bg-[#111419] rounded-lg border border-[#E4E7EC] dark:border-[#272D36] flex items-center justify-between gap-3">
+                            <div className="min-w-0 flex-1 flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full shrink-0 ${isDone ? "bg-emerald-500" : "bg-[#C9A52A]"}`} />
+                              <span className={`text-[12.5px] font-semibold truncate ${isDone ? "line-through text-[#667085]" : "text-[#17202A] dark:text-[#F2F4F7]"}`}>
+                                {t.title}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] shrink-0">
+                              <span className="text-[#667085]">{t.assigneeName || "Assignee"}</span>
+                              <span className={`px-2 py-0.5 rounded text-[9.5px] font-bold uppercase ${isDone ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
+                                {t.status}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </OvCard>
             );
           })}
         </div>
+      )}
+
+      {/* Standalone / Unlinked Tasks Section if any exist */}
+      {tasks.length > 0 && workPackages.length === 0 && (
+        <div className="space-y-3">
+          {tasks.map((t: any) => {
+            const status = t.status || "Active";
+            const isDone = status === "Completed" || status === "Approved" || status === "Done";
+            return (
+              <OvCard key={t.id} className="p-4 hover:border-[#C9A52A] dark:hover:border-[#D4B12F] transition-all">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <h4 className={`text-[14px] font-bold ${isDone ? "line-through text-[#667085]" : "text-[#17202A] dark:text-[#F2F4F7]"}`}>
+                      {t.title}
+                    </h4>
+                    <p className="text-[12px] text-[#667085]">
+                      Assigned to: <strong className="text-[#17202A] dark:text-[#F2F4F7] font-semibold">{t.assigneeName || "CO-CEO"}</strong>
+                    </p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded text-[11px] font-bold uppercase self-start sm:self-center ${isDone ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
+                    {status}
+                  </span>
+                </div>
+              </OvCard>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Create Work Package Modal */}
+      {showCreateWorkModal && (
+        <Modal onClose={() => setShowCreateWorkModal(false)}>
+          <ModalHeader title="Create Work Package" onClose={() => setShowCreateWorkModal(false)} icon={<Layers className="w-4 h-4 text-[#C9A52A]" />} />
+          <div className="p-5 space-y-3 font-sans text-xs">
+            <div>
+              <label className="font-bold text-[#17202A] dark:text-[#F2F4F7] block mb-1">Work Package Title *</label>
+              <input
+                type="text"
+                placeholder="e.g. Build Authentication System"
+                value={workTitle}
+                onChange={(e) => setWorkTitle(e.target.value)}
+                className="w-full px-3.5 h-[36px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-xl text-xs outline-none"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-[#17202A] dark:text-[#F2F4F7] block mb-1">Description</label>
+              <textarea
+                placeholder="Scope & requirements for this work package..."
+                value={workDesc}
+                onChange={(e) => setWorkDesc(e.target.value)}
+                rows={2}
+                className="w-full p-3 bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-xl text-xs outline-none"
+              />
+            </div>
+            <div>
+              <label className="font-bold text-[#17202A] dark:text-[#F2F4F7] block mb-1">Target Deliverable</label>
+              <input
+                type="text"
+                placeholder="e.g. Authentication Module & OAuth Integration"
+                value={workDeliverable}
+                onChange={(e) => setWorkDeliverable(e.target.value)}
+                className="w-full px-3.5 h-[36px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-xl text-xs outline-none"
+              />
+            </div>
+            <div className="pt-2 flex justify-end gap-2">
+              <button onClick={() => setShowCreateWorkModal(false)} className="px-4 py-2 border rounded-xl font-semibold">Cancel</button>
+              <button
+                onClick={handleCreateWorkPackage}
+                disabled={!workTitle.trim() || isSubmitting}
+                className="px-4 py-2 bg-[#C9A52A] text-[#0B0D10] font-bold rounded-xl disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Work Package"}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );
@@ -1126,6 +1290,7 @@ export default function ProjectWorkspacePage() {
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [selectedMilestone, setSelectedMilestone] = useState<any>(null);
 
   // Mobile Bottom Sheets
@@ -1338,13 +1503,107 @@ export default function ProjectWorkspacePage() {
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setShowAddTaskModal(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 h-[38px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-semibold hover:opacity-90 transition-opacity cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Assign Work</span>
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setAddMenuOpen(!addMenuOpen)}
+                  className="inline-flex items-center gap-1.5 px-3.5 h-[38px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Add</span>
+                </button>
+
+                {addMenuOpen && (
+                  <div className="absolute right-0 mt-1.5 w-56 bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] rounded-[12px] shadow-2xl py-1.5 z-40 text-[12.5px] font-sans">
+                    <button
+                      onClick={() => { setShowAddTaskModal(true); setAddMenuOpen(false); }}
+                      className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] cursor-pointer"
+                    >
+                      <CheckSquare className="w-4 h-4 text-[#C9A52A]" />
+                      <div>
+                        <p className="font-bold">Task</p>
+                        <p className="text-[10px] text-[#667085]">Assign actionable item</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("WORK"); setAddMenuOpen(false); }}
+                      className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] cursor-pointer"
+                    >
+                      <Layers className="w-4 h-4 text-blue-500" />
+                      <div>
+                        <p className="font-bold">Work Package</p>
+                        <p className="text-[10px] text-[#667085]">Define execution module</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("MILESTONES"); setAddMenuOpen(false); }}
+                      className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] cursor-pointer"
+                    >
+                      <Flag className="w-4 h-4 text-amber-500" />
+                      <div>
+                        <p className="font-bold">Milestone</p>
+                        <p className="text-[10px] text-[#667085]">Add project phase gate</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("AI_TOOLS"); setAddMenuOpen(false); }}
+                      className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] cursor-pointer"
+                    >
+                      <Bot className="w-4 h-4 text-purple-500" />
+                      <div>
+                        <p className="font-bold">AI Tool (Hub)</p>
+                        <p className="text-[10px] text-[#667085]">Link ManMadhan Hub tool</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("TEAM"); setAddMenuOpen(false); }}
+                      className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] cursor-pointer"
+                    >
+                      <Users className="w-4 h-4 text-emerald-500" />
+                      <div>
+                        <p className="font-bold">Team Member</p>
+                        <p className="text-[10px] text-[#667085]">Assign project resource</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("DOCUMENTS"); setAddMenuOpen(false); }}
+                      className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4 text-indigo-500" />
+                      <div>
+                        <p className="font-bold">Document</p>
+                        <p className="text-[10px] text-[#667085]">Add document/PRD</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("SUBMISSIONS"); setAddMenuOpen(false); }}
+                      className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] cursor-pointer"
+                    >
+                      <Send className="w-4 h-4 text-rose-500" />
+                      <div>
+                        <p className="font-bold">Submission</p>
+                        <p className="text-[10px] text-[#667085]">Submit project deliverable</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab("GITHUB"); setAddMenuOpen(false); }}
+                      className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] cursor-pointer"
+                    >
+                      <Github className="w-4 h-4 text-[#17202A] dark:text-[#F2F4F7]" />
+                      <div>
+                        <p className="font-bold">GitHub Resource</p>
+                        <p className="text-[10px] text-[#667085]">Connect repo / branch</p>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
               <div className="relative" data-actions-menu>
                 <button
                   onClick={() => setActionsOpen(!actionsOpen)}
@@ -1449,7 +1708,7 @@ export default function ProjectWorkspacePage() {
           )}
 
           {activeTab === "WORK" && (
-            <WorkTab tasks={tasks} onAddTask={() => setShowAddTaskModal(true)} />
+            <WorkTab project={project} tasks={tasks} onAddTask={() => setShowAddTaskModal(true)} onWorkCreated={fetchProjectDetails} />
           )}
 
           {activeTab === "SUBMISSIONS" && (

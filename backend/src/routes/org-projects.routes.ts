@@ -8,16 +8,19 @@ import {
 	calendarEvents,
 	milestones,
 	notifications,
+	projectAiTools,
 	projectAssignments,
 	projectDocuments,
 	projectDocumentsV2,
 	projectFeatures,
 	projectGithub,
+	projectMembers,
 	projectMilestonesV2,
 	projectRequirements,
 	projectRoadmaps,
 	projects,
 	projectSubmissions,
+	projectWork,
 	tasks,
 	users,
 	workspaceMembers,
@@ -684,7 +687,7 @@ orgProjectsRouter.post(
 
 			// ── ATOMIC DATABASE TRANSACTION ─────────────────────────────────
 			await db.transaction(async (tx) => {
-				// 1. Create Core Project Record (Owner = Authenticated CEO)
+				// 1. Create Core Project Record (Owner = Authenticated CEO, Lead = CO-CEO)
 				const [p] = await tx
 					.insert(projects)
 					.values({
@@ -699,6 +702,7 @@ orgProjectsRouter.post(
 						progress: 0,
 						health: "HEALTHY",
 						ownerId: userId,
+						executionLeadId: coCeoVal,
 						createdBy: userId,
 						startDate: parsedStartDate,
 						deadline: projectDeadline,
@@ -707,6 +711,54 @@ orgProjectsRouter.post(
 					})
 					.returning();
 				newProject = p;
+
+				// 1.1 Insert Project Members (Owner & Execution Lead & Members)
+				const membersToInsert = [
+					{ id: uuidv4(), projectId, userId, role: "OWNER", assignedById: userId, assignedAt: new Date() },
+				];
+				if (coCeoVal && coCeoVal !== userId) {
+					membersToInsert.push({
+						id: uuidv4(),
+						projectId,
+						userId: coCeoVal,
+						role: "EXECUTION_LEAD",
+						assignedById: userId,
+						assignedAt: new Date(),
+					});
+				}
+				if (Array.isArray(memberUserIds)) {
+					for (const mId of memberUserIds) {
+						if (mId && mId !== userId && mId !== coCeoVal) {
+							membersToInsert.push({
+								id: uuidv4(),
+								projectId,
+								userId: mId,
+								role: "MEMBER",
+								assignedById: userId,
+								assignedAt: new Date(),
+							});
+						}
+					}
+				}
+				await tx.insert(projectMembers).values(membersToInsert);
+
+				// 1.2 Create Initial Core Work Package
+				const initialWorkId = uuidv4();
+				await tx.insert(projectWork).values({
+					id: initialWorkId,
+					projectId,
+					workspaceId,
+					title: "Core Execution Work Package",
+					description: `Primary work package for ${title.trim()}`,
+					category: "Development",
+					status: "Active",
+					ownerId: coCeoVal,
+					startDate: parsedStartDate,
+					deadline: projectDeadline,
+					createdById: userId,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				});
 
 				// 2. Create Project Assignment Record
 				await tx.insert(projectAssignments).values({
@@ -2056,34 +2108,187 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 			logger.error(`Fetch project submissions error: ${e.message}`);
 		}
 
-		// Calculate Dynamic Health Model
+		// Fetch Execution Lead Details
+		let executionLead: any = null;
+		if (project.executionLeadId) {
+			try {
+				const [leadUser] = await db
+					.select()
+					.from(users)
+					.where(eq(users.id, project.executionLeadId))
+					.limit(1);
+				if (leadUser) {
+					executionLead = {
+						id: leadUser.id,
+						name: leadUser.displayName || leadUser.name,
+						email: leadUser.email,
+						role: leadUser.role,
+						avatar: leadUser.avatar,
+					};
+				}
+			} catch (_e) {}
+		}
+
+		// Fetch Project Members
+		let projMembers: any[] = [];
+		try {
+			const rawMembers = await db
+				.select({
+					id: projectMembers.id,
+					userId: projectMembers.userId,
+					role: projectMembers.role,
+					assignedAt: projectMembers.assignedAt,
+					name: users.displayName,
+					email: users.email,
+					userRole: users.role,
+					avatar: users.avatar,
+				})
+				.from(projectMembers)
+				.leftJoin(users, eq(projectMembers.userId, users.id))
+				.where(eq(projectMembers.projectId, id));
+
+			projMembers = rawMembers.map((m) => ({
+				...m,
+				name: m.name || m.email || "Team Member",
+			}));
+		} catch (e: any) {
+			logger.error(`Fetch project members error: ${e.message}`);
+		}
+
+		// Fetch Work Packages
+		let workPackages: any[] = [];
+		try {
+			const rawWork = await db
+				.select({
+					id: projectWork.id,
+					projectId: projectWork.projectId,
+					workspaceId: projectWork.workspaceId,
+					title: projectWork.title,
+					description: projectWork.description,
+					category: projectWork.category,
+					status: projectWork.status,
+					ownerId: projectWork.ownerId,
+					milestoneId: projectWork.milestoneId,
+					startDate: projectWork.startDate,
+					deadline: projectWork.deadline,
+					deliverable: projectWork.deliverable,
+					ownerName: users.displayName,
+					ownerEmail: users.email,
+					createdAt: projectWork.createdAt,
+					updatedAt: projectWork.updatedAt,
+				})
+				.from(projectWork)
+				.leftJoin(users, eq(projectWork.ownerId, users.id))
+				.where(eq(projectWork.projectId, id))
+				.orderBy(desc(projectWork.createdAt));
+
+			workPackages = rawWork.map((w) => ({
+				...w,
+				ownerName: w.ownerName || w.ownerEmail || "Unassigned",
+			}));
+		} catch (e: any) {
+			logger.error(`Fetch project work packages error: ${e.message}`);
+		}
+
+		// Fetch AI Tools (Hub)
+		let aiTools: any[] = [];
+		try {
+			aiTools = await db
+				.select()
+				.from(projectAiTools)
+				.where(eq(projectAiTools.projectId, id))
+				.orderBy(desc(projectAiTools.createdAt));
+		} catch (e: any) {
+			logger.error(`Fetch project ai tools error: ${e.message}`);
+		}
+
+		// Calculate Dynamic Health Model & Explanation
 		const now = new Date();
-		const blockedTasks = formattedTasks.filter((t) => t.status === "Blocked").length;
+		const blockedTasks = formattedTasks.filter((t) => t.status === "Blocked");
 		const overdueTasks = formattedTasks.filter(
 			(t) =>
 				t.deadline &&
 				new Date(t.deadline) < now &&
 				t.status !== "Completed" &&
 				t.status !== "Approved",
-		).length;
-
-		let health = "HEALTHY";
+		);
+		const pendingSubmissions = projSubmissions.filter((s) => s.status === "Under Review");
 		const isProjectOverdue =
 			project.deadline &&
 			new Date(project.deadline) < now &&
 			project.status !== "COMPLETED" &&
 			project.status !== "Completed";
 
-		if (isProjectOverdue || overdueTasks >= 3 || blockedTasks >= 2) {
-			health = "CRITICAL";
-		} else if (
-			overdueTasks > 0 ||
-			blockedTasks > 0 ||
-			(project.deadline &&
-				new Date(project.deadline).getTime() - now.getTime() < 3 * 24 * 3600 * 1000 &&
-				progress < 50)
-		) {
+		let health = "ON_TRACK";
+		let healthExplanation = "Project is progressing on schedule with no active blockers.";
+
+		if (project.status === "COMPLETED" || project.status === "Completed") {
+			health = "COMPLETED";
+			healthExplanation = "Project has been completed and approved by leadership.";
+		} else if (blockedTasks.length > 0) {
+			health = "BLOCKED";
+			healthExplanation = `Project execution is blocked by ${blockedTasks.length} task(s) with dependencies or critical issues.`;
+		} else if (isProjectOverdue && project.deadline) {
+			health = "DELAYED";
+			healthExplanation = `Project deadline (${new Date(project.deadline).toLocaleDateString()}) has passed with incomplete deliverables.`;
+		} else if (overdueTasks.length > 0) {
 			health = "AT_RISK";
+			healthExplanation = `Project has ${overdueTasks.length} overdue task(s) requiring immediate attention.`;
+		} else if (pendingSubmissions.length > 0) {
+			health = "ON_TRACK";
+			healthExplanation = "Deliverable submission is under executive review.";
+		}
+
+		// Next Action Calculation Engine
+		let nextAction = {
+			code: "INITIALIZE_WORK",
+			title: "Assign Initial Work & Tasks",
+			description: "Create project work packages and assign initial tasks to team members to kick off execution.",
+			targetTab: "WORK",
+		};
+
+		if (projectAssignmentData && projectAssignmentData.status === "PENDING_ACCEPTANCE") {
+			nextAction = {
+				code: "ACCEPT_ASSIGNMENT",
+				title: "Accept Project Assignment",
+				description: "Execution lead must accept the assigned project mandate before execution begins.",
+				targetTab: "OVERVIEW",
+			};
+		} else if (pendingSubmissions.length > 0) {
+			nextAction = {
+				code: "REVIEW_SUBMISSION",
+				title: "Review Project Deliverable Submission",
+				description: "Executive review is required for the submitted project deliverable.",
+				targetTab: "SUBMISSIONS",
+			};
+		} else if (blockedTasks.length > 0) {
+			nextAction = {
+				code: "RESOLVE_BLOCKERS",
+				title: "Resolve Blocked Tasks",
+				description: `Unblock ${blockedTasks.length} task(s) to restore team progress.`,
+				targetTab: "WORK",
+			};
+		} else if (formattedTasks.length === 0 && workPackages.length === 0) {
+			nextAction = {
+				code: "CREATE_WORK_PACKAGES",
+				title: "Create Work Packages & Tasks",
+				description: "Structure project work into work packages and assign actionable tasks.",
+				targetTab: "WORK",
+			};
+		} else if (completed < total) {
+			nextAction = {
+				code: "COMPLETE_TASKS",
+				title: "Execute Active Tasks",
+				description: `${total - completed} remaining task(s) in progress. Complete work and submit deliverables.`,
+				targetTab: "WORK",
+			};
+		} else if (total > 0 && completed === total && projSubmissions.length === 0) {
+			nextAction = {
+				code: "SUBMIT_DELIVERABLE",
+				title: "Submit Project Deliverable",
+				description: "All project tasks are completed. Submit final project deliverable for review.",
+				targetTab: "SUBMISSIONS",
+			};
 		}
 
 		res.json({
@@ -2091,9 +2296,15 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 			data: {
 				...project,
 				health,
+				healthExplanation,
+				nextAction,
 				progress,
 				ownerName,
 				ownerEmail,
+				executionLead,
+				members: projMembers,
+				workPackages,
+				aiTools,
 				assignedToUserId: projectAssignmentData?.assignedTo?.id || null,
 				assignedUserName: projectAssignmentData?.assignedTo?.name || null,
 				assignedUserEmail: projectAssignmentData?.assignedTo?.email || null,
@@ -2113,8 +2324,8 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 					inProgress: formattedTasks.filter(
 						(t) => t.status === "In Progress" || t.status === "Accepted",
 					).length,
-					overdue: overdueTasks,
-					blocked: blockedTasks,
+					overdue: overdueTasks.length,
+					blocked: blockedTasks.length,
 				},
 			},
 		});
@@ -2126,6 +2337,114 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 		res.status(500).json({ success: false, error: "Internal server error" });
 	}
 });
+
+// ─── Work Package Management Routes ──────────────────────────────────────────
+
+// GET Work Packages for Project
+orgProjectsRouter.get(
+	"/:id/work",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const projectId = req.params.id as string;
+			const work = await db
+				.select({
+					id: projectWork.id,
+					projectId: projectWork.projectId,
+					workspaceId: projectWork.workspaceId,
+					title: projectWork.title,
+					description: projectWork.description,
+					category: projectWork.category,
+					status: projectWork.status,
+					ownerId: projectWork.ownerId,
+					milestoneId: projectWork.milestoneId,
+					startDate: projectWork.startDate,
+					deadline: projectWork.deadline,
+					deliverable: projectWork.deliverable,
+					ownerName: users.displayName,
+					ownerEmail: users.email,
+					createdAt: projectWork.createdAt,
+					updatedAt: projectWork.updatedAt,
+				})
+				.from(projectWork)
+				.leftJoin(users, eq(projectWork.ownerId, users.id))
+				.where(eq(projectWork.projectId, projectId))
+				.orderBy(desc(projectWork.createdAt));
+
+			res.json({ success: true, data: work });
+		} catch (err: any) {
+			logger.error(`Get project work error: ${err.message}`);
+			res.status(500).json({ success: false, error: "Failed to fetch work packages" });
+		}
+	},
+);
+
+// POST Create Work Package
+orgProjectsRouter.post(
+	"/:id/work",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const projectId = req.params.id as string;
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const { title, description, category, ownerId, milestoneId, startDate, deadline, deliverable } = req.body;
+
+			if (!title || typeof title !== "string" || !title.trim()) {
+				return res.status(400).json({ success: false, error: "Work package title is required." });
+			}
+
+			const newWorkId = uuidv4();
+			const [created] = await db
+				.insert(projectWork)
+				.values({
+					id: newWorkId,
+					projectId,
+					workspaceId,
+					title: title.trim(),
+					description: description || null,
+					category: category || "Development",
+					status: "Active",
+					ownerId: ownerId || userId,
+					milestoneId: milestoneId || null,
+					startDate: startDate ? new Date(startDate) : null,
+					deadline: deadline ? new Date(deadline) : null,
+					deliverable: deliverable || null,
+					createdById: userId,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+				})
+				.returning();
+
+			res.json({ success: true, data: created, message: "Work package created successfully." });
+		} catch (err: any) {
+			logger.error(`Create work package error: ${err.message}`);
+			res.status(500).json({ success: false, error: err.message || "Failed to create work package" });
+		}
+	},
+);
+
+// DELETE Work Package
+orgProjectsRouter.delete(
+	"/:id/work/:workId",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const { id: projectId, workId } = req.params;
+			await db
+				.delete(projectWork)
+				.where(and(eq(projectWork.projectId, projectId), eq(projectWork.id, workId)));
+
+			res.json({ success: true, message: "Work package deleted successfully." });
+		} catch (err: any) {
+			logger.error(`Delete work package error: ${err.message}`);
+			res.status(500).json({ success: false, error: "Failed to delete work package" });
+		}
+	},
+);
 
 // ─── Post Project Deliverable Submission (POST /:id/submissions) ─────────────
 orgProjectsRouter.post(

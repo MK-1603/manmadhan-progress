@@ -167,6 +167,8 @@ export class HubService {
     projectId: string;
     hubToolId: string;
     purpose: string;
+    assignedToUserId?: string;
+    projectPhase?: string;
     notes?: string;
     addedById: string;
   }) {
@@ -181,17 +183,12 @@ export class HubService {
       .where(and(eq(projectAiTools.projectId, params.projectId), eq(projectAiTools.hubToolId, params.hubToolId)));
 
     if (existingLink.length > 0) {
-      // Update purpose
-      const updated = await db
-        .update(projectAiTools)
-        .set({
-          purpose: params.purpose,
-          notes: params.notes || null,
-          updatedAt: new Date(),
-        })
-        .where(eq(projectAiTools.id, existingLink[0].id))
-        .returning();
-      return updated[0];
+      return {
+        success: true,
+        duplicate: true,
+        tool: existingLink[0],
+        message: "Tool is already linked to this project.",
+      };
     }
 
     const newLink = await db
@@ -204,6 +201,8 @@ export class HubService {
         toolCategory: hubTool.category,
         toolWebsite: hubTool.websiteUrl || null,
         purpose: params.purpose,
+        assignedToUserId: params.assignedToUserId || null,
+        projectPhase: params.projectPhase || "Execution",
         notes: params.notes || null,
         addedById: params.addedById,
         status: hubTool.status || "ACTIVE",
@@ -212,7 +211,11 @@ export class HubService {
       })
       .returning();
 
-    return newLink[0];
+    return {
+      success: true,
+      duplicate: false,
+      tool: newLink[0],
+    };
   }
 
   /**
