@@ -7,7 +7,7 @@ import { useAuth, getDashboardPathForRole, syncTokenCookie } from "./auth-contex
 function Handler() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { open, close, setAuthData, checkSession } = useAuth();
+  const { open, close, setAuthData, checkSession, authStatus, user } = useAuth();
   const searchParamsString = searchParams ? searchParams.toString() : "";
 
   useEffect(() => {
@@ -17,6 +17,25 @@ function Handler() {
     const emailParam = searchParams.get("email");
     const token = searchParams.get("token") || "";
     const role = searchParams.get("role") || "";
+
+    if (authStatus === "authenticated" && user) {
+      if (step || redirectParam || errorMsg || emailParam || token) {
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("auth_step");
+          url.searchParams.delete("token");
+          url.searchParams.delete("role");
+          url.searchParams.delete("error");
+          url.searchParams.delete("email");
+          url.searchParams.delete("redirect");
+          window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+        }
+        if (redirectParam && redirectParam.startsWith("/")) {
+          router.replace(redirectParam);
+        }
+      }
+      return;
+    }
 
     if (token && step === "OAUTH_SUCCESS") {
       close(true);
@@ -55,7 +74,7 @@ function Handler() {
       // Open the global AuthModal
       open();
     }
-  }, [searchParamsString, open, setAuthData, checkSession, router]);
+  }, [searchParamsString, open, setAuthData, checkSession, router, authStatus, user, close]);
 
   return null;
 }

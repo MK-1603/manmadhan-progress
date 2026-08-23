@@ -7,9 +7,19 @@ import { useAuth, getDashboardPathForRole, syncTokenCookie } from "@/components/
 function LoginContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { open, close, setAuthData, checkSession, authStatus, isLoading } = useAuth();
+  const { open, close, setAuthData, checkSession, authStatus, isLoading, user } = useAuth();
 
   useEffect(() => {
+    if (isLoading || authStatus === "initializing") return;
+
+    if (authStatus === "authenticated" && user) {
+      close(true);
+      const redirectParam = searchParams.get("redirect");
+      const targetPath = (redirectParam && redirectParam.startsWith("/")) ? redirectParam : getDashboardPathForRole(user.role);
+      router.replace(targetPath);
+      return;
+    }
+
     const redirectParam = searchParams.get("redirect") || "";
     const errorParam = searchParams.get("error") || "";
     const tokenParam = searchParams.get("token") || "";
@@ -43,7 +53,7 @@ function LoginContent() {
 
     router.replace(`/?${params.toString()}`);
     open();
-  }, [searchParams, router, setAuthData, open, close, checkSession]);
+  }, [searchParams, router, setAuthData, open, close, checkSession, authStatus, isLoading, user]);
 
   return (
     <div className="min-h-screen bg-[#060806] flex flex-col items-center justify-center text-center p-6 space-y-4 select-none">

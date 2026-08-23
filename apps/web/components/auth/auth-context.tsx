@@ -180,8 +180,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res?.data?.authenticated && res?.data?.user) {
         setUser(res.data.user);
         setAuthStatus("authenticated");
-        if (res.data.workspaceId && typeof window !== "undefined") {
-          localStorage.setItem("workspaceId", res.data.workspaceId);
+        setAuthData(null);
+        setOpenModal(false);
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("authData");
+          if (res.data.workspaceId) {
+            localStorage.setItem("workspaceId", res.data.workspaceId);
+          }
+          const token =
+            localStorage.getItem("auth_token") ||
+            localStorage.getItem("token") ||
+            localStorage.getItem("jwt");
+          if (token) {
+            syncTokenCookie(token);
+          }
         }
       } else {
         setUser(null);
