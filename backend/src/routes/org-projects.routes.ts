@@ -235,7 +235,8 @@ orgProjectsRouter.post(
 				return res
 					.status(400)
 					.json({ success: false, error: "Project prompt is required" });
-const analysis = await ProjectAnalyzerService.analyzePrompt(
+			}
+			const analysis = await ProjectAnalyzerService.analyzePrompt(
 				prompt.trim(),
 			);
 			res.json({ success: true, data: analysis });
