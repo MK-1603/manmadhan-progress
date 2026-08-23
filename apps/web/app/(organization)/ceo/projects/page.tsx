@@ -279,12 +279,12 @@ export default function ProjectsPage() {
   };
 
   const moreFiltersContentNode = (
-    <div className="space-y-3 text-[12px] font-sans">
+    <div className="space-y-3.5 text-[12px] font-sans">
       <div>
-        <div className="text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider mb-1.5">
+        <div className="text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider mb-2">
           Deadline
         </div>
-        <div className="space-y-1">
+        <div className="space-y-2">
           {[
             { id: "All", name: "All" },
             { id: "Overdue", name: "Overdue" },
@@ -293,26 +293,26 @@ export default function ProjectsPage() {
           ].map((df) => (
             <label
               key={df.id}
-              className="flex items-center gap-2 cursor-pointer text-zinc-900 dark:text-[#F2F4F7] font-medium"
+              className="flex items-center gap-2.5 cursor-pointer text-zinc-900 dark:text-[#F2F4F7] font-semibold hover:text-[#C9A52A] transition-colors"
             >
               <input
                 type="radio"
                 name="deadlineFilter"
                 checked={deadlineFilter === df.id}
                 onChange={() => setDeadlineFilter(df.id)}
-                className="accent-[#C9A52A]"
+                className="accent-[#C9A52A] w-4 h-4 cursor-pointer"
               />
-              <span>{df.name}</span>
+              <span className="text-[12.5px] leading-none">{df.name}</span>
             </label>
           ))}
         </div>
       </div>
 
-      <div className="pt-2 border-t border-zinc-200 dark:border-[#272D36]">
-        <div className="text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider mb-1.5">
+      <div className="pt-2.5 border-t border-zinc-200 dark:border-[#272D36]">
+        <div className="text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider mb-2">
           Progress
         </div>
-        <div className="space-y-1">
+        <div className="space-y-2">
           {[
             { id: "All", name: "All" },
             { id: "NotStarted", name: "Not Started (0%)" },
@@ -321,16 +321,16 @@ export default function ProjectsPage() {
           ].map((pf) => (
             <label
               key={pf.id}
-              className="flex items-center gap-2 cursor-pointer text-zinc-900 dark:text-[#F2F4F7] font-medium"
+              className="flex items-center gap-2.5 cursor-pointer text-zinc-900 dark:text-[#F2F4F7] font-semibold hover:text-[#C9A52A] transition-colors"
             >
               <input
                 type="radio"
                 name="progressFilter"
                 checked={progressFilter === pf.id}
                 onChange={() => setProgressFilter(pf.id)}
-                className="accent-[#C9A52A]"
+                className="accent-[#C9A52A] w-4 h-4 cursor-pointer"
               />
-              <span>{pf.name}</span>
+              <span className="text-[12.5px] leading-none">{pf.name}</span>
             </label>
           ))}
         </div>
