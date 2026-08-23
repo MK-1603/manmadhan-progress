@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { X, Loader2, Sparkles, ChevronRight, UserCheck, Bot, Calendar, Layers, AlertCircle, ArrowLeft, Check, Command } from "lucide-react";
+import { X, Loader2, Sparkles, ChevronRight, UserCheck, Bot, Calendar, Layers, AlertCircle, ArrowLeft, Check, Command, ChevronDown, ChevronUp, HelpCircle, FileText, Zap } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 
@@ -31,6 +31,7 @@ interface CreateProjectModalProps {
 }
 
 const QUICK_ADD_CHIPS = [
+  { label: "Add All", key: "ADD_ALL", primary: true },
   { label: "Title", key: "Project Title: " },
   { label: "Description", key: "Project Description: " },
   { label: "Assignee", key: "Assignee: " },
@@ -39,7 +40,49 @@ const QUICK_ADD_CHIPS = [
   { label: "Requirements", key: "Requirements: " },
   { label: "Milestones", key: "Milestones: " },
   { label: "GitHub", key: "GitHub: " },
-  { label: "Hub Tools", key: "ManMadhan Hub: " },
+  { label: "Hub", key: "ManMadhan Hub: " },
+];
+
+const FULL_TEMPLATE_KEYS = [
+  "Project Title: ",
+  "Project Description: ",
+  "Assignee: ",
+  "Members: ",
+  "Deadline: ",
+  "Requirements: ",
+  "Milestones: ",
+  "GitHub: ",
+  "ManMadhan Hub: ",
+  "Notes: ",
+];
+
+const PROMPT_EXAMPLES = [
+  {
+    title: "Simple",
+    text: "Build a portfolio website and assign @ARUN.",
+    desc: "Single natural sentence with member mention",
+  },
+  {
+    title: "Team Project",
+    text: "Build ManMadhan Progress. @SHRIRAM leads execution and @ARUN handles frontend.",
+    desc: "Lead & team member responsibilities",
+  },
+  {
+    title: "Detailed",
+    text: "Build a SaaS task platform with @SHRIRAM leading execution, @ARUN handling frontend, and @KARTHIK handling backend. Finish by 30 August.",
+    desc: "Complete roles with target deadline",
+  },
+  {
+    title: "AI + Hub",
+    text: "Build an AI productivity platform. Use Claude and Figma from ManMadhan Hub. @SHRIRAM leads execution.",
+    desc: "Integrate ManMadhan Hub AI tools",
+  },
+];
+
+const HUB_TOOLS = [
+  { name: "@Claude", purpose: "Architecture & PRD Documentation" },
+  { name: "@Figma", purpose: "UI/UX Design Mockups" },
+  { name: "@GitHub Copilot", purpose: "Automated Code Generation" },
 ];
 
 export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProjectModalProps) {
@@ -54,6 +97,11 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Accordion States for Reference & Examples ─────────────────────────────
+  const [showQuickRef, setShowQuickRef] = useState(false);
+  const [showExamples, setShowExamples] = useState(false);
+  const [pendingExampleText, setPendingExampleText] = useState<string | null>(null);
+
   // ── Directory & Context ─────────────────────────────────────────────────────
   const [allUsers, setAllUsers] = useState<AssigneeUser[]>([]);
   const [currentUser, setCurrentUser] = useState<{ id?: string; name?: string; role?: string }>({
@@ -61,12 +109,11 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
     role: "CEO",
   });
 
-  // ── Mention Autocomplete State ──────────────────────────────────────────────
+  // ── Autocomplete Dropdown States ───────────────────────────────────────────
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionPosition, setMentionPosition] = useState<number>(0);
   const [selectedMentionIndex, setSelectedMentionIndex] = useState<number>(0);
 
-  // ── Slash Command State ────────────────────────────────────────────────────
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [slashPosition, setSlashPosition] = useState<number>(0);
 
@@ -94,6 +141,9 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
     setError(null);
     setIsParsing(false);
     setIsSubmitting(false);
+    setShowQuickRef(false);
+    setShowExamples(false);
+    setPendingExampleText(null);
 
     async function loadDirectory() {
       try {
@@ -120,8 +170,46 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
     loadDirectory();
   }, [isOpen]);
 
-  // ── Quick Add Chip Click Handler (Inserts Key ONLY) ──────────────────────────
+  // ── Smart Add All & Quick Add Handlers ──────────────────────────────────────
+  const handleSmartAddAll = () => {
+    if (!promptText.trim()) {
+      setPromptText(FULL_TEMPLATE_KEYS.join("\n"));
+      return;
+    }
+
+    // Preserve existing content and append only missing template keys
+    const lowerPrompt = promptText.toLowerCase();
+    const missingKeys: string[] = [];
+
+    FULL_TEMPLATE_KEYS.forEach((k) => {
+      const keyClean = k.replace(":", "").trim().toLowerCase();
+      if (!lowerPrompt.includes(keyClean)) {
+        missingKeys.push(k);
+      }
+    });
+
+    if (missingKeys.length > 0) {
+      const prefix = promptText.endsWith("\n") ? "" : "\n\n";
+      setPromptText((prev) => prev + prefix + missingKeys.join("\n"));
+    }
+  };
+
   const handleQuickAddClick = (chipKey: string) => {
+    if (chipKey === "ADD_ALL") {
+      handleSmartAddAll();
+      return;
+    }
+
+    // Check if key is already present in prompt
+    const keyClean = chipKey.replace(":", "").trim().toLowerCase();
+    if (promptText.toLowerCase().includes(keyClean) && textareaRef.current) {
+      // Focus line if already present
+      textareaRef.current.focus();
+      const pos = promptText.toLowerCase().indexOf(keyClean);
+      textareaRef.current.setSelectionRange(pos, pos + chipKey.length);
+      return;
+    }
+
     if (!textareaRef.current) {
       setPromptText((prev) => prev + (prev.endsWith("\n") || prev === "" ? "" : "\n") + chipKey);
       return;
@@ -145,7 +233,23 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
     }, 0);
   };
 
-  // ── Mention Filter Options ──────────────────────────────────────────────────
+  // ── "Use Example" Handlers with Overwrite Protection ────────────────────────
+  const handleApplyExample = (exampleText: string) => {
+    if (!promptText.trim()) {
+      setPromptText(exampleText);
+    } else {
+      setPendingExampleText(exampleText);
+    }
+  };
+
+  const confirmOverwriteExample = () => {
+    if (pendingExampleText) {
+      setPromptText(pendingExampleText);
+      setPendingExampleText(null);
+    }
+  };
+
+  // ── Mention Autocomplete Filter Options ─────────────────────────────────────
   const mentionOptions = useMemo(() => {
     if (mentionQuery === null) return [];
     const q = mentionQuery.toLowerCase();
@@ -170,10 +274,21 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
       }
     });
 
+    // Add Hub tools if user types after hub context
+    HUB_TOOLS.forEach((h) => {
+      if (h.name.toLowerCase().includes(q)) {
+        options.push({
+          id: h.name,
+          label: h.name,
+          subLabel: `ManMadhan Hub Tool · ${h.purpose}`,
+        });
+      }
+    });
+
     return options;
   }, [mentionQuery, allUsers, currentUser]);
 
-  // ── Textarea @Mention Detector & / Command Detector ─────────────────────────
+  // ── Textarea Keyboard & Change Events ───────────────────────────────────────
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setPromptText(val);
@@ -182,7 +297,6 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
     const cursorPos = e.target.selectionStart;
     const textBeforeCursor = val.slice(0, cursorPos);
 
-    // Check @ mention
     const lastAtIndex = textBeforeCursor.lastIndexOf("@");
     if (lastAtIndex !== -1) {
       const query = textBeforeCursor.slice(lastAtIndex + 1);
@@ -195,7 +309,6 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
       }
     }
 
-    // Check / slash command
     const lastSlashIndex = textBeforeCursor.lastIndexOf("/");
     if (lastSlashIndex !== -1 && (lastSlashIndex === 0 || /\s/.test(textBeforeCursor[lastSlashIndex - 1]))) {
       const query = textBeforeCursor.slice(lastSlashIndex + 1);
@@ -287,14 +400,12 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
         const plan = res.data.data;
         const proj = plan.project || {};
 
-        // Resolve Execution Lead mention against directory
         let leadUser: AssigneeUser | null = null;
         if (proj.executionLeadMention) {
           const cleanLead = proj.executionLeadMention.replace(/^@/, "").toLowerCase();
           leadUser = allUsers.find((u) => u.name?.toLowerCase().includes(cleanLead) || u.email?.toLowerCase().includes(cleanLead)) || null;
         }
 
-        // Resolve Members mentions against directory
         const memberList: Array<{ user: AssigneeUser; responsibility?: string }> = [];
         if (Array.isArray(proj.memberMentions)) {
           proj.memberMentions.forEach((m: any) => {
@@ -306,14 +417,12 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
           });
         }
 
-        // Check Owner vs Assignee Business Rule: Owner cannot be assigned as executor
         if (leadUser && leadUser.id === currentUser.id) {
           setError("Project owner cannot be assigned as project executor.");
           setIsParsing(false);
           return;
         }
 
-        // Build Intent Model
         setExtractedIntent({
           title: proj.name || "Untitled Project",
           description: proj.description || proj.objective || promptText.trim(),
@@ -345,7 +454,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
     }
   };
 
-  // ── Stage 2: Confirmed Real Project Creation Transaction ───────────────────
+  // ── Stage 2: Real Project Creation Transaction ──────────────────────────────
   const handleConfirmCreateProject = async () => {
     if (!extractedIntent) return;
     setIsSubmitting(true);
@@ -392,13 +501,13 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-xl bg-[#0B0D10] border border-[#272D36] rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-white font-sans">
-        {/* Simplified Compact Header */}
-        <div className="px-5 py-3.5 border-b border-[#1D222A] flex items-center justify-between bg-[#111419] shrink-0">
+      <div className="w-full max-w-xl bg-[#0B0D10] border border-[#272D36] rounded-2xl shadow-2xl flex flex-col max-h-[88vh] overflow-hidden text-white font-sans">
+        {/* Header */}
+        <div className="px-5 py-3 border-b border-[#1D222A] flex items-center justify-between bg-[#111419] shrink-0">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#C9A52A]" />
             <div>
-              <h2 className="text-sm font-bold text-[#F2F4F7]">Create Project</h2>
+              <h2 className="text-sm font-bold text-[#F2F4F7]">✦ Create Project</h2>
               <p className="text-[11px] text-[#667085]">Describe what you want to execute.</p>
             </div>
           </div>
@@ -416,6 +525,27 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
             </div>
           )}
 
+          {/* Overwrite Example Protection Confirmation */}
+          {pendingExampleText && (
+            <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs space-y-2">
+              <p className="font-semibold text-amber-200">Replace current prompt content with selected example?</p>
+              <div className="flex items-center gap-2 justify-end">
+                <button
+                  onClick={() => setPendingExampleText(null)}
+                  className="px-2.5 py-1 rounded border border-amber-500/40 text-amber-200 hover:bg-amber-500/20 text-[11px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmOverwriteExample}
+                  className="px-2.5 py-1 rounded bg-[#C9A52A] text-black font-bold text-[11px]"
+                >
+                  Use Example
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ── STAGE 1: SINGLE PROMPT COMPOSER ───────────────────────────────────── */}
           {stage === "COMPOSE" && (
             <div className="space-y-3">
@@ -425,16 +555,16 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                   value={promptText}
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
-                  placeholder="Describe what you want to execute..."
+                  placeholder="Describe what you want to execute... (Try typing @ for team or / for quick commands)"
                   rows={5}
-                  className="w-full p-3.5 bg-[#111419] border border-[#272D36] focus:border-[#C9A52A] rounded-xl text-xs text-[#F2F4F7] placeholder-[#667085] outline-none transition-all resize-none leading-relaxed"
+                  className="w-full p-3 bg-[#111419] border border-[#272D36] focus:border-[#C9A52A] rounded-xl text-xs text-[#F2F4F7] placeholder-[#667085] outline-none transition-all resize-none leading-relaxed"
                 />
 
-                {/* Real-time @Mention Autocomplete Dropdown */}
+                {/* Autocomplete Dropdown */}
                 {mentionQuery !== null && mentionOptions.length > 0 && (
-                  <div className="absolute left-3 bottom-3 z-50 w-60 bg-[#15191F] border border-[#272D36] rounded-xl shadow-2xl overflow-hidden py-1">
+                  <div className="absolute left-3 bottom-3 z-50 w-64 bg-[#15191F] border border-[#272D36] rounded-xl shadow-2xl overflow-hidden py-1">
                     <p className="px-3 py-1 text-[9.5px] font-bold text-[#667085] uppercase tracking-wider border-b border-[#1D222A]">
-                      Assign Team Member
+                      Select Mention
                     </p>
                     {mentionOptions.map((opt, idx) => (
                       <button
@@ -450,42 +580,93 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                     ))}
                   </div>
                 )}
-
-                {/* Real-time Slash Command Dropdown */}
-                {slashQuery !== null && (
-                  <div className="absolute left-3 bottom-3 z-50 w-56 bg-[#15191F] border border-[#272D36] rounded-xl shadow-2xl overflow-hidden py-1">
-                    <p className="px-3 py-1 text-[9.5px] font-bold text-[#667085] uppercase tracking-wider border-b border-[#1D222A]">
-                      Quick Commands
-                    </p>
-                    {QUICK_ADD_CHIPS.map((chip) => (
-                      <button
-                        key={chip.label}
-                        onClick={() => handleSelectSlashChip(chip.key)}
-                        className="w-full px-3 py-1.5 text-left flex items-center gap-2 text-xs text-[#F2F4F7] hover:bg-[#1D222A] cursor-pointer"
-                      >
-                        <Command className="w-3 h-3 text-[#C9A52A]" />
-                        <span>/{chip.label.toLowerCase()}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Quick Add Chips Section */}
               <div className="space-y-1.5">
-                <p className="text-[10px] font-bold text-[#667085] uppercase tracking-wider">Quick Add</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold text-[#667085] uppercase tracking-wider">Quick Add</p>
+                  <span className="text-[9.5px] text-[#667085]">Click chip to insert key</span>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {QUICK_ADD_CHIPS.map((chip) => (
                     <button
                       key={chip.label}
                       type="button"
                       onClick={() => handleQuickAddClick(chip.key)}
-                      className="px-2.5 py-1 bg-[#111419] hover:bg-[#1A1F26] border border-[#272D36] hover:border-[#C9A52A]/50 rounded-lg text-[11px] font-medium text-[#8B95A5] hover:text-[#F2F4F7] transition-all cursor-pointer"
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
+                        chip.primary
+                          ? "bg-[#C9A52A]/20 border-[#C9A52A] text-[#C9A52A] hover:bg-[#C9A52A] hover:text-black"
+                          : "bg-[#111419] border-[#272D36] text-[#8B95A5] hover:text-[#F2F4F7] hover:border-[#C9A52A]/40"
+                      }`}
                     >
                       {chip.label}
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Collapsible Quick Reference Section */}
+              <div className="border border-[#1D222A] rounded-xl bg-[#111419]/50 overflow-hidden text-xs">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickRef(!showQuickRef)}
+                  className="w-full px-3 py-2 flex items-center justify-between text-[#8B95A5] hover:text-white transition-colors cursor-pointer"
+                >
+                  <span className="flex items-center gap-1.5 text-[11px] font-bold">
+                    <HelpCircle className="w-3.5 h-3.5 text-[#C9A52A]" /> Quick Reference
+                  </span>
+                  {showQuickRef ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+
+                {showQuickRef && (
+                  <div className="p-3 border-t border-[#1D222A] space-y-2 text-[11px] text-[#667085]">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="p-2 bg-[#0B0D10] rounded border border-[#1D222A]">
+                        <span className="font-bold text-[#C9A52A]">@ People</span>
+                        <p className="text-[10px]">Type @ to mention team members or @me for yourself.</p>
+                      </div>
+                      <div className="p-2 bg-[#0B0D10] rounded border border-[#1D222A]">
+                        <span className="font-bold text-blue-400">/ Commands</span>
+                        <p className="text-[10px]">Type / to trigger quick command fields.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Collapsible Examples Accordion */}
+              <div className="border border-[#1D222A] rounded-xl bg-[#111419]/50 overflow-hidden text-xs">
+                <button
+                  type="button"
+                  onClick={() => setShowExamples(!showExamples)}
+                  className="w-full px-3 py-2 flex items-center justify-between text-[#8B95A5] hover:text-white transition-colors cursor-pointer"
+                >
+                  <span className="flex items-center gap-1.5 text-[11px] font-bold">
+                    <Zap className="w-3.5 h-3.5 text-purple-400" /> Examples
+                  </span>
+                  {showExamples ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+
+                {showExamples && (
+                  <div className="p-3 border-t border-[#1D222A] space-y-2 text-[11px]">
+                    {PROMPT_EXAMPLES.map((ex, idx) => (
+                      <div key={idx} className="p-2.5 bg-[#0B0D10] rounded-lg border border-[#1D222A] flex items-center justify-between gap-2">
+                        <div>
+                          <p className="font-bold text-[#F2F4F7]">{ex.title}</p>
+                          <p className="text-[10.5px] text-[#667085] line-clamp-1">{ex.text}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleApplyExample(ex.text)}
+                          className="px-2.5 py-1 rounded bg-[#1D222A] hover:bg-[#C9A52A] hover:text-black font-bold text-[10px] text-[#C9A52A] transition-colors cursor-pointer shrink-0"
+                        >
+                          Use Example
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Compose Stage CTA */}
@@ -514,7 +695,6 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
           {/* ── STAGE 2: SINGLE-VIEWPORT REVIEW SCREEN ──────────────────────────────── */}
           {stage === "REVIEW" && extractedIntent && (
             <div className="space-y-3 font-sans text-xs">
-              {/* Project Title & Priority */}
               <div className="p-3 bg-[#111419] rounded-xl border border-[#272D36] space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[9px] font-bold text-[#C9A52A] bg-[#C9A52A]/10 px-2 py-0.5 rounded uppercase">
@@ -530,7 +710,6 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                 <p className="text-[#8B95A5] line-clamp-2">{extractedIntent.description}</p>
               </div>
 
-              {/* Compact 2-Column Summary Matrix */}
               <div className="grid grid-cols-2 gap-2.5 text-[11px]">
                 <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
                   <span className="text-[9.5px] font-bold text-[#667085] uppercase">Owner</span>
@@ -563,7 +742,6 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                 </div>
               </div>
 
-              {/* Milestones Summary */}
               <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
                 <span className="text-[9.5px] font-bold text-[#667085] uppercase">
                   Milestones ({extractedIntent.milestones.length} suggested)
@@ -573,7 +751,6 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                 </p>
               </div>
 
-              {/* Review Buttons */}
               <div className="pt-1 flex items-center justify-between">
                 <button
                   onClick={() => setStage("COMPOSE")}
