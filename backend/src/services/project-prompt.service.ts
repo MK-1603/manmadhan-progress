@@ -18,6 +18,9 @@ export interface PromptProjectModel {
 		deadline: string; // YYYY-MM-DD
 		priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 		riskLevel: "LOW" | "MEDIUM" | "HIGH";
+		executionLeadMention?: string | null;
+		memberMentions?: Array<{ name: string; userId?: string; responsibility?: string }>;
+		hubTools?: Array<{ toolId?: string; name: string; purpose: string }>;
 	};
 	features: FeatureItem[];
 	milestones: Array<{
@@ -99,8 +102,13 @@ export class ProjectPromptService {
 	static async generatePlanFromPrompt(
 		promptText: string,
 		workspaceType: "PERSONAL" | "ORGANIZATION" = "PERSONAL",
+		memberOptions: any[] = [],
 	): Promise<PromptProjectModel> {
 		const currentDateStr = new Date().toISOString().split("T")[0];
+		const memberContext = memberOptions.length > 0
+			? `AVAILABLE TEAM MEMBERS:\n${memberOptions.map(m => `- Name: ${m.name}, Role: ${m.role}, ID: ${m.id}`).join('\n')}`
+			: '';
+
 		const systemPrompt = `
 You are an expert Lead Project Architect.
 Convert the user's prompt into a complete, structured execution plan in STRICT JSON format.
@@ -108,15 +116,14 @@ Convert the user's prompt into a complete, structured execution plan in STRICT J
 CONTEXT:
 - Current Date: ${currentDateStr} (YYYY-MM-DD).
 - Workspace Type: ${workspaceType}.
+${memberContext}
 
 STRICT FORMAT RULES:
 1. Output ONLY a valid JSON object. No explanation text, no markdown backticks outside json.
-2. Generate ONLY the Project Template foundation (Title, Objective, Description, Scope, Dates, Priority, Features, Milestones, Requirements, Documents).
-3. Do NOT auto-generate execution tasks. Keep "tasks": [].
-4. DO NOT use unescaped double quotes inside string values (use single quotes for inner text).
-5. Do NOT include literal unescaped newlines inside string values.
-6. Dates MUST follow format YYYY-MM-DD (e.g. 2026-08-11, 2026-09-30).
-7. All start dates >= ${currentDateStr}.
+2. Extract Project Title, Description, Objective, Priority, Deadline, Team Mentions (@name), and AI Hub Tools (e.g. Claude, Figma).
+3. If no milestones are specified, generate 5-6 logical execution milestones (e.g. M1 Foundation, M2 Requirements, M3 Architecture, M4 Development, M5 Testing, M6 Launch).
+4. Extract executionLeadMention and memberMentions (with responsibilities like Frontend, Backend, QA) if present in text or @mentions.
+5. Dates MUST follow format YYYY-MM-DD (e.g. 2026-08-30). Do not invent arbitrary deadlines if not mentioned.
 
 OUTPUT JSON STRUCTURE:
 {
@@ -126,42 +133,31 @@ OUTPUT JSON STRUCTURE:
     "description": "string",
     "scope": ["string"],
     "outOfScope": ["string"],
-    "startDate": "YYYY-MM-DD",
+    "startDate": "${currentDateStr}",
     "deadline": "YYYY-MM-DD",
     "priority": "LOW | MEDIUM | HIGH | CRITICAL",
-    "riskLevel": "LOW | MEDIUM | HIGH"
+    "riskLevel": "LOW | MEDIUM | HIGH",
+    "executionLeadMention": "string or null",
+    "memberMentions": [
+      { "name": "string", "responsibility": "string" }
+    ],
+    "hubTools": [
+      { "name": "Claude", "purpose": "Architecture & Documentation" }
+    ]
   },
-  "features": [
-    {
-      "name": "string",
-      "description": "string",
-      "priority": "MEDIUM"
-    }
-  ],
+  "features": [],
   "milestones": [
-    {
-      "name": "string",
-      "description": "string",
-      "deadline": "YYYY-MM-DD"
-    }
+    { "name": "M1 Foundation & Setup", "description": "Core project setup", "deadline": "" }
   ],
   "requirements": [
-    {
-      "title": "string",
-      "description": "string",
-      "category": "Functional"
-    }
+    { "title": "string", "description": "string", "category": "Functional" }
   ],
   "deliverables": ["string"],
   "tasks": [],
   "dependencies": [],
   "risks": ["string"],
   "documents": [
-    { "docType": "PRD", "title": "Product Requirements Document (PRD)", "status": "Required" },
-    { "docType": "TRD", "title": "Technical Architecture & TRD", "status": "Required" },
-    { "docType": "Application Workflow", "title": "Application Workflow Spec", "status": "Required" },
-    { "docType": "User Manual", "title": "User Manual & Guide", "status": "Required" },
-    { "docType": "GitHub", "title": "Source Code Repository", "status": "Required" }
+    { "docType": "PRD", "title": "Product Requirements Document (PRD)", "status": "Required" }
   ],
   "workflow": ["Prompt", "Review Mandate", "Execution", "Handover"],
   "githubRequirement": {

@@ -188,21 +188,23 @@ orgProjectsRouter.post(
 					.json({ success: false, error: "Prompt is required" });
 			}
 
-			const plan = await ProjectPromptService.generatePlanFromPrompt(
-				prompt.trim(),
-				"ORGANIZATION",
-			);
-
-			// Fetch workspace members for assignment dropdown
+			// Fetch workspace members for @mention AI resolution context
 			const members = await db
 				.select({
 					id: users.id,
 					name: users.displayName,
+					email: users.email,
 					role: workspaceMembers.role,
 				})
 				.from(workspaceMembers)
 				.innerJoin(users, eq(workspaceMembers.userId, users.id))
 				.where(eq(workspaceMembers.workspaceId, workspaceId));
+
+			const plan = await ProjectPromptService.generatePlanFromPrompt(
+				prompt.trim(),
+				"ORGANIZATION",
+				members,
+			);
 
 			res.json({
 				success: true,
@@ -210,7 +212,7 @@ orgProjectsRouter.post(
 					...plan,
 					assignmentOptions: members.map((m) => ({
 						id: m.id,
-						name: m.name || "Team Member",
+						name: m.name || m.email || "Team Member",
 						role: m.role,
 					})),
 				},
@@ -622,10 +624,18 @@ orgProjectsRouter.post(
 					.json({ success: false, error: "Project title is required" });
 			}
 
-			if (!assignedToUserId) {
-				return res
-					.status(400)
-					.json({ success: false, error: "Project Assignee is required" });
+			// ── CRITICAL BUSINESS RULE: Owner cannot be assigned as project executor ──
+			if (assignedToUserId && assignedToUserId === userId) {
+				return res.status(400).json({
+					success: false,
+					error: "Project owner cannot be assigned as project executor.",
+				});
+			}
+			if (responsibleCoCeoId && responsibleCoCeoId === userId) {
+				return res.status(400).json({
+					success: false,
+					error: "Project owner cannot be assigned as project executor.",
+				});
 			}
 
 			// ── Idempotency Protection ─────────────────────────────────────

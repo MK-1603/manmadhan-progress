@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { X, Loader2, Check, Trash2, Search, CheckCircle2, ChevronRight } from "lucide-react";
+import { X, Loader2, Sparkles, ChevronRight, UserCheck, Bot, Calendar, Layers, AlertCircle, ArrowLeft, Plus, Check } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useRouter } from "next/navigation";
 
@@ -24,1100 +24,529 @@ interface AssigneeUser {
   avatar?: string;
 }
 
-interface InitialTaskItem {
-  id: string;
-  title: string;
-  description: string;
-  assigneeId: string;
-  deadline: string;
-  priority: "Low" | "Medium" | "High" | "Critical";
-  estimatedMinutes: number;
-}
-
 interface CreateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (project?: any) => void;
 }
 
-const STEPS = [
-  { id: 1, name: "Details", label: "01 Details" },
-  { id: 2, name: "Assignment", label: "02 Assignment" },
-  { id: 3, name: "Timeline", label: "03 Timeline" },
-  { id: 4, name: "Goals", label: "04 Goals & Deliverables" },
-  { id: 5, name: "Review", label: "05 Review & Create" },
-];
-
 export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProjectModalProps) {
   const router = useRouter();
 
-  // Wizard Step State (1-5)
-  const [currentStep, setCurrentStep] = useState<number>(1);
+  // ── Stage Control (COMPOSE vs REVIEW) ───────────────────────────────────────
+  const [stage, setStage] = useState<"COMPOSE" | "REVIEW">("COMPOSE");
 
-  // Step 1: Details
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [projectType, setProjectType] = useState("ORGANIZATION");
-  const [priority, setPriority] = useState<"Low" | "Medium" | "High" | "Critical">("Medium");
+  // ── Prompt & AI Extraction State ───────────────────────────────────────────
+  const [promptText, setPromptText] = useState("");
+  const [isParsing, setIsParsing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Step 2: Assignment
-  const [assignedToUser, setAssignedToUser] = useState<AssigneeUser | null>(null);
-  const [selectedMembers, setSelectedMembers] = useState<AssigneeUser[]>([]);
-  const [responsibleCoCeoId, setResponsibleCoCeoId] = useState("");
-
-  // Step 3: Timeline
-  const [startDate, setStartDate] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [estimatedHours, setEstimatedHours] = useState("40");
-
-  // Step 4: Goals, Deliverables & Initial Tasks
-  const [goals, setGoals] = useState<string[]>([]);
-  const [newGoalInput, setNewGoalInput] = useState("");
-  const [deliverables, setDeliverables] = useState<string[]>([]);
-  const [newDeliverableInput, setNewDeliverableInput] = useState("");
-  const [initialTasks, setInitialTasks] = useState<InitialTaskItem[]>([]);
-  const [showAddTaskForm, setShowAddTaskForm] = useState(false);
-  const [taskTitleInput, setTaskTitleInput] = useState("");
-  const [taskDescInput, setTaskDescInput] = useState("");
-  const [taskAssigneeInput, setTaskAssigneeInput] = useState("");
-  const [taskDeadlineInput, setTaskDeadlineInput] = useState("");
-  const [taskPriorityInput, setTaskPriorityInput] = useState<"Low" | "Medium" | "High" | "Critical">("Medium");
-  const [taskEstHoursInput, setTaskEstHoursInput] = useState("2");
-
-  // Directory & Autocomplete State
+  // ── Directory & Context ─────────────────────────────────────────────────────
   const [allUsers, setAllUsers] = useState<AssigneeUser[]>([]);
-  const [coCeos, setCoCeos] = useState<AssigneeUser[]>([]);
-  const [existingProjectNames, setExistingProjectNames] = useState<string[]>([]);
-
-  // Assignee Popover
-  const [assigneeSearchQuery, setAssigneeSearchQuery] = useState("");
-  const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
-  const assigneeDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Member Popover
-  const [memberSearchQuery, setMemberSearchQuery] = useState("");
-  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
-  const memberDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Current User / Identity Context
   const [currentUser, setCurrentUser] = useState<{ id?: string; name?: string; role?: string }>({
     name: "Authorized CEO",
     role: "CEO",
   });
 
-  // Result / State after submission
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-  const [createdProjectResult, setCreatedProjectResult] = useState<any | null>(null);
+  // ── Mention Autocomplete State ──────────────────────────────────────────────
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionPosition, setMentionPosition] = useState<number>(0);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState<number>(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Deduplication Idempotency Key
-  const [idempotencyKey, setIdempotencyKey] = useState<string>("");
+  // ── Structured Intent (Extracted by AI for Review Stage) ────────────────────
+  const [extractedIntent, setExtractedIntent] = useState<{
+    title: string;
+    description: string;
+    objective: string;
+    priority: "Low" | "Medium" | "High" | "Critical";
+    deadline: string | null;
+    executionLead: AssigneeUser | null;
+    members: Array<{ user: AssigneeUser; responsibility?: string }>;
+    milestones: Array<{ name: string; description?: string }>;
+    hubTools: Array<{ name: string; purpose: string }>;
+    risks: string[];
+  } | null>(null);
 
+  // ── Load Directory Users on Open ────────────────────────────────────────────
   useEffect(() => {
-    if (isOpen) {
-      setCurrentStep(1);
-      setName("");
-      setDescription("");
-      setProjectType("ORGANIZATION");
-      setPriority("Medium");
-      setAssignedToUser(null);
-      setSelectedMembers([]);
-      setResponsibleCoCeoId("");
-      setStartDate("");
-      setDeadline("");
-      setEstimatedHours("40");
-      setGoals([]);
-      setNewGoalInput("");
-      setDeliverables([]);
-      setNewDeliverableInput("");
-      setInitialTasks([]);
-      setShowAddTaskForm(false);
-      setError("");
-      setCreatedProjectResult(null);
-      setIdempotencyKey(generateUUID());
-      fetchDirectoryAndContext();
+    if (!isOpen) return;
+
+    setStage("COMPOSE");
+    setError(null);
+    setIsParsing(false);
+    setIsSubmitting(false);
+
+    async function loadDirectory() {
+      try {
+        const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+        const wsParam = workspaceId && workspaceId !== "undefined" ? `?workspaceId=${workspaceId}` : "";
+
+        const [dirRes, userRes] = await Promise.all([
+          apiClient.get(`/org/directory${wsParam}`).catch(() => null),
+          apiClient.get(`/auth/me`).catch(() => null),
+        ]);
+
+        if (dirRes?.data?.success && Array.isArray(dirRes.data.data)) {
+          setAllUsers(dirRes.data.data);
+        }
+
+        if (userRes?.data?.user) {
+          setCurrentUser(userRes.data.user);
+        }
+      } catch (e) {
+        console.error("Failed to load directory data for project modal:", e);
+      }
     }
+
+    loadDirectory();
   }, [isOpen]);
 
-  const fetchDirectoryAndContext = async () => {
-    try {
-      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
-      const [assigneesRes, existingRes, meRes] = await Promise.allSettled([
-        apiClient.get(`/org/projects/eligible-assignees${wsId ? `?workspaceId=${wsId}` : ""}`),
-        apiClient.get(`/org/projects${wsId ? `?workspaceId=${wsId}` : ""}`),
-        apiClient.get("/auth/me"),
-      ]);
+  // ── Autocomplete Mention Filter Options ─────────────────────────────────────
+  const mentionOptions = useMemo(() => {
+    if (mentionQuery === null) return [];
+    const q = mentionQuery.toLowerCase();
 
-      if (assigneesRes.status === "fulfilled" && assigneesRes.value.data?.data) {
-        setCoCeos(assigneesRes.value.data.data.coCeos || []);
-        setAllUsers(assigneesRes.value.data.data.all || []);
-      }
+    const options: Array<{ id: string; label: string; subLabel: string; isMe?: boolean; userObj?: AssigneeUser }> = [
+      {
+        id: "me",
+        label: "@me",
+        subLabel: `${currentUser.name || "CEO"} (You · Owner)`,
+        isMe: true,
+      },
+    ];
 
-      if (existingRes.status === "fulfilled" && existingRes.value.data?.data) {
-        const names = (existingRes.value.data.data || []).map((p: any) => (p.name || "").toLowerCase().trim());
-        setExistingProjectNames(names);
-      }
-
-      if (meRes.status === "fulfilled" && meRes.value.data?.user) {
-        setCurrentUser({
-          id: meRes.value.data.user.id,
-          name: meRes.value.data.user.name || meRes.value.data.user.email,
-          role: meRes.value.data.user.role || "CEO",
+    allUsers.forEach((u) => {
+      if (u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q)) {
+        options.push({
+          id: u.id,
+          label: `@${u.name || u.email.split("@")[0]}`,
+          subLabel: `${u.role || "Member"} · ${u.email}`,
+          userObj: u,
         });
       }
-    } catch (err) {
-      console.error("Failed to load project creation directory:", err);
-    }
-  };
-
-  // Close dropdowns when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (assigneeDropdownRef.current && !assigneeDropdownRef.current.contains(event.target as Node)) {
-        setShowAssigneeDropdown(false);
-      }
-      if (memberDropdownRef.current && !memberDropdownRef.current.contains(event.target as Node)) {
-        setShowMemberDropdown(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Filtered Assignees & Members
-  const filteredAssignees = useMemo(() => {
-    if (!assigneeSearchQuery.trim()) return allUsers;
-    const q = assigneeSearchQuery.toLowerCase().trim();
-    return allUsers.filter((u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || u.role.toLowerCase().includes(q));
-  }, [allUsers, assigneeSearchQuery]);
-
-  const filteredMembers = useMemo(() => {
-    const selectedIds = new Set(selectedMembers.map((m) => m.id));
-    if (assignedToUser) selectedIds.add(assignedToUser.id);
-
-    return allUsers.filter((u) => {
-      if (selectedIds.has(u.id)) return false;
-      if (!memberSearchQuery.trim()) return true;
-      const q = memberSearchQuery.toLowerCase().trim();
-      return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
     });
-  }, [allUsers, selectedMembers, assignedToUser, memberSearchQuery]);
 
-  // Goal handlers
-  const handleAddGoal = () => {
-    if (newGoalInput.trim()) {
-      setGoals((prev) => [...prev, newGoalInput.trim()]);
-      setNewGoalInput("");
-    }
-  };
+    return options;
+  }, [mentionQuery, allUsers, currentUser]);
 
-  const handleRemoveGoal = (idx: number) => {
-    setGoals((prev) => prev.filter((_, i) => i !== idx));
-  };
+  // ── Textarea @Mention Detector ──────────────────────────────────────────────
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setPromptText(val);
+    setError(null);
 
-  // Deliverable handlers
-  const handleAddDeliverable = () => {
-    if (newDeliverableInput.trim()) {
-      setDeliverables((prev) => [...prev, newDeliverableInput.trim()]);
-      setNewDeliverableInput("");
-    }
-  };
+    const cursorPos = e.target.selectionStart;
+    const textBeforeCursor = val.slice(0, cursorPos);
+    const lastAtIndex = textBeforeCursor.lastIndexOf("@");
 
-  const handleRemoveDeliverable = (idx: number) => {
-    setDeliverables((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  // Initial task handlers
-  const handleAddInitialTask = () => {
-    if (!taskTitleInput.trim()) return;
-    const newTask: InitialTaskItem = {
-      id: generateUUID(),
-      title: taskTitleInput.trim(),
-      description: taskDescInput.trim(),
-      assigneeId: taskAssigneeInput || (assignedToUser?.id || ""),
-      deadline: taskDeadlineInput || deadline || "",
-      priority: taskPriorityInput,
-      estimatedMinutes: (parseInt(taskEstHoursInput, 10) || 1) * 60,
-    };
-    setInitialTasks((prev) => [...prev, newTask]);
-    setTaskTitleInput("");
-    setTaskDescInput("");
-    setTaskAssigneeInput("");
-    setTaskDeadlineInput("");
-    setShowAddTaskForm(false);
-  };
-
-  const handleRemoveInitialTask = (id: string) => {
-    setInitialTasks((prev) => prev.filter((t) => t.id !== id));
-  };
-
-  // Readiness / Duplicate Check
-  const isDuplicateName = useMemo(() => {
-    const trimmed = name.trim().toLowerCase();
-    return trimmed.length > 0 && existingProjectNames.includes(trimmed);
-  }, [name, existingProjectNames]);
-
-  const isTimelineValid = useMemo(() => {
-    if (startDate && deadline) {
-      return new Date(startDate) <= new Date(deadline);
-    }
-    return true;
-  }, [startDate, deadline]);
-
-  // Step Navigation Validation
-  const validateStep = (step: number): boolean => {
-    setError("");
-
-    if (step === 1) {
-      if (!name.trim()) {
-        setError("Project Name is required.");
-        return false;
-      }
-      if (!description.trim()) {
-        setError("Project Description is required.");
-        return false;
-      }
-      if (isDuplicateName) {
-        setError(`A project named "${name.trim()}" already exists in this organization workspace.`);
-        return false;
+    if (lastAtIndex !== -1) {
+      const query = textBeforeCursor.slice(lastAtIndex + 1);
+      if (!/\s/.test(query)) {
+        setMentionQuery(query);
+        setMentionPosition(lastAtIndex);
+        setSelectedMentionIndex(0);
+        return;
       }
     }
 
-    if (step === 2) {
-      if (!assignedToUser) {
-        setError("Project Assignee is required.");
-        return false;
-      }
-      const isMember = assignedToUser.role.toUpperCase() === "MEMBER";
-      if (currentUser.role === "CEO" && isMember && !responsibleCoCeoId) {
-        setError("Supervising CO-CEO selection is required when assigning directly to a Member.");
-        return false;
-      }
-    }
-
-    if (step === 3) {
-      if (!startDate) {
-        setError("Start Date is required.");
-        return false;
-      }
-      if (!deadline) {
-        setError("Deadline is required.");
-        return false;
-      }
-      if (!isTimelineValid) {
-        setError("Start Date cannot be strictly after Deadline.");
-        return false;
-      }
-    }
-
-    return true;
+    setMentionQuery(null);
   };
 
-  const handleNextStep = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep((prev) => Math.min(5, prev + 1));
+  const handleSelectMention = (option: typeof mentionOptions[0]) => {
+    if (mentionPosition === null || !textareaRef.current) return;
+
+    const beforeMention = promptText.slice(0, mentionPosition);
+    const afterMention = promptText.slice(textareaRef.current.selectionStart);
+    const inserted = `${option.label} `;
+
+    const newText = beforeMention + inserted + afterMention;
+    setPromptText(newText);
+    setMentionQuery(null);
+
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        const newCursorPos = mentionPosition + inserted.length;
+        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionQuery !== null && mentionOptions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedMentionIndex((prev) => (prev + 1) % mentionOptions.length);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedMentionIndex((prev) => (prev - 1 + mentionOptions.length) % mentionOptions.length);
+      } else if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        handleSelectMention(mentionOptions[selectedMentionIndex]);
+      } else if (e.key === "Escape") {
+        setMentionQuery(null);
+      }
     }
   };
 
-  const handlePrevStep = () => {
-    setError("");
-    setCurrentStep((prev) => Math.max(1, prev - 1));
-  };
-
-  const handleJumpToStep = (stepNumber: number) => {
-    setError("");
-    setCurrentStep(stepNumber);
-  };
-
-  // Timeline Preview Calculation
-  const timelinePreviewText = useMemo(() => {
-    if (!startDate || !deadline) return "";
-    try {
-      const s = new Date(startDate);
-      const d = new Date(deadline);
-      const diffDays = Math.ceil((d.getTime() - s.getTime()) / (1000 * 60 * 60 * 24));
-      const sFmt = s.toLocaleDateString("en-US", { day: "numeric", month: "short" });
-      const dFmt = d.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
-      return `${diffDays} days (${sFmt} → ${dFmt})`;
-    } catch {
-      return "";
-    }
-  }, [startDate, deadline]);
-
-  // Submission Handler
-  const handleCreateProject = async () => {
-    setError("");
-
-    if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
+  // ── Stage 1: AI Prompt Extraction & Transition to Review ───────────────────
+  const handleParsePrompt = async () => {
+    if (!promptText.trim()) {
+      setError("Please describe the project you want to execute.");
       return;
     }
 
-    setSubmitting(true);
+    setError(null);
+    setIsParsing(true);
+
     try {
-      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
-      const validWsId = wsId && wsId !== "undefined" && wsId !== "null" ? wsId : undefined;
+      const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+      const res = await apiClient.post(`/org/projects/plan-from-prompt`, {
+        prompt: promptText.trim(),
+        workspaceId,
+      });
 
-      const isMemberAssignee = assignedToUser?.role.toUpperCase() === "MEMBER";
+      if (res.data?.success && res.data?.data) {
+        const plan = res.data.data;
+        const proj = plan.project || {};
 
-      const payload = {
-        workspaceId: validWsId,
-        title: name.trim(),
-        description: description.trim(),
-        mandate: description.trim(),
-        projectType,
-        startDate: startDate ? new Date(startDate).toISOString() : null,
-        deadline: deadline ? new Date(deadline).toISOString() : null,
-        priority,
-        assignedToUserId: assignedToUser?.id,
-        memberUserIds: selectedMembers.map((m) => m.id),
-        assignmentType: isMemberAssignee ? "CEO_TO_MEMBER" : "CEO_TO_CO_CEO",
-        responsibleCoCeoId: isMemberAssignee ? (responsibleCoCeoId || assignedToUser?.id) : assignedToUser?.id,
-        goals,
-        deliverables,
-        initialTasks,
-        idempotencyKey,
-      };
+        // Resolve Execution Lead mention against directory
+        let leadUser: AssigneeUser | null = null;
+        if (proj.executionLeadMention) {
+          const cleanLead = proj.executionLeadMention.replace(/^@/, "").toLowerCase();
+          leadUser = allUsers.find((u) => u.name?.toLowerCase().includes(cleanLead) || u.email?.toLowerCase().includes(cleanLead)) || null;
+        }
 
-      const res = await apiClient.post(`/org/projects/create-v2${validWsId ? `?workspaceId=${validWsId}` : ""}`, payload);
+        // Resolve Members mentions against directory
+        const memberList: Array<{ user: AssigneeUser; responsibility?: string }> = [];
+        if (Array.isArray(proj.memberMentions)) {
+          proj.memberMentions.forEach((m: any) => {
+            const cleanName = (m.name || "").replace(/^@/, "").toLowerCase();
+            const matchedUser = allUsers.find((u) => u.name?.toLowerCase().includes(cleanName) || u.email?.toLowerCase().includes(cleanName));
+            if (matchedUser && matchedUser.id !== currentUser.id && matchedUser.id !== leadUser?.id) {
+              memberList.push({ user: matchedUser, responsibility: m.responsibility });
+            }
+          });
+        }
 
-      if (res.data?.success) {
-        setCreatedProjectResult(res.data.data?.project || { id: generateUUID(), name: name.trim() });
-        onSuccess(res.data.data?.project);
+        // Check Owner vs Assignee Business Rule: Owner cannot be assigned as executor
+        if (leadUser && leadUser.id === currentUser.id) {
+          setError("Project owner cannot be assigned as project executor.");
+          setIsParsing(false);
+          return;
+        }
+
+        // Build Intent Model
+        setExtractedIntent({
+          title: proj.name || "Untitled Project",
+          description: proj.description || proj.objective || promptText.trim(),
+          objective: proj.objective || proj.description || promptText.trim(),
+          priority: proj.priority === "HIGH" || proj.priority === "CRITICAL" ? "High" : proj.priority === "LOW" ? "Low" : "Medium",
+          deadline: proj.deadline || null,
+          executionLead: leadUser,
+          members: memberList,
+          milestones: plan.milestones || [
+            { name: "M1 — Foundation & Setup", description: "Core project setup and initial alignment" },
+            { name: "M2 — Requirements & Architecture", description: "System architecture and functional specs" },
+            { name: "M3 — Execution & Development", description: "Primary implementation phase" },
+            { name: "M4 — Testing & Launch", description: "QA testing, bug fixes, and deployment" },
+          ],
+          hubTools: proj.hubTools || [
+            { name: "Claude", purpose: "Architecture & Documentation" },
+          ],
+          risks: plan.risks || [],
+        });
+
+        setStage("REVIEW");
       } else {
-        setError(res.data?.error || "Unable to create project.");
+        setError(res.data?.error || "Couldn't extract project intent. Please refine your prompt.");
       }
     } catch (err: any) {
-      const errObj = err?.response?.data?.error;
-      const msg = typeof errObj === "string" ? errObj : errObj?.message || err?.message || "Unable to create project. Please try again.";
-      setError(msg);
+      setError(err.response?.data?.error || "Failed to analyze prompt. Please try again.");
     } finally {
-      setSubmitting(false);
+      setIsParsing(false);
+    }
+  };
+
+  // ── Stage 2: Confirmed Real Project Creation Transaction ───────────────────
+  const handleConfirmCreateProject = async () => {
+    if (!extractedIntent) return;
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+
+      const payload = {
+        workspaceId,
+        title: extractedIntent.title,
+        description: extractedIntent.description,
+        prompt: promptText,
+        priority: extractedIntent.priority,
+        assignedToUserId: extractedIntent.executionLead?.id || undefined,
+        responsibleCoCeoId: extractedIntent.executionLead?.id || undefined,
+        memberUserIds: extractedIntent.members.map((m) => m.user.id),
+        deadline: extractedIntent.deadline || undefined,
+        goals: [extractedIntent.objective],
+        deliverables: (extractedIntent.milestones || []).map((m) => m.name),
+        idempotencyKey: generateUUID(),
+      };
+
+      const res = await apiClient.post(`/org/projects/create-v2`, payload);
+
+      if (res.data?.success) {
+        const createdProject = res.data.data?.project || res.data.data;
+        onSuccess(createdProject);
+        onClose();
+        if (createdProject?.id) {
+          router.push(`/ceo/projects/${createdProject.id}`);
+        }
+      } else {
+        setError(res.data?.error || "Failed to create project record.");
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Project creation failed. Please check validation.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 w-screen h-screen z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 overflow-x-hidden select-none">
-      
-      <div className="w-full sm:max-w-2xl bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-t-[20px] sm:rounded-[16px] shadow-2xl flex flex-col max-h-[88vh] sm:max-h-[85vh] overflow-hidden font-sans">
-        
-        {/* ── MODAL HEADER ── */}
-        <div className="px-6 py-4 border-b border-zinc-200 dark:border-[#272D36] flex items-center justify-between bg-zinc-50 dark:bg-[#111419] shrink-0">
-          <div>
-            <h2 className="text-[17px] font-extrabold text-zinc-900 dark:text-[#F2F4F7] tracking-tight">
-              Create Project
-            </h2>
-            <p className="text-[12px] text-zinc-500 dark:text-[#8B95A5] mt-0.5">
-              Set up a new organization project.
-            </p>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-zinc-200/60 dark:bg-[#272D36]/60 text-zinc-500 dark:text-[#8B95A5] hover:text-zinc-900 dark:hover:text-[#F2F4F7] flex items-center justify-center transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* ── COMPACT 5-STEP INDICATOR ── */}
-        {!createdProjectResult && (
-          <div className="px-6 py-3 border-b border-zinc-200 dark:border-[#272D36] bg-zinc-50/50 dark:bg-[#111419]/50 shrink-0">
-            <div className="flex items-center justify-between gap-1 overflow-x-auto [scrollbar-width:none]">
-              {STEPS.map((s) => {
-                const isActive = currentStep === s.id;
-                const isCompleted = currentStep > s.id;
-
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      if (s.id < currentStep) handleJumpToStep(s.id);
-                    }}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[11.5px] font-bold transition-colors whitespace-nowrap ${
-                      isActive
-                        ? "bg-[#C9A52A]/15 text-[#C9A52A] border border-[#C9A52A]/30"
-                        : isCompleted
-                        ? "text-zinc-900 dark:text-[#F2F4F7] hover:text-[#C9A52A] cursor-pointer"
-                        : "text-zinc-400 dark:text-[#667085]"
-                    }`}
-                  >
-                    <span>{s.label}</span>
-                  </button>
-                );
-              })}
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-2xl bg-[#0B0D10] border border-[#272D36] rounded-[20px] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-white font-sans">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-[#1D222A] flex items-center justify-between bg-[#111419] shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#C9A52A]/15 border border-[#C9A52A]/30 flex items-center justify-center text-[#C9A52A]">
+              <Sparkles className="w-4 h-4" />
             </div>
-          </div>
-        )}
-
-        {/* ── MODAL CONTENT BODY (SCROLLABLE) ── */}
-        {createdProjectResult ? (
-          /* ── SUCCESS VIEW ── */
-          <div className="p-8 flex flex-col items-center justify-center text-center space-y-5 my-auto">
-            <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center">
-              <CheckCircle2 className="w-8 h-8 stroke-[2]" />
-            </div>
-
-            <div className="space-y-1 max-w-md">
-              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest block">
-                Project Created
-              </span>
-              <h3 className="text-[20px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">
-                {createdProjectResult.name}
-              </h3>
-              <p className="text-[12.5px] text-zinc-500 dark:text-[#8B95A5] leading-relaxed">
-                Organization project, milestones, document folders, and notifications created.
+            <div>
+              <h2 className="text-[15px] font-bold text-[#F2F4F7]">Create Project with AI</h2>
+              <p className="text-[11px] text-[#667085]">
+                {stage === "COMPOSE" ? "Describe what you want the team to execute." : "Review AI-extracted execution plan."}
               </p>
             </div>
-
-            <div className="w-full max-w-md p-4 rounded-[12px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] text-left space-y-2 text-[12px]">
-              <div className="flex items-center justify-between text-zinc-500 dark:text-[#8B95A5]">
-                <span>Assignee:</span>
-                <span className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{assignedToUser?.name} ({assignedToUser?.role})</span>
-              </div>
-              <div className="flex items-center justify-between text-zinc-500 dark:text-[#8B95A5]">
-                <span>Team Members:</span>
-                <span className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{selectedMembers.length} assigned</span>
-              </div>
-              <div className="flex items-center justify-between text-zinc-500 dark:text-[#8B95A5]">
-                <span>Priority:</span>
-                <span className="font-bold text-[#C9A52A]">{priority}</span>
-              </div>
-              {deadline && (
-                <div className="flex items-center justify-between text-zinc-500 dark:text-[#8B95A5]">
-                  <span>Deadline:</span>
-                  <span className="font-mono font-bold text-zinc-900 dark:text-[#F2F4F7]">{new Date(deadline).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3 pt-2 w-full max-w-md">
-              <button
-                onClick={onClose}
-                className="flex-1 h-[40px] rounded-[8px] bg-zinc-100 dark:bg-[#272D36] text-zinc-900 dark:text-[#F2F4F7] text-[12.5px] font-bold hover:opacity-90 transition-opacity cursor-pointer"
-              >
-                Done
-              </button>
-              <button
-                onClick={() => {
-                  onClose();
-                  router.push(`/ceo/projects/${createdProjectResult.id}`);
-                }}
-                className="flex-1 h-[40px] rounded-[8px] bg-[#C9A52A] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <span>Open Project</span>
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
           </div>
-        ) : (
-          /* ── STEP CONTENT ── */
-          <div className="p-6 overflow-y-auto space-y-5 flex-1 text-xs bg-white dark:bg-[#15191F]">
-            
-            {/* Global Error Banner */}
-            {error && (
-              <div className="p-3.5 rounded-[10px] bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-[12.5px] font-semibold">
-                {error}
-              </div>
-            )}
 
-            {/* ── STEP 1: DETAILS ── */}
-            {currentStep === 1 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-[14px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">Project Details</h3>
-                  <p className="text-[12px] text-zinc-500 dark:text-[#8B95A5]">Define the project and what needs to be accomplished.</p>
-                </div>
+          {/* Two-Stage Progress Indicator */}
+          <div className="flex items-center gap-2 text-[11px] font-mono">
+            <span className={`px-2 py-0.5 rounded font-bold ${stage === "COMPOSE" ? "bg-[#C9A52A] text-black" : "bg-[#1D222A] text-[#667085]"}`}>
+              1. Compose
+            </span>
+            <span className="text-[#667085]">──</span>
+            <span className={`px-2 py-0.5 rounded font-bold ${stage === "REVIEW" ? "bg-[#C9A52A] text-black" : "bg-[#1D222A] text-[#667085]"}`}>
+              2. Review
+            </span>
+            <button onClick={onClose} className="ml-3 p-1.5 rounded-lg text-[#667085] hover:text-white hover:bg-[#1D222A] transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[12px] font-bold text-zinc-900 dark:text-[#F2F4F7]">
-                      Project Name <span className="text-rose-500">*</span>
-                    </label>
-                    {isDuplicateName && (
-                      <span className="text-[11px] font-bold text-rose-600 dark:text-rose-500">Duplicate Name Detected</span>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="e.g. Build ManMadhan AI Platform"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className={`w-full h-[40px] px-3.5 bg-zinc-50 dark:bg-[#111419] border ${
-                      isDuplicateName ? "border-rose-500" : "border-zinc-200 dark:border-[#272D36]"
-                    } rounded-[8px] text-[13px] text-zinc-900 dark:text-[#F2F4F7] placeholder-zinc-400 dark:placeholder-[#667085] outline-none focus:border-[#C9A52A]`}
-                  />
-                  <p className="text-[11px] text-zinc-500 dark:text-[#667085]">Give the project a clear, recognizable name.</p>
-                </div>
+        {/* Modal Body */}
+        <div className="p-5 overflow-y-auto space-y-4 flex-1">
+          {error && (
+            <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
-                <div className="space-y-1.5">
-                  <label className="text-[12px] font-bold text-zinc-900 dark:text-[#F2F4F7]">
-                    Project Description <span className="text-rose-500">*</span>
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="Describe what needs to be accomplished and the expected outcome..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="w-full p-3 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[8px] text-[13px] text-zinc-900 dark:text-[#F2F4F7] placeholder-zinc-400 dark:placeholder-[#667085] outline-none focus:border-[#C9A52A] resize-none"
-                  />
-                  <p className="text-[11px] text-zinc-500 dark:text-[#667085]">Describe what needs to be accomplished and the expected outcome.</p>
-                </div>
+          {/* ── STAGE 1: SINGLE PROMPT COMPOSER ───────────────────────────────────── */}
+          {stage === "COMPOSE" && (
+            <div className="space-y-4">
+              <div className="relative">
+                <textarea
+                  ref={textareaRef}
+                  value={promptText}
+                  onChange={handleTextareaChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Describe the project you want to execute... (Use @mention for team members)"
+                  rows={6}
+                  className="w-full p-4 bg-[#111419] border border-[#272D36] focus:border-[#C9A52A] rounded-2xl text-[13px] text-[#F2F4F7] placeholder-[#667085] outline-none transition-all resize-none leading-relaxed"
+                />
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-bold text-zinc-900 dark:text-[#F2F4F7]">Project Type</label>
-                    <input
-                      type="text"
-                      disabled
-                      value={projectType}
-                      className="w-full h-[38px] px-3 bg-zinc-100 dark:bg-[#111419]/60 border border-zinc-200 dark:border-[#272D36] rounded-[8px] text-[12px] text-zinc-500 dark:text-[#8B95A5]"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-bold text-zinc-900 dark:text-[#F2F4F7]">Priority Level</label>
-                    <select
-                      value={priority}
-                      onChange={(e: any) => setPriority(e.target.value)}
-                      className="w-full h-[38px] px-3 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[8px] text-[12.5px] text-zinc-900 dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
-                    >
-                      <option value="Low">Low</option>
-                      <option value="Medium">Medium</option>
-                      <option value="High">High</option>
-                      <option value="Critical">Critical</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── STEP 2: ASSIGNMENT ── */}
-            {currentStep === 2 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-[14px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">Project Assignment</h3>
-                  <p className="text-[12px] text-zinc-500 dark:text-[#8B95A5]">Define ownership and who will execute the work.</p>
-                </div>
-
-                {/* Owner */}
-                <div className="space-y-1.5">
-                  <label className="text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider">
-                    Project Owner
-                  </label>
-                  <div className="p-3 rounded-[8px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] flex items-center justify-between text-[12px]">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{currentUser.name || "Authorized CEO"}</span>
-                      <span className="px-2 py-0.5 rounded-full bg-[#C9A52A]/15 text-[#C9A52A] text-[10px] font-extrabold uppercase border border-[#C9A52A]/30">
-                        {currentUser.role || "CEO"}
-                      </span>
-                    </div>
-                    <span className="text-[11px] text-zinc-400 dark:text-[#667085] italic">Project owner is automatically assigned to you.</span>
-                  </div>
-                </div>
-
-                {/* Assignee */}
-                <div className="space-y-1.5 relative" ref={assigneeDropdownRef}>
-                  <label className="text-[10.5px] font-bold text-zinc-500 dark:text-[#8B95A5] uppercase tracking-wider flex items-center justify-between">
-                    <span>Assign Project To (CO-CEO / Member)</span>
-                    <span className="text-rose-500">*</span>
-                  </label>
-
-                  {assignedToUser ? (
-                    <div className="flex items-center justify-between p-2.5 bg-[#C9A52A]/10 border border-[#C9A52A]/30 rounded-[8px]">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{assignedToUser.name}</span>
-                        <span className="px-2 py-0.5 rounded-full bg-[#C9A52A]/20 text-[#C9A52A] text-[10px] font-extrabold uppercase">
-                          {assignedToUser.role}
-                        </span>
-                      </div>
+                {/* Real-time @Mention Autocomplete Dropdown */}
+                {mentionQuery !== null && mentionOptions.length > 0 && (
+                  <div className="absolute left-4 bottom-4 z-50 w-64 bg-[#15191F] border border-[#272D36] rounded-xl shadow-2xl overflow-hidden py-1">
+                    <p className="px-3 py-1 text-[10px] font-bold text-[#667085] uppercase tracking-wider border-b border-[#1D222A]">
+                      Assign Team Member
+                    </p>
+                    {mentionOptions.map((opt, idx) => (
                       <button
-                        type="button"
-                        onClick={() => setAssignedToUser(null)}
-                        className="p-1 text-zinc-500 dark:text-[#8B95A5] hover:text-rose-500 transition-colors cursor-pointer"
+                        key={opt.id}
+                        onClick={() => handleSelectMention(opt)}
+                        className={`w-full px-3 py-2 text-left flex items-center justify-between text-xs cursor-pointer transition-colors ${
+                          idx === selectedMentionIndex ? "bg-[#C9A52A]/20 text-[#C9A52A] font-bold" : "text-[#F2F4F7] hover:bg-[#1D222A]"
+                        }`}
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <span>{opt.label}</span>
+                        <span className="text-[10px] text-[#667085]">{opt.subLabel}</span>
                       </button>
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-[#8B95A5]" />
-                      <input
-                        type="text"
-                        placeholder="Type @ or search person..."
-                        value={assigneeSearchQuery}
-                        onFocus={() => setShowAssigneeDropdown(true)}
-                        onChange={(e) => {
-                          setAssigneeSearchQuery(e.target.value);
-                          setShowAssigneeDropdown(true);
-                        }}
-                        className="w-full h-[40px] pl-9 pr-3.5 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[8px] text-[12.5px] text-zinc-900 dark:text-[#F2F4F7] placeholder-zinc-400 dark:placeholder-[#667085] outline-none focus:border-[#C9A52A]"
-                      />
-
-                      {showAssigneeDropdown && (
-                        <div className="absolute left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[10px] shadow-xl z-50 p-1 divide-y divide-zinc-100 dark:divide-[#272D36]/40">
-                          {filteredAssignees.length === 0 ? (
-                            <div className="p-3 text-center text-zinc-500 dark:text-[#8B95A5] text-[12px]">No members found</div>
-                          ) : (
-                            filteredAssignees.map((u) => (
-                              <button
-                                key={u.id}
-                                type="button"
-                                onClick={() => {
-                                  setAssignedToUser(u);
-                                  setShowAssigneeDropdown(false);
-                                  setAssigneeSearchQuery("");
-                                }}
-                                className="w-full p-2.5 flex items-center justify-between text-left hover:bg-zinc-100 dark:hover:bg-[#C9A52A]/10 rounded-[6px] transition-colors cursor-pointer"
-                              >
-                                <div>
-                                  <div className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{u.name}</div>
-                                  <div className="text-[11px] text-zinc-500 dark:text-[#8B95A5]">{u.email}</div>
-                                </div>
-                                <span className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-[#272D36] text-[10px] font-bold uppercase text-zinc-600 dark:text-[#8B95A5]">
-                                  {u.role}
-                                </span>
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Supervising CO-CEO */}
-                {assignedToUser && assignedToUser.role.toUpperCase() === "MEMBER" && currentUser.role === "CEO" && (
-                  <div className="space-y-1.5 p-3 rounded-[8px] bg-amber-500/10 border border-amber-500/20">
-                    <label className="text-[12px] font-bold text-amber-600 dark:text-amber-400">
-                      Supervising CO-CEO <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={responsibleCoCeoId}
-                      onChange={(e) => setResponsibleCoCeoId(e.target.value)}
-                      className="w-full h-[36px] px-3 bg-white dark:bg-[#111419] border border-amber-500/30 rounded-[6px] text-[12px] text-zinc-900 dark:text-[#F2F4F7] outline-none"
-                    >
-                      <option value="">Select Supervising CO-CEO...</option>
-                      {coCeos.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name} (CO-CEO)</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* Members */}
-                <div className="space-y-1.5 relative" ref={memberDropdownRef}>
-                  <label className="text-[12px] font-bold text-zinc-900 dark:text-[#F2F4F7]">Project Members</label>
-                  
-                  <div className="flex flex-wrap gap-2 mb-1">
-                    {selectedMembers.map((m) => (
-                      <span key={m.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-[#272D36] text-zinc-900 dark:text-[#F2F4F7] text-[11.5px] font-semibold border border-zinc-200 dark:border-[#272D36]">
-                        <span>@{m.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedMembers((prev) => prev.filter((item) => item.id !== m.id))}
-                          className="hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </span>
                     ))}
                   </div>
-
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-[#8B95A5]" />
-                    <input
-                      type="text"
-                      placeholder="Type @ to add member..."
-                      value={memberSearchQuery}
-                      onFocus={() => setShowMemberDropdown(true)}
-                      onChange={(e) => {
-                        setMemberSearchQuery(e.target.value);
-                        setShowMemberDropdown(true);
-                      }}
-                      className="w-full h-[38px] pl-9 pr-3.5 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[8px] text-[12px] text-zinc-900 dark:text-[#F2F4F7] placeholder-zinc-400 dark:placeholder-[#667085] outline-none focus:border-[#C9A52A]"
-                    />
-
-                    {showMemberDropdown && (
-                      <div className="absolute left-0 right-0 top-full mt-1 max-h-48 overflow-y-auto bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[10px] shadow-xl z-50 p-1 divide-y divide-zinc-100 dark:divide-[#272D36]/40">
-                        {filteredMembers.length === 0 ? (
-                          <div className="p-3 text-center text-zinc-500 dark:text-[#8B95A5] text-[12px]">No eligible members left</div>
-                        ) : (
-                          filteredMembers.map((u) => (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedMembers((prev) => [...prev, u]);
-                                setShowMemberDropdown(false);
-                                setMemberSearchQuery("");
-                              }}
-                              className="w-full p-2.5 flex items-center justify-between text-left hover:bg-zinc-100 dark:hover:bg-[#C9A52A]/10 rounded-[6px] transition-colors cursor-pointer"
-                            >
-                              <div>
-                                <div className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{u.name}</div>
-                                <div className="text-[11px] text-zinc-500 dark:text-[#8B95A5]">{u.email}</div>
-                              </div>
-                              <span className="px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-[#272D36] text-[10px] font-bold uppercase text-zinc-600 dark:text-[#8B95A5]">
-                                {u.role}
-                              </span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── STEP 3: TIMELINE ── */}
-            {currentStep === 3 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-[14px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">Project Timeline</h3>
-                  <p className="text-[12px] text-zinc-500 dark:text-[#8B95A5]">Set when execution starts and when the project is expected to finish.</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-bold text-zinc-900 dark:text-[#F2F4F7]">
-                      Start Date <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full h-[40px] px-3 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[8px] text-[12.5px] text-zinc-900 dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[12px] font-bold text-zinc-900 dark:text-[#F2F4F7]">
-                      Deadline <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      value={deadline}
-                      onChange={(e) => setDeadline(e.target.value)}
-                      className="w-full h-[40px] px-3 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[8px] text-[12.5px] text-zinc-900 dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[12px] font-bold text-zinc-900 dark:text-[#F2F4F7]">Estimated Hours</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={estimatedHours}
-                    onChange={(e) => setEstimatedHours(e.target.value)}
-                    className="w-full h-[38px] px-3 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[8px] text-[12.5px] text-zinc-900 dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
-                  />
-                </div>
-
-                {/* Timeline Preview */}
-                {timelinePreviewText && (
-                  <div className="p-3 rounded-[8px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] flex items-center justify-between text-[12px]">
-                    <span className="text-zinc-500 dark:text-[#8B95A5]">Duration Preview</span>
-                    <span className="font-mono font-bold text-[#C9A52A]">{timelinePreviewText}</span>
-                  </div>
                 )}
               </div>
-            )}
 
-            {/* ── STEP 4: GOALS & DELIVERABLES ── */}
-            {currentStep === 4 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-[14px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">Goals & Deliverables</h3>
-                  <p className="text-[12px] text-zinc-500 dark:text-[#8B95A5]">Define what success looks like for this project.</p>
-                </div>
-
-                {/* Goals */}
-                <div className="space-y-2">
-                  <label className="text-[12px] font-bold text-zinc-900 dark:text-[#F2F4F7]">Project Goals</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Add project goal..."
-                      value={newGoalInput}
-                      onChange={(e) => setNewGoalInput(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddGoal())}
-                      className="flex-1 h-[36px] px-3 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[6px] text-[12px] text-zinc-900 dark:text-[#F2F4F7] placeholder-zinc-400 dark:placeholder-[#667085] outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddGoal}
-                      className="px-3 h-[36px] rounded-[6px] bg-[#C9A52A] text-[#0B0D10] font-bold text-[11.5px]"
-                    >
-                      + Add Goal
-                    </button>
-                  </div>
-                  {goals.map((g, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2 rounded-[6px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] text-[12px]">
-                      <span className="text-zinc-900 dark:text-[#F2F4F7]">{idx + 1}. {g}</span>
-                      <button type="button" onClick={() => handleRemoveGoal(idx)} className="text-zinc-400 dark:text-[#8B95A5] hover:text-rose-600 dark:hover:text-rose-400">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Deliverables */}
-                <div className="space-y-2">
-                  <label className="text-[12px] font-bold text-zinc-900 dark:text-[#F2F4F7]">Deliverables</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Add deliverable outcome..."
-                      value={newDeliverableInput}
-                      onChange={(e) => setNewDeliverableInput(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddDeliverable())}
-                      className="flex-1 h-[36px] px-3 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[6px] text-[12px] text-zinc-900 dark:text-[#F2F4F7] placeholder-zinc-400 dark:placeholder-[#667085] outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddDeliverable}
-                      className="px-3 h-[36px] rounded-[6px] bg-[#C9A52A] text-[#0B0D10] font-bold text-[11.5px]"
-                    >
-                      + Add Deliverable
-                    </button>
-                  </div>
-                  {deliverables.map((d, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-2 rounded-[6px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] text-[12px]">
-                      <span className="text-zinc-900 dark:text-[#F2F4F7]">• {d}</span>
-                      <button type="button" onClick={() => handleRemoveDeliverable(idx)} className="text-zinc-400 dark:text-[#8B95A5] hover:text-rose-600 dark:hover:text-rose-400">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Optional Initial Tasks */}
-                <div className="space-y-3 pt-2 border-t border-zinc-200 dark:border-[#272D36]">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[12px] font-bold text-zinc-900 dark:text-[#F2F4F7]">Initial Tasks ({initialTasks.length})</label>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddTaskForm(!showAddTaskForm)}
-                      className="px-2.5 py-1 rounded-[6px] bg-[#C9A52A]/10 text-[#C9A52A] font-bold text-[11px] border border-[#C9A52A]/20"
-                    >
-                      {showAddTaskForm ? "Cancel" : "+ Add Task"}
-                    </button>
-                  </div>
-
-                  {showAddTaskForm && (
-                    <div className="p-3 rounded-[8px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] space-y-2.5">
-                      <input
-                        type="text"
-                        placeholder="Task Name *"
-                        value={taskTitleInput}
-                        onChange={(e) => setTaskTitleInput(e.target.value)}
-                        className="w-full h-[36px] px-3 bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[6px] text-[12px] text-zinc-900 dark:text-[#F2F4F7]"
-                      />
-                      <textarea
-                        rows={2}
-                        placeholder="Task Description"
-                        value={taskDescInput}
-                        onChange={(e) => setTaskDescInput(e.target.value)}
-                        className="w-full p-2.5 bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[6px] text-[12px] text-zinc-900 dark:text-[#F2F4F7] resize-none"
-                      />
-                      <div className="grid grid-cols-2 gap-2">
-                        <select
-                          value={taskAssigneeInput}
-                          onChange={(e) => setTaskAssigneeInput(e.target.value)}
-                          className="h-[36px] px-2.5 bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[6px] text-[12px] text-zinc-900 dark:text-[#F2F4F7]"
-                        >
-                          <option value="">Assignee (Default: Project Assignee)</option>
-                          {assignedToUser && <option value={assignedToUser.id}>{assignedToUser.name} ({assignedToUser.role})</option>}
-                          {selectedMembers.map((m) => (
-                            <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
-                          ))}
-                        </select>
-
-                        <input
-                          type="date"
-                          value={taskDeadlineInput}
-                          onChange={(e) => setTaskDeadlineInput(e.target.value)}
-                          className="h-[36px] px-2.5 bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[6px] text-[12px] text-zinc-900 dark:text-[#F2F4F7]"
-                        />
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleAddInitialTask}
-                        className="w-full h-[34px] bg-[#C9A52A] text-[#0B0D10] font-bold text-[11.5px] rounded-[6px]"
-                      >
-                        Confirm Initial Task
-                      </button>
-                    </div>
-                  )}
-
-                  {initialTasks.map((t) => (
-                    <div key={t.id} className="p-2.5 rounded-[6px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] flex items-center justify-between text-[12px]">
-                      <div>
-                        <div className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{t.title}</div>
-                        <div className="text-[11px] text-zinc-500 dark:text-[#8B95A5]">{t.description || "No description"}</div>
-                      </div>
-                      <button type="button" onClick={() => handleRemoveInitialTask(t.id)} className="text-zinc-400 dark:text-[#8B95A5] hover:text-rose-600 dark:hover:text-rose-400">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+              {/* Prompt Syntax Hints (Instructions, NOT Form Inputs) */}
+              <div className="p-3.5 bg-[#111419]/60 rounded-xl border border-[#1D222A] space-y-1.5 text-[11px] text-[#667085]">
+                <p className="font-bold text-[#8B95A5] uppercase tracking-wider text-[9.5px]">PROMPT HINT GUIDE (Natural or Structured Text Supported)</p>
+                <p className="leading-relaxed">
+                  <strong className="text-[#F2F4F7]">Example:</strong> &quot;Build Dental Patient Portal. Owner: @me. Execution Lead: @SHRIRAM. Members: @ARUN for frontend. Finish by 10 September. Use Claude and Figma from ManMadhan Hub.&quot;
+                </p>
               </div>
-            )}
 
-            {/* ── STEP 5: REVIEW & CREATE ── */}
-            {currentStep === 5 && (
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-[14px] font-extrabold text-zinc-900 dark:text-[#F2F4F7]">Review Project</h3>
-                  <p className="text-[12px] text-zinc-500 dark:text-[#8B95A5]">Review the project details before creating it.</p>
-                </div>
-
-                {/* Section 1: Details */}
-                <div className="p-3.5 rounded-[10px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] space-y-1.5 text-[12px]">
-                  <div className="flex items-center justify-between border-b border-zinc-200 dark:border-[#272D36] pb-1.5">
-                    <span className="font-extrabold text-zinc-900 dark:text-[#F2F4F7] uppercase tracking-wider text-[11px]">Project Details</span>
-                    <button type="button" onClick={() => handleJumpToStep(1)} className="text-[11.5px] font-bold text-[#C9A52A] hover:underline cursor-pointer">
-                      Edit
-                    </button>
-                  </div>
-                  <div className="font-extrabold text-[14px] text-zinc-900 dark:text-[#F2F4F7]">{name}</div>
-                  <p className="text-zinc-500 dark:text-[#8B95A5] leading-relaxed">{description}</p>
-                  <div className="flex items-center gap-3 pt-1 text-[11px] text-zinc-500 dark:text-[#8B95A5]">
-                    <span>Type: <strong className="text-zinc-900 dark:text-[#F2F4F7]">{projectType}</strong></span>
-                    <span>Priority: <strong className="text-[#C9A52A]">{priority}</strong></span>
-                  </div>
-                </div>
-
-                {/* Section 2: Assignment */}
-                <div className="p-3.5 rounded-[10px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] space-y-1.5 text-[12px]">
-                  <div className="flex items-center justify-between border-b border-zinc-200 dark:border-[#272D36] pb-1.5">
-                    <span className="font-extrabold text-zinc-900 dark:text-[#F2F4F7] uppercase tracking-wider text-[11px]">Assignment</span>
-                    <button type="button" onClick={() => handleJumpToStep(2)} className="text-[11.5px] font-bold text-[#C9A52A] hover:underline cursor-pointer">
-                      Edit
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between text-zinc-500 dark:text-[#8B95A5]">
-                    <span>Owner:</span>
-                    <span className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{currentUser.name || "Owner"} ({currentUser.role || "CEO"})</span>
-                  </div>
-                  <div className="flex items-center justify-between text-zinc-500 dark:text-[#8B95A5]">
-                    <span>Assignee:</span>
-                    <span className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{assignedToUser?.name} ({assignedToUser?.role})</span>
-                  </div>
-                  <div className="flex items-center justify-between text-zinc-500 dark:text-[#8B95A5]">
-                    <span>Team Members:</span>
-                    <span className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{selectedMembers.length} assigned</span>
-                  </div>
-                </div>
-
-                {/* Section 3: Timeline */}
-                <div className="p-3.5 rounded-[10px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] space-y-1.5 text-[12px]">
-                  <div className="flex items-center justify-between border-b border-zinc-200 dark:border-[#272D36] pb-1.5">
-                    <span className="font-extrabold text-zinc-900 dark:text-[#F2F4F7] uppercase tracking-wider text-[11px]">Timeline</span>
-                    <button type="button" onClick={() => handleJumpToStep(3)} className="text-[11.5px] font-bold text-[#C9A52A] hover:underline cursor-pointer">
-                      Edit
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between text-zinc-500 dark:text-[#8B95A5]">
-                    <span>Dates:</span>
-                    <span className="font-mono font-bold text-zinc-900 dark:text-[#F2F4F7]">{startDate} → {deadline}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-zinc-500 dark:text-[#8B95A5]">
-                    <span>Estimated Hours:</span>
-                    <span className="font-mono font-bold text-zinc-900 dark:text-[#F2F4F7]">{estimatedHours} hrs</span>
-                  </div>
-                </div>
-
-                {/* Section 4: Goals & Deliverables */}
-                <div className="p-3.5 rounded-[10px] bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] space-y-1.5 text-[12px]">
-                  <div className="flex items-center justify-between border-b border-zinc-200 dark:border-[#272D36] pb-1.5">
-                    <span className="font-extrabold text-zinc-900 dark:text-[#F2F4F7] uppercase tracking-wider text-[11px]">Goals & Deliverables</span>
-                    <button type="button" onClick={() => handleJumpToStep(4)} className="text-[11.5px] font-bold text-[#C9A52A] hover:underline cursor-pointer">
-                      Edit
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between text-zinc-500 dark:text-[#8B95A5]">
-                    <span>Goals:</span>
-                    <span className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{goals.length} defined</span>
-                  </div>
-                  <div className="flex items-center justify-between text-zinc-500 dark:text-[#8B95A5]">
-                    <span>Deliverables:</span>
-                    <span className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{deliverables.length} defined</span>
-                  </div>
-                  <div className="flex items-center justify-between text-zinc-500 dark:text-[#8B95A5]">
-                    <span>Initial Tasks:</span>
-                    <span className="font-bold text-zinc-900 dark:text-[#F2F4F7]">{initialTasks.length} tasks</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </div>
-        )}
-
-        {/* ── MODAL FOOTER ── */}
-        {!createdProjectResult && (
-          <div className="px-6 py-4 border-t border-zinc-200 dark:border-[#272D36] flex items-center justify-between bg-zinc-50 dark:bg-[#111419] shrink-0">
-            <div>
-              {currentStep > 1 && (
+              {/* Compose Stage CTA */}
+              <div className="pt-2 flex justify-end">
                 <button
-                  type="button"
-                  onClick={handlePrevStep}
-                  className="px-4 h-[38px] rounded-[8px] bg-white dark:bg-[#272D36] border border-zinc-200 dark:border-transparent text-zinc-700 dark:text-[#F2F4F7] text-[12.5px] font-bold hover:opacity-90 transition-opacity cursor-pointer"
+                  onClick={handleParsePrompt}
+                  disabled={!promptText.trim() || isParsing}
+                  className="inline-flex items-center gap-2 px-5 h-[42px] rounded-xl bg-[#C9A52A] text-black font-bold text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
                 >
-                  Back
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 h-[38px] rounded-[8px] bg-zinc-200/60 dark:bg-[#272D36]/60 text-zinc-600 dark:text-[#8B95A5] hover:text-zinc-900 dark:hover:text-[#F2F4F7] text-[12.5px] font-bold transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-
-              {currentStep < 5 ? (
-                <button
-                  type="button"
-                  onClick={handleNextStep}
-                  className="px-5 h-[38px] rounded-[8px] bg-[#C9A52A] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity cursor-pointer"
-                >
-                  Continue
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleCreateProject}
-                  disabled={submitting}
-                  className="px-6 h-[38px] rounded-[8px] bg-[#C9A52A] text-[#0B0D10] text-[12.5px] font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
-                >
-                  {submitting ? (
+                  {isParsing ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin shrink-0" />
-                      <span>Creating Project...</span>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Extracting Project Intent...</span>
                     </>
                   ) : (
                     <>
-                      <Check className="w-4 h-4 stroke-[2.5] shrink-0" />
-                      <span>Create Project</span>
+                      <span>Review Project</span>
+                      <ChevronRight className="w-4 h-4 stroke-[2.5]" />
                     </>
                   )}
                 </button>
-              )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
+          {/* ── STAGE 2: SINGLE-VIEWPORT REVIEW SCREEN ──────────────────────────────── */}
+          {stage === "REVIEW" && extractedIntent && (
+            <div className="space-y-4 font-sans text-xs">
+              {/* Project Card */}
+              <div className="p-4 bg-[#111419] rounded-xl border border-[#272D36] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9.5px] font-bold text-[#C9A52A] bg-[#C9A52A]/10 px-2 py-0.5 rounded border border-[#C9A52A]/20 uppercase tracking-wider">
+                    {extractedIntent.priority} Priority Project
+                  </span>
+                  {extractedIntent.deadline && (
+                    <span className="text-[11px] font-mono text-[#8B95A5] flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-[#C9A52A]" /> Due: {extractedIntent.deadline}
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-[16px] font-bold text-[#F2F4F7]">{extractedIntent.title}</h3>
+                <p className="text-[#8B95A5] leading-relaxed line-clamp-2">{extractedIntent.description}</p>
+              </div>
+
+              {/* 2-Column Summary Matrix */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Ownership & Roles */}
+                <div className="p-3.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-2">
+                  <p className="text-[10px] font-bold text-[#667085] uppercase tracking-wider flex items-center gap-1.5">
+                    <UserCheck className="w-3.5 h-3.5 text-[#C9A52A]" /> Roles & Assignment
+                  </p>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center bg-[#0B0D10] p-2 rounded-lg border border-[#1D222A]">
+                      <span className="text-[#8B95A5]">Project Owner:</span>
+                      <span className="font-bold text-[#F2F4F7]">You · CEO</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-[#0B0D10] p-2 rounded-lg border border-[#1D222A]">
+                      <span className="text-[#8B95A5]">Execution Lead:</span>
+                      <span className="font-bold text-[#C9A52A]">
+                        {extractedIntent.executionLead ? `@${extractedIntent.executionLead.name || extractedIntent.executionLead.email}` : "None"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Team Members & Responsibilities */}
+                <div className="p-3.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-2">
+                  <p className="text-[10px] font-bold text-[#667085] uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-blue-500" /> Team & Responsibilities
+                  </p>
+                  {extractedIntent.members.length > 0 ? (
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {extractedIntent.members.map((m, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-[#0B0D10] p-1.5 rounded border border-[#1D222A] text-[11px]">
+                          <span className="font-bold text-[#F2F4F7]">@{m.user.name || m.user.email}</span>
+                          <span className="text-[#8B95A5]">{m.responsibility || "Execution Member"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[#667085] italic py-1">No additional team members assigned.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Milestones & Hub Tools */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-2">
+                  <p className="text-[10px] font-bold text-[#667085] uppercase tracking-wider flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-emerald-500" /> Milestones ({extractedIntent.milestones.length} Suggested)
+                  </p>
+                  <div className="space-y-1 max-h-24 overflow-y-auto">
+                    {extractedIntent.milestones.map((m, idx) => (
+                      <div key={idx} className="p-1.5 bg-[#0B0D10] rounded border border-[#1D222A] text-[11px] font-semibold text-[#F2F4F7]">
+                        {m.name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-2">
+                  <p className="text-[10px] font-bold text-[#667085] uppercase tracking-wider flex items-center gap-1.5">
+                    <Bot className="w-3.5 h-3.5 text-purple-500" /> ManMadhan Hub Tools
+                  </p>
+                  {extractedIntent.hubTools.length > 0 ? (
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {extractedIntent.hubTools.map((t, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-[#0B0D10] p-1.5 rounded border border-[#1D222A] text-[11px]">
+                          <span className="font-bold text-[#F2F4F7]">{t.name}</span>
+                          <span className="text-[#8B95A5]">{t.purpose}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[#667085] italic py-1">No Hub tools requested.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Review Stage Buttons */}
+              <div className="pt-2 flex items-center justify-between">
+                <button
+                  onClick={() => setStage("COMPOSE")}
+                  className="inline-flex items-center gap-1.5 px-4 h-[38px] rounded-xl border border-[#272D36] text-[#8B95A5] hover:text-white hover:bg-[#1D222A] transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" /> Edit Prompt
+                </button>
+
+                <button
+                  onClick={handleConfirmCreateProject}
+                  disabled={isSubmitting}
+                  className="inline-flex items-center gap-2 px-6 h-[40px] rounded-xl bg-[#C9A52A] text-black font-bold text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Creating Project Workspace...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Create Project</span>
+                      <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
