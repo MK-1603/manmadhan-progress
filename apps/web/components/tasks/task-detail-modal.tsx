@@ -9,6 +9,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { useAuth } from "@/components/auth/auth-context";
 import { useConfirm } from "@/hooks/use-confirm";
+import { renderNeatTextWithMentions } from "@/components/tasks/create-task-modal";
 
 interface TaskDetailModalProps {
   task: any | null;
@@ -214,9 +215,9 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate }: TaskDetailM
         <span className="text-[10px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block mb-1">
           Description
         </span>
-        <p className="text-[12px] text-[#17202A] dark:text-[#F2F4F7] leading-relaxed bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] p-3 rounded-[9px]">
-          {task.description || "No description provided."}
-        </p>
+        <div className="text-[12px] text-[#17202A] dark:text-[#F2F4F7] leading-relaxed bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] p-3 rounded-[9px]">
+          {renderNeatTextWithMentions(task.description) || "No description provided."}
+        </div>
       </div>
 
       {/* PERMANENT ASSIGNMENT RECORD */}

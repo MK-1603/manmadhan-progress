@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
-import { CreateTaskModal } from "@/components/tasks/create-task-modal";
+import { CreateTaskModal, renderNeatTextWithMentions } from "@/components/tasks/create-task-modal";
 import { TaskDetailModal } from "@/components/tasks/task-detail-modal";
 import { MobileSheet } from "@/components/ui/mobile-sheet";
 import { useAuth } from "@/components/auth/auth-context";
@@ -685,7 +685,7 @@ export default function TasksPage() {
                           </span>
                         </td>
                         <td className="p-3 text-[12.5px] font-medium text-[#17202A] dark:text-[#F2F4F7]">
-                          {t.assigneeName || "Unassigned"}
+                          {t.assigneeName ? renderNeatTextWithMentions(t.assigneeName.startsWith("@") ? t.assigneeName : `@${t.assigneeName}`) : "Unassigned"}
                         </td>
                         <td className="p-3 text-[12px] text-[#667085] dark:text-[#8B95A5]">
                           {t.projectName || "Standalone"}
