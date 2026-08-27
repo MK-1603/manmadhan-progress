@@ -95,6 +95,14 @@ const PROMPT_EXAMPLES = [
 export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProjectModalProps) {
   const router = useRouter();
 
+  useEffect(() => {
+    if (isOpen) {
+      onClose();
+      const basePath = typeof window !== "undefined" && window.location.pathname.startsWith("/co-ceo") ? "/co-ceo" : "/ceo";
+      router.push(`${basePath}/projects/create`);
+    }
+  }, [isOpen, onClose, router]);
+
   // ── Stage Control (COMPOSE vs REVIEW) ───────────────────────────────────────
   const [stage, setStage] = useState<"COMPOSE" | "REVIEW">("COMPOSE");
 
