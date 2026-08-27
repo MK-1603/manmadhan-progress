@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-context";
 import apiClient from "@/lib/api-client";
 import {
-  FolderKanban, Sparkles, LayoutTemplate, Sliders, Shield, ArrowLeft,
+  FolderKanban, Wand2, LayoutTemplate, Sliders, Shield, ArrowLeft,
   ChevronRight, Layers, AlertCircle, CheckCircle2
 } from "lucide-react";
 
@@ -183,7 +183,7 @@ export function ProjectCreationWorkspace({
   };
 
   return (
-    <div className="w-full h-full min-h-screen bg-background text-foreground font-sans flex flex-col overflow-y-auto pb-24 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+    <div className="w-full min-h-full bg-background text-foreground font-sans flex flex-col">
       {/* ── STICKY TOP WORKSPACE HEADER ────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 bg-card/95 backdrop-blur-md border-b border-border px-4 sm:px-6 py-3.5 shrink-0 shadow-xs">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -269,7 +269,7 @@ export function ProjectCreationWorkspace({
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 }`}
               >
-                <Sparkles className="w-4 h-4" /> Prompt Based
+                <Wand2 className="w-4 h-4" /> Prompt Based
               </button>
 
               <button

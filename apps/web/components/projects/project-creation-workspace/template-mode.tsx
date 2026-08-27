@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { PROJECT_TEMPLATES, ProjectTemplate } from "./templates-data";
-import { Code2, Cpu, Rocket, BookOpen, GraduationCap, Megaphone, Sparkles, Check, ChevronRight, Flag, Layers } from "lucide-react";
+import { Code2, Cpu, Rocket, BookOpen, GraduationCap, Megaphone, LayoutGrid, Check, ChevronRight, Flag, Layers } from "lucide-react";
 
 interface TemplateModeProps {
   selectedTemplateId: string;
@@ -16,7 +16,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   BookOpen: <BookOpen className="w-5 h-5 text-emerald-500" />,
   GraduationCap: <GraduationCap className="w-5 h-5 text-indigo-500" />,
   Megaphone: <Megaphone className="w-5 h-5 text-rose-500" />,
-  Sparkles: <Sparkles className="w-5 h-5 text-[#C9A52A]" />,
+  Sparkles: <LayoutGrid className="w-5 h-5 text-[#C9A52A]" />,
 };
 
 export function TemplateMode({ selectedTemplateId, onSelectTemplate }: TemplateModeProps) {
@@ -57,7 +57,7 @@ export function TemplateMode({ selectedTemplateId, onSelectTemplate }: TemplateM
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="w-9 h-9 rounded-xl bg-background border border-border flex items-center justify-center shadow-xs">
-                    {ICON_MAP[tmpl.iconName] || <Sparkles className="w-5 h-5 text-[#C9A52A]" />}
+                    {ICON_MAP[tmpl.iconName] || <LayoutGrid className="w-5 h-5 text-[#C9A52A]" />}
                   </div>
                   <span className="px-2.5 py-0.5 rounded-full bg-secondary text-muted-foreground text-[9.5px] font-extrabold uppercase tracking-wider border border-border">
                     {tmpl.badgeText}

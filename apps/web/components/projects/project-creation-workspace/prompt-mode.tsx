@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sparkles, HelpCircle, Zap, ChevronDown, ChevronUp, Loader2, ArrowRight, Check } from "lucide-react";
+import { Wand2, HelpCircle, Zap, ChevronDown, ChevronUp, Loader2, ArrowRight, Check } from "lucide-react";
 
 interface PromptModeProps {
   promptText: string;
@@ -80,7 +80,7 @@ Tools: Next.js, TypeScript, Node.js, PostgreSQL, GitHub.`;
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-[11px] font-extrabold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
-            <Sparkles className="w-4 h-4 text-[#C9A52A]" /> Natural Language Project Mandate
+            <Wand2 className="w-4 h-4 text-[#C9A52A]" /> Natural Language Project Mandate
           </label>
           <span className="text-[10.5px] text-muted-foreground font-mono">
             {wordCount} words · {charCount} chars
@@ -226,7 +226,7 @@ Tools: Next.js, TypeScript, Node.js, PostgreSQL, GitHub.`;
             </>
           ) : (
             <>
-              <Sparkles className="w-4 h-4" />
+              <Wand2 className="w-4 h-4" />
               <span>Generate Project Blueprint</span>
               <ArrowRight className="w-4 h-4 stroke-[2.5]" />
             </>
