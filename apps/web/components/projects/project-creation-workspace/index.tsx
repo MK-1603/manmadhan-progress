@@ -205,7 +205,10 @@ export function ProjectCreationWorkspace({
         deadline: deadline || null,
         githubUrl: githubUrl.trim() || null,
         toolsText: toolsText.trim(),
+        assignedToUserId: selectedCoCeoId || null,
+        responsibleCoCeoId: selectedCoCeoId || null,
         coCeoInChargeId: selectedCoCeoId || null,
+        memberUserIds: selectedMemberIds,
         memberIds: selectedMemberIds,
         milestones,
       };
@@ -220,7 +223,12 @@ export function ProjectCreationWorkspace({
       }
     } catch (err: any) {
       console.error("Project launch failed:", err);
-      setError(err.response?.data?.error || err.message || "Failed to persist project database records.");
+      const errObj = err.response?.data?.error;
+      const errMsg =
+        typeof errObj === "string"
+          ? errObj
+          : errObj?.message || err.message || "Failed to persist project database records.";
+      setError(errMsg);
     } finally {
       setIsSubmitting(false);
     }

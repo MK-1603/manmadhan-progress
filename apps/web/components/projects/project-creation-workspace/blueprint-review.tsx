@@ -81,6 +81,33 @@ export function BlueprintReview({
         </p>
       </div>
 
+      {/* Pre-Flight Readiness Checklist */}
+      <div className="p-4 rounded-2xl bg-card border border-border space-y-2.5 shadow-2xs">
+        <h4 className="font-extrabold text-foreground text-xs uppercase tracking-wider flex items-center gap-1.5">
+          <UserCheck className="w-4 h-4 text-[#C9A52A]" /> Project Creation Readiness Checklist
+        </h4>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+          <div className="flex items-center gap-1.5 text-emerald-500 font-bold">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Title & Mandate Verified
+          </div>
+          <div className="flex items-center gap-1.5 text-emerald-500 font-bold">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Owner — CEO 🔒
+          </div>
+          <div className="flex items-center gap-1.5 text-emerald-500 font-bold">
+            <CheckCircle2 className="w-3.5 h-3.5" /> Created By — {userRole === "CO-CEO" ? "CO-CEO" : "CEO"}
+          </div>
+          <div className={`flex items-center gap-1.5 font-bold ${selectedCoCeoId ? "text-emerald-500" : "text-amber-500"}`}>
+            <CheckCircle2 className="w-3.5 h-3.5" /> {selectedCoCeoId ? "CO-CEO Lead Assigned" : "CO-CEO Lead Pending"}
+          </div>
+          <div className="flex items-center gap-1.5 text-emerald-500 font-bold">
+            <CheckCircle2 className="w-3.5 h-3.5" /> {milestones.length} Milestone Gates Ready
+          </div>
+          <div className="flex items-center gap-1.5 text-emerald-500 font-bold">
+            <CheckCircle2 className="w-3.5 h-3.5" /> {totalTasks} Initial Tasks Ready
+          </div>
+        </div>
+      </div>
+
       {/* Summary Matrix */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="p-3.5 bg-card rounded-2xl border border-border space-y-1 shadow-2xs">

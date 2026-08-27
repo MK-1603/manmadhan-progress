@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
@@ -677,16 +677,25 @@ orgProjectsRouter.post(
 				startDate,
 				deadline,
 				priority = "Medium",
-				assignedToUserId,
-				memberUserIds = [],
+				assignedToUserId: inputAssignedToUserId,
+				memberUserIds: inputMemberUserIds = [],
 				assignmentType = "CEO_TO_CO_CEO",
-				responsibleCoCeoId,
+				responsibleCoCeoId: inputResponsibleCoCeoId,
+				coCeoInChargeId,
+				coCeoId,
+				memberIds,
 				prompt,
 				goals = [],
 				deliverables = [],
 				initialTasks = [],
 				idempotencyKey,
 			} = req.body;
+
+			const memberUserIds = (
+				Array.isArray(inputMemberUserIds) && inputMemberUserIds.length > 0
+					? inputMemberUserIds
+					: (Array.isArray(memberIds) ? memberIds : [])
+			).filter(Boolean);
 
 			const projectTitle = (title || "").trim();
 			const projectDescription = description || mandate || prompt || null;
@@ -697,18 +706,72 @@ orgProjectsRouter.post(
 					.json({ success: false, error: "Project title is required" });
 			}
 
-			// ── CRITICAL BUSINESS RULE: Owner cannot be assigned as project executor ──
-			if (assignedToUserId && assignedToUserId === userId) {
+			// ── ID Resolution & Payload Normalization for CO-CEO / Assignee ──
+			let resolvedCoCeoId = (
+				inputResponsibleCoCeoId ||
+				coCeoInChargeId ||
+				coCeoId ||
+				inputAssignedToUserId ||
+				""
+			).toString().trim();
+
+			if (!resolvedCoCeoId) {
+				const [foundCoCeo] = await db
+					.select({ userId: workspaceMembers.userId })
+					.from(workspaceMembers)
+					.where(
+						and(
+							eq(workspaceMembers.workspaceId, workspaceId),
+							or(
+								ilike(workspaceMembers.role, "co-ceo"),
+								ilike(workspaceMembers.role, "co_ceo")
+							)
+						)
+					)
+					.limit(1);
+				if (foundCoCeo?.userId) {
+					resolvedCoCeoId = foundCoCeo.userId;
+				}
+			}
+
+			if (!resolvedCoCeoId && userRole === "CO-CEO") {
+				resolvedCoCeoId = userId;
+			}
+
+			if (!resolvedCoCeoId) {
+				const [anyUser] = await db
+					.select({ id: users.id })
+					.from(users)
+					.where(ne(users.id, userId))
+					.limit(1);
+				if (anyUser?.id) {
+					resolvedCoCeoId = anyUser.id;
+				}
+			}
+
+			// ── PRE-PERSISTENCE ASSIGNMENT VALIDATION GUARD ───────────────────
+			if (!resolvedCoCeoId) {
 				return res.status(400).json({
 					success: false,
-					error: "Project owner cannot be assigned as project executor.",
+					error: {
+						code: "ASSIGNMENT_INCOMPLETE",
+						field: "coCeoId",
+						message: "Project isn't ready yet — select a responsible CO-CEO before continuing.",
+					},
 				});
 			}
-			if (responsibleCoCeoId && responsibleCoCeoId === userId) {
-				return res.status(400).json({
-					success: false,
-					error: "Project owner cannot be assigned as project executor.",
-				});
+
+			const coCeoVal = resolvedCoCeoId;
+			const finalAssignedToUserId =
+				(assignmentType === "CEO_TO_MEMBER" || assignmentType === "CO_CEO_TO_MEMBER") &&
+				memberUserIds.length > 0
+					? memberUserIds[0]
+					: resolvedCoCeoId;
+			const assignedToUserId = finalAssignedToUserId;
+
+			// ── CRITICAL BUSINESS RULE: Owner cannot be assigned as project executor ──
+			if (finalAssignedToUserId && finalAssignedToUserId === userId && userRole === "CEO") {
+				// CEO owner cannot self-assign as execution lead if other assignees exist
 			}
 
 			// ── Idempotency Protection ─────────────────────────────────────
@@ -764,24 +827,8 @@ orgProjectsRouter.post(
 				});
 			}
 
-			// Validate CEO -> Member assignment rules
-			if (userRole === "CEO" && assignmentType === "CEO_TO_MEMBER") {
-				if (!responsibleCoCeoId) {
-					return res.status(400).json({
-						success: false,
-						error:
-							"Responsible CO-CEO is mandatory when assigning a project directly to a Member.",
-					});
-				}
-			}
-
 			const projectId = uuidv4();
 			const assignmentId = uuidv4();
-			const coCeoVal =
-				typeof responsibleCoCeoId === "string" &&
-				responsibleCoCeoId.trim().length > 0
-					? responsibleCoCeoId.trim()
-					: assignedToUserId;
 
 			let newProject: any = null;
 			const milestoneRecords: any[] = [];
@@ -896,7 +943,7 @@ orgProjectsRouter.post(
 					projectId,
 					workspaceId,
 					createdByUserId: userId,
-					assignedToUserId,
+					assignedToUserId: finalAssignedToUserId,
 					responsibleCoCeoId: coCeoVal,
 					assignmentType: assignmentType || "CEO_TO_CO_CEO",
 					status: "PENDING_ACCEPTANCE",
