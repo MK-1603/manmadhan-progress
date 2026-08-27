@@ -2,10 +2,8 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
-  Plus, FolderKanban, Search, AlertCircle,
-  Trash2, ChevronRight, LayoutGrid, List,
-  Edit, X, MoreVertical, ArrowUpRight, Filter, ChevronDown,
-  CheckCircle2, Clock, Shield, AlertTriangle, RefreshCw, Layers
+  Plus, Search, AlertCircle, Trash2, LayoutGrid, List, Edit, X, MoreVertical,
+  ArrowUpRight, Filter, Shield, RefreshCw
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
@@ -14,7 +12,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { EditProjectModal } from "@/components/organization/edit-project-modal";
 import { DeleteConfirmationModal } from "@/components/organization/delete-confirmation-modal";
-import { CustomDropdown } from "@/components/ui/custom-dropdown";
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; dot: string; label: string }> = {
   ACTIVE: { bg: "bg-emerald-500/10 border-emerald-500/20", text: "text-emerald-500", dot: "bg-emerald-500", label: "Active" },
@@ -29,15 +26,6 @@ const STATUS_BADGE: Record<string, { bg: string; text: string; dot: string; labe
   Archived: { bg: "bg-slate-500/10 border-slate-500/20", text: "text-slate-400", dot: "bg-slate-400", label: "Archived" },
 };
 
-const HEALTH_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  HEALTHY: { bg: "bg-emerald-500/10 border-emerald-500/20 text-emerald-500", text: "Healthy", label: "Healthy" },
-  Healthy: { bg: "bg-emerald-500/10 border-emerald-500/20 text-emerald-500", text: "Healthy", label: "Healthy" },
-  AT_RISK: { bg: "bg-amber-500/10 border-amber-500/20 text-amber-500", text: "At Risk", label: "At Risk" },
-  "At Risk": { bg: "bg-amber-500/10 border-amber-500/20 text-amber-500", text: "At Risk", label: "At Risk" },
-  CRITICAL: { bg: "bg-rose-500/10 border-rose-500/20 text-rose-500", text: "Critical", label: "Critical" },
-  Critical: { bg: "bg-rose-500/10 border-rose-500/20 text-rose-500", text: "Critical", label: "Critical" },
-};
-
 const PRIORITY_BADGE: Record<string, { text: string; dot: string }> = {
   Critical: { text: "text-rose-500 font-bold", dot: "bg-rose-500" },
   CRITICAL: { text: "text-rose-500 font-bold", dot: "bg-rose-500" },
@@ -49,26 +37,26 @@ const PRIORITY_BADGE: Record<string, { text: string; dot: string }> = {
   LOW: { text: "text-slate-400 font-normal", dot: "bg-slate-400" },
 };
 
-function fmtDeadlineLabel(dateStr?: string | null, status?: string): { dateText: string; relText: string; isOverdue: boolean; diffDays: number } {
-  if (!dateStr) return { dateText: "—", relText: "No deadline", isOverdue: false, diffDays: 999 };
+function fmtDeadlineLabel(dateStr?: string | null, status?: string): { dateText: string; relText: string; isOverdue: boolean } {
+  if (!dateStr) return { dateText: "—", relText: "No deadline", isOverdue: false };
   try {
     const target = new Date(dateStr);
     const now = new Date();
     const isCompleted = (status || "").toUpperCase() === "COMPLETED";
 
     const dateText = target.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    if (isCompleted) return { dateText, relText: "Completed", isOverdue: false, diffDays: 999 };
+    if (isCompleted) return { dateText, relText: "Completed", isOverdue: false };
 
     const diffDays = Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays < 0) {
-      return { dateText, relText: `Overdue by ${Math.abs(diffDays)}d`, isOverdue: true, diffDays };
+      return { dateText, relText: `Overdue (${Math.abs(diffDays)}d)`, isOverdue: true };
     } else if (diffDays === 0) {
-      return { dateText, relText: "Due Today", isOverdue: false, diffDays };
+      return { dateText, relText: "Due Today", isOverdue: false };
     } else {
-      return { dateText, relText: `Due in ${diffDays}d`, isOverdue: false, diffDays };
+      return { dateText, relText: `Due in ${diffDays}d`, isOverdue: false };
     }
   } catch {
-    return { dateText: dateStr, relText: "—", isOverdue: false, diffDays: 999 };
+    return { dateText: dateStr, relText: "—", isOverdue: false };
   }
 }
 
@@ -78,7 +66,6 @@ export default function ProjectsPage() {
   const { socket } = useSocket();
 
   const basePath = pathname.startsWith("/co-ceo") ? "/co-ceo" : pathname.startsWith("/member") ? "/member" : "/ceo";
-  const userRole = pathname.startsWith("/co-ceo") ? "CO-CEO" : pathname.startsWith("/member") ? "MEMBER" : "CEO";
 
   const [realProjects, setRealProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +80,9 @@ export default function ProjectsPage() {
   const [healthFilter, setHealthFilter] = useState("All");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
 
+  // Filter Popover Open State
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+
   // Selection & Action Modals State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingProject, setEditingProject] = useState<any | null>(null);
@@ -100,18 +90,16 @@ export default function ProjectsPage() {
   const [deleting, setDeleting] = useState(false);
   const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
 
-  // Bulk Action Modals State
-  const [bulkActionType, setBulkActionType] = useState<"status" | "priority" | "archive" | "delete" | null>(null);
-  const [bulkStatusValue, setBulkStatusValue] = useState<string>("Active");
-  const [bulkPriorityValue, setBulkPriorityValue] = useState<string>("Medium");
-  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
-
   const actionMenuRef = useRef<HTMLDivElement>(null);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
         setActiveActionMenuId(null);
+      }
+      if (filterPanelRef.current && !filterPanelRef.current.contains(event.target as Node)) {
+        setIsFilterPanelOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -169,7 +157,7 @@ export default function ProjectsPage() {
     return Array.from(set);
   }, [realProjects]);
 
-  // Metric Cards Calculations (Real Database Data)
+  // Status Navigation Counts (Real Database Data)
   const metrics = useMemo(() => {
     const total = realProjects.length;
     const active = realProjects.filter((p) => p.status?.toUpperCase() === "ACTIVE" || p.status === "Active").length;
@@ -214,9 +202,7 @@ export default function ProjectsPage() {
       const matchDeadline =
         deadlineFilter === "All" ||
         (deadlineFilter === "Overdue" && dInfo.isOverdue) ||
-        (deadlineFilter === "DueToday" && dInfo.diffDays === 0) ||
-        (deadlineFilter === "DueThisWeek" && dInfo.diffDays >= 0 && dInfo.diffDays <= 7) ||
-        (deadlineFilter === "DueThisMonth" && dInfo.diffDays >= 0 && dInfo.diffDays <= 30) ||
+        (deadlineFilter === "DueToday" && dInfo.relText === "Due Today") ||
         (deadlineFilter === "NoDeadline" && (!p.deadline && !p.targetDate));
 
       const matchHealth =
@@ -227,7 +213,7 @@ export default function ProjectsPage() {
     });
   }, [realProjects, search, statusFilter, priorityFilter, coCeoFilter, deadlineFilter, healthFilter]);
 
-  // Active filters count & reset check
+  // Active filters count
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (statusFilter !== "All") count++;
@@ -279,51 +265,14 @@ export default function ProjectsPage() {
     }
   };
 
-  // Bulk Actions Handler
-  const handleExecuteBulkAction = async () => {
-    if (!bulkActionType || selectedIds.length === 0) return;
-    setIsBulkSubmitting(true);
-    try {
-      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
-      const actionData: any = {};
-      if (bulkActionType === "status") actionData.status = bulkStatusValue;
-      if (bulkActionType === "priority") actionData.priority = bulkPriorityValue;
-
-      if (bulkActionType === "delete") {
-        setRealProjects((prev) => prev.filter((p) => !selectedIds.includes(p.id)));
-      }
-
-      await apiClient.post(`/org/projects/bulk${wsId ? `?workspaceId=${wsId}` : ""}`, {
-        projectIds: selectedIds,
-        action: bulkActionType,
-        actionData,
-      });
-
-      setSelectedIds([]);
-      setBulkActionType(null);
-      fetchProjects();
-    } catch (err: any) {
-      console.error("Bulk action failed:", err);
-    } finally {
-      setIsBulkSubmitting(false);
-    }
-  };
-
   return (
     <div className="w-full h-[calc(100vh-65px)] max-h-[calc(100vh-65px)] flex flex-col overflow-hidden bg-background text-foreground font-sans">
-      {/* ── 1. COMPACT PAGE HEADER & CREATION CTA ───────────────────────────────── */}
-      <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-border shrink-0 bg-card/60 backdrop-blur-md space-y-3">
+      {/* ── 1. CLEAN GLOBAL HEADER ─────────────────────────────────────────────── */}
+      <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-border shrink-0 bg-card/60 space-y-3">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-extrabold text-foreground tracking-tight">Projects Workspace</h1>
-              <span className="px-2 py-0.5 rounded-full bg-[#C9A52A]/15 text-[#C9A52A] text-[10px] font-extrabold uppercase tracking-wider border border-[#C9A52A]/20">
-                Executive Portfolio
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              ManMadhan Organization · Plan, execute and track organizational project mandates.
-            </p>
+            <h1 className="text-lg font-extrabold text-foreground tracking-tight">Projects</h1>
+            <p className="text-xs text-muted-foreground">Plan and execute organizational projects.</p>
           </div>
 
           <Link
@@ -331,89 +280,51 @@ export default function ProjectsPage() {
             className="px-4 h-[38px] rounded-xl bg-gradient-to-r from-[#C9A52A] to-[#D4B12F] text-[#0B0D10] font-extrabold text-xs transition-all hover:brightness-105 shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span className="hidden sm:inline">New Project</span>
+            <span>New Project</span>
           </Link>
         </div>
 
-        {/* ── 2. REAL DATABASE METRIC CARDS ────────────────────────────────────── */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => setStatusFilter("All")}
-            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-              statusFilter === "All"
-                ? "bg-[#C9A52A]/10 border-[#C9A52A] shadow-xs"
-                : "bg-card border-border hover:border-border/80"
-            }`}
-          >
-            <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider block">Total Projects</span>
-            <span className="text-base font-extrabold text-foreground">{metrics.total}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setStatusFilter("Active")}
-            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-              statusFilter === "Active"
-                ? "bg-emerald-500/10 border-emerald-500/50 shadow-xs"
-                : "bg-card border-border hover:border-border/80"
-            }`}
-          >
-            <span className="text-[10px] font-extrabold text-emerald-500 uppercase tracking-wider block">Active</span>
-            <span className="text-base font-extrabold text-emerald-500">{metrics.active}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setStatusFilter("Planning")}
-            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-              statusFilter === "Planning"
-                ? "bg-blue-500/10 border-blue-500/50 shadow-xs"
-                : "bg-card border-border hover:border-border/80"
-            }`}
-          >
-            <span className="text-[10px] font-extrabold text-blue-500 uppercase tracking-wider block">Planning</span>
-            <span className="text-base font-extrabold text-blue-500">{metrics.planning}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setStatusFilter("On Hold")}
-            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-              statusFilter === "On Hold"
-                ? "bg-amber-500/10 border-amber-500/50 shadow-xs"
-                : "bg-card border-border hover:border-border/80"
-            }`}
-          >
-            <span className="text-[10px] font-extrabold text-amber-500 uppercase tracking-wider block">On Hold</span>
-            <span className="text-base font-extrabold text-amber-500">{metrics.onHold}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setStatusFilter("Completed")}
-            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-              statusFilter === "Completed"
-                ? "bg-purple-500/10 border-purple-500/50 shadow-xs"
-                : "bg-card border-border hover:border-border/80"
-            }`}
-          >
-            <span className="text-[10px] font-extrabold text-purple-400 uppercase tracking-wider block">Completed</span>
-            <span className="text-base font-extrabold text-purple-400">{metrics.completed}</span>
-          </button>
+        {/* ── 2. COMPACT INTERACTIVE STATUS NAVIGATION ─────────────────────────── */}
+        <div className="flex items-center gap-1 border-b border-border/60 pb-2 overflow-x-auto text-xs font-bold">
+          {[
+            { id: "All", label: "All", count: metrics.total },
+            { id: "Planning", label: "Planning", count: metrics.planning },
+            { id: "Active", label: "Active", count: metrics.active },
+            { id: "On Hold", label: "On Hold", count: metrics.onHold },
+            { id: "Completed", label: "Completed", count: metrics.completed },
+          ].map((tab) => {
+            const isActive = statusFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setStatusFilter(tab.id)}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                  isActive
+                    ? "bg-[#C9A52A] text-[#0B0D10] font-extrabold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className={`px-1.5 py-0.2 rounded font-mono text-[10px] ${isActive ? "bg-black/20 text-[#0B0D10]" : "bg-muted text-muted-foreground"}`}>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
-        {/* ── 3. SEARCH & MULTI-FILTER TOOLBAR ─────────────────────────────────── */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1 text-xs">
-          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+        {/* ── 3. SEARCH & UNIFIED FILTER TOOLBAR ────────────────────────────────── */}
+        <div className="flex items-center justify-between gap-3 pt-1 text-xs">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             {/* Search Input */}
-            <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+            <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search title, prompt, CO-CEO..."
+                placeholder="Search projects..."
                 className="w-full h-[36px] pl-9 pr-3 rounded-xl bg-background border border-border text-foreground text-xs focus:outline-none focus:border-[#C9A52A]"
               />
               {search && (
@@ -426,78 +337,93 @@ export default function ProjectsPage() {
               )}
             </div>
 
-            {/* Status Filter Dropdown */}
-            <CustomDropdown
-              label="Status"
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={[
-                { value: "All", label: "All Statuses" },
-                { value: "Planning", label: "Planning", dotColor: "bg-blue-500" },
-                { value: "Active", label: "Active", dotColor: "bg-emerald-500" },
-                { value: "On Hold", label: "On Hold", dotColor: "bg-amber-500" },
-                { value: "Completed", label: "Completed", dotColor: "bg-purple-400" },
-                { value: "Archived", label: "Archived", dotColor: "bg-slate-400" },
-              ]}
-              className="w-36"
-            />
+            {/* Unified Filter Button & Popover */}
+            <div className="relative" ref={filterPanelRef}>
+              <button
+                type="button"
+                onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
+                className={`h-[36px] px-3.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeFiltersCount > 0
+                    ? "bg-[#C9A52A]/15 border-[#C9A52A] text-[#C9A52A]"
+                    : "bg-background border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Filter className="w-3.5 h-3.5" />
+                <span>Filter</span>
+                {activeFiltersCount > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-[#C9A52A] text-[#0B0D10] text-[10px] font-mono font-extrabold flex items-center justify-center">
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </button>
 
-            {/* Priority Filter Dropdown */}
-            <CustomDropdown
-              label="Priority"
-              value={priorityFilter}
-              onChange={setPriorityFilter}
-              options={[
-                { value: "All", label: "All Priorities" },
-                { value: "Critical", label: "Critical", dotColor: "bg-rose-500" },
-                { value: "High", label: "High", dotColor: "bg-amber-500" },
-                { value: "Medium", label: "Medium", dotColor: "bg-[#C9A52A]" },
-                { value: "Low", label: "Low", dotColor: "bg-slate-400" },
-              ]}
-              className="w-36"
-            />
+              {/* Structured Filter Popover Panel */}
+              {isFilterPanelOpen && (
+                <div className="absolute left-0 top-11 z-30 w-72 p-4 rounded-2xl bg-card border border-border shadow-xl space-y-3.5 animate-in fade-in duration-100 text-xs">
+                  <div className="flex items-center justify-between border-b border-border pb-2">
+                    <span className="font-extrabold text-foreground uppercase tracking-wider text-[10.5px]">Filter Projects</span>
+                    <button onClick={clearAllFilters} className="text-[#C9A52A] hover:underline font-bold text-[10.5px]">
+                      Reset
+                    </button>
+                  </div>
 
-            {/* CO-CEO Filter Dropdown */}
-            <CustomDropdown
-              label="CO-CEO"
-              value={coCeoFilter}
-              onChange={setCoCeoFilter}
-              options={[
-                { value: "All", label: "All CO-CEOs" },
-                ...coCeoOptions.map((c) => ({ value: c, label: c })),
-              ]}
-              className="w-40"
-            />
+                  {/* Priority Select */}
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block text-[10.5px]">Priority</label>
+                    <select
+                      value={priorityFilter}
+                      onChange={(e) => setPriorityFilter(e.target.value)}
+                      className="w-full h-[34px] px-2.5 rounded-xl bg-background border border-border text-foreground text-xs focus:outline-none"
+                    >
+                      <option value="All">All Priorities</option>
+                      <option value="Critical">Critical</option>
+                      <option value="High">High</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </select>
+                  </div>
 
-            {/* Deadline Filter Dropdown */}
-            <CustomDropdown
-              label="Deadline"
-              value={deadlineFilter}
-              onChange={setDeadlineFilter}
-              options={[
-                { value: "All", label: "All Deadlines" },
-                { value: "Overdue", label: "Overdue" },
-                { value: "DueToday", label: "Due Today" },
-                { value: "DueThisWeek", label: "Due This Week" },
-                { value: "DueThisMonth", label: "Due This Month" },
-                { value: "NoDeadline", label: "No Deadline" },
-              ]}
-              className="w-36"
-            />
+                  {/* CO-CEO Select */}
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block text-[10.5px]">CO-CEO Lead</label>
+                    <select
+                      value={coCeoFilter}
+                      onChange={(e) => setCoCeoFilter(e.target.value)}
+                      className="w-full h-[34px] px-2.5 rounded-xl bg-background border border-border text-foreground text-xs focus:outline-none"
+                    >
+                      <option value="All">All CO-CEOs</option>
+                      {coCeoOptions.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
 
-            {/* Health Filter Dropdown */}
-            <CustomDropdown
-              label="Health"
-              value={healthFilter}
-              onChange={setHealthFilter}
-              options={[
-                { value: "All", label: "All Health" },
-                { value: "Healthy", label: "Healthy", dotColor: "bg-emerald-500" },
-                { value: "At Risk", label: "At Risk", dotColor: "bg-amber-500" },
-                { value: "Critical", label: "Critical", dotColor: "bg-rose-500" },
-              ]}
-              className="w-32"
-            />
+                  {/* Deadline Select */}
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block text-[10.5px]">Deadline</label>
+                    <select
+                      value={deadlineFilter}
+                      onChange={(e) => setDeadlineFilter(e.target.value)}
+                      className="w-full h-[34px] px-2.5 rounded-xl bg-background border border-border text-foreground text-xs focus:outline-none"
+                    >
+                      <option value="All">All Deadlines</option>
+                      <option value="Overdue">Overdue</option>
+                      <option value="DueToday">Due Today</option>
+                      <option value="NoDeadline">No Deadline</option>
+                    </select>
+                  </div>
+
+                  <div className="pt-2 border-t border-border flex justify-end">
+                    <button
+                      onClick={() => setIsFilterPanelOpen(false)}
+                      className="px-4 py-1.5 rounded-xl bg-[#C9A52A] text-[#0B0D10] font-extrabold text-xs"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* View Toggle */}
@@ -524,52 +450,9 @@ export default function ProjectsPage() {
             </button>
           </div>
         </div>
-
-        {/* Active Filter Chips Bar */}
-        {activeFiltersCount > 0 && (
-          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/40 text-[11px]">
-            <span className="text-muted-foreground font-bold">{filteredProjects.length} Matching Projects</span>
-            {statusFilter !== "All" && (
-              <span className="px-2 py-0.5 rounded-md bg-secondary border border-border text-foreground font-semibold flex items-center gap-1">
-                Status: {statusFilter}
-                <X className="w-3 h-3 cursor-pointer hover:text-rose-500" onClick={() => setStatusFilter("All")} />
-              </span>
-            )}
-            {priorityFilter !== "All" && (
-              <span className="px-2 py-0.5 rounded-md bg-secondary border border-border text-foreground font-semibold flex items-center gap-1">
-                Priority: {priorityFilter}
-                <X className="w-3 h-3 cursor-pointer hover:text-rose-500" onClick={() => setPriorityFilter("All")} />
-              </span>
-            )}
-            {coCeoFilter !== "All" && (
-              <span className="px-2 py-0.5 rounded-md bg-secondary border border-border text-foreground font-semibold flex items-center gap-1">
-                CO-CEO: {coCeoFilter}
-                <X className="w-3 h-3 cursor-pointer hover:text-rose-500" onClick={() => setCoCeoFilter("All")} />
-              </span>
-            )}
-            {deadlineFilter !== "All" && (
-              <span className="px-2 py-0.5 rounded-md bg-secondary border border-border text-foreground font-semibold flex items-center gap-1">
-                Deadline: {deadlineFilter}
-                <X className="w-3 h-3 cursor-pointer hover:text-rose-500" onClick={() => setDeadlineFilter("All")} />
-              </span>
-            )}
-            {healthFilter !== "All" && (
-              <span className="px-2 py-0.5 rounded-md bg-secondary border border-border text-foreground font-semibold flex items-center gap-1">
-                Health: {healthFilter}
-                <X className="w-3 h-3 cursor-pointer hover:text-rose-500" onClick={() => setHealthFilter("All")} />
-              </span>
-            )}
-            <button
-              onClick={clearAllFilters}
-              className="text-[#C9A52A] hover:underline font-bold text-[10.5px] cursor-pointer ml-1"
-            >
-              Clear All
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* ── 4. INTERNAL SCROLLABLE CONTENT REGION (TABLE OR BOARD) ─────────────── */}
+      {/* ── 4. INTERNAL SCROLLABLE CONTENT REGION (PRIMARY TABLE SURFACE) ──────── */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
         {/* Error Banner */}
         {error && (
@@ -588,44 +471,24 @@ export default function ProjectsPage() {
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-16 rounded-xl bg-card border border-border animate-pulse" />
+              <div key={i} className="h-14 rounded-xl bg-card border border-border animate-pulse" />
             ))}
           </div>
         ) : filteredProjects.length === 0 ? (
-          /* Empty States */
-          <div className="p-8 rounded-2xl bg-card border border-border text-center space-y-3 my-6">
-            <FolderKanban className="w-10 h-10 text-[#C9A52A] mx-auto opacity-70" />
-            {realProjects.length === 0 ? (
-              <div className="space-y-1">
-                <h3 className="text-sm font-extrabold text-foreground">No Organization Projects Yet</h3>
-                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                  Create your first organization project mandate to assign CO-CEO execution leads and track milestone gates.
-                </p>
-                <div className="pt-2">
-                  <Link
-                    href={`${basePath}/projects/create`}
-                    className="px-4 py-2 rounded-xl bg-[#C9A52A] text-[#0B0D10] font-extrabold text-xs inline-flex items-center gap-1.5"
-                  >
-                    <Plus className="w-4 h-4" /> Create Project
-                  </Link>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <h3 className="text-sm font-extrabold text-foreground">No Projects Match Active Filters</h3>
-                <p className="text-xs text-muted-foreground">
-                  Try broadening your search query or clearing status/priority filter tags.
-                </p>
-                <div className="pt-2">
-                  <button
-                    onClick={clearAllFilters}
-                    className="px-4 py-1.5 rounded-xl border border-border text-foreground hover:bg-muted text-xs font-bold"
-                  >
-                    Clear All Filters
-                  </button>
-                </div>
-              </div>
-            )}
+          /* Clean Professional Empty State */
+          <div className="p-10 rounded-2xl bg-card border border-border text-center space-y-3 my-8 max-w-md mx-auto">
+            <h3 className="text-sm font-extrabold text-foreground">No projects yet</h3>
+            <p className="text-xs text-muted-foreground">
+              Create your first organization project to begin execution.
+            </p>
+            <div className="pt-2">
+              <Link
+                href={`${basePath}/projects/create`}
+                className="px-4 py-2 rounded-xl bg-[#C9A52A] text-[#0B0D10] font-extrabold text-xs inline-flex items-center gap-1.5 shadow-2xs"
+              >
+                <Plus className="w-4 h-4" /> New Project
+              </Link>
+            </div>
           </div>
         ) : viewMode === "table" ? (
           /* ── TABLE VIEW ─────────────────────────────────────────────────────── */
@@ -633,7 +496,7 @@ export default function ProjectsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40 text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
+                  <tr className="border-b border-border bg-muted/30 text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
                     <th className="py-3 px-3.5 w-8">
                       <input
                         type="checkbox"
@@ -642,14 +505,13 @@ export default function ProjectsPage() {
                         className="rounded border-border text-[#C9A52A] focus:ring-0 cursor-pointer"
                       />
                     </th>
-                    <th className="py-3 px-3.5">Project Mandate</th>
+                    <th className="py-3 px-3.5">Project</th>
                     <th className="py-3 px-3.5">Owner</th>
-                    <th className="py-3 px-3.5">CO-CEO Lead / Execution</th>
+                    <th className="py-3 px-3.5">Lead</th>
                     <th className="py-3 px-3.5">Status</th>
                     <th className="py-3 px-3.5">Priority</th>
-                    <th className="py-3 px-3.5">Target Deadline</th>
-                    <th className="py-3 px-3.5">Task Progress</th>
-                    <th className="py-3 px-3.5">Health</th>
+                    <th className="py-3 px-3.5">Deadline</th>
+                    <th className="py-3 px-3.5">Progress</th>
                     <th className="py-3 px-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -657,7 +519,6 @@ export default function ProjectsPage() {
                   {filteredProjects.map((p) => {
                     const statusObj = STATUS_BADGE[p.status] || STATUS_BADGE.Planning;
                     const priorityObj = PRIORITY_BADGE[p.priority] || PRIORITY_BADGE.Medium;
-                    const healthObj = HEALTH_BADGE[p.health] || HEALTH_BADGE.Healthy;
                     const dInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
                     const isSelected = selectedIds.includes(p.id);
 
@@ -680,7 +541,7 @@ export default function ProjectsPage() {
                         </td>
 
                         {/* Project Title & Category */}
-                        <td className="py-3 px-3.5 max-w-[220px]">
+                        <td className="py-3 px-3.5 max-w-[240px]">
                           <div className="space-y-0.5">
                             <span className="font-extrabold text-foreground group-hover:text-[#C9A52A] transition-colors truncate block">
                               {p.name}
@@ -693,28 +554,21 @@ export default function ProjectsPage() {
 
                         {/* Owner (CEO Fixed) */}
                         <td className="py-3 px-3.5">
-                          <span className="px-2 py-0.5 rounded-md bg-secondary text-foreground text-[10.5px] font-extrabold border border-border inline-flex items-center gap-1">
+                          <span className="text-foreground text-[11px] font-bold inline-flex items-center gap-1">
                             <Shield className="w-3 h-3 text-[#C9A52A]" /> CEO 🔒
                           </span>
                         </td>
 
-                        {/* CO-CEO Lead & Execution Lead */}
+                        {/* CO-CEO Lead */}
                         <td className="py-3 px-3.5">
-                          <div className="space-y-0.5">
-                            <span className="font-extrabold text-blue-500 text-[11px] truncate block">
-                              {p.coCeoLeadName || p.assignedUserName || "CO-CEO Unassigned"}
-                            </span>
-                            {p.executionLeadName && p.executionLeadName !== "Unassigned" && (
-                              <span className="text-[10px] text-muted-foreground block truncate">
-                                Exec: {p.executionLeadName}
-                              </span>
-                            )}
-                          </div>
+                          <span className="font-bold text-blue-500 text-[11px] truncate block">
+                            {p.coCeoLeadName || p.assignedUserName || "Unassigned"}
+                          </span>
                         </td>
 
                         {/* Status */}
                         <td className="py-3 px-3.5">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border inline-flex items-center gap-1.5 ${statusObj.bg} ${statusObj.text}`}>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border inline-flex items-center gap-1 ${statusObj.bg} ${statusObj.text}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${statusObj.dot}`} />
                             {statusObj.label}
                           </span>
@@ -728,18 +582,18 @@ export default function ProjectsPage() {
                           </span>
                         </td>
 
-                        {/* Target Deadline */}
+                        {/* Deadline */}
                         <td className="py-3 px-3.5">
                           <div className="space-y-0.5">
-                            <span className="font-extrabold text-foreground text-[11px] block">{dInfo.dateText}</span>
-                            <span className={`text-[10px] font-bold block ${dInfo.isOverdue ? "text-rose-500" : "text-muted-foreground"}`}>
+                            <span className="font-bold text-foreground text-[11px] block">{dInfo.dateText}</span>
+                            <span className={`text-[10px] font-semibold block ${dInfo.isOverdue ? "text-rose-500" : "text-muted-foreground"}`}>
                               {dInfo.relText}
                             </span>
                           </div>
                         </td>
 
-                        {/* Task Progress */}
-                        <td className="py-3 px-3.5 min-w-[130px]">
+                        {/* Progress */}
+                        <td className="py-3 px-3.5 min-w-[120px]">
                           {p.totalTasks > 0 ? (
                             <div className="space-y-1">
                               <div className="flex items-center justify-between text-[10.5px]">
@@ -748,7 +602,7 @@ export default function ProjectsPage() {
                               </div>
                               <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
                                 <div
-                                  className="h-full bg-gradient-to-r from-[#C9A52A] to-[#D4B12F] transition-all duration-300"
+                                  className="h-full bg-[#C9A52A] transition-all duration-300"
                                   style={{ width: `${p.progress}%` }}
                                 />
                               </div>
@@ -758,13 +612,6 @@ export default function ProjectsPage() {
                               No tasks
                             </span>
                           )}
-                        </td>
-
-                        {/* Health */}
-                        <td className="py-3 px-3.5">
-                          <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-extrabold border ${healthObj.bg}`}>
-                            {healthObj.label}
-                          </span>
                         </td>
 
                         {/* Actions Dropdown */}
@@ -779,12 +626,12 @@ export default function ProjectsPage() {
                             </button>
 
                             {activeActionMenuId === p.id && (
-                              <div className="absolute right-0 top-8 z-30 w-44 rounded-xl bg-card border border-border shadow-lg p-1 space-y-0.5 text-left text-xs font-semibold animate-in fade-in duration-100">
+                              <div className="absolute right-0 top-8 z-30 w-40 rounded-xl bg-card border border-border shadow-lg p-1 space-y-0.5 text-left text-xs font-semibold animate-in fade-in duration-100">
                                 <Link
                                   href={`${basePath}/projects/${p.id}`}
                                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted text-foreground transition-colors"
                                 >
-                                  <ArrowUpRight className="w-3.5 h-3.5 text-[#C9A52A]" /> View Details
+                                  <ArrowUpRight className="w-3.5 h-3.5 text-[#C9A52A]" /> Open
                                 </Link>
                                 <button
                                   type="button"
@@ -794,7 +641,7 @@ export default function ProjectsPage() {
                                   }}
                                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted text-foreground transition-colors cursor-pointer"
                                 >
-                                  <Edit className="w-3.5 h-3.5 text-blue-500" /> Edit Project
+                                  <Edit className="w-3.5 h-3.5 text-blue-500" /> Edit
                                 </button>
                                 <button
                                   type="button"
@@ -804,7 +651,7 @@ export default function ProjectsPage() {
                                   }}
                                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-rose-500/10 text-rose-500 transition-colors cursor-pointer"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" /> Delete Project
+                                  <Trash2 className="w-3.5 h-3.5" /> Delete
                                 </button>
                               </div>
                             )}
@@ -831,12 +678,12 @@ export default function ProjectsPage() {
               });
 
               return (
-                <div key={colStatus} className="p-3.5 rounded-2xl bg-card border border-border space-y-3 flex flex-col">
+                <div key={colStatus} className="p-3 rounded-2xl bg-card border border-border space-y-3 flex flex-col">
                   <div className="flex items-center justify-between border-b border-border pb-2">
                     <span className="font-extrabold text-xs uppercase tracking-wider text-foreground">
                       {colStatus}
                     </span>
-                    <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold">
+                    <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-bold">
                       {colProjects.length}
                     </span>
                   </div>
@@ -866,10 +713,10 @@ export default function ProjectsPage() {
                           )}
 
                           <div className="pt-2 border-t border-border/50 flex items-center justify-between text-[10.5px]">
-                            <span className="font-extrabold text-blue-500 truncate">
-                              {p.coCeoLeadName || p.assignedUserName || "CO-CEO Unassigned"}
+                            <span className="font-bold text-blue-500 truncate">
+                              {p.coCeoLeadName || p.assignedUserName || "Unassigned"}
                             </span>
-                            <span className="text-muted-foreground font-bold shrink-0">{dInfo.relText}</span>
+                            <span className="text-muted-foreground font-semibold shrink-0">{dInfo.relText}</span>
                           </div>
 
                           {p.totalTasks > 0 && (
@@ -906,7 +753,7 @@ export default function ProjectsPage() {
           isOpen={!!deleteConfirmSingleId}
           onClose={() => setDeleteConfirmSingleId(null)}
           onConfirm={handleDeleteSingle}
-          title="Delete Project Mandate?"
+          title="Delete Project?"
           description="Are you sure you want to delete this organization project record? All associated team assignments will be removed."
           isSubmitting={deleting}
         />
