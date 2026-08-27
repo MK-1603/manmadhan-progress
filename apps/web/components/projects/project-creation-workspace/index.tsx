@@ -7,7 +7,7 @@ import { useAuth } from "@/components/auth/auth-context";
 import apiClient from "@/lib/api-client";
 import {
   ArrowLeft, Lock, AlertCircle, CheckCircle2, FileText,
-  LayoutTemplate, Sliders, Layers, Check, Loader2
+  LayoutTemplate, Sliders, Layers, Check, AlertTriangle
 } from "lucide-react";
 
 import { PromptMode } from "./prompt-mode";
@@ -32,11 +32,17 @@ export function ProjectCreationWorkspace({
   const userRole = (initialRole || user?.role || "CEO").toUpperCase();
   const basePath = initialBasePath || (userRole === "CO-CEO" ? "/co-ceo" : "/ceo");
 
-  // ── 3-STEP STAGE CONTROL: TYPE -> ASSIGNMENT -> REVIEW ────────────────────
+  // ── STAGE CONTROL: TYPE -> ASSIGNMENT -> REVIEW ───────────────────────────
   const [stage, setStage] = useState<"TYPE" | "ASSIGNMENT" | "REVIEW">("TYPE");
 
-  // ── STEP 1: MODE CONTROL ──────────────────────────────────────────────────
+  // ── MODE CONTROL & SUBSTEPS ───────────────────────────────────────────────
   const [mode, setMode] = useState<"PROMPT" | "TEMPLATE" | "MANUAL">("PROMPT");
+  const [pendingMode, setPendingMode] = useState<"PROMPT" | "TEMPLATE" | "MANUAL" | null>(null);
+
+  // Substeps per mode
+  const [promptSubstep, setPromptSubstep] = useState<"DESCRIBE" | "UNDERSTAND" | "REFINE">("DESCRIBE");
+  const [templateSubstep, setTemplateSubstep] = useState<"CHOOSE" | "CONFIGURE">("CHOOSE");
+  const [manualSubstep, setManualSubstep] = useState<"INFORMATION" | "CONTROLS" | "REQUIREMENTS">("INFORMATION");
 
   // ── NORMALIZED PROJECT DRAFT STATE ─────────────────────────────────────────
   const [promptText, setPromptText] = useState("");
@@ -51,8 +57,13 @@ export function ProjectCreationWorkspace({
   const [toolsText, setToolsText] = useState("");
 
   const [requirementsText, setRequirementsText] = useState("PRD Document, Technical Specs, Security Audit");
-  const [deliverablesText, setDeliverablesText] = useState("Working Application, Connected GitHub Repo, Test Suite");
+  const [deliverablesText, setDeliverablesText] = useState("Working Application, Connected Repository, Test Suite");
   const [successCriteriaText, setSuccessCriteriaText] = useState("Passed E2E testing, zero critical vulnerabilities");
+
+  // Prompt arrays state
+  const [requirements, setRequirements] = useState<string[]>(["PRD Document", "Technical Specs", "Security Audit"]);
+  const [deliverables, setDeliverables] = useState<string[]>(["Working Application", "Connected Repository", "Test Suite"]);
+  const [successCriteria, setSuccessCriteria] = useState<string[]>(["Passed E2E testing, zero critical vulnerabilities"]);
 
   // ── STEP 2: EXECUTION ASSIGNMENT STATE (UNASSIGNED BY DEFAULT) ──────────────
   const [selectedCoCeoId, setSelectedCoCeoId] = useState("");
@@ -138,14 +149,29 @@ export function ProjectCreationWorkspace({
     }
   }, [title]);
 
-  // Derived Requirements & Deliverables Arrays
-  const parsedRequirements = useMemo(() => {
-    return requirementsText.split(",").map((r) => r.trim()).filter(Boolean);
-  }, [requirementsText]);
+  // Handle Mode Change Request with Confirmation Warning
+  const handleRequestModeChange = (targetMode: "PROMPT" | "TEMPLATE" | "MANUAL") => {
+    if (targetMode === mode) return;
+    if (title || promptText) {
+      setPendingMode(targetMode);
+    } else {
+      setMode(targetMode);
+    }
+  };
 
-  const parsedDeliverables = useMemo(() => {
-    return deliverablesText.split(",").map((d) => d.trim()).filter(Boolean);
-  }, [deliverablesText]);
+  const handleConfirmModeSwitch = () => {
+    if (pendingMode) {
+      setMode(pendingMode);
+      setPendingMode(null);
+      if (pendingMode === "PROMPT") {
+        setPromptSubstep("DESCRIBE");
+      } else if (pendingMode === "TEMPLATE") {
+        setTemplateSubstep("CHOOSE");
+      } else if (pendingMode === "MANUAL") {
+        setManualSubstep("INFORMATION");
+      }
+    }
+  };
 
   // Selected CO-CEO Name
   const selectedCoCeoName = useMemo(() => {
@@ -167,28 +193,7 @@ export function ProjectCreationWorkspace({
     setCategory(template.category);
     setToolsText(template.tools.join(", "));
     setRequirementsText(template.documents.join(", "));
-  };
-
-  // Handle Prompt Generation (Generates draft, NEVER auto-assigns people!)
-  const handleGenerateFromPrompt = async () => {
-    if (!promptText.trim()) {
-      setError("Please provide project brief text.");
-      return;
-    }
-
-    setIsGenerating(true);
-    setError(null);
-
-    try {
-      const parsedTitle = promptText.length > 50 ? `${promptText.substring(0, 48)}...` : promptText;
-      setTitle(parsedTitle);
-      setDescription(promptText);
-      setStage("ASSIGNMENT");
-    } catch (err: any) {
-      setError(err?.message || "Failed to generate project draft from brief.");
-    } finally {
-      setIsGenerating(false);
-    }
+    setRequirements(template.documents);
   };
 
   // Handle Confirm Project Creation Transaction
@@ -212,9 +217,9 @@ export function ProjectCreationWorkspace({
         targetDate: deadline || null,
         githubUrl: githubUrl || null,
         toolsText: toolsText || null,
-        requirements: parsedRequirements,
-        deliverables: parsedDeliverables,
-        successCriteria: successCriteriaText,
+        requirements,
+        deliverables,
+        successCriteria,
 
         // Ownership Governance (Server-enforced CEO)
         ownerId: "CEO",
@@ -275,7 +280,7 @@ export function ProjectCreationWorkspace({
             </div>
           </div>
 
-          {/* Stepper Progress Indicator (01 TYPE -> 02 ASSIGNMENT -> 03 REVIEW) */}
+          {/* Stepper Progress Indicator */}
           <div className="flex items-center gap-2">
             <div className={`px-3 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 ${
               stage === "TYPE" ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"
@@ -321,7 +326,7 @@ export function ProjectCreationWorkspace({
               <div className="p-1 rounded-xl bg-card border border-border grid grid-cols-3 gap-1 shadow-xs">
                 <button
                   type="button"
-                  onClick={() => setMode("PROMPT")}
+                  onClick={() => handleRequestModeChange("PROMPT")}
                   className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                     mode === "PROMPT"
                       ? "bg-[#C9A52A] text-[#0B0D10] font-extrabold shadow-2xs"
@@ -333,7 +338,7 @@ export function ProjectCreationWorkspace({
 
                 <button
                   type="button"
-                  onClick={() => setMode("TEMPLATE")}
+                  onClick={() => handleRequestModeChange("TEMPLATE")}
                   className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                     mode === "TEMPLATE"
                       ? "bg-[#C9A52A] text-[#0B0D10] font-extrabold shadow-2xs"
@@ -345,7 +350,7 @@ export function ProjectCreationWorkspace({
 
                 <button
                   type="button"
-                  onClick={() => setMode("MANUAL")}
+                  onClick={() => handleRequestModeChange("MANUAL")}
                   className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                     mode === "MANUAL"
                       ? "bg-[#C9A52A] text-[#0B0D10] font-extrabold shadow-2xs"
@@ -374,8 +379,27 @@ export function ProjectCreationWorkspace({
                   <PromptMode
                     promptText={promptText}
                     setPromptText={setPromptText}
-                    isGenerating={isGenerating}
-                    onGenerateBlueprint={handleGenerateFromPrompt}
+                    substep={promptSubstep}
+                    setSubstep={setPromptSubstep}
+                    title={title}
+                    setTitle={setTitle}
+                    description={description}
+                    setDescription={setDescription}
+                    category={category}
+                    setCategory={setCategory}
+                    priority={priority}
+                    setPriority={setPriority}
+                    deadline={deadline}
+                    setDeadline={setDeadline}
+                    toolsText={toolsText}
+                    setToolsText={setToolsText}
+                    requirements={requirements}
+                    setRequirements={setRequirements}
+                    deliverables={deliverables}
+                    setDeliverables={setDeliverables}
+                    successCriteria={successCriteria}
+                    setSuccessCriteria={setSuccessCriteria}
+                    onProceedToAssignment={() => setStage("ASSIGNMENT")}
                   />
                 )}
 
@@ -383,6 +407,9 @@ export function ProjectCreationWorkspace({
                   <TemplateMode
                     selectedTemplateId={selectedTemplateId}
                     onSelectTemplate={handleSelectTemplate}
+                    substep={templateSubstep}
+                    setSubstep={setTemplateSubstep}
+                    onProceedToAssignment={() => setStage("ASSIGNMENT")}
                   />
                 )}
 
@@ -408,6 +435,9 @@ export function ProjectCreationWorkspace({
                     setDeliverablesText={setDeliverablesText}
                     successCriteriaText={successCriteriaText}
                     setSuccessCriteriaText={setSuccessCriteriaText}
+                    substep={manualSubstep}
+                    setSubstep={setManualSubstep}
+                    onProceedToAssignment={() => setStage("ASSIGNMENT")}
                   />
                 )}
               </div>
@@ -437,7 +467,7 @@ export function ProjectCreationWorkspace({
                 userRole={userRole}
                 requirementAssignees={requirementAssignees}
                 setRequirementAssignees={setRequirementAssignees}
-                requirements={parsedRequirements}
+                requirements={requirements}
               />
             )}
 
@@ -454,8 +484,8 @@ export function ProjectCreationWorkspace({
                 selectedExecutionLeadId={selectedExecutionLeadId}
                 selectedMemberIds={selectedMemberIds}
                 memberList={memberList}
-                requirements={parsedRequirements}
-                deliverables={parsedDeliverables}
+                requirements={requirements}
+                deliverables={deliverables}
                 githubUrl={githubUrl}
                 toolsText={toolsText}
                 isSubmitting={isSubmitting}
@@ -573,7 +603,7 @@ export function ProjectCreationWorkspace({
             <div className="p-3.5 rounded-xl bg-background border border-border space-y-2">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground font-semibold">Requirements</span>
-                <span className="font-mono font-bold text-foreground">{parsedRequirements.length} items</span>
+                <span className="font-mono font-bold text-foreground">{requirements.length} items</span>
               </div>
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground font-semibold">Document Requirements</span>
@@ -591,15 +621,43 @@ export function ProjectCreationWorkspace({
         </div>
       </div>
 
+      {/* ── MODE SWITCHING CONFIRMATION DIALOG ──────────────────────────────────── */}
+      {pendingMode && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="p-5 rounded-2xl bg-card border border-border max-w-sm w-full space-y-3 shadow-xl">
+            <div className="flex items-center gap-2 text-amber-500 font-bold text-sm">
+              <AlertTriangle className="w-5 h-5" /> Switch Creation Mode?
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Switching creation mode will replace your current project draft. Do you want to proceed?
+            </p>
+            <div className="pt-2 flex justify-end gap-2 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setPendingMode(null)}
+                className="px-4 py-2 rounded-xl border border-border hover:bg-muted text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmModeSwitch}
+                className="px-4 py-2 rounded-xl bg-[#C9A52A] text-[#0B0D10] hover:brightness-105"
+              >
+                Switch Mode
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── 3. SUBTLE 3D SUCCESS ANIMATION OVERLAY ────────────────────────────────── */}
       {createdProjectId && (
         <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-md flex flex-col items-center justify-center space-y-4 animate-in fade-in duration-300">
           {/* Subtle 3D Rotating Mesh / Checkmark Assembly */}
           <div className="relative w-24 h-24 flex items-center justify-center">
-            {/* Outer 3D Rotating Ring */}
             <div className="absolute inset-0 rounded-3xl border-2 border-[#C9A52A] animate-[spin_6s_linear_infinite] shadow-[0_0_25px_rgba(201,165,42,0.2)]" />
             <div className="absolute inset-2 rounded-2xl border-2 border-[#C9A52A]/40 animate-[spin_4s_linear_infinite_reverse]" />
-            {/* Center Checkmark */}
             <div className="w-12 h-12 rounded-xl bg-[#C9A52A] text-[#0B0D10] flex items-center justify-center shadow-lg">
               <Check className="w-7 h-7 stroke-[3]" />
             </div>
