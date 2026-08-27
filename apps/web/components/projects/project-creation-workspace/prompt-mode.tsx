@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { FileText, ArrowRight, Plus, Trash2, Edit2, Check } from "lucide-react";
+import { FileText, Plus, Trash2 } from "lucide-react";
 
 interface PromptModeProps {
   promptText: string;
-  setPromptText: (text: string) => void;
+  setPromptText: React.Dispatch<React.SetStateAction<string>>;
   substep: "DESCRIBE" | "UNDERSTAND" | "REFINE";
   setSubstep: (step: "DESCRIBE" | "UNDERSTAND" | "REFINE") => void;
   title: string;
@@ -29,21 +29,34 @@ interface PromptModeProps {
   onProceedToAssignment: () => void;
 }
 
+const ALL_DETAILS_SCAFFOLD = `Project Title: 
+Project Description: 
+Category: Product Engineering
+Goal: 
+Deadline: 
+Priority: High
+Constraints: 
+Requirements: 
+Deliverables: 
+Success Criteria: 
+Document Requirements: PRD, TRD, Architecture
+Tech Stack: 
+GitHub Repository: `;
+
 const QUICK_ADD_PILLS = [
-  { label: "Title", key: "Title: " },
-  { label: "Description", key: "Objective: " },
+  { label: "Title", key: "Project Title: " },
+  { label: "Description", key: "Project Description: " },
   { label: "Category", key: "Category: Product Engineering\n" },
   { label: "Goal", key: "Goal: " },
   { label: "Deadline", key: "Deadline: " },
   { label: "Priority", key: "Priority: High\n" },
   { label: "Constraints", key: "Constraints: " },
+  { label: "Requirements", key: "Requirements: " },
   { label: "Deliverables", key: "Deliverables: " },
-  { label: "Documents", key: "Documents: PRD, TRD, Architecture\n" },
-  { label: "Tech Stack", key: "Tech Stack: Next.js, PostgreSQL\n" },
-  { label: "Milestones", key: "Milestones: " },
-  { label: "Team", key: "Team: " },
-  { label: "GitHub", key: "GitHub: " },
   { label: "Success Criteria", key: "Success Criteria: " },
+  { label: "Documents", key: "Document Requirements: PRD, TRD, Architecture\n" },
+  { label: "Tech Stack", key: "Tech Stack: Next.js, PostgreSQL\n" },
+  { label: "GitHub", key: "GitHub Repository: " },
 ];
 
 export function PromptMode({
@@ -75,6 +88,14 @@ export function PromptMode({
   const [newDel, setNewDel] = useState("");
   const [newCrit, setNewCrit] = useState("");
 
+  const handleAddAllDetails = () => {
+    if (!promptText.trim()) {
+      setPromptText(ALL_DETAILS_SCAFFOLD);
+    } else {
+      setPromptText((prev) => `${prev.trim()}\n\n${ALL_DETAILS_SCAFFOLD}`);
+    }
+  };
+
   const handleQuickAddClick = (key: string) => {
     const currentText = promptText.trim();
     if (!currentText) setPromptText(key);
@@ -83,9 +104,25 @@ export function PromptMode({
 
   const handleParsePrompt = () => {
     if (!promptText.trim()) return;
-    const parsedTitle = promptText.length > 50 ? `${promptText.substring(0, 48)}...` : promptText;
+
+    // Smart prompt parsing
+    let parsedTitle = "";
+    let parsedDesc = promptText;
+
+    const titleMatch = promptText.match(/Project Title:\s*([^\n]+)/i);
+    if (titleMatch && titleMatch[1].trim()) {
+      parsedTitle = titleMatch[1].trim();
+    } else {
+      parsedTitle = promptText.length > 50 ? `${promptText.substring(0, 48)}...` : promptText;
+    }
+
+    const descMatch = promptText.match(/Project Description:\s*([^\n]+)/i);
+    if (descMatch && descMatch[1].trim()) {
+      parsedDesc = descMatch[1].trim();
+    }
+
     setTitle(parsedTitle);
-    setDescription(promptText);
+    setDescription(parsedDesc);
 
     if (requirements.length === 0) {
       setRequirements(["PRD Document", "Technical Architecture (TRD)", "Security Audit"]);
@@ -131,7 +168,7 @@ export function PromptMode({
 
   return (
     <div className="space-y-4 font-sans text-xs">
-      {/* Prompt Substep Progress Strip */}
+      {/* Substep Progress Strip */}
       <div className="flex items-center gap-2 pb-2 border-b border-border text-[11px] font-bold">
         <button
           type="button"
@@ -174,7 +211,7 @@ export function PromptMode({
               <FileText className="w-4 h-4 text-[#C9A52A]" /> Project Brief
             </label>
             <p className="text-[11px] text-muted-foreground">
-              Describe the outcome, scope, deadline and technical requirements in natural language.
+              Describe what you want to create or insert a structured prompt scaffold.
             </p>
           </div>
 
@@ -182,12 +219,12 @@ export function PromptMode({
             <textarea
               value={promptText}
               onChange={(e) => setPromptText(e.target.value)}
-              placeholder="Build an AI-powered interview platform with authentication, company search, analytics and GitHub integration by 30 November."
-              rows={6}
-              className="w-full p-4 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none leading-relaxed resize-y"
+              placeholder="Build an AI-powered interview experience platform with authentication, company search and analytics."
+              rows={7}
+              className="w-full p-4 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none leading-relaxed resize-y font-sans"
             />
             <div className="px-4 py-2 bg-muted/20 border-t border-border/60 flex items-center justify-between text-[10.5px] text-muted-foreground">
-              <span>Include title, objective, target date, and key features.</span>
+              <span>Include title, objective, deadline, and key requirements.</span>
               {promptText.trim() && (
                 <button
                   type="button"
@@ -200,16 +237,26 @@ export function PromptMode({
             </div>
           </div>
 
-          {/* Quick Add Pills */}
+          {/* Quick Add Pills & Scaffold Insertion */}
           <div className="space-y-2 pt-1">
-            <span className="text-[11px] font-bold text-muted-foreground block">Quick Add Structure:</span>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-muted-foreground">Add to brief:</span>
+              <button
+                type="button"
+                onClick={handleAddAllDetails}
+                className="px-3 py-1 rounded-xl bg-[#C9A52A] text-[#0B0D10] font-extrabold text-[11px] hover:brightness-105 transition-all cursor-pointer shadow-2xs inline-flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Add All Details
+              </button>
+            </div>
+
             <div className="flex flex-wrap gap-1.5">
               {QUICK_ADD_PILLS.map((pill) => (
                 <button
                   key={pill.label}
                   type="button"
                   onClick={() => handleQuickAddClick(pill.key)}
-                  className="px-3 py-1 rounded-xl bg-card border border-border hover:border-[#C9A52A]/40 text-foreground font-bold text-[11px] transition-all cursor-pointer"
+                  className="px-2.5 py-1 rounded-xl bg-card border border-border hover:border-[#C9A52A]/40 text-foreground font-semibold text-[11px] transition-all cursor-pointer"
                 >
                   [{pill.label}]
                 </button>
@@ -234,7 +281,7 @@ export function PromptMode({
       {substep === "UNDERSTAND" && (
         <div className="space-y-4">
           <div className="space-y-1 border-b border-border pb-2">
-            <h4 className="text-xs font-extrabold text-foreground">Extracted Project Information</h4>
+            <h4 className="text-xs font-extrabold text-foreground">Parsed Project Information</h4>
             <p className="text-[11px] text-muted-foreground">Review and edit the extracted draft parameters before refining scope.</p>
           </div>
 
@@ -250,7 +297,7 @@ export function PromptMode({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-foreground">Objective & Scope</label>
+              <label className="text-[11px] font-bold text-foreground">Objective & Scope Description</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}

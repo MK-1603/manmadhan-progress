@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-context";
 import apiClient from "@/lib/api-client";
 import {
-  ArrowLeft, Lock, AlertCircle, CheckCircle2, FileText,
+  ArrowLeft, Lock, AlertCircle, FileText,
   LayoutTemplate, Sliders, Layers, Check, AlertTriangle
 } from "lucide-react";
 
@@ -32,8 +32,8 @@ export function ProjectCreationWorkspace({
   const userRole = (initialRole || user?.role || "CEO").toUpperCase();
   const basePath = initialBasePath || (userRole === "CO-CEO" ? "/co-ceo" : "/ceo");
 
-  // ── STAGE CONTROL: TYPE -> ASSIGNMENT -> REVIEW ───────────────────────────
-  const [stage, setStage] = useState<"TYPE" | "ASSIGNMENT" | "REVIEW">("TYPE");
+  // ── STAGE CONTROL: METHOD -> ASSIGNMENT -> REVIEW ──────────────────────────
+  const [stage, setStage] = useState<"METHOD" | "ASSIGNMENT" | "REVIEW">("METHOD");
 
   // ── MODE CONTROL & SUBSTEPS ───────────────────────────────────────────────
   const [mode, setMode] = useState<"PROMPT" | "TEMPLATE" | "MANUAL">("PROMPT");
@@ -72,7 +72,6 @@ export function ProjectCreationWorkspace({
   const [requirementAssignees, setRequirementAssignees] = useState<Record<string, string>>({});
 
   // ── UI / LOADING / SUCCESS 3D OVERLAY STATES ──────────────────────────────
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
@@ -272,21 +271,21 @@ export function ProjectCreationWorkspace({
             </Link>
             <div>
               <h1 className="text-base font-extrabold text-foreground tracking-tight">
-                Project Creation
+                Create Project
               </h1>
               <p className="text-[11px] text-muted-foreground hidden sm:block">
-                Define, assign and review organizational projects.
+                Choose creation method, assign leaders, and launch execution.
               </p>
             </div>
           </div>
 
-          {/* Stepper Progress Indicator */}
+          {/* Stepper Progress Indicator (01 METHOD -> 02 ASSIGNMENT -> 03 REVIEW) */}
           <div className="flex items-center gap-2">
             <div className={`px-3 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 ${
-              stage === "TYPE" ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"
+              stage === "METHOD" ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"
             }`}>
               <span className="w-3.5 h-3.5 rounded-full bg-[#C9A52A]/20 text-[#C9A52A] font-mono text-[9.5px] flex items-center justify-center font-bold">1</span>
-              <span>01 PROJECT TYPE</span>
+              <span>01 METHOD</span>
             </div>
             <div className={`px-3 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 ${
               stage === "ASSIGNMENT" ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"
@@ -320,9 +319,12 @@ export function ProjectCreationWorkspace({
         {/* ── CENTER WORKSPACE REGION (8 Columns) ────────────────────────────────── */}
         <div className="lg:col-span-8 flex flex-col h-full overflow-hidden border-r border-border/50">
           
-          {/* Mode Selector Segmented Tabs (Visible in Step 1 PROJECT TYPE) */}
-          {stage === "TYPE" && (
-            <div className="px-4 sm:px-6 pt-4 shrink-0">
+          {/* Mode Selector Segmented Control (Visible in Step 01 METHOD) */}
+          {stage === "METHOD" && (
+            <div className="px-4 sm:px-6 pt-4 shrink-0 space-y-2">
+              <span className="text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">
+                Choose Creation Method:
+              </span>
               <div className="p-1 rounded-xl bg-card border border-border grid grid-cols-3 gap-1 shadow-xs">
                 <button
                   type="button"
@@ -373,7 +375,7 @@ export function ProjectCreationWorkspace({
             )}
 
             {/* Step 1 Mode Views */}
-            {stage === "TYPE" && (
+            {stage === "METHOD" && (
               <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border shadow-xs">
                 {mode === "PROMPT" && (
                   <PromptMode
@@ -502,16 +504,16 @@ export function ProjectCreationWorkspace({
               type="button"
               onClick={() => {
                 if (stage === "REVIEW") setStage("ASSIGNMENT");
-                else if (stage === "ASSIGNMENT") setStage("TYPE");
+                else if (stage === "ASSIGNMENT") setStage("METHOD");
                 else router.push(`${basePath}/projects`);
               }}
               className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted font-bold cursor-pointer transition-colors"
             >
-              {stage === "TYPE" ? "Cancel" : "← Back"}
+              {stage === "METHOD" ? "Cancel" : "← Back"}
             </button>
 
             <div className="flex items-center gap-2">
-              {stage === "TYPE" && (
+              {stage === "METHOD" && (
                 <button
                   type="button"
                   onClick={() => setStage("ASSIGNMENT")}
@@ -626,25 +628,25 @@ export function ProjectCreationWorkspace({
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="p-5 rounded-2xl bg-card border border-border max-w-sm w-full space-y-3 shadow-xl">
             <div className="flex items-center gap-2 text-amber-500 font-bold text-sm">
-              <AlertTriangle className="w-5 h-5" /> Switch Creation Mode?
+              <AlertTriangle className="w-5 h-5" /> Switch Creation Method?
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Switching creation mode will replace your current project draft. Do you want to proceed?
+              Switching creation method will replace your current project draft. Do you want to proceed?
             </p>
             <div className="pt-2 flex justify-end gap-2 text-xs font-bold">
               <button
                 type="button"
                 onClick={() => setPendingMode(null)}
-                className="px-4 py-2 rounded-xl border border-border hover:bg-muted text-foreground"
+                className="px-4 py-2 rounded-xl border border-border hover:bg-muted text-foreground cursor-pointer"
               >
-                Cancel
+                Keep Current
               </button>
               <button
                 type="button"
                 onClick={handleConfirmModeSwitch}
-                className="px-4 py-2 rounded-xl bg-[#C9A52A] text-[#0B0D10] hover:brightness-105"
+                className="px-4 py-2 rounded-xl bg-[#C9A52A] text-[#0B0D10] hover:brightness-105 cursor-pointer"
               >
-                Switch Mode
+                Switch Method
               </button>
             </div>
           </div>
