@@ -13,13 +13,18 @@ interface PromptModeProps {
 const QUICK_ADD_PILLS = [
   { label: "Title", key: "Title: " },
   { label: "Description", key: "Objective: " },
+  { label: "Category", key: "Category: Product Engineering\n" },
+  { label: "Goal", key: "Goal: " },
   { label: "Deadline", key: "Deadline: " },
   { label: "Priority", key: "Priority: High\n" },
-  { label: "Requirements", key: "Requirements: " },
+  { label: "Constraints", key: "Constraints: " },
+  { label: "Deliverables", key: "Deliverables: " },
+  { label: "Documents", key: "Documents: PRD, TRD, Architecture\n" },
+  { label: "Tech Stack", key: "Tech Stack: Next.js, PostgreSQL\n" },
   { label: "Milestones", key: "Milestones: " },
   { label: "Team", key: "Team: " },
   { label: "GitHub", key: "GitHub: " },
-  { label: "Tools", key: "Tools: " },
+  { label: "Success Criteria", key: "Success Criteria: " },
 ];
 
 export function PromptMode({

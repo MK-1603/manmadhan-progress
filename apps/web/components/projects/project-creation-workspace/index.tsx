@@ -117,7 +117,6 @@ export function ProjectCreationWorkspace({
 
       if (fetchedCoCeos.length > 0) {
         setCoCeoList(fetchedCoCeos);
-        setSelectedCoCeoId((prev) => (prev ? prev : fetchedCoCeos[0].id));
       }
       if (fetchedMembers.length > 0) {
         setMemberList(fetchedMembers);

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Plus, Search, AlertCircle, Trash2, LayoutGrid, List, Edit, X, MoreVertical,
-  ArrowUpRight, Filter, Shield, RefreshCw
+  ArrowUpRight, Filter, Lock, RefreshCw
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
@@ -77,7 +77,6 @@ export default function ProjectsPage() {
   const [priorityFilter, setPriorityFilter] = useState("All");
   const [coCeoFilter, setCoCeoFilter] = useState("All");
   const [deadlineFilter, setDeadlineFilter] = useState("All");
-  const [healthFilter, setHealthFilter] = useState("All");
   const [viewMode, setViewMode] = useState<"table" | "board">("table");
 
   // Filter Popover Open State
@@ -205,13 +204,9 @@ export default function ProjectsPage() {
         (deadlineFilter === "DueToday" && dInfo.relText === "Due Today") ||
         (deadlineFilter === "NoDeadline" && (!p.deadline && !p.targetDate));
 
-      const matchHealth =
-        healthFilter === "All" ||
-        p.health?.toUpperCase() === healthFilter.toUpperCase();
-
-      return matchSearch && matchStatus && matchPriority && matchCoCeo && matchDeadline && matchHealth;
+      return matchSearch && matchStatus && matchPriority && matchCoCeo && matchDeadline;
     });
-  }, [realProjects, search, statusFilter, priorityFilter, coCeoFilter, deadlineFilter, healthFilter]);
+  }, [realProjects, search, statusFilter, priorityFilter, coCeoFilter, deadlineFilter]);
 
   // Active filters count
   const activeFiltersCount = useMemo(() => {
@@ -220,10 +215,9 @@ export default function ProjectsPage() {
     if (priorityFilter !== "All") count++;
     if (coCeoFilter !== "All") count++;
     if (deadlineFilter !== "All") count++;
-    if (healthFilter !== "All") count++;
     if (search.trim()) count++;
     return count;
-  }, [statusFilter, priorityFilter, coCeoFilter, deadlineFilter, healthFilter, search]);
+  }, [statusFilter, priorityFilter, coCeoFilter, deadlineFilter, search]);
 
   const clearAllFilters = () => {
     setSearch("");
@@ -231,7 +225,6 @@ export default function ProjectsPage() {
     setPriorityFilter("All");
     setCoCeoFilter("All");
     setDeadlineFilter("All");
-    setHealthFilter("All");
   };
 
   // Selection handlers
@@ -267,7 +260,7 @@ export default function ProjectsPage() {
 
   return (
     <div className="w-full h-[calc(100vh-65px)] max-h-[calc(100vh-65px)] flex flex-col overflow-hidden bg-background text-foreground font-sans">
-      {/* ── 1. CLEAN GLOBAL HEADER ─────────────────────────────────────────────── */}
+      {/* ── 1. CLEAN GLOBAL HEADER (NO EMOJIS / NO EXTRA BADGES) ───────────────── */}
       <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-border shrink-0 bg-card/60 space-y-3">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5">
@@ -284,7 +277,7 @@ export default function ProjectsPage() {
           </Link>
         </div>
 
-        {/* ── 2. COMPACT INTERACTIVE STATUS NAVIGATION ─────────────────────────── */}
+        {/* ── 2. COMPACT INTERACTIVE STATUS NAVIGATION (REPLACES GIANT CARDS) ───── */}
         <div className="flex items-center gap-1 border-b border-border/60 pb-2 overflow-x-auto text-xs font-bold">
           {[
             { id: "All", label: "All", count: metrics.total },
@@ -555,7 +548,7 @@ export default function ProjectsPage() {
                         {/* Owner (CEO Fixed) */}
                         <td className="py-3 px-3.5">
                           <span className="text-foreground text-[11px] font-bold inline-flex items-center gap-1">
-                            <Shield className="w-3 h-3 text-[#C9A52A]" /> CEO 🔒
+                            <Lock className="w-3 h-3 text-[#C9A52A]" /> CEO
                           </span>
                         </td>
 
@@ -608,8 +601,8 @@ export default function ProjectsPage() {
                               </div>
                             </div>
                           ) : (
-                            <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-bold">
-                              No tasks
+                            <span className="text-muted-foreground text-[11px] font-medium">
+                              No tasks yet
                             </span>
                           )}
                         </td>
@@ -631,7 +624,7 @@ export default function ProjectsPage() {
                                   href={`${basePath}/projects/${p.id}`}
                                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted text-foreground transition-colors"
                                 >
-                                  <ArrowUpRight className="w-3.5 h-3.5 text-[#C9A52A]" /> Open
+                                  <ArrowUpRight className="w-3.5 h-3.5 text-[#C9A52A]" /> Open project
                                 </Link>
                                 <button
                                   type="button"
@@ -641,7 +634,7 @@ export default function ProjectsPage() {
                                   }}
                                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted text-foreground transition-colors cursor-pointer"
                                 >
-                                  <Edit className="w-3.5 h-3.5 text-blue-500" /> Edit
+                                  <Edit className="w-3.5 h-3.5 text-blue-500" /> Edit project
                                 </button>
                                 <button
                                   type="button"
@@ -651,7 +644,7 @@ export default function ProjectsPage() {
                                   }}
                                   className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-rose-500/10 text-rose-500 transition-colors cursor-pointer"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" /> Delete
+                                  <Trash2 className="w-3.5 h-3.5" /> Archive
                                 </button>
                               </div>
                             )}
