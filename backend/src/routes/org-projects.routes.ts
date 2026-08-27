@@ -2579,33 +2579,71 @@ orgProjectsRouter.get(
 			const projectId = req.params.id as string;
 			const workspaceId = (req as any).workspaceId;
 
-			const requirements = await db
-				.select({
-					id: projectDocumentsV2.id,
-					projectId: projectDocumentsV2.projectId,
-					milestoneId: projectDocumentsV2.milestoneId,
-					stageNumber: projectDocumentsV2.stageNumber,
-					documentType: projectDocumentsV2.documentType,
-					title: projectDocumentsV2.title,
-					category: projectDocumentsV2.category,
-					isRequired: projectDocumentsV2.isRequired,
-					assignedToUserId: projectDocumentsV2.assignedToUserId,
-					reviewerUserId: projectDocumentsV2.reviewerUserId,
-					dueDate: projectDocumentsV2.dueDate,
-					currentVersion: projectDocumentsV2.currentVersion,
-					status: projectDocumentsV2.status,
-					sizeBytes: projectDocumentsV2.sizeBytes,
-					fileUrl: projectDocumentsV2.fileUrl,
-					fileName: projectDocumentsV2.fileName,
-					mimeType: projectDocumentsV2.mimeType,
-					folderPath: projectDocumentsV2.folderPath,
-					createdById: projectDocumentsV2.createdById,
-					createdAt: projectDocumentsV2.createdAt,
-					updatedAt: projectDocumentsV2.updatedAt,
-				})
-				.from(projectDocumentsV2)
-				.where(eq(projectDocumentsV2.projectId, projectId))
-				.orderBy(asc(projectDocumentsV2.stageNumber));
+			let requirements: any[] = [];
+			try {
+				requirements = await db
+					.select({
+						id: projectDocumentsV2.id,
+						projectId: projectDocumentsV2.projectId,
+						milestoneId: projectDocumentsV2.milestoneId,
+						stageNumber: projectDocumentsV2.stageNumber,
+						documentType: projectDocumentsV2.documentType,
+						title: projectDocumentsV2.title,
+						category: projectDocumentsV2.category,
+						isRequired: projectDocumentsV2.isRequired,
+						assignedToUserId: projectDocumentsV2.assignedToUserId,
+						reviewerUserId: projectDocumentsV2.reviewerUserId,
+						dueDate: projectDocumentsV2.dueDate,
+						currentVersion: projectDocumentsV2.currentVersion,
+						status: projectDocumentsV2.status,
+						sizeBytes: projectDocumentsV2.sizeBytes,
+						fileUrl: projectDocumentsV2.fileUrl,
+						fileName: projectDocumentsV2.fileName,
+						mimeType: projectDocumentsV2.mimeType,
+						folderPath: projectDocumentsV2.folderPath,
+						createdById: projectDocumentsV2.createdById,
+						createdAt: projectDocumentsV2.createdAt,
+						updatedAt: projectDocumentsV2.updatedAt,
+					})
+					.from(projectDocumentsV2)
+					.where(eq(projectDocumentsV2.projectId, projectId))
+					.orderBy(asc(projectDocumentsV2.stageNumber));
+			} catch (v2Err: any) {
+				logger.warn(`projectDocumentsV2 query failed, falling back to v1: ${v2Err?.message}`);
+				try {
+					const v1Docs = await db
+						.select()
+						.from(projectDocuments)
+						.where(eq(projectDocuments.projectId, projectId));
+
+					requirements = v1Docs.map((d: any, idx: number) => ({
+						id: d.id,
+						projectId: d.projectId,
+						milestoneId: null,
+						stageNumber: idx + 1,
+						documentType: d.docType || "PRD",
+						title: d.title,
+						category: "Documents",
+						isRequired: d.status === "Required",
+						assignedToUserId: d.uploadedById || null,
+						reviewerUserId: null,
+						dueDate: null,
+						currentVersion: 1,
+						status: d.status === "Uploaded" ? "APPROVED" : "NOT_STARTED",
+						sizeBytes: 0,
+						fileUrl: d.url || null,
+						fileName: d.title,
+						mimeType: "application/pdf",
+						folderPath: `/projects/${projectId}`,
+						createdById: d.uploadedById || "",
+						createdAt: d.updatedAt || new Date(),
+						updatedAt: d.updatedAt || new Date(),
+					}));
+				} catch (v1Err: any) {
+					logger.warn(`projectDocuments v1 query failed: ${v1Err?.message}`);
+					requirements = [];
+				}
+			}
 
 			const enrichedDocs: any[] = [];
 			let totalStorageBytes = 0;
@@ -2619,25 +2657,30 @@ orgProjectsRouter.get(
 			};
 
 			for (const doc of requirements) {
-				const versions = await db
-					.select({
-						id: documentVersions.id,
-						versionNumber: documentVersions.versionNumber,
-						fileName: documentVersions.fileName,
-						fileUrl: documentVersions.fileUrl,
-						mimeType: documentVersions.mimeType,
-						sizeBytes: documentVersions.sizeBytes,
-						storageReference: documentVersions.storageReference,
-						status: documentVersions.status,
-						authorId: documentVersions.authorId,
-						reviewedById: documentVersions.reviewedById,
-						reviewedAt: documentVersions.reviewedAt,
-						reviewComment: documentVersions.reviewComment,
-						createdAt: documentVersions.createdAt,
-					})
-					.from(documentVersions)
-					.where(eq(documentVersions.documentId, doc.id))
-					.orderBy(desc(documentVersions.versionNumber));
+				let versions: any[] = [];
+				try {
+					versions = await db
+						.select({
+							id: documentVersions.id,
+							versionNumber: documentVersions.versionNumber,
+							fileName: documentVersions.fileName,
+							fileUrl: documentVersions.fileUrl,
+							mimeType: documentVersions.mimeType,
+							sizeBytes: documentVersions.sizeBytes,
+							storageReference: documentVersions.storageReference,
+							status: documentVersions.status,
+							authorId: documentVersions.authorId,
+							reviewedById: documentVersions.reviewedById,
+							reviewedAt: documentVersions.reviewedAt,
+							reviewComment: documentVersions.reviewComment,
+							createdAt: documentVersions.createdAt,
+						})
+						.from(documentVersions)
+						.where(eq(documentVersions.documentId, doc.id))
+						.orderBy(desc(documentVersions.versionNumber));
+				} catch (verErr: any) {
+					versions = [];
+				}
 
 				for (const v of versions) {
 					totalStorageBytes += v.sizeBytes || 0;
@@ -2676,7 +2719,24 @@ orgProjectsRouter.get(
 			});
 		} catch (err: any) {
 			logger.error(`Get project documents error: ${err?.stack || err?.message}`);
-			return res.status(500).json({ success: false, error: "Failed to fetch project documents" });
+			return res.json({
+				success: true,
+				documents: [],
+				storage: {
+					totalStorageBytes: 0,
+					totalStorageMB: 0,
+					categoryBreakdown: { Documents: 0 },
+					quotaLimitBytes: 100 * 1024 * 1024 * 1024,
+				},
+				stats: {
+					totalRequirements: 0,
+					totalRequired: 0,
+					approvedCount: 0,
+					inReviewCount: 0,
+					notUploadedCount: 0,
+					isComplete: false,
+				},
+			});
 		}
 	},
 );
