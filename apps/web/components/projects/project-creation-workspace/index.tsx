@@ -68,19 +68,65 @@ export function ProjectCreationWorkspace({
 
   useEffect(() => {
     async function fetchAssignees() {
+      let fetchedCoCeos: { id: string; name: string; email: string; role: string }[] = [];
+      let fetchedMembers: { id: string; name: string; email: string; role: string }[] = [];
+
       try {
         const res = await apiClient.get("/org/projects/eligible-assignees");
-        if (res.data?.coCeos) {
-          setCoCeoList(res.data.coCeos);
-          if (res.data.coCeos.length > 0 && !selectedCoCeoId) {
-            setSelectedCoCeoId(res.data.coCeos[0].id);
-          }
+        if (Array.isArray(res.data?.coCeos) && res.data.coCeos.length > 0) {
+          fetchedCoCeos = res.data.coCeos;
         }
-        if (res.data?.members) {
-          setMemberList(res.data.members);
+        if (Array.isArray(res.data?.members) && res.data.members.length > 0) {
+          fetchedMembers = res.data.members;
         }
       } catch (err) {
-        console.warn("Could not fetch org assignees for creation workspace:", err);
+        console.warn("Primary eligible-assignees call failed, trying fallback endpoints...", err);
+      }
+
+      // Fallback query if coCeos array is empty
+      if (fetchedCoCeos.length === 0) {
+        try {
+          const coCeoRes = await apiClient.get("/organization/co-ceos");
+          const list = coCeoRes.data?.coCeos || coCeoRes.data?.data || [];
+          if (Array.isArray(list) && list.length > 0) {
+            fetchedCoCeos = list.map((item: any) => ({
+              id: item.id || item.userId,
+              name: item.displayName || item.name || item.email || "CO-CEO Lead",
+              email: item.email || "",
+              role: item.role || "CO-CEO",
+            }));
+          }
+        } catch (err) {
+          console.warn("CO-CEO fallback fetch failed:", err);
+        }
+      }
+
+      // Fallback query if members array is empty
+      if (fetchedMembers.length === 0) {
+        try {
+          const memRes = await apiClient.get("/organization/members");
+          const list = memRes.data?.members || memRes.data?.data || [];
+          if (Array.isArray(list) && list.length > 0) {
+            fetchedMembers = list.map((item: any) => ({
+              id: item.id || item.userId,
+              name: item.displayName || item.name || item.email || "Team Member",
+              email: item.email || "",
+              role: item.role || "MEMBER",
+            }));
+          }
+        } catch (err) {
+          console.warn("Members fallback fetch failed:", err);
+        }
+      }
+
+      if (fetchedCoCeos.length > 0) {
+        setCoCeoList(fetchedCoCeos);
+        if (!selectedCoCeoId) {
+          setSelectedCoCeoId(fetchedCoCeos[0].id);
+        }
+      }
+      if (fetchedMembers.length > 0) {
+        setMemberList(fetchedMembers);
       }
     }
     fetchAssignees();
@@ -417,9 +463,9 @@ export function ProjectCreationWorkspace({
         </div>
 
         {/* ── RIGHT COLUMN: LIVE BLUEPRINT SUMMARY PREVIEW (4 Cols) ─────────────── */}
-        <div className="lg:col-span-4 space-y-4">
-          <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border shadow-xs space-y-4 sticky top-20">
-            <div className="flex items-center justify-between border-b border-border pb-3">
+        <div className="lg:col-span-4">
+          <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border shadow-xs space-y-3.5 lg:sticky lg:top-20 max-h-[calc(100vh-100px)] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border pb-3 shrink-0">
               <h3 className="text-xs font-extrabold text-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-[#C9A52A]" /> Blueprint Summary
               </h3>
@@ -428,7 +474,7 @@ export function ProjectCreationWorkspace({
               </span>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-3 text-xs shrink-0">
               <div className="space-y-0.5">
                 <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Project Title</span>
                 <p className="font-extrabold text-foreground text-xs truncate">{title || "Untitled Organization Project"}</p>
@@ -445,20 +491,34 @@ export function ProjectCreationWorkspace({
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-border space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Milestone Gates ({milestones.length})</span>
-                  <span className="text-[10px] font-mono text-[#C9A52A]">{milestones.reduce((sum, m) => sum + m.tasks.length, 0)} Total Tasks</span>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="p-2.5 rounded-xl bg-background border border-border">
+                  <span className="text-[9.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">CO-CEO Lead</span>
+                  <p className="font-extrabold text-blue-500 truncate">
+                    {coCeoList.find((c) => c.id === selectedCoCeoId)?.name || "Unassigned"}
+                  </p>
                 </div>
+                <div className="p-2.5 rounded-xl bg-background border border-border">
+                  <span className="text-[9.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">Assigned Team</span>
+                  <p className="font-extrabold text-purple-500 truncate">{selectedMemberIds.length} Members</p>
+                </div>
+              </div>
+            </div>
 
-                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                  {milestones.map((m, idx) => (
-                    <div key={m.id || idx} className="p-2.5 bg-background rounded-xl border border-border text-[11px] flex items-center justify-between">
-                      <span className="font-bold text-foreground truncate">{m.name}</span>
-                      <span className="text-[9.5px] font-mono text-muted-foreground shrink-0 bg-muted px-1.5 py-0.5 rounded">{m.tasks.length} tasks</span>
-                    </div>
-                  ))}
-                </div>
+            <div className="pt-2 border-t border-border flex flex-col flex-1 min-h-0 space-y-2 overflow-hidden">
+              <div className="flex items-center justify-between shrink-0">
+                <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Milestone Gates ({milestones.length})</span>
+                <span className="text-[10px] font-mono text-[#C9A52A]">{milestones.reduce((sum, m) => sum + m.tasks.length, 0)} Total Tasks</span>
+              </div>
+
+              {/* ONLY INTERNAL MILESTONE LIST IS SCROLLABLE */}
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {milestones.map((m, idx) => (
+                  <div key={m.id || idx} className="p-2.5 bg-background rounded-xl border border-border text-[11px] flex items-center justify-between">
+                    <span className="font-bold text-foreground truncate">{m.name}</span>
+                    <span className="text-[9.5px] font-mono text-muted-foreground shrink-0 bg-muted px-1.5 py-0.5 rounded">{m.tasks.length} tasks</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

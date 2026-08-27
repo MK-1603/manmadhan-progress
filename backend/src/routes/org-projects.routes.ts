@@ -172,6 +172,79 @@ function _inferPriority(prompt: string): string {
 	return "Medium";
 }
 
+// ─── Eligible Assignees (CO-CEOs & Team Members) ────────────────────────────
+orgProjectsRouter.get(
+	"/eligible-assignees",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const workspaceId = (req as any).workspaceId;
+
+			const allMembers = await db
+				.select({
+					id: users.id,
+					name: users.displayName,
+					displayName: users.displayName,
+					email: users.email,
+					role: sql<string>`COALESCE(${workspaceMembers.role}, ${users.role}, 'MEMBER')`,
+					avatar: users.avatar,
+				})
+				.from(workspaceMembers)
+				.innerJoin(users, eq(workspaceMembers.userId, users.id))
+				.where(eq(workspaceMembers.workspaceId, workspaceId));
+
+			let userList = allMembers;
+			if (userList.length === 0) {
+				userList = await db
+					.select({
+						id: users.id,
+						name: users.displayName,
+						displayName: users.displayName,
+						email: users.email,
+						role: users.role,
+						avatar: users.avatar,
+					})
+					.from(users)
+					.limit(50);
+			}
+
+			let coCeos = userList.filter((u) => {
+				const r = (u.role || "").toUpperCase();
+				return r.includes("CO-CEO") || r.includes("CO_CEO");
+			});
+
+			if (coCeos.length === 0) {
+				coCeos = userList.filter((u) => (u.role || "").toUpperCase() !== "CEO");
+			}
+			if (coCeos.length === 0) {
+				coCeos = userList;
+			}
+
+			const members = userList.filter((u) => (u.role || "").toUpperCase() !== "CEO");
+
+			return res.json({
+				success: true,
+				coCeos: coCeos.map((u) => ({
+					id: u.id,
+					name: u.name || u.email || "Authorized Leader",
+					email: u.email,
+					role: u.role || "CO-CEO",
+				})),
+				members: members.map((u) => ({
+					id: u.id,
+					name: u.name || u.email || "Organization Member",
+					email: u.email,
+					role: u.role || "MEMBER",
+				})),
+			});
+		} catch (err: any) {
+			logger.error(`eligible-assignees error: ${err?.stack || err?.message}`);
+			return res.status(500).json({ success: false, error: "Failed to fetch assignees" });
+		}
+	},
+);
+
 // ─── AI Project Plan from Prompt (Generates Structured Review Mandate) ───────
 orgProjectsRouter.post(
 	"/plan-from-prompt",
