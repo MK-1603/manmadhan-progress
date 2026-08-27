@@ -6,16 +6,16 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-context";
 import apiClient from "@/lib/api-client";
 import {
-  FolderKanban, Shield, ArrowLeft, ChevronRight, Layers, AlertCircle,
-  CheckCircle2, FileText, LayoutTemplate, Sliders, Flag, CheckSquare, HardDrive, User
+  ArrowLeft, Lock, AlertCircle, CheckCircle2, FileText,
+  LayoutTemplate, Sliders, Layers, Check, Loader2
 } from "lucide-react";
 
 import { PromptMode } from "./prompt-mode";
 import { TemplateMode } from "./template-mode";
 import { ManualMode } from "./manual-mode";
-import { BlueprintEditor } from "./blueprint-editor";
+import { BlueprintEditor, MemberOption } from "./blueprint-editor";
 import { BlueprintReview } from "./blueprint-review";
-import { PROJECT_TEMPLATES, ProjectTemplate, BlueprintMilestone } from "./templates-data";
+import { PROJECT_TEMPLATES, ProjectTemplate } from "./templates-data";
 
 interface ProjectCreationWorkspaceProps {
   userRole?: string;
@@ -32,42 +32,48 @@ export function ProjectCreationWorkspace({
   const userRole = (initialRole || user?.role || "CEO").toUpperCase();
   const basePath = initialBasePath || (userRole === "CO-CEO" ? "/co-ceo" : "/ceo");
 
-  // ── Stage Control: CONFIG -> BLUEPRINT -> REVIEW ─────────────────────────────
-  const [stage, setStage] = useState<"CONFIG" | "BLUEPRINT" | "REVIEW">("CONFIG");
+  // ── 3-STEP STAGE CONTROL: TYPE -> ASSIGNMENT -> REVIEW ────────────────────
+  const [stage, setStage] = useState<"TYPE" | "ASSIGNMENT" | "REVIEW">("TYPE");
 
-  // ── Mode Control: PROMPT vs TEMPLATE vs MANUAL ─────────────────────────────
+  // ── STEP 1: MODE CONTROL ──────────────────────────────────────────────────
   const [mode, setMode] = useState<"PROMPT" | "TEMPLATE" | "MANUAL">("PROMPT");
 
-  // ── Form State ─────────────────────────────────────────────────────────────
+  // ── NORMALIZED PROJECT DRAFT STATE ─────────────────────────────────────────
   const [promptText, setPromptText] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("software-product");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("Product Engineering");
   const [priority, setPriority] = useState<"Critical" | "High" | "Medium" | "Low">("High");
   const [deadline, setDeadline] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
   const [toolsText, setToolsText] = useState("");
 
+  const [requirementsText, setRequirementsText] = useState("PRD Document, Technical Specs, Security Audit");
+  const [deliverablesText, setDeliverablesText] = useState("Working Application, Connected GitHub Repo, Test Suite");
+  const [successCriteriaText, setSuccessCriteriaText] = useState("Passed E2E testing, zero critical vulnerabilities");
+
+  // ── STEP 2: EXECUTION ASSIGNMENT STATE (UNASSIGNED BY DEFAULT) ──────────────
   const [selectedCoCeoId, setSelectedCoCeoId] = useState("");
+  const [selectedExecutionLeadId, setSelectedExecutionLeadId] = useState("");
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [requirementAssignees, setRequirementAssignees] = useState<Record<string, string>>({});
 
-  // ── Blueprint Milestones & Tasks ───────────────────────────────────────────
-  const [milestones, setMilestones] = useState<BlueprintMilestone[]>([]);
-
-  // ── UI / Loading States ───────────────────────────────────────────────────
+  // ── UI / LOADING / SUCCESS 3D OVERLAY STATES ──────────────────────────────
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
 
-  // ── Org Members Data ───────────────────────────────────────────────────────
-  const [coCeoList, setCoCeoList] = useState<{ id: string; name: string; email: string; role: string }[]>([]);
-  const [memberList, setMemberList] = useState<{ id: string; name: string; email: string; role: string }[]>([]);
+  // ── ORG MEMBERS DATA ───────────────────────────────────────────────────────
+  const [coCeoList, setCoCeoList] = useState<MemberOption[]>([]);
+  const [memberList, setMemberList] = useState<MemberOption[]>([]);
 
   useEffect(() => {
     async function fetchAssignees() {
-      let fetchedCoCeos: { id: string; name: string; email: string; role: string }[] = [];
-      let fetchedMembers: { id: string; name: string; email: string; role: string }[] = [];
+      let fetchedCoCeos: MemberOption[] = [];
+      let fetchedMembers: MemberOption[] = [];
 
       try {
         const res = await apiClient.get("/org/projects/eligible-assignees");
@@ -78,7 +84,7 @@ export function ProjectCreationWorkspace({
           fetchedMembers = res.data.members;
         }
       } catch (err) {
-        console.warn("Primary eligible-assignees call failed, trying fallback endpoints...", err);
+        console.warn("Eligible assignees fetch failed, using fallbacks...", err);
       }
 
       if (fetchedCoCeos.length === 0) {
@@ -115,47 +121,55 @@ export function ProjectCreationWorkspace({
         }
       }
 
-      if (fetchedCoCeos.length > 0) {
-        setCoCeoList(fetchedCoCeos);
-      }
-      if (fetchedMembers.length > 0) {
-        setMemberList(fetchedMembers);
-      }
+      if (fetchedCoCeos.length > 0) setCoCeoList(fetchedCoCeos);
+      if (fetchedMembers.length > 0) setMemberList(fetchedMembers);
     }
     fetchAssignees();
   }, []);
 
-  // Initialize default template blueprint on mount
+  // Initialize default template draft on mount
   useEffect(() => {
     const defaultTemplate = PROJECT_TEMPLATES.find((t) => t.id === "software-product") || PROJECT_TEMPLATES[0];
-    if (defaultTemplate && milestones.length === 0) {
+    if (defaultTemplate && !title) {
       setTitle(defaultTemplate.title);
       setDescription(defaultTemplate.subtitle);
-      setMilestones(defaultTemplate.milestones);
+      setCategory(defaultTemplate.category);
+      setToolsText(defaultTemplate.tools.join(", "));
     }
-  }, [milestones.length]);
+  }, [title]);
 
-  // Derived Total Task Count
-  const totalTasksCount = useMemo(() => {
-    return milestones.reduce((acc, m) => acc + (m.tasks ? m.tasks.length : 0), 0);
-  }, [milestones]);
+  // Derived Requirements & Deliverables Arrays
+  const parsedRequirements = useMemo(() => {
+    return requirementsText.split(",").map((r) => r.trim()).filter(Boolean);
+  }, [requirementsText]);
+
+  const parsedDeliverables = useMemo(() => {
+    return deliverablesText.split(",").map((d) => d.trim()).filter(Boolean);
+  }, [deliverablesText]);
 
   // Selected CO-CEO Name
   const selectedCoCeoName = useMemo(() => {
     const found = coCeoList.find((c) => c.id === selectedCoCeoId);
-    return found ? found.name : "CO-CEO Unassigned";
+    return found ? found.name : "Not assigned";
   }, [coCeoList, selectedCoCeoId]);
 
-  // Handle Template Selection
+  // Selected Execution Lead Name
+  const selectedExecutionLeadName = useMemo(() => {
+    const found = memberList.find((m) => m.id === selectedExecutionLeadId);
+    return found ? found.name : "Not assigned";
+  }, [memberList, selectedExecutionLeadId]);
+
+  // Handle Template Selection (Only structure, NEVER people!)
   const handleSelectTemplate = (template: ProjectTemplate) => {
     setSelectedTemplateId(template.id);
     setTitle(template.title);
     setDescription(template.subtitle);
-    setMilestones(template.milestones);
-    setToolsText("Next.js, TypeScript, PostgreSQL, Tailwind CSS");
+    setCategory(template.category);
+    setToolsText(template.tools.join(", "));
+    setRequirementsText(template.documents.join(", "));
   };
 
-  // Handle Prompt Generation
+  // Handle Prompt Generation (Generates draft, NEVER auto-assigns people!)
   const handleGenerateFromPrompt = async () => {
     if (!promptText.trim()) {
       setError("Please provide project brief text.");
@@ -169,64 +183,15 @@ export function ProjectCreationWorkspace({
       const parsedTitle = promptText.length > 50 ? `${promptText.substring(0, 48)}...` : promptText;
       setTitle(parsedTitle);
       setDescription(promptText);
-
-      const generatedMilestones: BlueprintMilestone[] = [
-        {
-          id: "m-gen-1",
-          stageNumber: 1,
-          name: "M1 — Activation & Setup",
-          description: "Initialize project repository, environment configuration, and team workspace.",
-          deliverables: ["Project Charter", "Repository Setup"],
-          tasks: [
-            { id: "t-gen-1", title: "Setup Project Repository & Workspace", description: "Initialize Git repo and env variables.", priority: "High", assigneeRole: "EXECUTION_LEAD" },
-            { id: "t-gen-2", title: "Kickoff Mandate Meeting", description: "Align team on deliverables and milestones.", priority: "Medium", assigneeRole: "EXECUTION_LEAD" },
-          ],
-        },
-        {
-          id: "m-gen-2",
-          stageNumber: 2,
-          name: "M2 — Product & Technical Specs",
-          description: "Author PRD, TRD, and system architecture specifications.",
-          deliverables: ["PRD Document", "Architecture Diagram"],
-          tasks: [
-            { id: "t-gen-3", title: "Author PRD Document", description: "Define detailed user stories and requirements.", priority: "Critical", assigneeRole: "EXECUTION_LEAD" },
-            { id: "t-gen-4", title: "Define System Topology & DB Schema", description: "Create database migration blueprints.", priority: "High", assigneeRole: "EXECUTION_LEAD" },
-          ],
-        },
-        {
-          id: "m-gen-3",
-          stageNumber: 3,
-          name: "M3 — Core Feature Implementation",
-          description: "Build core application features, database models, and APIs.",
-          deliverables: ["Working Prototype", "API Endpoints"],
-          tasks: [
-            { id: "t-gen-5", title: "Build Database Models & API Routes", description: "Implement CRUD operations and validation.", priority: "Critical", assigneeRole: "MEMBER" },
-            { id: "t-gen-6", title: "Develop Frontend Application Views", description: "Build responsive UI screens.", priority: "High", assigneeRole: "MEMBER" },
-          ],
-        },
-        {
-          id: "m-gen-4",
-          stageNumber: 4,
-          name: "M4 — QA, Security & Deployment",
-          description: "Conduct security audit, QA testing, and production deployment.",
-          deliverables: ["Test Suite Results", "Production Deployment"],
-          tasks: [
-            { id: "t-gen-7", title: "Run End-to-End Test Suite", description: "Verify core user journeys and performance.", priority: "High", assigneeRole: "EXECUTION_LEAD" },
-            { id: "t-gen-8", title: "Deploy to Production Environment", description: "Finalize domain setup and SSL certificates.", priority: "Critical", assigneeRole: "EXECUTION_LEAD" },
-          ],
-        },
-      ];
-
-      setMilestones(generatedMilestones);
-      setStage("BLUEPRINT");
+      setStage("ASSIGNMENT");
     } catch (err: any) {
-      setError(err?.message || "Failed to generate blueprint from brief.");
+      setError(err?.message || "Failed to generate project draft from brief.");
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // Handle Launch Final Project Creation
+  // Handle Confirm Project Creation Transaction
   const handleConfirmLaunch = async () => {
     setIsSubmitting(true);
     setError(null);
@@ -241,53 +206,46 @@ export function ProjectCreationWorkspace({
         description: finalDesc,
         objective: finalDesc,
         mandate: finalDesc,
+        category,
         priority,
         deadline: deadline || null,
         targetDate: deadline || null,
         githubUrl: githubUrl || null,
         toolsText: toolsText || null,
+        requirements: parsedRequirements,
+        deliverables: parsedDeliverables,
+        successCriteria: successCriteriaText,
 
-        // Ownership Governance (CEO Fixed)
+        // Ownership Governance (Server-enforced CEO)
         ownerId: "CEO",
         ownerRole: "CEO",
 
         // Execution & Assignment Resolution
         coCeoInChargeId: selectedCoCeoId || null,
         responsibleCoCeoId: selectedCoCeoId || null,
-        assignedToUserId: selectedCoCeoId || null,
+        assignedToUserId: selectedExecutionLeadId || selectedCoCeoId || null,
+        executionLeadId: selectedExecutionLeadId || null,
         memberUserIds: selectedMemberIds,
         memberIds: selectedMemberIds,
-
-        // Blueprint Milestones & Tasks
-        milestones: milestones.map((m, idx) => ({
-          stageNumber: idx + 1,
-          name: m.name,
-          description: m.description,
-          deliverables: m.deliverables || [],
-          tasks: (m.tasks || []).map((t) => ({
-            title: t.title,
-            description: t.description || "",
-            priority: t.priority || "Medium",
-            assigneeRole: t.assigneeRole || "EXECUTION_LEAD",
-          })),
-        })),
+        requirementAssignees,
       };
 
       const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
       const res = await apiClient.post(`/org/projects/create-v2${wsId ? `?workspaceId=${wsId}` : ""}`, payload);
 
       if (res.data?.success || res.data?.projectId || res.data?.data?.id) {
-        const createdId = res.data.projectId || res.data?.data?.id || res.data?.project?.id;
-        if (createdId) {
+        const createdId = res.data.projectId || res.data?.data?.id || res.data?.project?.id || "recent";
+        setCreatedProjectId(createdId);
+
+        // Subtle 3D Success Experience for 1.5 seconds, then open Project Details!
+        setTimeout(() => {
           router.push(`${basePath}/projects/${createdId}`);
-        } else {
-          router.push(`${basePath}/projects`);
-        }
+        }, 1600);
       } else {
-        setError(res.data?.error || "Unable to create project. Please verify fields and retry.");
+        setError(res.data?.error || "Unable to create project. Please review assignment fields and retry.");
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Project creation failed. Please check network connectivity.");
+      setError(err?.response?.data?.error || "Project creation failed. Please check backend connection.");
     } finally {
       setIsSubmitting(false);
     }
@@ -308,31 +266,28 @@ export function ProjectCreationWorkspace({
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-extrabold text-foreground tracking-tight">Project Creation Workspace</h1>
-                <span className="px-2 py-0.5 rounded-full bg-[#C9A52A]/15 text-[#C9A52A] text-[10px] font-extrabold uppercase tracking-wider border border-[#C9A52A]/20">
-                  Application Builder
-                </span>
-              </div>
+              <h1 className="text-base font-extrabold text-foreground tracking-tight">
+                Project Creation
+              </h1>
               <p className="text-[11px] text-muted-foreground hidden sm:block">
-                Prompt, template and manual project blueprint generator.
+                Define, assign and review organizational projects.
               </p>
             </div>
           </div>
 
-          {/* Stepper Progress Indicator */}
-          <div className="hidden md:flex items-center gap-2">
+          {/* Stepper Progress Indicator (01 TYPE -> 02 ASSIGNMENT -> 03 REVIEW) */}
+          <div className="flex items-center gap-2">
             <div className={`px-3 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 ${
-              stage === "CONFIG" ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"
+              stage === "TYPE" ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"
             }`}>
               <span className="w-3.5 h-3.5 rounded-full bg-[#C9A52A]/20 text-[#C9A52A] font-mono text-[9.5px] flex items-center justify-center font-bold">1</span>
-              <span>01 DETAILS</span>
+              <span>01 PROJECT TYPE</span>
             </div>
             <div className={`px-3 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 ${
-              stage === "BLUEPRINT" ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"
+              stage === "ASSIGNMENT" ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"
             }`}>
               <span className="w-3.5 h-3.5 rounded-full bg-[#C9A52A]/20 text-[#C9A52A] font-mono text-[9.5px] flex items-center justify-center font-bold">2</span>
-              <span>02 BLUEPRINT</span>
+              <span>02 ASSIGNMENT</span>
             </div>
             <div className={`px-3 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 ${
               stage === "REVIEW" ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"
@@ -343,10 +298,10 @@ export function ProjectCreationWorkspace({
           </div>
 
           {/* Ownership Governance Badge */}
-          <div className="flex items-center gap-2 text-xs shrink-0">
+          <div className="hidden lg:flex items-center gap-2 text-xs shrink-0">
             <div className="px-3 py-1.5 rounded-xl bg-muted/60 border border-border text-muted-foreground flex items-center gap-2 text-[11px]">
-              <Shield className="w-3.5 h-3.5 text-[#C9A52A]" />
-              <span>Project Owner: <strong className="text-foreground font-extrabold">CEO 🔒</strong></span>
+              <Lock className="w-3.5 h-3.5 text-[#C9A52A]" />
+              <span>Project Owner: <strong className="text-foreground font-extrabold">CEO</strong></span>
               <span className="text-border">|</span>
               <span>Created By: <strong className="text-[#C9A52A] font-extrabold">{userRole === "CO-CEO" ? "You (CO-CEO)" : "You (CEO)"}</strong></span>
             </div>
@@ -360,8 +315,8 @@ export function ProjectCreationWorkspace({
         {/* ── CENTER WORKSPACE REGION (8 Columns) ────────────────────────────────── */}
         <div className="lg:col-span-8 flex flex-col h-full overflow-hidden border-r border-border/50">
           
-          {/* Mode Selector Segmented Tabs (Visible in DETAILS Stage) */}
-          {stage === "CONFIG" && (
+          {/* Mode Selector Segmented Tabs (Visible in Step 1 PROJECT TYPE) */}
+          {stage === "TYPE" && (
             <div className="px-4 sm:px-6 pt-4 shrink-0">
               <div className="p-1 rounded-xl bg-card border border-border grid grid-cols-3 gap-1 shadow-xs">
                 <button
@@ -373,7 +328,7 @@ export function ProjectCreationWorkspace({
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <FileText className="w-3.5 h-3.5" /> Prompt Brief
+                  <FileText className="w-3.5 h-3.5" /> Prompt Based
                 </button>
 
                 <button
@@ -385,7 +340,7 @@ export function ProjectCreationWorkspace({
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <LayoutTemplate className="w-3.5 h-3.5" /> Template Library
+                  <LayoutTemplate className="w-3.5 h-3.5" /> Template Based
                 </button>
 
                 <button
@@ -397,7 +352,7 @@ export function ProjectCreationWorkspace({
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <Sliders className="w-3.5 h-3.5" /> Manual Setup
+                  <Sliders className="w-3.5 h-3.5" /> Manual
                 </button>
               </div>
             </div>
@@ -412,8 +367,8 @@ export function ProjectCreationWorkspace({
               </div>
             )}
 
-            {/* Mode Content Views */}
-            {stage === "CONFIG" && (
+            {/* Step 1 Mode Views */}
+            {stage === "TYPE" && (
               <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border shadow-xs">
                 {mode === "PROMPT" && (
                   <PromptMode
@@ -437,6 +392,8 @@ export function ProjectCreationWorkspace({
                     setTitle={setTitle}
                     description={description}
                     setDescription={setDescription}
+                    category={category}
+                    setCategory={setCategory}
                     priority={priority}
                     setPriority={setPriority}
                     deadline={deadline}
@@ -445,83 +402,102 @@ export function ProjectCreationWorkspace({
                     setGithubUrl={setGithubUrl}
                     toolsText={toolsText}
                     setToolsText={setToolsText}
+                    requirementsText={requirementsText}
+                    setRequirementsText={setRequirementsText}
+                    deliverablesText={deliverablesText}
+                    setDeliverablesText={setDeliverablesText}
+                    successCriteriaText={successCriteriaText}
+                    setSuccessCriteriaText={setSuccessCriteriaText}
                   />
                 )}
               </div>
             )}
 
-            {/* Blueprint Editor Stage */}
-            {stage === "BLUEPRINT" && (
+            {/* Step 2 Assignment & Controls Stage */}
+            {stage === "ASSIGNMENT" && (
               <BlueprintEditor
-                milestones={milestones}
-                setMilestones={setMilestones}
                 coCeoList={coCeoList}
                 memberList={memberList}
                 selectedCoCeoId={selectedCoCeoId}
                 setSelectedCoCeoId={setSelectedCoCeoId}
+                selectedExecutionLeadId={selectedExecutionLeadId}
+                setSelectedExecutionLeadId={setSelectedExecutionLeadId}
                 selectedMemberIds={selectedMemberIds}
                 setSelectedMemberIds={setSelectedMemberIds}
+                priority={priority}
+                setPriority={setPriority}
+                deadline={deadline}
+                setDeadline={setDeadline}
+                category={category}
+                setCategory={setCategory}
                 githubUrl={githubUrl}
                 setGithubUrl={setGithubUrl}
                 toolsText={toolsText}
                 setToolsText={setToolsText}
+                userRole={userRole}
+                requirementAssignees={requirementAssignees}
+                setRequirementAssignees={setRequirementAssignees}
+                requirements={parsedRequirements}
               />
             )}
 
-            {/* Pre-Flight Review Stage */}
+            {/* Step 3 Final Review Stage */}
             {stage === "REVIEW" && (
               <BlueprintReview
                 title={title}
                 description={description}
+                category={category}
                 priority={priority}
                 deadline={deadline}
-                userRole={userRole}
                 selectedCoCeoId={selectedCoCeoId}
                 coCeoList={coCeoList}
+                selectedExecutionLeadId={selectedExecutionLeadId}
                 selectedMemberIds={selectedMemberIds}
                 memberList={memberList}
-                milestones={milestones}
+                requirements={parsedRequirements}
+                deliverables={parsedDeliverables}
                 githubUrl={githubUrl}
                 toolsText={toolsText}
                 isSubmitting={isSubmitting}
-                onEditBlueprint={() => setStage("BLUEPRINT")}
+                onEditBlueprint={() => setStage("ASSIGNMENT")}
                 onConfirmLaunch={handleConfirmLaunch}
+                userRole={userRole}
               />
             )}
           </div>
 
-          {/* Fixed Action Bar at Bottom of Creation Workspace */}
+          {/* Fixed Action Bar at Bottom */}
           <div className="h-14 shrink-0 border-t border-border bg-card/90 backdrop-blur-md px-6 flex items-center justify-between z-20 text-xs">
             <button
               type="button"
               onClick={() => {
-                if (stage === "REVIEW") setStage("BLUEPRINT");
-                else if (stage === "BLUEPRINT") setStage("CONFIG");
+                if (stage === "REVIEW") setStage("ASSIGNMENT");
+                else if (stage === "ASSIGNMENT") setStage("TYPE");
                 else router.push(`${basePath}/projects`);
               }}
               className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted font-bold cursor-pointer transition-colors"
             >
-              {stage === "CONFIG" ? "Cancel" : "← Back"}
+              {stage === "TYPE" ? "Cancel" : "← Back"}
             </button>
 
             <div className="flex items-center gap-2">
-              {stage === "CONFIG" && (
+              {stage === "TYPE" && (
                 <button
                   type="button"
-                  onClick={() => setStage("BLUEPRINT")}
+                  onClick={() => setStage("ASSIGNMENT")}
                   className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#C9A52A] to-[#D4B12F] text-[#0B0D10] font-extrabold cursor-pointer shadow-2xs hover:brightness-105 flex items-center gap-1.5"
                 >
-                  <span>Continue to Blueprint →</span>
+                  <span>Continue to Assignment →</span>
                 </button>
               )}
 
-              {stage === "BLUEPRINT" && (
+              {stage === "ASSIGNMENT" && (
                 <button
                   type="button"
                   onClick={() => setStage("REVIEW")}
                   className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#C9A52A] to-[#D4B12F] text-[#0B0D10] font-extrabold cursor-pointer shadow-2xs hover:brightness-105 flex items-center gap-1.5"
                 >
-                  <span>Proceed to Pre-Flight Review →</span>
+                  <span>Proceed to Review →</span>
                 </button>
               )}
 
@@ -532,18 +508,18 @@ export function ProjectCreationWorkspace({
                   onClick={handleConfirmLaunch}
                   className="px-6 py-2 rounded-xl bg-gradient-to-r from-[#C9A52A] to-[#D4B12F] text-[#0B0D10] font-extrabold cursor-pointer shadow-2xs hover:brightness-105 flex items-center gap-1.5 disabled:opacity-50"
                 >
-                  {isSubmitting ? "Creating Project..." : "Confirm & Launch Project"}
+                  {isSubmitting ? "Creating Project..." : "Create Project"}
                 </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* ── RIGHT ZONE: PERMANENT LIVE PROJECT BLUEPRINT PANEL (4 Columns) ────────── */}
+        {/* ── RIGHT ZONE: DRAFT SUMMARY PANEL (4 Columns) ─────────────────────────── */}
         <div className="hidden lg:flex lg:col-span-4 h-full border-l border-border bg-card/60 backdrop-blur-md flex-col overflow-hidden">
           <div className="px-4 py-3 border-b border-border shrink-0 bg-card flex items-center justify-between">
             <span className="text-[11px] font-extrabold text-[#C9A52A] uppercase tracking-wider flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5" /> Project Blueprint
+              <Layers className="w-3.5 h-3.5" /> Project Draft Summary
             </span>
             <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground font-mono text-[10px] font-bold">
               Live State
@@ -551,76 +527,93 @@ export function ProjectCreationWorkspace({
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 text-xs">
-            {/* Title & Objective Card */}
+            {/* Title & Metadata */}
             <div className="p-3.5 rounded-xl bg-background border border-border space-y-1.5">
-              <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider block">Mandate Summary</span>
+              <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider block">Project Draft</span>
               <h4 className="font-extrabold text-foreground text-xs">{title || "Untitled Project"}</h4>
-              {description && <p className="text-[11px] text-muted-foreground line-clamp-3">{description}</p>}
+              <div className="flex items-center gap-2 pt-1 text-[10.5px]">
+                <span className="px-2 py-0.5 rounded bg-secondary text-muted-foreground font-bold">{category}</span>
+                <span className="font-bold text-amber-500">{priority}</span>
+              </div>
             </div>
 
-            {/* Ownership Governance */}
+            {/* Ownership */}
             <div className="p-3.5 rounded-xl bg-background border border-border space-y-2">
               <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider block">Ownership</span>
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground">Project Owner</span>
+                <span className="text-muted-foreground font-semibold">Project Owner</span>
                 <span className="px-2 py-0.5 rounded bg-secondary text-foreground font-extrabold border border-border inline-flex items-center gap-1 text-[10.5px]">
-                  <Shield className="w-3 h-3 text-[#C9A52A]" /> CEO 🔒
+                  <Lock className="w-3 h-3 text-[#C9A52A]" /> CEO
                 </span>
               </div>
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground">Created By</span>
+                <span className="text-muted-foreground font-semibold">Created By</span>
                 <span className="font-bold text-[#C9A52A]">{userRole === "CO-CEO" ? "You (CO-CEO)" : "You (CEO)"}</span>
               </div>
             </div>
 
-            {/* Execution & Assignees */}
+            {/* Execution */}
             <div className="p-3.5 rounded-xl bg-background border border-border space-y-2">
-              <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider block">Execution</span>
+              <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider block">Assignment</span>
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground">CO-CEO Lead</span>
+                <span className="text-muted-foreground font-semibold">CO-CEO Lead</span>
                 <span className="font-bold text-blue-500 truncate max-w-[150px]">{selectedCoCeoName}</span>
               </div>
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground">Members Assigned</span>
+                <span className="text-muted-foreground font-semibold">Execution Lead</span>
+                <span className="font-bold text-foreground truncate max-w-[150px]">{selectedExecutionLeadName}</span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground font-semibold">Members</span>
                 <span className="font-mono font-bold text-foreground">{selectedMemberIds.length} users</span>
               </div>
             </div>
 
-            {/* Milestones Breakdown */}
-            <div className="p-3.5 rounded-xl bg-background border border-border space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Milestones ({milestones.length})</span>
-                <span className="text-[10px] font-mono text-muted-foreground">{totalTasksCount} tasks</span>
-              </div>
-              <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
-                {milestones.map((m, idx) => (
-                  <div key={m.id || idx} className="p-2 rounded-lg bg-card border border-border flex items-center justify-between text-[11px]">
-                    <span className="font-bold text-foreground truncate max-w-[180px]">{m.name}</span>
-                    <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono text-[9.5px]">
-                      {m.tasks?.length || 0} tasks
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Document Requirements & Storage */}
+            {/* Requirements & Documents */}
             <div className="p-3.5 rounded-xl bg-background border border-border space-y-2">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground">Document Requirements</span>
-                <span className="font-bold text-foreground">8 Required · 0 Uploaded</span>
+                <span className="text-muted-foreground font-semibold">Requirements</span>
+                <span className="font-mono font-bold text-foreground">{parsedRequirements.length} items</span>
               </div>
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground font-semibold">Storage Usage</span>
+                <span className="text-muted-foreground font-semibold">Document Requirements</span>
+                <span className="font-mono font-bold text-foreground">8 Requirements</span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-muted-foreground font-semibold">Initial Storage</span>
                 <span className="font-mono font-bold text-emerald-500">0 MB</span>
               </div>
               <p className="text-[10px] text-muted-foreground">
-                Document requirements consume 0 MB until files are uploaded post-creation.
+                Document requirements consume 0 MB until files are uploaded post-creation inside Project Details.
               </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* ── 3. SUBTLE 3D SUCCESS ANIMATION OVERLAY ────────────────────────────────── */}
+      {createdProjectId && (
+        <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-md flex flex-col items-center justify-center space-y-4 animate-in fade-in duration-300">
+          {/* Subtle 3D Rotating Mesh / Checkmark Assembly */}
+          <div className="relative w-24 h-24 flex items-center justify-center">
+            {/* Outer 3D Rotating Ring */}
+            <div className="absolute inset-0 rounded-3xl border-2 border-[#C9A52A] animate-[spin_6s_linear_infinite] shadow-[0_0_25px_rgba(201,165,42,0.2)]" />
+            <div className="absolute inset-2 rounded-2xl border-2 border-[#C9A52A]/40 animate-[spin_4s_linear_infinite_reverse]" />
+            {/* Center Checkmark */}
+            <div className="w-12 h-12 rounded-xl bg-[#C9A52A] text-[#0B0D10] flex items-center justify-center shadow-lg">
+              <Check className="w-7 h-7 stroke-[3]" />
+            </div>
+          </div>
+
+          <div className="text-center space-y-1">
+            <span className="text-[10.5px] font-extrabold text-[#C9A52A] uppercase tracking-wider">
+              Project Created Successfully
+            </span>
+            <h3 className="text-lg font-extrabold text-foreground">{title}</h3>
+            <p className="text-xs text-muted-foreground">Opening Project Details Workspace...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
