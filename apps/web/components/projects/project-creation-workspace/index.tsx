@@ -53,9 +53,7 @@ export function ProjectCreationWorkspace({
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
 
   // ── Blueprint Milestones & Tasks ───────────────────────────────────────────
-  const [milestones, setMilestones] = useState<BlueprintMilestone[]>(
-    PROJECT_TEMPLATES[0].milestones
-  );
+  const [milestones, setMilestones] = useState<BlueprintMilestone[]>([]);
 
   // ── UI / Loading States ───────────────────────────────────────────────────
   const [isGenerating, setIsGenerating] = useState(false);
@@ -464,8 +462,8 @@ export function ProjectCreationWorkspace({
 
         {/* ── RIGHT COLUMN: LIVE BLUEPRINT SUMMARY PREVIEW (4 Cols) ─────────────── */}
         <div className="lg:col-span-4">
-          <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border shadow-xs space-y-3.5 lg:sticky lg:top-20 max-h-[calc(100vh-100px)] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between border-b border-border pb-3 shrink-0">
+          <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border shadow-xs space-y-3.5 lg:sticky lg:top-20 h-fit">
+            <div className="flex items-center justify-between border-b border-border pb-3">
               <h3 className="text-xs font-extrabold text-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-[#C9A52A]" /> Blueprint Summary
               </h3>
@@ -474,10 +472,12 @@ export function ProjectCreationWorkspace({
               </span>
             </div>
 
-            <div className="space-y-3 text-xs shrink-0">
+            <div className="space-y-3 text-xs">
               <div className="space-y-0.5">
                 <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Project Title</span>
-                <p className="font-extrabold text-foreground text-xs truncate">{title || "Untitled Organization Project"}</p>
+                <p className="font-extrabold text-foreground text-xs truncate">
+                  {title || (milestones.length > 0 ? "Untitled Project" : "Not Set (Type Prompt or Title)")}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-[11px]">
@@ -505,21 +505,31 @@ export function ProjectCreationWorkspace({
               </div>
             </div>
 
-            <div className="pt-2 border-t border-border flex flex-col flex-1 min-h-0 space-y-2 overflow-hidden">
-              <div className="flex items-center justify-between shrink-0">
+            <div className="pt-2 border-t border-border space-y-2">
+              <div className="flex items-center justify-between">
                 <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Milestone Gates ({milestones.length})</span>
                 <span className="text-[10px] font-mono text-[#C9A52A]">{milestones.reduce((sum, m) => sum + m.tasks.length, 0)} Total Tasks</span>
               </div>
 
-              {/* ONLY INTERNAL MILESTONE LIST IS SCROLLABLE */}
-              <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5 pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                {milestones.map((m, idx) => (
-                  <div key={m.id || idx} className="p-2.5 bg-background rounded-xl border border-border text-[11px] flex items-center justify-between">
-                    <span className="font-bold text-foreground truncate">{m.name}</span>
-                    <span className="text-[9.5px] font-mono text-muted-foreground shrink-0 bg-muted px-1.5 py-0.5 rounded">{m.tasks.length} tasks</span>
-                  </div>
-                ))}
-              </div>
+              {milestones.length === 0 ? (
+                <div className="p-3.5 rounded-xl bg-background border border-dashed border-border text-center space-y-1 text-xs">
+                  <span className="text-[10.5px] font-extrabold text-[#C9A52A] uppercase tracking-wider block">
+                    Blueprint Pending
+                  </span>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Type a mandate prompt or select a template framework to build milestone gates in real-time.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  {milestones.map((m, idx) => (
+                    <div key={m.id || idx} className="p-2.5 bg-background rounded-xl border border-border text-[11px] flex items-center justify-between">
+                      <span className="font-bold text-foreground truncate">{m.name}</span>
+                      <span className="text-[9.5px] font-mono text-muted-foreground shrink-0 bg-muted px-1.5 py-0.5 rounded">{m.tasks.length} tasks</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
