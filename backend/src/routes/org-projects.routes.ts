@@ -2012,6 +2012,56 @@ async function enrichProjectRecord(p: typeof projects.$inferSelect) {
 	};
 }
 
+// ─── RBAC Private Project Authorization Helper ─────────────────────────────
+async function getAuthorizedProjectIdsForUser(userId: string, workspaceId: string): Promise<string[]> {
+	if (!userId) return [];
+
+	const owned = await db
+		.select({ id: projects.id })
+		.from(projects)
+		.where(
+			and(
+				or(eq(projects.workspaceId, workspaceId), ne(projects.workspaceId, "personal-workspace")),
+				or(
+					eq(projects.ownerId, userId),
+					eq(projects.createdBy, userId),
+					eq(projects.executionLeadId, userId)
+				)
+			)
+		);
+
+	const assigned = await db
+		.select({ projectId: projectAssignments.projectId })
+		.from(projectAssignments)
+		.where(
+			and(
+				eq(projectAssignments.workspaceId, workspaceId),
+				or(
+					eq(projectAssignments.assignedToUserId, userId),
+					eq(projectAssignments.responsibleCoCeoId, userId)
+				)
+			)
+		);
+
+	const memberRecs = await db
+		.select({ projectId: projectMembers.projectId })
+		.from(projectMembers)
+		.where(eq(projectMembers.userId, userId));
+
+	const set = new Set<string>();
+	owned.forEach((p) => p.id && set.add(p.id));
+	assigned.forEach((a) => a.projectId && set.add(a.projectId));
+	memberRecs.forEach((m) => m.projectId && set.add(m.projectId));
+
+	return Array.from(set);
+}
+
+async function isUserAuthorizedForProject(userId: string, userRole: string, projectId: string, workspaceId: string): Promise<boolean> {
+	if (userRole === "CEO") return true;
+	const authIds = await getAuthorizedProjectIdsForUser(userId, workspaceId);
+	return authIds.includes(projectId);
+}
+
 // ─── List Projects (GET /) ───────────────────────────────────────────────────
 orgProjectsRouter.get(
 	"/",
@@ -2023,11 +2073,12 @@ orgProjectsRouter.get(
 			res.setHeader("Pragma", "no-cache");
 			const workspaceId = (req as any).workspaceId;
 			const userId = (req as any).user?.id;
-			const membership = (req as any).membership;
+			const userRole = ((req as any).user?.role || (req as any).membership?.role || "MEMBER").toUpperCase();
 
 			let projectList: (typeof projects.$inferSelect)[] = [];
-			const isLeadership = !membership || membership.role === "CEO" || membership.role === "CO-CEO" || (req as any).user?.role === "CEO";
-			if (isLeadership) {
+
+			if (userRole === "CEO") {
+				// CEO sees all projects owned/managed within organization workspace
 				projectList = await db
 					.select()
 					.from(projects)
@@ -2042,34 +2093,22 @@ orgProjectsRouter.get(
 					)
 					.orderBy(desc(projects.createdAt));
 			} else {
-				// Member: only projects with their tasks or where they own
-				const memberTasks = await db
-					.select({ projectId: tasks.projectId })
-					.from(tasks)
-					.where(
-						and(
-							eq(tasks.workspaceId, workspaceId),
-							eq(tasks.assigneeId, userId),
-						),
-					);
-				const projectIds = [
-					...new Set(memberTasks.map((t) => t.projectId).filter(Boolean)),
-				];
-				projectList = await db
-					.select()
-					.from(projects)
-					.where(
-						and(
-							eq(projects.workspaceId, workspaceId),
-							or(
-								eq(projects.ownerId, userId),
-								projectIds.length > 0
-									? inArray(projects.id, projectIds as string[])
-									: eq(projects.ownerId, userId),
-							),
-						),
-					)
-					.orderBy(desc(projects.createdAt));
+				// CO-CEO & MEMBER: Strictly filter to projects where user is creator, owner, execution lead, assigned, or member!
+				const authorizedIds = await getAuthorizedProjectIdsForUser(userId, workspaceId);
+				if (authorizedIds.length > 0) {
+					projectList = await db
+						.select()
+						.from(projects)
+						.where(
+							and(
+								eq(projects.type, "ORGANIZATION"),
+								inArray(projects.id, authorizedIds)
+							)
+						)
+						.orderBy(desc(projects.createdAt));
+				} else {
+					projectList = [];
+				}
 			}
 
 			// Enrich with task counts, health, progress & user details
@@ -2089,26 +2128,40 @@ orgProjectsRouter.get(
 );
 
 // ─── Get Single Project Details (GET /:id) ──────────────────────────────────
-orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
-	try {
-		res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-		res.setHeader("Pragma", "no-cache");
-		const id = req.params.id as string;
-		if (!id || id === "undefined" || id === "null") {
-			return res
-				.status(400)
-				.json({ success: false, error: "Valid Project ID is required" });
-		}
+orgProjectsRouter.get(
+	"/:id",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+			res.setHeader("Pragma", "no-cache");
+			const id = req.params.id as string;
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const userRole = ((req as any).user?.role || (req as any).membership?.role || "MEMBER").toUpperCase();
 
-		const [project] = await db
-			.select()
-			.from(projects)
-			.where(eq(projects.id, id))
-			.limit(1);
-		if (!project)
-			return res
-				.status(404)
-				.json({ success: false, error: "Project not found" });
+			if (!id || id === "undefined" || id === "null") {
+				return res
+					.status(400)
+					.json({ success: false, error: "Valid Project ID is required" });
+			}
+
+			// RBAC Private Access Verification (Returns 404 for unauthorized users)
+			const isAuth = await isUserAuthorizedForProject(userId, userRole, id, workspaceId);
+			if (!isAuth) {
+				return res.status(404).json({ success: false, error: "Project not found" });
+			}
+
+			const [project] = await db
+				.select()
+				.from(projects)
+				.where(eq(projects.id, id))
+				.limit(1);
+			if (!project)
+				return res
+					.status(404)
+					.json({ success: false, error: "Project not found" });
 
 		// Milestones for project
 		let projMilestones: any[] = [];
@@ -2578,6 +2631,13 @@ orgProjectsRouter.get(
 		try {
 			const projectId = req.params.id as string;
 			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const userRole = ((req as any).user?.role || (req as any).membership?.role || "MEMBER").toUpperCase();
+
+			const isAuth = await isUserAuthorizedForProject(userId, userRole, projectId, workspaceId);
+			if (!isAuth) {
+				return res.status(404).json({ success: false, error: "Project not found" });
+			}
 
 			let requirements: any[] = [];
 			try {
@@ -4346,6 +4406,13 @@ orgProjectsRouter.get(
 		try {
 			const { id } = req.params;
 			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+			const userRole = ((req as any).user?.role || (req as any).membership?.role || "MEMBER").toUpperCase();
+
+			const isAuth = await isUserAuthorizedForProject(userId, userRole, id, workspaceId);
+			if (!isAuth) {
+				return res.status(404).json({ success: false, error: "Project not found" });
+			}
 
 			// Fetch project owner & assigned users
 			const [project] = await db
