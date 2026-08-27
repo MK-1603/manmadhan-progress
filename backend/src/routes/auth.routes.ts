@@ -208,6 +208,7 @@ authRouter.post("/login/password", async (req, res, next) => {
 			nextStep: "DASHBOARD",
 			role: user.role,
 			accessToken: tokens.accessToken,
+			refreshToken: tokens.refreshToken,
 			user,
 		});
 	} catch (error) {
@@ -440,6 +441,7 @@ authRouter.post("/verify-otp", async (req, res, next) => {
 			nextStep: "DASHBOARD",
 			role: user.role,
 			accessToken: sessionTokens?.accessToken,
+			refreshToken: sessionTokens?.refreshToken,
 		});
 	} catch (error) {
 		next(error);
@@ -1034,6 +1036,7 @@ authRouter.post("/refresh", async (req, res) => {
 			(req.headers["x-refresh-token"] as string);
 
 		if (!refreshTokenInput) {
+			logger.warn({ ip: req.ip, userAgent: req.headers["user-agent"] }, "[AUTH REFRESH FAIL] REFRESH_TOKEN_MISSING");
 			SessionService.clearTokens(res);
 			return res.status(401).json({
 				success: false,
@@ -1052,6 +1055,7 @@ authRouter.post("/refresh", async (req, res) => {
 		return res.json({
 			success: true,
 			accessToken: result.accessToken,
+			refreshToken: result.refreshToken,
 			user: result.user,
 		});
 	} catch (err: any) {
@@ -1059,6 +1063,11 @@ authRouter.post("/refresh", async (req, res) => {
 		const status = err.status || 401;
 		const code = err.code || "REFRESH_SESSION_EXPIRED";
 		const message = err.message || "Invalid or expired refresh token";
+
+		logger.warn(
+			{ ip: req.ip, code, status, reason: message },
+			`[AUTH REFRESH FAIL] ${code}`,
+		);
 
 		return res.status(status).json({
 			success: false,

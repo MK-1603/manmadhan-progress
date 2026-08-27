@@ -115,6 +115,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.setItem("token", token);
           syncTokenCookie(token);
         }
+        if (res.data.refreshToken && typeof window !== "undefined") {
+          localStorage.setItem("refresh_token", res.data.refreshToken);
+          localStorage.setItem("refreshToken", res.data.refreshToken);
+        }
 
         if (res.data.workspaceId && typeof window !== "undefined") {
           localStorage.setItem("workspaceId", res.data.workspaceId);
@@ -146,6 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") {
       localStorage.removeItem("auth_token");
       localStorage.removeItem("token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("refreshToken");
       localStorage.removeItem("workspaceId");
       sessionStorage.removeItem("authData");
       syncTokenCookie(null);

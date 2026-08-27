@@ -793,6 +793,10 @@ export function AuthForm({
               localStorage.setItem("token", res.data.accessToken);
               syncTokenCookie(res.data.accessToken);
             }
+            if (res.data.refreshToken) {
+              localStorage.setItem("refresh_token", res.data.refreshToken);
+              localStorage.setItem("refreshToken", res.data.refreshToken);
+            }
             onComplete?.();
             close(true);
             await checkSession();

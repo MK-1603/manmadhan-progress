@@ -58,30 +58,31 @@ export function clearAuthStorage() {
     localStorage.removeItem("auth_token");
     localStorage.removeItem("jwt");
     localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("refresh_token");
     localStorage.removeItem("user");
     document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+    document.cookie = "refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
   }
 }
 
 async function attemptTokenRefresh(): Promise<string | null> {
   if (explicitLoggingOut) return null;
   try {
-    const existingToken =
+    const existingRefreshToken =
       typeof window !== "undefined"
-        ? localStorage.getItem("auth_token") ||
-          localStorage.getItem("token") ||
-          localStorage.getItem("jwt")
+        ? localStorage.getItem("refresh_token") ||
+          localStorage.getItem("refreshToken")
         : undefined;
 
     const refreshRes = await axios.post(
       `${baseURL}/auth/refresh`,
-      { refreshToken: existingToken },
+      { refreshToken: existingRefreshToken },
       {
         withCredentials: true,
-        headers: existingToken
+        headers: existingRefreshToken
           ? {
-              Authorization: `Bearer ${existingToken}`,
-              "x-refresh-token": existingToken,
+              "x-refresh-token": existingRefreshToken,
             }
           : {},
       },
@@ -92,10 +93,18 @@ async function attemptTokenRefresh(): Promise<string | null> {
       refreshRes.data?.data?.accessToken ||
       refreshRes.data?.data?.token;
 
+    const newRefreshToken: string | undefined =
+      refreshRes.data?.refreshToken ||
+      refreshRes.data?.data?.refreshToken;
+
     if (newToken) {
       if (typeof window !== "undefined") {
         localStorage.setItem("token", newToken);
         localStorage.setItem("auth_token", newToken);
+        if (newRefreshToken) {
+          localStorage.setItem("refresh_token", newRefreshToken);
+          localStorage.setItem("refreshToken", newRefreshToken);
+        }
         const isHttps = window.location.protocol === "https:";
         document.cookie = `auth_token=${newToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
       }
