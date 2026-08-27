@@ -1849,7 +1849,8 @@ export default function ProjectWorkspacePage() {
           {activeTab === "DOCUMENTS" && (
             <ProjectDocumentsView
               projectId={projectId}
-              documents={documents}
+              projectStatus={project.status}
+              userRole={base === "/co-ceo" ? "CO-CEO" : base === "/member" ? "MEMBER" : "CEO"}
               onRefresh={fetchProjectDetails}
             />
           )}

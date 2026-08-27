@@ -6,6 +6,7 @@ import {
 	activities,
 	auditLogs,
 	calendarEvents,
+	documentVersions,
 	milestones,
 	notifications,
 	projectAiTools,
@@ -2565,6 +2566,396 @@ orgProjectsRouter.get("/:id", async (req: Request, res: Response) => {
 		res.status(500).json({ success: false, error: "Internal server error" });
 	}
 });
+
+// ─── Real Production Project Documents Lifecycle & Storage API ─────────────────
+
+// GET Project Document Requirements & Storage Accounting
+orgProjectsRouter.get(
+	"/:id/documents",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const projectId = req.params.id as string;
+			const workspaceId = (req as any).workspaceId;
+
+			const requirements = await db
+				.select({
+					id: projectDocumentsV2.id,
+					projectId: projectDocumentsV2.projectId,
+					milestoneId: projectDocumentsV2.milestoneId,
+					stageNumber: projectDocumentsV2.stageNumber,
+					documentType: projectDocumentsV2.documentType,
+					title: projectDocumentsV2.title,
+					category: projectDocumentsV2.category,
+					isRequired: projectDocumentsV2.isRequired,
+					assignedToUserId: projectDocumentsV2.assignedToUserId,
+					reviewerUserId: projectDocumentsV2.reviewerUserId,
+					dueDate: projectDocumentsV2.dueDate,
+					currentVersion: projectDocumentsV2.currentVersion,
+					status: projectDocumentsV2.status,
+					sizeBytes: projectDocumentsV2.sizeBytes,
+					fileUrl: projectDocumentsV2.fileUrl,
+					fileName: projectDocumentsV2.fileName,
+					mimeType: projectDocumentsV2.mimeType,
+					folderPath: projectDocumentsV2.folderPath,
+					createdById: projectDocumentsV2.createdById,
+					createdAt: projectDocumentsV2.createdAt,
+					updatedAt: projectDocumentsV2.updatedAt,
+				})
+				.from(projectDocumentsV2)
+				.where(eq(projectDocumentsV2.projectId, projectId))
+				.orderBy(asc(projectDocumentsV2.stageNumber));
+
+			const enrichedDocs: any[] = [];
+			let totalStorageBytes = 0;
+			const categoryStorageBytes: Record<string, number> = {
+				Documents: 0,
+				"Design Assets": 0,
+				"Code / Builds": 0,
+				Evidence: 0,
+				Media: 0,
+				Other: 0,
+			};
+
+			for (const doc of requirements) {
+				const versions = await db
+					.select({
+						id: documentVersions.id,
+						versionNumber: documentVersions.versionNumber,
+						fileName: documentVersions.fileName,
+						fileUrl: documentVersions.fileUrl,
+						mimeType: documentVersions.mimeType,
+						sizeBytes: documentVersions.sizeBytes,
+						storageReference: documentVersions.storageReference,
+						status: documentVersions.status,
+						authorId: documentVersions.authorId,
+						reviewedById: documentVersions.reviewedById,
+						reviewedAt: documentVersions.reviewedAt,
+						reviewComment: documentVersions.reviewComment,
+						createdAt: documentVersions.createdAt,
+					})
+					.from(documentVersions)
+					.where(eq(documentVersions.documentId, doc.id))
+					.orderBy(desc(documentVersions.versionNumber));
+
+				for (const v of versions) {
+					totalStorageBytes += v.sizeBytes || 0;
+					const cat = doc.category || "Documents";
+					categoryStorageBytes[cat] = (categoryStorageBytes[cat] || 0) + (v.sizeBytes || 0);
+				}
+
+				enrichedDocs.push({
+					...doc,
+					versions,
+				});
+			}
+
+			const totalRequired = enrichedDocs.filter((d) => d.isRequired).length;
+			const approvedCount = enrichedDocs.filter((d) => d.status === "APPROVED").length;
+			const inReviewCount = enrichedDocs.filter((d) => d.status === "IN_REVIEW" || d.status === "SUBMITTED").length;
+			const notUploadedCount = enrichedDocs.filter((d) => d.status === "NOT_STARTED" || !d.fileUrl).length;
+
+			return res.json({
+				success: true,
+				documents: enrichedDocs,
+				storage: {
+					totalStorageBytes,
+					totalStorageMB: Math.round((totalStorageBytes / (1024 * 1024)) * 10) / 10,
+					categoryBreakdown: categoryStorageBytes,
+					quotaLimitBytes: 100 * 1024 * 1024 * 1024,
+				},
+				stats: {
+					totalRequirements: enrichedDocs.length,
+					totalRequired,
+					approvedCount,
+					inReviewCount,
+					notUploadedCount,
+					isComplete: totalRequired > 0 && approvedCount >= totalRequired,
+				},
+			});
+		} catch (err: any) {
+			logger.error(`Get project documents error: ${err?.stack || err?.message}`);
+			return res.status(500).json({ success: false, error: "Failed to fetch project documents" });
+		}
+	},
+);
+
+// POST Upload Real File Version to Document Requirement
+orgProjectsRouter.post(
+	"/:id/documents/upload",
+	resolveWorkspace,
+	requireMembership,
+	async (req: Request, res: Response) => {
+		try {
+			const projectId = req.params.id as string;
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+
+			const {
+				requirementId,
+				fileName,
+				fileUrl,
+				mimeType,
+				sizeBytes = 0,
+				storageReference,
+				notes,
+			} = req.body;
+
+			if (!requirementId || !fileName || !fileUrl) {
+				return res.status(400).json({
+					success: false,
+					error: "Requirement ID, file name, and file URL are required for upload.",
+				});
+			}
+
+			const parsedSize = Number(sizeBytes) || 0;
+			const MAX_FILE_SIZE = 100 * 1024 * 1024;
+			if (parsedSize > MAX_FILE_SIZE) {
+				return res.status(400).json({
+					success: false,
+					error: `File size (${Math.round(parsedSize / (1024 * 1024))} MB) exceeds limit of 100 MB.`,
+				});
+			}
+
+			const [reqDoc] = await db
+				.select()
+				.from(projectDocumentsV2)
+				.where(
+					and(
+						eq(projectDocumentsV2.id, requirementId),
+						eq(projectDocumentsV2.projectId, projectId)
+					)
+				)
+				.limit(1);
+
+			if (!reqDoc) {
+				return res.status(404).json({ success: false, error: "Document requirement record not found." });
+			}
+
+			const nextVersion = (reqDoc.currentVersion || 0) + 1;
+			const versionId = uuidv4();
+
+			await db.transaction(async (tx) => {
+				await tx.insert(documentVersions).values({
+					id: versionId,
+					documentId: requirementId,
+					versionNumber: nextVersion,
+					content: notes || `Uploaded ${fileName}`,
+					fileName: fileName.trim(),
+					fileUrl: fileUrl.trim(),
+					mimeType: mimeType || "application/octet-stream",
+					sizeBytes: parsedSize,
+					storageReference: storageReference || fileUrl,
+					status: "SUBMITTED",
+					authorId: userId,
+					createdAt: new Date(),
+				});
+
+				await tx
+					.update(projectDocumentsV2)
+					.set({
+						currentVersion: nextVersion,
+						status: "SUBMITTED",
+						fileName: fileName.trim(),
+						fileUrl: fileUrl.trim(),
+						mimeType: mimeType || "application/octet-stream",
+						sizeBytes: parsedSize,
+						updatedAt: new Date(),
+					})
+					.where(eq(projectDocumentsV2.id, requirementId));
+
+				await tx.insert(auditLogs).values({
+					id: uuidv4(),
+					userId,
+					workspaceId,
+					eventType: "DOCUMENT_UPLOADED",
+					details: `File "${fileName}" (v${nextVersion}, ${Math.round(parsedSize / 1024)} KB) uploaded for requirement "${reqDoc.title}"`,
+					createdAt: new Date(),
+				});
+			});
+
+			return res.json({
+				success: true,
+				message: `Version ${nextVersion} uploaded successfully.`,
+				version: {
+					id: versionId,
+					versionNumber: nextVersion,
+					fileName,
+					fileUrl,
+					sizeBytes: parsedSize,
+					status: "SUBMITTED",
+				},
+			});
+		} catch (err: any) {
+			logger.error(`Document upload error: ${err?.stack || err?.message}`);
+			return res.status(500).json({ success: false, error: "Failed to upload document file version" });
+		}
+	},
+);
+
+// POST Review Document Submissions (Approve, Request Changes, Reject)
+orgProjectsRouter.post(
+	"/:id/documents/:docId/review",
+	resolveWorkspace,
+	requireMembership,
+	requireLeadership,
+	async (req: Request, res: Response) => {
+		try {
+			const projectId = req.params.id as string;
+			const docId = req.params.docId as string;
+			const workspaceId = (req as any).workspaceId;
+			const userId = (req as any).user?.id;
+
+			const { action, comment } = req.body;
+
+			if (!action || !["APPROVE", "REQUEST_CHANGES", "REJECT"].includes(action)) {
+				return res.status(400).json({
+					success: false,
+					error: "Valid action ('APPROVE', 'REQUEST_CHANGES', or 'REJECT') is required.",
+				});
+			}
+
+			const [doc] = await db
+				.select()
+				.from(projectDocumentsV2)
+				.where(
+					and(
+						eq(projectDocumentsV2.id, docId),
+						eq(projectDocumentsV2.projectId, projectId)
+					)
+				)
+				.limit(1);
+
+			if (!doc) {
+				return res.status(404).json({ success: false, error: "Document requirement not found." });
+			}
+
+			let newStatus = "IN_REVIEW";
+			let auditEvent = "DOCUMENT_REVIEW_STARTED";
+			if (action === "APPROVE") {
+				newStatus = "APPROVED";
+				auditEvent = "DOCUMENT_APPROVED";
+			} else if (action === "REQUEST_CHANGES") {
+				newStatus = "CHANGES_REQUESTED";
+				auditEvent = "DOCUMENT_CHANGES_REQUESTED";
+			} else if (action === "REJECT") {
+				newStatus = "REJECTED";
+				auditEvent = "DOCUMENT_REJECTED";
+			}
+
+			await db.transaction(async (tx) => {
+				await tx
+					.update(projectDocumentsV2)
+					.set({
+						status: newStatus,
+						updatedAt: new Date(),
+					})
+					.where(eq(projectDocumentsV2.id, docId));
+
+				const [latestVer] = await tx
+					.select()
+					.from(documentVersions)
+					.where(eq(documentVersions.documentId, docId))
+					.orderBy(desc(documentVersions.versionNumber))
+					.limit(1);
+
+				if (latestVer) {
+					await tx
+						.update(documentVersions)
+						.set({
+							status: newStatus,
+							reviewedById: userId,
+							reviewedAt: new Date(),
+							reviewComment: comment || null,
+						})
+						.where(eq(documentVersions.id, latestVer.id));
+				}
+
+				await tx.insert(auditLogs).values({
+					id: uuidv4(),
+					userId,
+					workspaceId,
+					eventType: auditEvent,
+					details: `Document "${doc.title}" review action: ${newStatus}. Comment: ${comment || "None"}`,
+					createdAt: new Date(),
+				});
+			});
+
+			return res.json({
+				success: true,
+				message: `Document status updated to ${newStatus}.`,
+				status: newStatus,
+			});
+		} catch (err: any) {
+			logger.error(`Document review error: ${err?.stack || err?.message}`);
+			return res.status(500).json({ success: false, error: "Failed to process document review" });
+		}
+	},
+);
+
+// POST Create Custom Document Requirement for Active Project
+orgProjectsRouter.post(
+	"/:id/documents/requirements",
+	resolveWorkspace,
+	requireMembership,
+	requireLeadership,
+	async (req: Request, res: Response) => {
+		try {
+			const projectId = req.params.id as string;
+			const userId = (req as any).user?.id;
+
+			const {
+				title,
+				documentType = "CUSTOM_SPECIFICATION",
+				category = "Documents",
+				isRequired = true,
+				assignedToUserId,
+				reviewerUserId,
+				dueDate,
+			} = req.body;
+
+			if (!title || typeof title !== "string" || !title.trim()) {
+				return res.status(400).json({ success: false, error: "Document requirement title is required." });
+			}
+
+			const docId = uuidv4();
+			const folderPath = `Documents/Projects/${projectId}/${title.trim().replace(/\s+/g, "-")}`;
+
+			await db.insert(projectDocumentsV2).values({
+				id: docId,
+				projectId,
+				stageNumber: 1,
+				documentType: documentType.trim(),
+				title: title.trim(),
+				category: category.trim(),
+				isRequired: Boolean(isRequired),
+				assignedToUserId: assignedToUserId || null,
+				reviewerUserId: reviewerUserId || null,
+				dueDate: dueDate ? new Date(dueDate) : null,
+				currentVersion: 1,
+				status: "NOT_STARTED",
+				sizeBytes: 0,
+				fileUrl: null,
+				fileName: null,
+				mimeType: null,
+				folderPath,
+				createdById: userId,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			});
+
+			return res.json({
+				success: true,
+				message: "Document requirement created.",
+				requirement: { id: docId, title: title.trim(), status: "NOT_STARTED", sizeBytes: 0 },
+			});
+		} catch (err: any) {
+			logger.error(`Create requirement error: ${err?.stack || err?.message}`);
+			return res.status(500).json({ success: false, error: "Failed to create document requirement" });
+		}
+	},
+);
 
 // ─── Work Package Management Routes ──────────────────────────────────────────
 

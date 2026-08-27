@@ -1356,9 +1356,18 @@ export const projectDocumentsV2 = pgTable("project_documents_v2", {
 	stageNumber: integer("stage_number").notNull(),
 	documentType: text("document_type").notNull(), // ACTIVATION, PRD, TRD, WORKFLOW, UIUX_BRIEF, DATABASE_PLAN, IMPLEMENTATION_PLAN
 	title: text("title").notNull(),
+	category: text("category").default("Documents").notNull(), // Documents, Design Assets, Code / Builds, Evidence, Media, Other
+	isRequired: boolean("is_required").default(true).notNull(),
+	assignedToUserId: text("assigned_to_user_id").references(() => users.id),
+	reviewerUserId: text("reviewer_user_id").references(() => users.id),
+	dueDate: timestamp("due_date"),
 	currentVersion: integer("current_version").default(1).notNull(),
-	status: text("status").default("DRAFT").notNull(), // DRAFT, SUBMITTED, VALIDATING, UNDER_REVIEW, APPROVED, CHANGES_REQUESTED, REJECTED
+	status: text("status").default("NOT_STARTED").notNull(), // NOT_STARTED, IN_PROGRESS, SUBMITTED, IN_REVIEW, CHANGES_REQUESTED, APPROVED, REJECTED
 	wordCount: integer("word_count").default(0),
+	sizeBytes: integer("size_bytes").default(0),
+	fileUrl: text("file_url"),
+	fileName: text("file_name"),
+	mimeType: text("mime_type"),
 	folderPath: text("folder_path").notNull(),
 	createdById: text("created_by_id")
 		.notNull()
@@ -1374,10 +1383,19 @@ export const documentVersions = pgTable("document_versions", {
 		.notNull()
 		.references(() => projectDocumentsV2.id, { onDelete: "cascade" }),
 	versionNumber: integer("version_number").notNull(),
-	content: text("content").notNull(),
+	content: text("content").default("").notNull(),
+	fileName: text("file_name"),
+	fileUrl: text("file_url"),
+	mimeType: text("mime_type"),
+	sizeBytes: integer("size_bytes").default(0).notNull(),
+	storageReference: text("storage_reference"),
+	status: text("status").default("SUBMITTED").notNull(), // SUBMITTED, IN_REVIEW, APPROVED, CHANGES_REQUESTED, REJECTED
 	authorId: text("author_id")
 		.notNull()
 		.references(() => users.id),
+	reviewedById: text("reviewed_by_id").references(() => users.id),
+	reviewedAt: timestamp("reviewed_at"),
+	reviewComment: text("review_comment"),
 	wordCount: integer("word_count").default(0).notNull(),
 	validationStatus: text("validation_status").default("PENDING").notNull(), // PENDING, PASSED, FAILED
 	validationErrors: jsonb("validation_errors").default([]),
