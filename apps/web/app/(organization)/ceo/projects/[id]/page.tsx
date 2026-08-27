@@ -214,248 +214,276 @@ function OverviewTab({
   completedCount: number; totalCount: number; remainingCount: number; progressPercent: number;
   onTabSwitch: (tab: TabId) => void;
 }) {
-  const health = deriveHealth(project, completedCount, totalCount);
-  const days = daysRemaining(project.deadline);
   const ownerName = project.ownerName || project.owner || "CEO";
   const executionLead = project.executionLead || project.assignment?.assignedTo;
   const members = project.members || project.team || [];
-  const stats = project.stats || {};
-  const overdueCount = stats.overdue || 0;
-  const blockedCount = stats.blocked || 0;
-  const inProgressCount = stats.inProgress || 0;
-  const nextAction = project.nextAction || {
-    code: "INITIALIZE_WORK",
-    title: "Assign Initial Work & Tasks",
-    description: "Create project work packages and assign initial tasks to team members to kick off execution.",
-    targetTab: "WORK",
-  };
+  const nextAction = project.nextAction || null;
+
+  const nextMilestone = useMemo(() => {
+    if (!milestones || milestones.length === 0) return null;
+    return milestones.find((m) => (m.state || m.status) === "AVAILABLE" || (m.state || m.status) === "IN_PROGRESS") || milestones[0];
+  }, [milestones]);
+
+  const readinessChecks = useMemo(() => {
+    return [
+      { title: "Project Owner Verified", passed: true },
+      { title: "Execution Lead Accepted", passed: Boolean(executionLead || project.assignment?.status === "ACCEPTED") },
+      { title: "Project Plan Accepted", passed: project.projectPlanStatus === "ACCEPTED" || project.status === "ACTIVE" },
+      { title: "Team Members Accepted", passed: members.length > 0 },
+      { title: "GitHub Connected", passed: Boolean(project.github?.connected || project.github?.repoName) },
+      { title: "Required Documents Ready", passed: (documents || []).some((d: any) => d.status === "APPROVED" || d.fileUrl) },
+    ];
+  }, [executionLead, project, members, documents]);
+
+  const passedReadinessCount = readinessChecks.filter((c) => c.passed).length;
+  const readinessPercent = Math.round((passedReadinessCount / readinessChecks.length) * 100);
 
   return (
-    <div className="space-y-4 font-sans">
-      {/* ROW 0: DYNAMIC NEXT REQUIRED ACTION */}
+    <div className="space-y-4 font-sans text-xs">
+      {/* ── ROW 1: CURRENT / NEXT REQUIRED ACTION (RENDERED ONLY IF ACTION PENDING) ── */}
       {nextAction && (
-        <OvCard className="p-4 bg-gradient-to-r from-[#C9A52A]/15 via-[#C9A52A]/5 to-transparent border-[#C9A52A]/30">
+        <OvCard className="p-3.5 bg-gradient-to-r from-[#C9A52A]/10 via-[#C9A52A]/5 to-transparent border-[#C9A52A]/30">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <div className="flex items-center gap-2">
-                <span className="text-[9.5px] font-bold px-2 py-0.5 rounded bg-[#C9A52A] text-[#0A0A0A] uppercase tracking-wider">
+                <span className="text-[9.5px] font-extrabold px-2 py-0.5 rounded bg-[#C9A52A] text-[#0B0D10] uppercase tracking-wider">
                   Next Required Action
                 </span>
-                <span className="text-[13px] font-bold text-[#17202A] dark:text-[#F2F4F7]">
+                <span className="text-xs font-extrabold text-foreground">
                   {nextAction.title}
                 </span>
               </div>
-              <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5]">
+              <p className="text-[11.5px] text-muted-foreground">
                 {nextAction.description}
               </p>
             </div>
             <button
-              onClick={() => onTabSwitch((nextAction.targetTab as TabId) || "WORK")}
-              className="inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12px] font-bold hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+              type="button"
+              onClick={() => onTabSwitch((nextAction.targetTab as TabId) || "TASKS")}
+              className="inline-flex items-center gap-1.5 px-4 h-[32px] rounded-xl bg-[#C9A52A] text-[#0B0D10] text-xs font-extrabold hover:brightness-105 transition-all cursor-pointer shrink-0"
             >
-              Take Action <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+              <span>Take Action</span>
+              <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
             </button>
           </div>
         </OvCard>
       )}
 
-      {/* ROW 0.5: PROJECT READINESS SCORE & CHECKLIST */}
-      <OvCard className="p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <CardLabel>Project Readiness</CardLabel>
-          <span className="text-xs font-mono font-bold text-[#C9A52A]">
-            {project.readinessScore ?? 80}% Complete
-          </span>
-        </div>
-        <div className="w-full bg-[#1D222A] h-2 rounded-full overflow-hidden">
-          <div
-            className="bg-[#C9A52A] h-full transition-all duration-300"
-            style={{ width: `${project.readinessScore ?? 80}%` }}
-          />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs pt-2 border-t border-[#1D222A]">
-          {(
-            project.readinessChecks || [
-              { title: "Project Owner Verified", passed: true },
-              { title: "Execution Lead Accepted", passed: Boolean(executionLead || project.assignment?.status === "ACCEPTED") },
-              { title: "Team Members Accepted", passed: true },
-              { title: "Project Plan Accepted", passed: project.projectPlanStatus === "ACCEPTED" },
-              { title: "ManMadhan Hub Connected", passed: Boolean(project.aiTools?.length) },
-              { title: "Authorized GitHub Connected", passed: Boolean(project.github?.connected || project.github?.repoName) },
-            ]
-          ).map((chk: any, idx: number) => (
-            <div key={idx} className="flex items-center gap-1.5">
-              <span className={chk.passed ? "text-emerald-500 font-bold" : "text-[#667085]"}>
-                {chk.passed ? "✓" : "○"}
-              </span>
-              <span className={chk.passed ? "text-[#F2F4F7]" : "text-[#667085]"}>{chk.title}</span>
-            </div>
-          ))}
-        </div>
-      </OvCard>
+      {/* ── 2-COLUMN EXECUTIVE LAYOUT ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        
+        {/* ── LEFT COLUMN: SNAPSHOT & READINESS (7 Cols) ── */}
+        <div className="lg:col-span-7 space-y-4">
+          
+          {/* PROJECT SNAPSHOT */}
+          <OvCard className="p-4 space-y-3">
+            <CardLabel>Project Snapshot</CardLabel>
 
-      {/* ROW 1: PROJECT SUMMARY + OWNERSHIP */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <OvCard className="p-4 space-y-3">
-          <CardLabel>Project Summary</CardLabel>
-          {(project.objective || project.description) && (
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5]">Objective</p>
-              <p className="text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] leading-relaxed">{project.objective || project.description}</p>
-            </div>
-          )}
-          {project.mandate && (
-            <div className="space-y-1 pt-2 border-t border-[#F0F2F5] dark:border-[#1D222A]">
-              <p className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5]">Mandate</p>
-              <p className="text-[12.5px] text-[#17202A] dark:text-[#F2F4F7] leading-relaxed line-clamp-3">{project.mandate}</p>
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2 pt-2 border-t border-[#F0F2F5] dark:border-[#1D222A] text-[12px]">
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Status</p>
-              <p className={`font-semibold mt-0.5 ${(project.status || "").toLowerCase() === "active" ? "text-emerald-600 dark:text-emerald-400" : "text-blue-600 dark:text-blue-400"}`}>
-                ● {project.status || "Active"}
-              </p>
-            </div>
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Target Deadline</p>
-              <p className="font-semibold font-mono text-[#17202A] dark:text-[#F2F4F7] mt-0.5">{fmtDate(project.deadline, "Flexible")}</p>
-            </div>
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Created</p>
-              <p className="font-mono text-[#17202A] dark:text-[#F2F4F7] mt-0.5">{fmtDate(project.createdAt)}</p>
-            </div>
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Last Updated</p>
-              <p className="font-mono text-[#17202A] dark:text-[#F2F4F7] mt-0.5">{fmtDate(project.updatedAt)}</p>
-            </div>
-          </div>
-        </OvCard>
-
-        <OvCard className="p-4 space-y-4">
-          <CardLabel>Project Ownership & Team</CardLabel>
-          <div className="space-y-1.5">
-            <p className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5]">Project Owner (CEO)</p>
-            <PersonRow name={ownerName} role="Chief Executive Officer" badge="Owner" />
-          </div>
-          <div className="space-y-1.5 pt-3 border-t border-[#F0F2F5] dark:border-[#1D222A]">
-            <p className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5]">Execution Lead</p>
-            {executionLead ? (
-              <PersonRow name={executionLead.name || executionLead.email || "CO-CEO"} role={executionLead.role || "CO-CEO"} badge="Lead" />
-            ) : (
-              <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] italic">No execution lead assigned.</p>
+            {(project.objective || project.description) && (
+              <div className="space-y-1">
+                <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider block">Objective</span>
+                <p className="text-xs text-foreground leading-relaxed font-medium">
+                  {project.objective || project.description}
+                </p>
+              </div>
             )}
-          </div>
-          <div className="space-y-2 pt-3 border-t border-[#F0F2F5] dark:border-[#1D222A]">
-            <div className="flex items-center justify-between">
-              <p className="text-[11px] font-semibold text-[#667085] dark:text-[#8B95A5]">Assigned Members</p>
-              <span className="text-[10px] font-mono font-bold text-[#C9A52A]">{members.length} members</span>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-3 border-t border-border/60 text-xs">
+              <div>
+                <span className="text-muted-foreground font-semibold text-[11px] block">Status</span>
+                <span className="font-extrabold text-emerald-500 mt-0.5 block">● {project.status || "Active"}</span>
+              </div>
+
+              <div>
+                <span className="text-muted-foreground font-semibold text-[11px] block">Priority</span>
+                <span className="font-extrabold text-amber-500 mt-0.5 block">{project.priority || "Medium"}</span>
+              </div>
+
+              <div>
+                <span className="text-muted-foreground font-semibold text-[11px] block">Deadline</span>
+                <span className="font-mono font-bold text-foreground mt-0.5 block">{fmtDate(project.deadline, "Flexible")}</span>
+              </div>
+
+              <div>
+                <span className="text-muted-foreground font-semibold text-[11px] block">Owner</span>
+                <span className="font-bold text-foreground mt-0.5 block">{ownerName}</span>
+              </div>
+
+              <div className="col-span-2 sm:col-span-2">
+                <span className="text-muted-foreground font-semibold text-[11px] block">Execution Lead</span>
+                <span className="font-bold text-foreground mt-0.5 block">
+                  {executionLead?.name || executionLead?.email || "Not assigned"}
+                </span>
+              </div>
             </div>
-            {members.length > 0 ? (
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {members.map((m: any) => (
-                  <PersonRow key={m.id || m.userId || m.name} name={m.name || m.email} role={m.role || m.userRole || "Member"} />
-                ))}
+          </OvCard>
+
+          {/* PROJECT READINESS CHECKLIST */}
+          <OvCard className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <CardLabel>Project Readiness</CardLabel>
+              <span className="text-xs font-mono font-extrabold text-[#C9A52A]">
+                {readinessPercent}% Ready ({passedReadinessCount}/{readinessChecks.length})
+              </span>
+            </div>
+
+            <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden">
+              <div
+                className="bg-[#C9A52A] h-full transition-all duration-500 rounded-full"
+                style={{ width: `${readinessPercent}%` }}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+              {readinessChecks.map((chk, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className={chk.passed ? "text-emerald-500 font-extrabold" : "text-muted-foreground font-bold"}>
+                    {chk.passed ? "✓" : "○"}
+                  </span>
+                  <span className={chk.passed ? "text-foreground font-medium" : "text-muted-foreground"}>
+                    {chk.title}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </OvCard>
+        </div>
+
+        {/* ── RIGHT COLUMN: PROGRESS & NEXT MILESTONE (5 Cols) ── */}
+        <div className="lg:col-span-5 space-y-4">
+          
+          {/* PROJECT PROGRESS */}
+          <OvCard className="p-4 space-y-3">
+            <CardLabel>Project Progress</CardLabel>
+            <div className="flex items-baseline justify-between">
+              <span className="text-2xl font-extrabold text-foreground font-mono leading-none">{progressPercent}%</span>
+              <span className="text-xs text-emerald-500 font-bold">On Track</span>
+            </div>
+
+            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#C9A52A] rounded-full transition-all duration-700"
+                style={{ width: `${Math.min(100, progressPercent)}%` }}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs pt-1">
+              <div className="p-2.5 rounded-xl bg-background border border-border">
+                <span className="text-muted-foreground text-[10.5px] font-semibold block">Completed</span>
+                <span className="font-mono font-extrabold text-emerald-500 text-sm mt-0.5 block">{completedCount}</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-background border border-border">
+                <span className="text-muted-foreground text-[10.5px] font-semibold block">Remaining</span>
+                <span className="font-mono font-extrabold text-foreground text-sm mt-0.5 block">{remainingCount}</span>
+              </div>
+            </div>
+          </OvCard>
+
+          {/* NEXT MILESTONE */}
+          <OvCard className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <CardLabel>Next Milestone</CardLabel>
+              {nextMilestone && (
+                <button
+                  type="button"
+                  onClick={() => onTabSwitch("MILESTONES")}
+                  className="text-[11px] font-extrabold text-[#C9A52A] hover:underline cursor-pointer"
+                >
+                  View All →
+                </button>
+              )}
+            </div>
+
+            {nextMilestone ? (
+              <div className="p-3.5 rounded-xl bg-background border border-border space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="font-extrabold text-foreground text-xs">{nextMilestone.name}</h4>
+                  <span className="px-2 py-0.5 rounded bg-[#C9A52A]/10 text-[#C9A52A] font-extrabold text-[10px]">
+                    {nextMilestone.state || nextMilestone.status || "Available"}
+                  </span>
+                </div>
+                {nextMilestone.description && (
+                  <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
+                    {nextMilestone.description}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onTabSwitch("MILESTONES")}
+                  className="w-full mt-2 py-1.5 rounded-lg border border-border hover:bg-muted text-foreground font-bold text-xs cursor-pointer transition-colors"
+                >
+                  Open Milestone
+                </button>
               </div>
             ) : (
-              <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] italic">No members assigned to this project.</p>
+              <div className="p-4 rounded-xl bg-background border border-border text-center space-y-2">
+                <p className="text-xs text-muted-foreground">No milestones created yet.</p>
+                <button
+                  type="button"
+                  onClick={() => onTabSwitch("MILESTONES")}
+                  className="px-3 py-1.5 rounded-xl bg-[#C9A52A] text-[#0B0D10] font-extrabold text-xs cursor-pointer"
+                >
+                  Add Milestone
+                </button>
+              </div>
             )}
-          </div>
-        </OvCard>
+          </OvCard>
+        </div>
       </div>
 
-      {/* ROW 2: HEALTH + EXECUTION SUMMARY */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <OvCard className="p-4 space-y-3">
-          <CardLabel>Project Health Evaluation</CardLabel>
-          <div className="space-y-2">
-            <div className="flex items-baseline gap-2">
-              <span className={`text-[20px] font-bold leading-none ${health.color}`}>●</span>
-              <span className={`text-[15px] font-bold ${health.color}`}>{health.label}</span>
-            </div>
-            {project.healthExplanation && (
-              <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] leading-relaxed bg-[#F8F9FB] dark:bg-[#111419] p-2.5 rounded-lg border border-[#E4E7EC] dark:border-[#272D36]">
-                {project.healthExplanation}
-              </p>
-            )}
+      {/* ── BOTTOM SUMMARY BAR (TEAM, CONNECTIONS & RECENT ACTIVITY) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+        {/* TEAM SUMMARY */}
+        <OvCard className="p-3.5 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Team</span>
+            <button type="button" onClick={() => onTabSwitch("TEAM")} className="text-[10.5px] text-[#C9A52A] font-bold hover:underline cursor-pointer">View Team</button>
           </div>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-[12px] pt-1">
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Target Date</p>
-              <p className="font-semibold font-mono text-[#17202A] dark:text-[#F2F4F7] mt-0.5">{fmtDate(project.deadline, "Flexible")}</p>
+          <div className="space-y-1 text-xs">
+            <div className="flex justify-between"><span className="text-muted-foreground">Owner</span><span className="font-bold">{ownerName}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Lead</span><span className="font-bold">{executionLead?.name || "Not assigned"}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Members</span><span className="font-bold font-mono">{members.length} users</span></div>
+          </div>
+        </OvCard>
+
+        {/* CONNECTIONS */}
+        <OvCard className="p-3.5 space-y-2">
+          <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider block">Project Connections</span>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">Documents</span>
+              <button type="button" onClick={() => onTabSwitch("DOCUMENTS")} className="text-foreground font-bold hover:text-[#C9A52A] cursor-pointer">
+                {(documents || []).length > 0 ? `${documents.length} requirements` : "Not ready"} →
+              </button>
             </div>
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Days Remaining</p>
-              <p className={`font-semibold mt-0.5 ${days === null ? "text-[#17202A] dark:text-[#F2F4F7]" : days < 0 ? "text-rose-600 dark:text-rose-400" : days < 7 ? "text-amber-600 dark:text-amber-400" : "text-[#17202A] dark:text-[#F2F4F7]"}`}>
-                {days === null ? "—" : days === 0 ? "Due today" : days < 0 ? `${Math.abs(days)}d overdue` : `${days} days`}
-              </p>
-            </div>
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Overdue Tasks</p>
-              <p className={`font-semibold mt-0.5 ${overdueCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-[#17202A] dark:text-[#F2F4F7]"}`}>{overdueCount}</p>
-            </div>
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Blocked Tasks</p>
-              <p className={`font-semibold mt-0.5 ${blockedCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-[#17202A] dark:text-[#F2F4F7]"}`}>{blockedCount}</p>
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground">GitHub</span>
+              <button type="button" onClick={() => onTabSwitch("GITHUB")} className="text-foreground font-bold hover:text-[#C9A52A] cursor-pointer">
+                {project.github?.connected || project.github?.repoName ? "Connected" : "Not connected"} →
+              </button>
             </div>
           </div>
         </OvCard>
 
-        <OvCard className="p-4 space-y-3">
-          <CardLabel>Execution Summary</CardLabel>
-          <div className="flex items-end gap-1.5">
-            <span className="text-[30px] font-bold text-[#17202A] dark:text-[#F2F4F7] leading-none font-mono">{progressPercent}%</span>
-            <span className="text-[12px] text-[#667085] dark:text-[#8B95A5] mb-1">overall progress</span>
+        {/* RECENT ACTIVITY PREVIEW */}
+        <OvCard className="p-3.5 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Recent Activity</span>
+            <button type="button" onClick={() => onTabSwitch("ACTIVITY")} className="text-[10.5px] text-[#C9A52A] font-bold hover:underline cursor-pointer">View Activity</button>
           </div>
-          <div className="h-1.5 w-full bg-[#E4E7EC] dark:bg-[#272D36] rounded-full overflow-hidden">
-            <div className="h-full bg-[#C9A52A] dark:bg-[#D4B12F] rounded-full transition-all duration-700" style={{ width: `${Math.min(100, progressPercent)}%` }} />
-          </div>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-[12px] pt-1">
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Work Packages</p>
-              <p className="font-semibold text-[#17202A] dark:text-[#F2F4F7] mt-0.5">{(project.workPackages || []).length}</p>
-            </div>
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Total Tasks</p>
-              <p className="font-semibold text-[#17202A] dark:text-[#F2F4F7] mt-0.5">{totalCount}</p>
-            </div>
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">Completed Tasks</p>
-              <p className="font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">{completedCount}</p>
-            </div>
-            <div>
-              <p className="text-[#667085] dark:text-[#8B95A5]">In Progress</p>
-              <p className="font-semibold text-[#C9A52A] dark:text-[#D4B12F] mt-0.5">{inProgressCount}</p>
-            </div>
-          </div>
-        </OvCard>
-      </div>
-
-      {/* ROW 3: RECENT PROJECT ACTIVITY */}
-      <OvCard className="p-4 space-y-3">
-        <CardLabel>Recent Project Activity</CardLabel>
-        {tasks.length === 0 && milestones.length === 0 ? (
-          <p className="text-[12.5px] text-[#667085] dark:text-[#8B95A5] italic">Project activity will appear here as work begins.</p>
-        ) : (
-          <div className="divide-y divide-[#F0F2F5] dark:divide-[#1D222A]">
-            {tasks.slice(0, 5).map((t: any) => {
-              const isDone = t.status === "Completed" || t.status === "Approved";
-              return (
-                <div key={t.id} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isDone ? "bg-emerald-500" : "bg-[#C9A52A] dark:bg-[#D4B12F]"}`} />
-                    <p className="text-[12px] text-[#17202A] dark:text-[#F2F4F7] truncate">
-                      <strong className="font-semibold">{t.assigneeName || "Team Member"}</strong>{" "}
-                      <span className="text-[#667085] dark:text-[#8B95A5]">{isDone ? "completed deliverable" : "working on"} &ldquo;{t.title}&rdquo;</span>
-                    </p>
-                  </div>
-                  {t.deadline && <span className="font-mono text-[11px] text-[#667085] dark:text-[#8B95A5] shrink-0">{fmtDate(t.deadline)}</span>}
+          <div className="space-y-1 text-xs">
+            {tasks.length > 0 ? (
+              tasks.slice(0, 2).map((t: any) => (
+                <div key={t.id} className="truncate text-muted-foreground">
+                  <strong className="text-foreground font-semibold">{t.assigneeName || "Member"}</strong>: {t.title}
                 </div>
-              );
-            })}
+              ))
+            ) : (
+              <p className="text-muted-foreground italic">No recent activity recorded.</p>
+            )}
           </div>
-        )}
-      </OvCard>
+        </OvCard>
+      </div>
     </div>
   );
 }

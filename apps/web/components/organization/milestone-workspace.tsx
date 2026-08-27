@@ -178,34 +178,34 @@ export function MilestoneWorkspace({
         aria-label={`Milestone workspace: ${milestone.name}`}
         className="
           relative w-full sm:max-w-2xl max-h-[95dvh] sm:max-h-[88dvh]
-          bg-[#171717] border border-[#292929] rounded-t-2xl sm:rounded-2xl
-          shadow-2xl flex flex-col overflow-hidden
+          bg-card border border-border rounded-t-2xl sm:rounded-2xl
+          shadow-2xl flex flex-col overflow-hidden text-foreground font-sans text-xs
         "
       >
         {/* ── header ── */}
-        <div className="shrink-0 px-5 pt-5 pb-4 border-b border-[#292929]">
+        <div className="shrink-0 px-5 pt-5 pb-4 border-b border-border bg-card/60 backdrop-blur-md">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-semibold text-[#858585] uppercase tracking-widest">
+                <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest">
                   Stage {milestone.stageNumber ?? "—"}
                 </span>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md uppercase tracking-wider ${getMilestoneStateBadgeClass(rawState)}`}>
+                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md uppercase tracking-wider ${getMilestoneStateBadgeClass(rawState)}`}>
                   {formatEnumLabel(rawState, "LOCKED")}
                 </span>
               </div>
-              <h2 className="text-[17px] font-bold text-[#F5F5F5] leading-tight mt-1 truncate">
+              <h2 className="text-base font-extrabold text-foreground leading-tight mt-1 truncate">
                 {milestone.name}
               </h2>
               {milestone.description && (
-                <p className="text-xs text-[#858585] mt-0.5 line-clamp-2">{milestone.description}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{milestone.description}</p>
               )}
             </div>
             <button
               type="button"
               onClick={onClose}
               aria-label="Close milestone workspace"
-              className="shrink-0 p-1.5 rounded-lg text-[#858585] hover:text-[#F5F5F5] hover:bg-[#222222] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E3AA18]"
+              className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -214,13 +214,24 @@ export function MilestoneWorkspace({
           {/* tabs */}
           <div className="flex items-center gap-2 mt-4 flex-wrap">
             {(["overview", "upload", "verification", "history"] as Tab[]).map(t => (
-              <TabBtn key={t} label={t.charAt(0).toUpperCase() + t.slice(1)} active={tab === t} onClick={() => setTab(t)} />
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTab(t)}
+                className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                  tab === t
+                    ? "bg-[#C9A52A] text-[#0B0D10] font-extrabold shadow-2xs"
+                    : "border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </button>
             ))}
           </div>
         </div>
 
         {/* ── scrollable body ── */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4" style={{ scrollbarWidth: "none" }}>
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
           {/* ─ OVERVIEW ─ */}
           {tab === "overview" && (
@@ -230,14 +241,14 @@ export function MilestoneWorkspace({
                 {[
                   { label: "Status",    value: formatEnumLabel(rawState, "Locked") },
                   { label: "Stage",     value: milestone.stageNumber ? `Stage ${milestone.stageNumber}` : "Additional" },
-                  { label: "Owner",     value: milestone.ownerName || milestone.ownerUserId || "Assigned" },
+                  { label: "Owner",     value: milestone.ownerName || (milestone.ownerUserId && !milestone.ownerUserId.includes("-") ? milestone.ownerUserId : "Assigned Leader") },
                   { label: "Deadline",  value: milestone.deadline ? new Date(milestone.deadline).toLocaleDateString() : "Flexible" },
                   { label: "Document",  value: milestone.document ? `v${milestone.document.currentVersion}` : "Not uploaded" },
                   { label: "Depends on", value: milestone.dependencies?.length ? milestone.dependencies.map((d: number) => `Stage ${d}`).join(", ") : "None" },
                 ].map(({ label, value }) => (
-                  <div key={label} className="p-3 rounded-xl bg-[#111111] border border-[#2A2A2A]">
-                    <span className="text-[10px] font-semibold text-[#858585] uppercase tracking-widest block mb-0.5">{label}</span>
-                    <span className="font-semibold text-[#F5F5F5]">{value}</span>
+                  <div key={label} className="p-3 rounded-xl bg-background border border-border">
+                    <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest block mb-0.5">{label}</span>
+                    <span className="font-bold text-foreground">{value}</span>
                   </div>
                 ))}
               </div>
