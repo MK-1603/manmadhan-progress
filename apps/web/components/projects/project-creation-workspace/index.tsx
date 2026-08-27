@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-context";
 import apiClient from "@/lib/api-client";
 import {
   ArrowLeft, Lock, AlertCircle, FileText,
-  LayoutTemplate, Sliders, Layers, Check, AlertTriangle
+  LayoutTemplate, Sliders, Layers, Check, AlertTriangle, ChevronRight
 } from "lucide-react";
 
 import { PromptMode } from "./prompt-mode";
@@ -22,6 +22,9 @@ interface ProjectCreationWorkspaceProps {
   basePath?: string;
 }
 
+type CreationStage = "METHOD" | "ASSIGNMENT" | "REVIEW";
+type CreationMode = "PROMPT" | "TEMPLATE" | "MANUAL";
+
 export function ProjectCreationWorkspace({
   userRole: initialRole,
   basePath: initialBasePath,
@@ -32,202 +35,173 @@ export function ProjectCreationWorkspace({
   const userRole = (initialRole || user?.role || "CEO").toUpperCase();
   const basePath = initialBasePath || (userRole === "CO-CEO" ? "/co-ceo" : "/ceo");
 
-  // ── STAGE CONTROL: METHOD -> ASSIGNMENT -> REVIEW ──────────────────────────
-  const [stage, setStage] = useState<"METHOD" | "ASSIGNMENT" | "REVIEW">("METHOD");
+  // ── 1. GLOBAL STAGE & METHOD CONTROL ─────────────────────────────────────
+  const [stage, setStage] = useState<CreationStage>("METHOD");
+  const [mode, setMode] = useState<CreationMode | null>(null);
+  const [pendingMode, setPendingMode] = useState<CreationMode | null>(null);
 
-  // ── MODE CONTROL & SUBSTEPS ───────────────────────────────────────────────
-  const [mode, setMode] = useState<"PROMPT" | "TEMPLATE" | "MANUAL">("PROMPT");
-  const [pendingMode, setPendingMode] = useState<"PROMPT" | "TEMPLATE" | "MANUAL" | null>(null);
-
-  // Substeps per mode
+  // Substep per mode
   const [promptSubstep, setPromptSubstep] = useState<"DESCRIBE" | "UNDERSTAND" | "REFINE">("DESCRIBE");
   const [templateSubstep, setTemplateSubstep] = useState<"CHOOSE" | "CONFIGURE">("CHOOSE");
   const [manualSubstep, setManualSubstep] = useState<"INFORMATION" | "CONTROLS" | "REQUIREMENTS">("INFORMATION");
 
-  // ── NORMALIZED PROJECT DRAFT STATE ─────────────────────────────────────────
+  // ── 2. NORMALIZED DRAFT STATE (INITIALIZED EMPTY — NO DEMO DEFAULTS!) ──────
   const [promptText, setPromptText] = useState("");
-  const [selectedTemplateId, setSelectedTemplateId] = useState("software-product");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("Product Engineering");
-  const [priority, setPriority] = useState<"Critical" | "High" | "Medium" | "Low">("High");
+  const [category, setCategory] = useState("");
+  const [priority, setPriority] = useState<"Critical" | "High" | "Medium" | "Low">("Medium");
   const [deadline, setDeadline] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
   const [toolsText, setToolsText] = useState("");
 
-  const [requirementsText, setRequirementsText] = useState("PRD Document, Technical Specs, Security Audit");
-  const [deliverablesText, setDeliverablesText] = useState("Working Application, Connected Repository, Test Suite");
-  const [successCriteriaText, setSuccessCriteriaText] = useState("Passed E2E testing, zero critical vulnerabilities");
+  const [requirementsText, setRequirementsText] = useState("");
+  const [deliverablesText, setDeliverablesText] = useState("");
+  const [successCriteriaText, setSuccessCriteriaText] = useState("");
 
-  // Prompt arrays state
-  const [requirements, setRequirements] = useState<string[]>(["PRD Document", "Technical Specs", "Security Audit"]);
-  const [deliverables, setDeliverables] = useState<string[]>(["Working Application", "Connected Repository", "Test Suite"]);
-  const [successCriteria, setSuccessCriteria] = useState<string[]>(["Passed E2E testing, zero critical vulnerabilities"]);
+  const [requirements, setRequirements] = useState<string[]>([]);
+  const [deliverables, setDeliverables] = useState<string[]>([]);
+  const [successCriteria, setSuccessCriteria] = useState<string[]>([]);
 
-  // ── STEP 2: EXECUTION ASSIGNMENT STATE (UNASSIGNED BY DEFAULT) ──────────────
+  // ── 3. ASSIGNMENT STATE (INITIALIZED UNASSIGNED!) ──────────────────────────
   const [selectedCoCeoId, setSelectedCoCeoId] = useState("");
   const [selectedExecutionLeadId, setSelectedExecutionLeadId] = useState("");
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
   const [requirementAssignees, setRequirementAssignees] = useState<Record<string, string>>({});
 
-  // ── UI / LOADING / SUCCESS 3D OVERLAY STATES ──────────────────────────────
+  // ── 4. UI / SUBMISSION / SUCCESS OVERLAY STATES ───────────────────────────
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null);
 
-  // ── ORG MEMBERS DATA ───────────────────────────────────────────────────────
+  // ── 5. ORGANIZATION DATA (REAL API DATA) ──────────────────────────────────
   const [coCeoList, setCoCeoList] = useState<MemberOption[]>([]);
   const [memberList, setMemberList] = useState<MemberOption[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
 
+  // Fetch real assignees on mount
   useEffect(() => {
     async function fetchAssignees() {
-      let fetchedCoCeos: MemberOption[] = [];
-      let fetchedMembers: MemberOption[] = [];
-
+      setLoadingMembers(true);
       try {
         const res = await apiClient.get("/org/projects/eligible-assignees");
-        if (Array.isArray(res.data?.coCeos) && res.data.coCeos.length > 0) {
-          fetchedCoCeos = res.data.coCeos;
-        }
-        if (Array.isArray(res.data?.members) && res.data.members.length > 0) {
-          fetchedMembers = res.data.members;
-        }
+        if (Array.isArray(res.data?.coCeos)) setCoCeoList(res.data.coCeos);
+        if (Array.isArray(res.data?.members)) setMemberList(res.data.members);
       } catch (err) {
-        console.warn("Eligible assignees fetch failed, using fallbacks...", err);
+        console.warn("Failed to fetch assignees:", err);
+      } finally {
+        setLoadingMembers(false);
       }
-
-      if (fetchedCoCeos.length === 0) {
-        try {
-          const coCeoRes = await apiClient.get("/organization/co-ceos");
-          const list = coCeoRes.data?.coCeos || coCeoRes.data?.data || [];
-          if (Array.isArray(list) && list.length > 0) {
-            fetchedCoCeos = list.map((item: any) => ({
-              id: item.id || item.userId,
-              name: item.displayName || item.name || item.email || "CO-CEO Lead",
-              email: item.email || "",
-              role: item.role || "CO-CEO",
-            }));
-          }
-        } catch (err) {
-          console.warn("CO-CEO fallback fetch failed:", err);
-        }
-      }
-
-      if (fetchedMembers.length === 0) {
-        try {
-          const memRes = await apiClient.get("/organization/members");
-          const list = memRes.data?.members || memRes.data?.data || [];
-          if (Array.isArray(list) && list.length > 0) {
-            fetchedMembers = list.map((item: any) => ({
-              id: item.id || item.userId,
-              name: item.displayName || item.name || item.email || "Team Member",
-              email: item.email || "",
-              role: item.role || "MEMBER",
-            }));
-          }
-        } catch (err) {
-          console.warn("Members fallback fetch failed:", err);
-        }
-      }
-
-      if (fetchedCoCeos.length > 0) setCoCeoList(fetchedCoCeos);
-      if (fetchedMembers.length > 0) setMemberList(fetchedMembers);
     }
     fetchAssignees();
   }, []);
 
-  // Initialize default template draft on mount
-  useEffect(() => {
-    const defaultTemplate = PROJECT_TEMPLATES.find((t) => t.id === "software-product") || PROJECT_TEMPLATES[0];
-    if (defaultTemplate && !title) {
-      setTitle(defaultTemplate.title);
-      setDescription(defaultTemplate.subtitle);
-      setCategory(defaultTemplate.category);
-      setToolsText(defaultTemplate.tools.join(", "));
-    }
-  }, [title]);
+  // Clean Draft Reset Helper
+  const resetDraft = useCallback(() => {
+    setPromptText("");
+    setSelectedTemplateId("");
+    setTitle("");
+    setDescription("");
+    setCategory("");
+    setPriority("Medium");
+    setDeadline("");
+    setGithubUrl("");
+    setToolsText("");
+    setRequirementsText("");
+    setDeliverablesText("");
+    setSuccessCriteriaText("");
+    setRequirements([]);
+    setDeliverables([]);
+    setSuccessCriteria([]);
+  }, []);
 
-  // Handle Mode Change Request with Confirmation Warning
-  const handleRequestModeChange = (targetMode: "PROMPT" | "TEMPLATE" | "MANUAL") => {
+  // Handle Mode Change with Confirmation Dialog if Dirty
+  const handleRequestModeChange = (targetMode: CreationMode) => {
     if (targetMode === mode) return;
-    if (title || promptText) {
+    const isDirty = !!(title || promptText || requirements.length > 0);
+    if (isDirty) {
       setPendingMode(targetMode);
     } else {
       setMode(targetMode);
+      if (targetMode === "PROMPT") setPromptSubstep("DESCRIBE");
+      if (targetMode === "TEMPLATE") setTemplateSubstep("CHOOSE");
+      if (targetMode === "MANUAL") setManualSubstep("INFORMATION");
     }
   };
 
   const handleConfirmModeSwitch = () => {
     if (pendingMode) {
+      resetDraft();
       setMode(pendingMode);
       setPendingMode(null);
-      if (pendingMode === "PROMPT") {
-        setPromptSubstep("DESCRIBE");
-      } else if (pendingMode === "TEMPLATE") {
-        setTemplateSubstep("CHOOSE");
-      } else if (pendingMode === "MANUAL") {
-        setManualSubstep("INFORMATION");
-      }
+      if (pendingMode === "PROMPT") setPromptSubstep("DESCRIBE");
+      if (pendingMode === "TEMPLATE") setTemplateSubstep("CHOOSE");
+      if (pendingMode === "MANUAL") setManualSubstep("INFORMATION");
     }
   };
 
-  // Selected CO-CEO Name
+  // Selected Names Derived from Real State
   const selectedCoCeoName = useMemo(() => {
     const found = coCeoList.find((c) => c.id === selectedCoCeoId);
     return found ? found.name : "Not assigned";
   }, [coCeoList, selectedCoCeoId]);
 
-  // Selected Execution Lead Name
   const selectedExecutionLeadName = useMemo(() => {
     const found = memberList.find((m) => m.id === selectedExecutionLeadId);
     return found ? found.name : "Not assigned";
   }, [memberList, selectedExecutionLeadId]);
 
-  // Handle Template Selection (Only structure, NEVER people!)
+  // Handle Template Selection (Populates structure only, NEVER people!)
   const handleSelectTemplate = (template: ProjectTemplate) => {
     setSelectedTemplateId(template.id);
     setTitle(template.title);
     setDescription(template.subtitle);
     setCategory(template.category);
     setToolsText(template.tools.join(", "));
-    setRequirementsText(template.documents.join(", "));
     setRequirements(template.documents);
   };
 
-  // Handle Confirm Project Creation Transaction
+  // Central Draft Validation
+  const validateDraft = (): string | null => {
+    if (!title.trim()) return "Project title is required.";
+    if (!description.trim()) return "Project objective/description is required.";
+    return null;
+  };
+
+  // Handle Confirm Launch API Submission
   const handleConfirmLaunch = async () => {
+    const validationError = validateDraft();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const finalTitle = title.trim() || "New Organization Project";
-      const finalDesc = description.trim() || "Organization project mandate.";
-
+      // Clean payload structure matching backend /create-v2 request contract exactly
       const payload = {
-        name: finalTitle,
-        title: finalTitle,
-        description: finalDesc,
-        objective: finalDesc,
-        mandate: finalDesc,
-        category,
+        title: title.trim(),
+        name: title.trim(),
+        description: description.trim(),
+        mandate: description.trim(),
+        category: category.trim() || "General",
         priority,
         deadline: deadline || null,
-        targetDate: deadline || null,
-        githubUrl: githubUrl || null,
-        toolsText: toolsText || null,
+        githubUrl: githubUrl.trim() || null,
+        toolsText: toolsText.trim() || null,
         requirements,
         deliverables,
         successCriteria,
+        creationMode: mode || "MANUAL",
 
-        // Ownership Governance (Server-enforced CEO)
-        ownerId: "CEO",
-        ownerRole: "CEO",
-
-        // Execution & Assignment Resolution
-        coCeoInChargeId: selectedCoCeoId || null,
+        // Execution Leads (Independent — NO FALLBACK!)
         responsibleCoCeoId: selectedCoCeoId || null,
-        assignedToUserId: selectedExecutionLeadId || selectedCoCeoId || null,
+        coCeoInChargeId: selectedCoCeoId || null,
+        assignedToUserId: selectedExecutionLeadId || null,
         executionLeadId: selectedExecutionLeadId || null,
         memberUserIds: selectedMemberIds,
         memberIds: selectedMemberIds,
@@ -238,18 +212,23 @@ export function ProjectCreationWorkspace({
       const res = await apiClient.post(`/org/projects/create-v2${wsId ? `?workspaceId=${wsId}` : ""}`, payload);
 
       if (res.data?.success || res.data?.projectId || res.data?.data?.id) {
-        const createdId = res.data.projectId || res.data?.data?.id || res.data?.project?.id || "recent";
-        setCreatedProjectId(createdId);
+        const serverId = res.data.projectId || res.data?.data?.id || res.data?.project?.id;
+        if (!serverId) {
+          setError("Server returned success without a valid project ID.");
+          return;
+        }
 
-        // Subtle 3D Success Experience for 1.5 seconds, then open Project Details!
+        setCreatedProjectId(serverId);
+
+        // Subtle 3D Success Overlay for 1.5s, then navigate to real Project Details
         setTimeout(() => {
-          router.push(`${basePath}/projects/${createdId}`);
+          router.push(`${basePath}/projects/${serverId}`);
         }, 1600);
       } else {
-        setError(res.data?.error || "Unable to create project. Please review assignment fields and retry.");
+        setError(res.data?.error || "Unable to create project. Please review fields and retry.");
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || "Project creation failed. Please check backend connection.");
+      setError(err?.response?.data?.error || "Project creation failed. Please check connection.");
     } finally {
       setIsSubmitting(false);
     }
@@ -319,11 +298,11 @@ export function ProjectCreationWorkspace({
         {/* ── CENTER WORKSPACE REGION (8 Columns) ────────────────────────────────── */}
         <div className="lg:col-span-8 flex flex-col h-full overflow-hidden border-r border-border/50">
           
-          {/* Mode Selector Segmented Control (Visible in Step 01 METHOD) */}
-          {stage === "METHOD" && (
+          {/* Segmented Mode Selector (Visible in Step 01 METHOD when mode is selected) */}
+          {stage === "METHOD" && mode && (
             <div className="px-4 sm:px-6 pt-4 shrink-0 space-y-2">
               <span className="text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">
-                Choose Creation Method:
+                Creation Method:
               </span>
               <div className="p-1 rounded-xl bg-card border border-border grid grid-cols-3 gap-1 shadow-xs">
                 <button
@@ -374,8 +353,71 @@ export function ProjectCreationWorkspace({
               </div>
             )}
 
-            {/* Step 1 Mode Views */}
-            {stage === "METHOD" && (
+            {/* INITIAL SELECTION CARDS SCREEN (Step 01 METHOD before mode selection) */}
+            {stage === "METHOD" && !mode && (
+              <div className="space-y-4 max-w-2xl mx-auto py-6">
+                <div className="text-center space-y-1">
+                  <h3 className="text-sm font-extrabold text-foreground">Choose Creation Method</h3>
+                  <p className="text-xs text-muted-foreground">Select how you want to construct this project mandate.</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("PROMPT");
+                      setPromptSubstep("DESCRIBE");
+                    }}
+                    className="p-5 rounded-2xl bg-card border border-border hover:border-[#C9A52A] transition-all text-left space-y-3 cursor-pointer group shadow-2xs"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-foreground text-xs group-hover:text-[#C9A52A] transition-colors">Prompt Based</h4>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">Describe what you want to create in natural language.</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("TEMPLATE");
+                      setTemplateSubstep("CHOOSE");
+                    }}
+                    className="p-5 rounded-2xl bg-card border border-border hover:border-[#C9A52A] transition-all text-left space-y-3 cursor-pointer group shadow-2xs"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <LayoutTemplate className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-foreground text-xs group-hover:text-[#C9A52A] transition-colors">Template Based</h4>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">Start from a predefined organizational framework.</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("MANUAL");
+                      setManualSubstep("INFORMATION");
+                    }}
+                    className="p-5 rounded-2xl bg-card border border-border hover:border-[#C9A52A] transition-all text-left space-y-3 cursor-pointer group shadow-2xs"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <Sliders className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-foreground text-xs group-hover:text-[#C9A52A] transition-colors">Manual Setup</h4>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">Directly enter project details and scope controls.</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Mode-Specific Substep View */}
+            {stage === "METHOD" && mode && (
               <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border shadow-xs">
                 {mode === "PROMPT" && (
                   <PromptMode
@@ -498,22 +540,23 @@ export function ProjectCreationWorkspace({
             )}
           </div>
 
-          {/* Fixed Action Bar at Bottom */}
+          {/* Fixed Bottom Action Bar */}
           <div className="h-14 shrink-0 border-t border-border bg-card/90 backdrop-blur-md px-6 flex items-center justify-between z-20 text-xs">
             <button
               type="button"
               onClick={() => {
                 if (stage === "REVIEW") setStage("ASSIGNMENT");
                 else if (stage === "ASSIGNMENT") setStage("METHOD");
+                else if (mode) setMode(null);
                 else router.push(`${basePath}/projects`);
               }}
               className="px-4 py-2 rounded-xl border border-border text-foreground hover:bg-muted font-bold cursor-pointer transition-colors"
             >
-              {stage === "METHOD" ? "Cancel" : "← Back"}
+              {stage === "METHOD" && !mode ? "Cancel" : "← Back"}
             </button>
 
             <div className="flex items-center gap-2">
-              {stage === "METHOD" && (
+              {stage === "METHOD" && mode && (
                 <button
                   type="button"
                   onClick={() => setStage("ASSIGNMENT")}
@@ -553,9 +596,6 @@ export function ProjectCreationWorkspace({
             <span className="text-[11px] font-extrabold text-[#C9A52A] uppercase tracking-wider flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5" /> Project Draft Summary
             </span>
-            <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground font-mono text-[10px] font-bold">
-              Live State
-            </span>
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 text-xs">
@@ -564,7 +604,7 @@ export function ProjectCreationWorkspace({
               <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider block">Project Draft</span>
               <h4 className="font-extrabold text-foreground text-xs">{title || "Untitled Project"}</h4>
               <div className="flex items-center gap-2 pt-1 text-[10.5px]">
-                <span className="px-2 py-0.5 rounded bg-secondary text-muted-foreground font-bold">{category}</span>
+                <span className="px-2 py-0.5 rounded bg-secondary text-muted-foreground font-bold">{category || "Unassigned"}</span>
                 <span className="font-bold text-amber-500">{priority}</span>
               </div>
             </div>
@@ -606,10 +646,6 @@ export function ProjectCreationWorkspace({
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground font-semibold">Requirements</span>
                 <span className="font-mono font-bold text-foreground">{requirements.length} items</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-muted-foreground font-semibold">Document Requirements</span>
-                <span className="font-mono font-bold text-foreground">8 Requirements</span>
               </div>
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-muted-foreground font-semibold">Initial Storage</span>
@@ -656,7 +692,6 @@ export function ProjectCreationWorkspace({
       {/* ── 3. SUBTLE 3D SUCCESS ANIMATION OVERLAY ────────────────────────────────── */}
       {createdProjectId && (
         <div className="fixed inset-0 z-50 bg-background/90 backdrop-blur-md flex flex-col items-center justify-center space-y-4 animate-in fade-in duration-300">
-          {/* Subtle 3D Rotating Mesh / Checkmark Assembly */}
           <div className="relative w-24 h-24 flex items-center justify-center">
             <div className="absolute inset-0 rounded-3xl border-2 border-[#C9A52A] animate-[spin_6s_linear_infinite] shadow-[0_0_25px_rgba(201,165,42,0.2)]" />
             <div className="absolute inset-2 rounded-2xl border-2 border-[#C9A52A]/40 animate-[spin_4s_linear_infinite_reverse]" />
