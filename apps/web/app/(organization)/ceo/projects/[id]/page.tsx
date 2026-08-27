@@ -1359,53 +1359,288 @@ function ActivityTab({ activity }: { activity: any[] }) {
   );
 }
 
-function SettingsTab({ project, onArchive, onDelete }: { project: any; onArchive: () => void; onDelete: () => void }) {
+function SettingsTab({
+  project,
+  onUpdate,
+  onArchive,
+  onDelete,
+}: {
+  project: any;
+  onUpdate: (updated: { name: string; description: string; priority: string; deadline: string }) => Promise<void>;
+  onArchive: () => void;
+  onDelete: () => void;
+}) {
+  const [section, setSection] = useState<"general" | "execution" | "access" | "integrations" | "danger">("general");
+  const [name, setName] = useState(project.name || "");
+  const [description, setDescription] = useState(project.description || "");
+  const [priority, setPriority] = useState(project.priority || "Medium");
+  const [deadline, setDeadline] = useState(project.deadline ? new Date(project.deadline).toISOString().split("T")[0] : "");
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setSaveSuccess(false);
+    try {
+      await onUpdate({ name, description, priority, deadline });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (_err) {
+      // Error handled in parent
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="space-y-6 font-sans max-w-2xl">
-      <div className="p-5 rounded-2xl bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-4">
-        <div className="border-b border-[#E4E7EC] dark:border-[#272D36] pb-3">
-          <h3 className="text-sm font-bold text-[#17202A] dark:text-[#F2F4F7]">Project Governance & Ownership</h3>
-          <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5]">System ownership rules and execution management settings.</p>
-        </div>
-
-        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between">
-          <div className="space-y-0.5">
-            <span className="font-bold uppercase tracking-wider text-[10px]">Project Owner Rule</span>
-            <p className="text-[11.5px]">Every organization project is owned by the CEO.</p>
-          </div>
-          <span className="px-2.5 py-1 rounded bg-[#C9A52A] text-black font-extrabold text-[10.5px]">CEO 🔒</span>
-        </div>
-
-        <div className="space-y-3 text-xs">
-          <div>
-            <label className="font-bold text-[#17202A] dark:text-[#F2F4F7] block mb-1">Project Name</label>
-            <input type="text" value={project.name} disabled className="w-full h-10 px-3 bg-[#F8F9FB] dark:bg-[#0B0E12] border border-[#E4E7EC] dark:border-[#272D36] rounded-xl text-[#17202A] dark:text-[#F2F4F7]" />
-          </div>
-
-          <div>
-            <label className="font-bold text-[#17202A] dark:text-[#F2F4F7] block mb-1">Priority Level</label>
-            <span className="px-3 py-1.5 rounded-xl bg-[#F8F9FB] dark:bg-[#0B0E12] border border-[#E4E7EC] dark:border-[#272D36] inline-block font-bold text-[#C9A52A]">{project.priority || "Medium"} Priority</span>
-          </div>
-        </div>
+    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 font-sans text-xs">
+      {/* Settings Navigation Sidebar */}
+      <div className="md:col-span-3 space-y-1">
+        <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest block px-3 py-1">
+          Settings Console
+        </span>
+        {[
+          { id: "general", label: "General", icon: BookOpen },
+          { id: "execution", label: "Execution", icon: Layers },
+          { id: "access", label: "Access & RBAC", icon: Shield },
+          { id: "integrations", label: "Integrations", icon: Github },
+          { id: "danger", label: "Danger Zone", icon: AlertTriangle },
+        ].map((item) => {
+          const Icon = item.icon;
+          const active = section === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setSection(item.id as any)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-bold transition-all text-left cursor-pointer ${
+                active
+                  ? "bg-[#C9A52A]/10 text-[#C9A52A] border border-[#C9A52A]/20"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      <div className="p-5 rounded-2xl bg-[#FFFFFF] dark:bg-[#15191F] border border-rose-500/20 space-y-4">
-        <h3 className="text-sm font-bold text-rose-600 dark:text-rose-400">Danger Zone</h3>
-        <div className="flex items-center justify-between pt-2 border-t border-[#E4E7EC] dark:border-[#272D36]">
-          <div>
-            <p className="font-bold text-xs text-[#17202A] dark:text-[#F2F4F7]">Archive Project</p>
-            <p className="text-[11px] text-[#667085]">Mark project as read-only archived status.</p>
-          </div>
-          <button onClick={onArchive} className="px-3.5 py-1.5 rounded-xl border border-amber-500/40 text-amber-600 dark:text-amber-400 font-bold text-xs hover:bg-amber-500/10 cursor-pointer">Archive</button>
-        </div>
+      {/* Settings Content Area */}
+      <div className="md:col-span-9 space-y-4">
+        {section === "general" && (
+          <form onSubmit={handleSave} className="p-5 rounded-2xl bg-card border border-border space-y-4">
+            <div className="border-b border-border pb-3">
+              <h3 className="text-sm font-extrabold text-foreground">General Project Details</h3>
+              <p className="text-muted-foreground text-xs">Update project name, description, priority, and target deadline.</p>
+            </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-[#E4E7EC] dark:border-[#272D36]">
-          <div>
-            <p className="font-bold text-xs text-rose-600 dark:text-rose-400">Delete Project</p>
-            <p className="text-[11px] text-[#667085]">Permanently delete project and associated records.</p>
+            {saveSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 font-bold flex items-center gap-2 text-xs">
+                <Check className="w-4 h-4" />
+                <span>Project details updated successfully.</span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="font-bold text-foreground block mb-1">Project Name</label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full h-10 px-3.5 bg-background border border-border rounded-xl text-foreground font-medium outline-none focus:border-[#C9A52A]"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-foreground block mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full p-3 bg-background border border-border rounded-xl text-foreground font-medium outline-none focus:border-[#C9A52A] resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-foreground block mb-1">Priority Level</label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-foreground font-bold outline-none focus:border-[#C9A52A]"
+                  >
+                    <option value="Low">Low Priority</option>
+                    <option value="Medium">Medium Priority</option>
+                    <option value="High">High Priority</option>
+                    <option value="Urgent">Urgent Priority</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-foreground block mb-1">Target Deadline</label>
+                  <input
+                    type="date"
+                    value={deadline}
+                    onChange={(e) => setDeadline(e.target.value)}
+                    className="w-full h-10 px-3 bg-background border border-border rounded-xl text-foreground font-bold outline-none focus:border-[#C9A52A]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-border flex justify-end">
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-4 py-2 rounded-xl bg-[#C9A52A] text-[#0B0D10] text-xs font-extrabold hover:brightness-105 transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Save Changes</span>
+              </button>
+            </div>
+          </form>
+        )}
+
+        {section === "execution" && (
+          <div className="p-5 rounded-2xl bg-card border border-border space-y-4">
+            <div className="border-b border-border pb-3">
+              <h3 className="text-sm font-extrabold text-foreground">Execution & Governance</h3>
+              <p className="text-muted-foreground text-xs">Current project hierarchy, ownership rules, and member structure.</p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-xl bg-background border border-border flex items-center justify-between">
+                <div>
+                  <span className="text-muted-foreground font-semibold block">Project Owner</span>
+                  <span className="font-extrabold text-foreground">{project.ownerName || project.owner || "CEO"}</span>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg bg-[#C9A52A]/10 text-[#C9A52A] font-extrabold">CEO</span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-background border border-border flex items-center justify-between">
+                <div>
+                  <span className="text-muted-foreground font-semibold block">Execution Lead</span>
+                  <span className="font-extrabold text-foreground">{project.executionLead?.name || "Not assigned"}</span>
+                </div>
+                <span className="text-muted-foreground font-mono">{project.executionLead ? "CO-CEO Lead" : "Unassigned"}</span>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-background border border-border flex items-center justify-between">
+                <div>
+                  <span className="text-muted-foreground font-semibold block">Assigned Members</span>
+                  <span className="font-extrabold text-foreground font-mono">{(project.members || project.team || []).length} members</span>
+                </div>
+                <span className="text-muted-foreground font-mono font-bold">Scoped Access</span>
+              </div>
+            </div>
           </div>
-          <button onClick={onDelete} className="px-3.5 py-1.5 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 cursor-pointer">Delete Project</button>
-        </div>
+        )}
+
+        {section === "access" && (
+          <div className="p-5 rounded-2xl bg-card border border-border space-y-4">
+            <div className="border-b border-border pb-3">
+              <h3 className="text-sm font-extrabold text-foreground">Project Access & Visibility (RBAC)</h3>
+              <p className="text-muted-foreground text-xs">Database-level visibility rules for this workspace project.</p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 space-y-2">
+              <span className="font-extrabold uppercase tracking-wider text-[10px] block">Private Project Access Policy</span>
+              <p className="text-xs leading-relaxed">
+                This project is private by default. Access is strictly enforced at the backend database authorization layer.
+              </p>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="p-3 rounded-xl bg-background border border-border flex justify-between">
+                <span className="font-bold text-foreground">CEO</span>
+                <span className="text-emerald-500 font-bold">Full View & Management</span>
+              </div>
+              <div className="p-3 rounded-xl bg-background border border-border flex justify-between">
+                <span className="font-bold text-foreground">Assigned CO-CEO</span>
+                <span className="text-emerald-500 font-bold">Authorized Project Access</span>
+              </div>
+              <div className="p-3 rounded-xl bg-background border border-border flex justify-between">
+                <span className="font-bold text-foreground">Assigned Members</span>
+                <span className="text-blue-500 font-bold">Explicit Task/Milestone Scope</span>
+              </div>
+              <div className="p-3 rounded-xl bg-background border border-border flex justify-between">
+                <span className="font-bold text-foreground">Unassigned Organization Members</span>
+                <span className="text-rose-500 font-bold">No Access (404 Hidden)</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {section === "integrations" && (
+          <div className="p-5 rounded-2xl bg-card border border-border space-y-4">
+            <div className="border-b border-border pb-3">
+              <h3 className="text-sm font-extrabold text-foreground">Connected Integrations</h3>
+              <p className="text-muted-foreground text-xs">Manage external GitHub repositories and platform connections.</p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-background border border-border flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Github className="w-5 h-5 text-foreground" />
+                <div>
+                  <h4 className="font-extrabold text-foreground">GitHub Integration</h4>
+                  <p className="text-muted-foreground text-[11px]">
+                    {project.github?.connected || project.github?.repoName
+                      ? `Connected to ${project.github?.owner}/${project.github?.repoName || "repository"}`
+                      : "No repository connected yet."}
+                  </p>
+                </div>
+              </div>
+              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold ${
+                project.github?.connected || project.github?.repoName
+                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                  : "bg-muted text-muted-foreground"
+              }`}>
+                {project.github?.connected || project.github?.repoName ? "Connected" : "Not Connected"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {section === "danger" && (
+          <div className="p-5 rounded-2xl bg-card border border-rose-500/30 space-y-4">
+            <div className="border-b border-border pb-3">
+              <h3 className="text-sm font-extrabold text-rose-500">Danger Zone</h3>
+              <p className="text-muted-foreground text-xs">Destructive actions for this project workspace.</p>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-border">
+              <div>
+                <p className="font-extrabold text-xs text-foreground">Archive Project</p>
+                <p className="text-muted-foreground text-[11px]">Mark project as read-only archived status.</p>
+              </div>
+              <button
+                type="button"
+                onClick={onArchive}
+                className="px-3.5 py-1.5 rounded-xl border border-amber-500/40 text-amber-500 font-bold text-xs hover:bg-amber-500/10 cursor-pointer"
+              >
+                Archive
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-border">
+              <div>
+                <p className="font-extrabold text-xs text-rose-500">Delete Project</p>
+                <p className="text-muted-foreground text-[11px]">Permanently remove project and all associated records.</p>
+              </div>
+              <button
+                type="button"
+                onClick={onDelete}
+                className="px-3.5 py-1.5 rounded-xl bg-rose-600 text-white font-extrabold text-xs hover:bg-rose-700 cursor-pointer shadow-2xs"
+              >
+                Delete Project
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1917,6 +2152,10 @@ export default function ProjectWorkspacePage() {
           {activeTab === "SETTINGS" && (
             <SettingsTab
               project={project}
+              onUpdate={async (updated) => {
+                await apiClient.patch(`/org/projects/${projectId}`, updated);
+                await fetchProjectDetails();
+              }}
               onArchive={handleArchiveProject}
               onDelete={() => setShowDeleteModal(true)}
             />
