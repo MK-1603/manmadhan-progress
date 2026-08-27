@@ -1,9 +1,11 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { type Request, type Response, Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "../../database/client";
 import {
+	projectAssignments,
 	projectGithub,
+	projectMembers,
 	projects,
 	workspaceMembers,
 } from "../../database/schema";
@@ -17,35 +19,70 @@ githubRouter.use(authenticate);
 async function requireProjectMembership(req: Request, projectId: string) {
 	const user = (req as any).user;
 	const userId = user?.id;
+	if (!userId) {
+		return { ok: false as const, status: 401, error: "Authentication required" };
+	}
+
 	const [project] = await db
-		.select({ workspaceId: projects.workspaceId })
+		.select({
+			workspaceId: projects.workspaceId,
+			ownerId: projects.ownerId,
+			createdBy: projects.createdBy,
+			executionLeadId: projects.executionLeadId,
+		})
 		.from(projects)
 		.where(eq(projects.id, projectId))
 		.limit(1);
+
 	if (!project)
 		return { ok: false as const, status: 404, error: "Project not found" };
 
-	if (user?.role === "CEO" || user?.role === "CO-CEO" || user?.role === "ADMIN") {
+	if (user?.role === "CEO") {
 		return { ok: true as const, workspaceId: project.workspaceId || "default-workspace" };
 	}
 
-	const [membership] = await db
-		.select({ id: workspaceMembers.id })
-		.from(workspaceMembers)
+	if (project.ownerId === userId || project.createdBy === userId || project.executionLeadId === userId) {
+		return { ok: true as const, workspaceId: project.workspaceId || "default-workspace" };
+	}
+
+	const [assign] = await db
+		.select({ id: projectAssignments.id })
+		.from(projectAssignments)
 		.where(
 			and(
-				eq(workspaceMembers.workspaceId, project.workspaceId),
-				eq(workspaceMembers.userId, userId),
-			),
+				eq(projectAssignments.projectId, projectId),
+				or(
+					eq(projectAssignments.assignedToUserId, userId),
+					eq(projectAssignments.responsibleCoCeoId, userId)
+				)
+			)
 		)
 		.limit(1);
-	if (!membership)
-		return {
-			ok: false as const,
-			status: 403,
-			error: "You are not a member of this project workspace",
-		};
-	return { ok: true as const, workspaceId: project.workspaceId };
+
+	if (assign) {
+		return { ok: true as const, workspaceId: project.workspaceId || "default-workspace" };
+	}
+
+	const [member] = await db
+		.select({ id: projectMembers.id })
+		.from(projectMembers)
+		.where(
+			and(
+				eq(projectMembers.projectId, projectId),
+				eq(projectMembers.userId, userId)
+			)
+		)
+		.limit(1);
+
+	if (member) {
+		return { ok: true as const, workspaceId: project.workspaceId || "default-workspace" };
+	}
+
+	return {
+		ok: false as const,
+		status: 404,
+		error: "Project not found",
+	};
 }
 
 // ── GET Start OAuth Flow ──────────────────────────────────────────────────────
@@ -53,10 +90,20 @@ githubRouter.get("/oauth/start", async (req: Request, res: Response) => {
 	try {
 		const { slot = "ACCOUNT_A", state } = req.query;
 		const clientId = process.env.GITHUB_CLIENT_ID || process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID;
-		const redirectUri = process.env.GITHUB_REDIRECT_URI || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100"}/api/v1/github/oauth/callback`;
+		const redirectUri = process.env.GITHUB_REDIRECT_URI;
+
+		if (!redirectUri) {
+			return res.status(500).json({
+				success: false,
+				error: "Server configuration error: GITHUB_REDIRECT_URI is missing in environment variables.",
+			});
+		}
 
 		if (!clientId) {
-			return res.status(400).send("GitHub Client ID is not configured on the server.");
+			return res.status(500).json({
+				success: false,
+				error: "Server configuration error: GITHUB_CLIENT_ID is not configured.",
+			});
 		}
 
 		const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(

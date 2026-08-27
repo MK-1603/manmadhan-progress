@@ -1583,49 +1583,72 @@ export default function ProjectWorkspacePage() {
         </div>
 
         {/* ── DESKTOP HEADER (>= 768px) ───────────────────────────────────── */}
-        <div className="hidden md:block space-y-4">
-          <div className="flex items-center gap-1.5 text-[12px] font-medium text-[#667085] dark:text-[#8B95A5]">
-            <Link href={`${base}/projects`} className="hover:text-[#17202A] dark:hover:text-[#F2F4F7] transition-colors">
-              Projects
+        <div className="hidden md:block space-y-3">
+          {/* Row 1: Back Button & Compact Breadcrumb */}
+          <div className="flex items-center gap-3">
+            <Link
+              href={`${base}/projects`}
+              className="px-2.5 py-1 rounded-lg border border-border bg-card text-[#667085] hover:text-foreground text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+              title="Back to Projects"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back</span>
             </Link>
-            <ChevronRight className="w-3 h-3" />
-            <span className="text-[#17202A] dark:text-[#F2F4F7] font-semibold truncate">
-              {project.name}
-            </span>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+              <span>Projects</span>
+              <ChevronRight className="w-3 h-3" />
+              <span className="text-foreground font-bold truncate max-w-[300px]">
+                {project.name}
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-start justify-between gap-4 border-b border-[#E4E7EC] dark:border-[#272D36] pb-4">
+          {/* Row 2 & 3: Project Identity, Description, Metadata & Compact Progress */}
+          <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-3">
             <div className="space-y-1 min-w-0 flex-1">
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-[24px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
+                <h1 className="text-lg font-extrabold text-foreground tracking-tight leading-none">
                   {project.name}
                 </h1>
-                <span className={`px-2.5 py-0.5 rounded-full border text-[10.5px] font-semibold whitespace-nowrap ${project.status === "Active" || project.status === "ACTIVE"
-                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                    : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
-                  }`}>
+                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold whitespace-nowrap ${
+                  project.status === "Active" || project.status === "ACTIVE"
+                    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                    : "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                }`}>
                   ● {project.status || "Active"}
                 </span>
               </div>
+
               {project.description && (
-                <p className="text-[13px] text-[#667085] dark:text-[#8B95A5] max-w-2xl line-clamp-2">
+                <p className="text-xs text-muted-foreground line-clamp-1 max-w-3xl pt-0.5">
                   {project.description}
                 </p>
               )}
-              <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5] pt-0.5">
-                Owner: <strong className="text-[#17202A] dark:text-[#F2F4F7] font-semibold">{project.owner || "CEO"}</strong>
-                {" · "}
-                Due: <span className="font-mono text-[#17202A] dark:text-[#F2F4F7]">{fmtDate(project.deadline, "Flexible")}</span>
-              </p>
+
+              <div className="flex items-center gap-3 text-[11px] text-muted-foreground pt-0.5">
+                <span>Owner: <strong className="text-foreground font-bold">{project.owner || "CEO"}</strong></span>
+                <span>·</span>
+                <span>Due: <span className="font-mono font-bold text-foreground">{fmtDate(project.deadline, "Flexible")}</span></span>
+                <span>·</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold">Progress</span>
+                  <div className="w-20 h-1 rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-[#C9A52A] rounded-full" style={{ width: `${Math.min(100, progressPercent)}%` }} />
+                  </div>
+                  <span className="font-mono font-bold text-foreground">{progressPercent}%</span>
+                  <span>·</span>
+                  <span className="text-emerald-500 font-bold">On Track</span>
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
               <div className="relative">
                 <button
                   onClick={() => setAddMenuOpen(!addMenuOpen)}
-                  className="inline-flex items-center gap-1.5 px-3.5 h-[38px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-[12.5px] font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
+                  className="inline-flex items-center gap-1.5 px-3.5 h-[34px] rounded-xl bg-[#C9A52A] text-[#0B0D10] text-xs font-extrabold hover:brightness-105 transition-all cursor-pointer shadow-2xs"
                 >
-                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                   <span>Add</span>
                 </button>
 
