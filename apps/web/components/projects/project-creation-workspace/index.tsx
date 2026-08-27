@@ -224,7 +224,7 @@ export function ProjectCreationWorkspace({ userRole, basePath }: ProjectCreation
   };
 
   return (
-    <div className="w-full min-h-screen bg-background text-foreground font-sans flex flex-col">
+    <div className="w-full h-full min-h-screen bg-background text-foreground font-sans flex flex-col overflow-y-auto pb-24 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
       {/* ── STICKY TOP WORKSPACE HEADER ────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 bg-card border-b border-border px-4 sm:px-6 py-3 shrink-0 shadow-xs">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -258,7 +258,7 @@ export function ProjectCreationWorkspace({ userRole, basePath }: ProjectCreation
       </header>
 
       {/* ── MAIN WORKSPACE CONTENT CONTAINER ───────────────────────────────────── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 pb-28">
         
         {/* ── LEFT COLUMN: CREATION CONFIGURATION & BLUEPRINT BUILDER (8 Cols) ───── */}
         <div className="lg:col-span-8 space-y-5">

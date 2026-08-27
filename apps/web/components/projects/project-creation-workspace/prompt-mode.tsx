@@ -24,16 +24,16 @@ const QUICK_ADD_CHIPS = [
 
 const PROMPT_EXAMPLES = [
   {
-    title: "AI Interview Experience Platform",
-    text: "Build an AI-powered interview experience platform for students. Include authentication, experience submissions, company search, interview questions, analytics, and GitHub integration. Priority High, Deadline 30 November 2026. Assign CO-CEO Arun as execution lead.",
+    title: "Full-Stack Web Application Mandate",
+    text: "Build a full-stack Web application with workspace authentication, organization hierarchy, project blueprints, billing integration, and team analytics. Priority High, Target deadline 60 days.",
   },
   {
-    title: "Multi-Tenant B2B SaaS Platform",
-    text: "Create a SaaS task management application with workspace authentication, organization hierarchy, project blueprints, Stripe billing integration, and team analytics. Target deadline 60 days.",
+    title: "AI / Automation Service Implementation",
+    text: "Develop an AI-powered automated workflow platform with natural language prompt processing, structured output verification, real-time socket updates, and GitHub sync. Priority Critical.",
   },
   {
-    title: "College Event Management Portal",
-    text: "Build a college event management platform with student registration, approval workflows, QR code tickets, automated notifications, and final reporting. Priority High.",
+    title: "Organization Operations & Resource Portal",
+    text: "Construct a central organization management platform with member registration, approval workflows, QR verification, automated notifications, and executive reporting.",
   },
 ];
 
@@ -48,12 +48,12 @@ export function PromptMode({
 
   const handleQuickAddClick = (key: string) => {
     if (key === "ALL") {
-      const template = `Project Title: Enterprise AI Platform
-Objective: Build scalable AI interview and execution operating system with real-time telemetry.
+      const template = `Title: New Organization Project
+Objective: Define project mandate, core deliverables, and technical execution goals.
 Deadline: 2026-11-30
 Priority: High
-Requirements: Multi-tenant RBAC, real database transactions, GitHub sync.
-Milestones: Foundation, Requirements, Architecture, Development, Testing, Deployment.
+Requirements: Multi-tenant RBAC permissions, real database transactions, GitHub sync.
+Milestones: Foundation, Requirements, Architecture, Development, Security Audit, Deployment.
 Tools: Next.js, TypeScript, Node.js, PostgreSQL, GitHub.`;
       setPromptText(template);
       return;

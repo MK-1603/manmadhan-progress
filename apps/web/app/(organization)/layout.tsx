@@ -31,10 +31,13 @@ export default function OrganizationLayout({ children }: { children: React.React
   const base = getBase(role);
 
   const isFixedViewportPage =
-    pathname?.includes("/graph") ||
-    pathname?.includes("/leaderboard") ||
-    pathname?.includes("/tasks") ||
-    pathname?.includes("/projects");
+    (pathname?.includes("/graph") ||
+     pathname?.includes("/leaderboard") ||
+     pathname?.includes("/tasks") ||
+     pathname === "/ceo/projects" ||
+     pathname === "/co-ceo/projects" ||
+     pathname === "/member/projects") &&
+    !pathname?.includes("/create");
 
   return (
     <GlobalRefreshProvider>
