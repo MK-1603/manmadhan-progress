@@ -1929,19 +1929,24 @@ async function enrichProjectRecord(p: typeof projects.$inferSelect) {
 		} catch (_e) {}
 	}
 
-	// Fetch Assignee User from projectAssignments
+	// Fetch Assignee, CO-CEO Lead & Execution Lead Users
 	let assignedToUserId: string | null = null;
 	let assignedUserName: string | null = null;
 	let assignedUserEmail: string | null = null;
 	let assignedUserRole: string | null = null;
+	let coCeoLeadName = "Unassigned";
+	let coCeoLeadEmail = "";
+	let executionLeadName = "Unassigned";
+	let executionLeadEmail = "";
 
 	try {
 		const [pa] = await db
 			.select({
 				assignedToUserId: projectAssignments.assignedToUserId,
-				displayName: users.displayName,
-				email: users.email,
-				role: users.role,
+				responsibleCoCeoId: projectAssignments.responsibleCoCeoId,
+				assignedName: users.displayName,
+				assignedEmail: users.email,
+				assignedRole: users.role,
 			})
 			.from(projectAssignments)
 			.leftJoin(users, eq(projectAssignments.assignedToUserId, users.id))
@@ -1949,11 +1954,37 @@ async function enrichProjectRecord(p: typeof projects.$inferSelect) {
 			.orderBy(desc(projectAssignments.createdAt))
 			.limit(1);
 
-		if (pa && pa.assignedToUserId) {
-			assignedToUserId = pa.assignedToUserId;
-			assignedUserName = pa.displayName || pa.email || "Assignee";
-			assignedUserEmail = pa.email || "";
-			assignedUserRole = pa.role || "CO-CEO";
+		if (pa) {
+			if (pa.assignedToUserId) {
+				assignedToUserId = pa.assignedToUserId;
+				assignedUserName = pa.assignedName || pa.assignedEmail || "Assignee";
+				assignedUserEmail = pa.assignedEmail || "";
+				assignedUserRole = pa.assignedRole || "CO-CEO";
+				coCeoLeadName = assignedUserName;
+			}
+			if (pa.responsibleCoCeoId) {
+				const [coUser] = await db
+					.select({ displayName: users.displayName, email: users.email })
+					.from(users)
+					.where(eq(users.id, pa.responsibleCoCeoId))
+					.limit(1);
+				if (coUser) {
+					coCeoLeadName = coUser.displayName || coUser.email || "CO-CEO Lead";
+					coCeoLeadEmail = coUser.email || "";
+				}
+			}
+		}
+
+		if (p.executionLeadId) {
+			const [exUser] = await db
+				.select({ displayName: users.displayName, email: users.email })
+				.from(users)
+				.where(eq(users.id, p.executionLeadId))
+				.limit(1);
+			if (exUser) {
+				executionLeadName = exUser.displayName || exUser.email || "Execution Lead";
+				executionLeadEmail = exUser.email || "";
+			}
 		}
 	} catch (_e) {}
 
@@ -1973,6 +2004,10 @@ async function enrichProjectRecord(p: typeof projects.$inferSelect) {
 		assignedUserName,
 		assignedUserEmail,
 		assignedUserRole,
+		coCeoLeadName,
+		coCeoLeadEmail,
+		executionLeadName,
+		executionLeadEmail,
 	};
 }
 
