@@ -592,216 +592,288 @@ export default function ProjectsPage() {
               </Link>
             </div>
           </div>
-        ) : viewMode === "table" ? (
-          /* ── TABLE VIEW WITH FIXED COLUMN ALIGNMENT ───────────────────────── */
-          <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs table-fixed">
-                <thead>
-                  <tr className="border-b border-border bg-muted/30 text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
-                    <th className="py-3 px-3 w-9 text-center">
-                      <input
-                        type="checkbox"
-                        checked={isAllSelected}
-                        onChange={toggleSelectAll}
-                        className="rounded border-border text-[#C9A52A] focus:ring-0 cursor-pointer"
-                      />
-                    </th>
-                    <th className="py-3 px-3 min-w-[260px]">Project</th>
-                    <th className="py-3 px-3 w-[120px]">Owner</th>
-                    <th className="py-3 px-3 w-[150px]">Lead</th>
-                    <th className="py-3 px-3 w-[110px]">Status</th>
-                    <th className="py-3 px-3 w-[100px]">Priority</th>
-                    <th className="py-3 px-3 w-[140px]">Deadline</th>
-                    <th className="py-3 px-3 w-[130px]">Progress</th>
-                    <th className="py-3 px-3 w-[64px] text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {filteredProjects.map((p) => {
-                    const statusObj = STATUS_BADGE[p.status] || STATUS_BADGE.Planning;
-                    const priorityObj = PRIORITY_BADGE[p.priority] || PRIORITY_BADGE.Medium;
-                    const dInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
-                    const isSelected = selectedIds.includes(p.id);
-
-                    return (
-                      <tr
-                        key={p.id}
-                        onClick={() => router.push(`${basePath}/projects/${p.id}`)}
-                        className={`group h-[64px] transition-colors cursor-pointer ${
-                          isSelected ? "bg-[#C9A52A]/5" : "hover:bg-muted/30"
-                        }`}
-                      >
-                        {/* Select */}
-                        <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelectOne(p.id)}
-                            className="rounded border-border text-[#C9A52A] focus:ring-0 cursor-pointer"
-                          />
-                        </td>
-
-                        {/* Project Title & Category */}
-                        <td className="py-2.5 px-3 min-w-0">
-                          <div className="space-y-0.5 min-w-0">
-                            <span className="font-extrabold text-foreground group-hover:text-[#C9A52A] transition-colors truncate block">
-                              {p.name}
-                            </span>
-                            {p.description && (
-                              <p className="text-[11px] text-muted-foreground truncate">{p.description}</p>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Owner (CEO Fixed) */}
-                        <td className="py-2.5 px-3">
-                          <span className="text-foreground text-[11px] font-bold inline-flex items-center gap-1">
-                            <Lock className="w-3 h-3 text-[#C9A52A]" /> CEO
-                          </span>
-                        </td>
-
-                        {/* CO-CEO Lead */}
-                        <td className="py-2.5 px-3">
-                          <span className="font-bold text-blue-500 text-[11px] truncate block">
-                            {p.coCeoLeadName || p.assignedUserName || "Unassigned"}
-                          </span>
-                        </td>
-
-                        {/* Status */}
-                        <td className="py-2.5 px-3">
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border inline-flex items-center gap-1 ${statusObj.bg} ${statusObj.text}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${statusObj.dot}`} />
-                            {statusObj.label}
-                          </span>
-                        </td>
-
-                        {/* Priority */}
-                        <td className="py-2.5 px-3">
-                          <span className={`inline-flex items-center gap-1 text-[11px] ${priorityObj.text}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${priorityObj.dot}`} />
-                            {p.priority || "Medium"}
-                          </span>
-                        </td>
-
-                        {/* Deadline */}
-                        <td className="py-2.5 px-3">
-                          <div className="space-y-0.5">
-                            <span className="font-bold text-foreground text-[11px] block">{dInfo.dateText}</span>
-                            <span className={`text-[10px] font-semibold block ${dInfo.isOverdue ? "text-rose-500" : "text-muted-foreground"}`}>
-                              {dInfo.relText}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Progress */}
-                        <td className="py-2.5 px-3">
-                          {p.totalTasks > 0 ? (
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between text-[10.5px]">
-                                <span className="font-mono font-bold text-foreground">{p.completedTasks}/{p.totalTasks}</span>
-                                <span className="font-bold text-[#C9A52A]">{p.progress}%</span>
-                              </div>
-                              <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
-                                <div
-                                  className="h-full bg-[#C9A52A] transition-all duration-300"
-                                  style={{ width: `${p.progress}%` }}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-[11px] font-medium block">
-                              No tasks yet
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Actions Trigger Button (Uses Portal Menu) */}
-                        <td className="py-2.5 px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={(e) => handleOpenActionMenu(e, p)}
-                            className="w-8 h-8 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors inline-flex items-center justify-center cursor-pointer"
-                            title="Project Actions"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
         ) : (
-          /* ── KANBAN BOARD VIEW ──────────────────────────────────────────────── */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {["Planning", "Active", "On Hold", "Completed"].map((colStatus) => {
-              const colProjects = filteredProjects.filter((p) => {
-                const st = (p.status || "").toUpperCase();
-                if (colStatus === "Planning") return st === "PLANNING";
-                if (colStatus === "Active") return st === "ACTIVE";
-                if (colStatus === "On Hold") return st === "ON_HOLD";
-                if (colStatus === "Completed") return st === "COMPLETED";
-                return false;
-              });
+          <>
+            {/* ── MOBILE PROJECT CARDS LIST (Mobile-First < md:) ───────────────────── */}
+            <div className="block md:hidden space-y-3">
+              {filteredProjects.map((p) => {
+                const dInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
+                const progressVal = Math.min(100, Math.max(0, p.progress || 0));
 
-              return (
-                <div key={colStatus} className="p-3 rounded-2xl bg-card border border-border space-y-3 flex flex-col">
-                  <div className="flex items-center justify-between border-b border-border pb-2">
-                    <span className="font-extrabold text-xs uppercase tracking-wider text-foreground">
-                      {colStatus}
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-bold">
-                      {colProjects.length}
-                    </span>
-                  </div>
-
-                  <div className="space-y-2.5 flex-1 overflow-y-auto">
-                    {colProjects.map((p) => {
-                      const priorityObj = PRIORITY_BADGE[p.priority] || PRIORITY_BADGE.Medium;
-                      const dInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
-
-                      return (
-                        <div
-                          key={p.id}
-                          onClick={() => router.push(`${basePath}/projects/${p.id}`)}
-                          className="p-3.5 rounded-xl bg-background border border-border hover:border-[#C9A52A]/40 transition-all cursor-pointer space-y-2 shadow-2xs group"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="font-extrabold text-foreground group-hover:text-[#C9A52A] transition-colors text-xs truncate block">
-                              {p.name}
-                            </span>
-                            <span className={`text-[10px] ${priorityObj.text} shrink-0`}>
-                              {p.priority}
-                            </span>
-                          </div>
-
-                          {p.description && (
-                            <p className="text-[11px] text-muted-foreground line-clamp-2">{p.description}</p>
-                          )}
-
-                          <div className="pt-2 border-t border-border/50 flex items-center justify-between text-[10.5px]">
-                            <span className="font-bold text-blue-500 truncate">
-                              {p.coCeoLeadName || p.assignedUserName || "Unassigned"}
-                            </span>
-                            <span className="text-muted-foreground font-semibold shrink-0">{dInfo.relText}</span>
-                          </div>
-
-                          {p.totalTasks > 0 && (
-                            <div className="w-full h-1 rounded-full bg-muted overflow-hidden">
-                              <div className="h-full bg-[#C9A52A]" style={{ width: `${p.progress}%` }} />
-                            </div>
-                          )}
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => router.push(`${basePath}/projects/${p.id}`)}
+                    className="p-4 rounded-2xl bg-card border border-border hover:border-[#C9A52A]/40 transition-colors shadow-2xs cursor-pointer space-y-2 font-sans"
+                  >
+                    {/* Top Row: Icon + Title + Three-Dot Menu */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <div className="w-7 h-7 rounded-lg bg-[#C9A52A]/10 border border-[#C9A52A]/25 flex items-center justify-center text-[#C9A52A] dark:text-[#D4B12F] shrink-0 font-mono text-[11px] font-bold">
+                          {p.icon || "◇"}
                         </div>
-                      );
-                    })}
+                        <h3 className="font-semibold text-foreground text-sm truncate leading-tight">
+                          {p.name}
+                        </h3>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleOpenActionMenu(e, p)}
+                        className="w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center justify-center cursor-pointer shrink-0 -mr-1 transition-colors"
+                        title="Project Actions"
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Description (Max 2 lines, no AI rewrites) */}
+                    {p.description ? (
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed font-normal">
+                        {p.description}
+                      </p>
+                    ) : p.mandate ? (
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed font-normal">
+                        {p.mandate}
+                      </p>
+                    ) : null}
+
+                    {/* Horizontal Divider & Bottom Metadata */}
+                    <div className="border-t border-border/60 pt-2.5 mt-2 flex items-center justify-between text-[11.5px] font-sans">
+                      <div className="flex items-center gap-1.5 text-muted-foreground font-medium">
+                        <span>Due {dInfo.dateText}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 font-mono">
+                        <span className="font-bold text-foreground">{progressVal}% Complete</span>
+                        <div className="w-14 h-[3px] rounded-full bg-muted overflow-hidden shrink-0">
+                          <div
+                            className="h-full bg-[#C9A52A] rounded-full transition-all duration-500"
+                            style={{ width: `${progressVal}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* ── DESKTOP/TABLET PRESENTATION (≥ md:) ────────────────────────────────── */}
+            <div className="hidden md:block">
+              {viewMode === "table" ? (
+                /* ── TABLE VIEW WITH FIXED COLUMN ALIGNMENT ───────────────────────── */
+                <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs table-fixed">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/30 text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
+                          <th className="py-3 px-3 w-9 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isAllSelected}
+                              onChange={toggleSelectAll}
+                              className="rounded border-border text-[#C9A52A] focus:ring-0 cursor-pointer"
+                            />
+                          </th>
+                          <th className="py-3 px-3 min-w-[260px]">Project</th>
+                          <th className="py-3 px-3 w-[120px]">Owner</th>
+                          <th className="py-3 px-3 w-[150px]">Lead</th>
+                          <th className="py-3 px-3 w-[110px]">Status</th>
+                          <th className="py-3 px-3 w-[100px]">Priority</th>
+                          <th className="py-3 px-3 w-[140px]">Deadline</th>
+                          <th className="py-3 px-3 w-[130px]">Progress</th>
+                          <th className="py-3 px-3 w-[64px] text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {filteredProjects.map((p) => {
+                          const statusObj = STATUS_BADGE[p.status] || STATUS_BADGE.Planning;
+                          const priorityObj = PRIORITY_BADGE[p.priority] || PRIORITY_BADGE.Medium;
+                          const dInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
+                          const isSelected = selectedIds.includes(p.id);
+
+                          return (
+                            <tr
+                              key={p.id}
+                              onClick={() => router.push(`${basePath}/projects/${p.id}`)}
+                              className={`group h-[64px] transition-colors cursor-pointer ${
+                                isSelected ? "bg-[#C9A52A]/5" : "hover:bg-muted/30"
+                              }`}
+                            >
+                              {/* Select */}
+                              <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleSelectOne(p.id)}
+                                  className="rounded border-border text-[#C9A52A] focus:ring-0 cursor-pointer"
+                                />
+                              </td>
+
+                              {/* Project Title & Category */}
+                              <td className="py-2.5 px-3 min-w-0">
+                                <div className="space-y-0.5 min-w-0">
+                                  <span className="font-extrabold text-foreground group-hover:text-[#C9A52A] transition-colors truncate block">
+                                    {p.name}
+                                  </span>
+                                  {p.description && (
+                                    <p className="text-[11px] text-muted-foreground truncate">{p.description}</p>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Owner (CEO Fixed) */}
+                              <td className="py-2.5 px-3">
+                                <span className="text-foreground text-[11px] font-bold inline-flex items-center gap-1">
+                                  <Lock className="w-3 h-3 text-[#C9A52A]" /> CEO
+                                </span>
+                              </td>
+
+                              {/* CO-CEO Lead */}
+                              <td className="py-2.5 px-3">
+                                <span className="font-bold text-blue-500 text-[11px] truncate block">
+                                  {p.coCeoLeadName || p.assignedUserName || "Unassigned"}
+                                </span>
+                              </td>
+
+                              {/* Status */}
+                              <td className="py-2.5 px-3">
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border inline-flex items-center gap-1 ${statusObj.bg} ${statusObj.text}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${statusObj.dot}`} />
+                                  {statusObj.label}
+                                </span>
+                              </td>
+
+                              {/* Priority */}
+                              <td className="py-2.5 px-3">
+                                <span className={`inline-flex items-center gap-1 text-[11px] ${priorityObj.text}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${priorityObj.dot}`} />
+                                  {p.priority || "Medium"}
+                                </span>
+                              </td>
+
+                              {/* Deadline */}
+                              <td className="py-2.5 px-3">
+                                <div className="space-y-0.5">
+                                  <span className="font-bold text-foreground text-[11px] block">{dInfo.dateText}</span>
+                                  <span className={`text-[10px] font-semibold block ${dInfo.isOverdue ? "text-rose-500" : "text-muted-foreground"}`}>
+                                    {dInfo.relText}
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* Progress */}
+                              <td className="py-2.5 px-3">
+                                {p.totalTasks > 0 ? (
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between text-[10.5px]">
+                                      <span className="font-mono font-bold text-foreground">{p.completedTasks}/{p.totalTasks}</span>
+                                      <span className="font-bold text-[#C9A52A]">{p.progress}%</span>
+                                    </div>
+                                    <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                                      <div
+                                        className="h-full bg-[#C9A52A] transition-all duration-300"
+                                        style={{ width: `${p.progress}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground text-[11px] font-medium block">
+                                    No tasks yet
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Actions Trigger Button (Uses Portal Menu) */}
+                              <td className="py-2.5 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleOpenActionMenu(e, p)}
+                                  className="w-8 h-8 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors inline-flex items-center justify-center cursor-pointer"
+                                  title="Project Actions"
+                                >
+                                  <MoreVertical className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ) : (
+                /* ── KANBAN BOARD VIEW ──────────────────────────────────────────────── */
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {["Planning", "Active", "On Hold", "Completed"].map((colStatus) => {
+                    const colProjects = filteredProjects.filter((p) => {
+                      const st = (p.status || "").toUpperCase();
+                      if (colStatus === "Planning") return st === "PLANNING";
+                      if (colStatus === "Active") return st === "ACTIVE";
+                      if (colStatus === "On Hold") return st === "ON_HOLD";
+                      if (colStatus === "Completed") return st === "COMPLETED";
+                      return false;
+                    });
+
+                    return (
+                      <div key={colStatus} className="p-3 rounded-2xl bg-card border border-border space-y-3 flex flex-col">
+                        <div className="flex items-center justify-between border-b border-border pb-2">
+                          <span className="font-extrabold text-xs uppercase tracking-wider text-foreground">
+                            {colStatus}
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-bold">
+                            {colProjects.length}
+                          </span>
+                        </div>
+
+                        <div className="space-y-2.5 flex-1 overflow-y-auto">
+                          {colProjects.map((p) => {
+                            const priorityObj = PRIORITY_BADGE[p.priority] || PRIORITY_BADGE.Medium;
+                            const dInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
+
+                            return (
+                              <div
+                                key={p.id}
+                                onClick={() => router.push(`${basePath}/projects/${p.id}`)}
+                                className="p-3.5 rounded-xl bg-background border border-border hover:border-[#C9A52A]/40 transition-all cursor-pointer space-y-2 shadow-2xs group"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="font-extrabold text-foreground group-hover:text-[#C9A52A] transition-colors text-xs truncate block">
+                                    {p.name}
+                                  </span>
+                                  <span className={`text-[10px] ${priorityObj.text} shrink-0`}>
+                                    {p.priority}
+                                  </span>
+                                </div>
+
+                                {p.description && (
+                                  <p className="text-[11px] text-muted-foreground line-clamp-2">{p.description}</p>
+                                )}
+
+                                <div className="pt-2 border-t border-border/50 flex items-center justify-between text-[10.5px]">
+                                  <span className="font-bold text-blue-500 truncate">
+                                    {p.coCeoLeadName || p.assignedUserName || "Unassigned"}
+                                  </span>
+                                  <span className="text-muted-foreground font-semibold shrink-0">{dInfo.relText}</span>
+                                </div>
+
+                                {p.totalTasks > 0 && (
+                                  <div className="w-full h-1 rounded-full bg-muted overflow-hidden">
+                                    <div className="h-full bg-[#C9A52A]" style={{ width: `${p.progress}%` }} />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 
