@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   Plus, Search, AlertCircle, Trash2, LayoutGrid, List, Edit, X, MoreVertical,
   ArrowUpRight, Filter, Lock, RefreshCw
@@ -60,6 +61,107 @@ function fmtDeadlineLabel(dateStr?: string | null, status?: string): { dateText:
   }
 }
 
+// ── PORTAL ACTION MENU COMPONENT (Immune to Table Overflow Clipping) ─────────
+interface ActionMenuPortalProps {
+  triggerRect: DOMRect | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onOpenProject: () => void;
+  onEditProject: () => void;
+  onDeleteProject: () => void;
+}
+
+function ActionMenuPortal({
+  triggerRect,
+  isOpen,
+  onClose,
+  onOpenProject,
+  onEditProject,
+  onDeleteProject,
+}: ActionMenuPortalProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handleOutsideClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+
+    function handleScrollOrResize() {
+      onClose();
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !triggerRect || typeof window === "undefined") return null;
+
+  const menuWidth = 160;
+  const menuHeight = 120;
+
+  // Vertical position calculation (flip upward if near screen bottom)
+  let top = triggerRect.bottom + 4;
+  if (top + menuHeight > window.innerHeight) {
+    top = Math.max(8, triggerRect.top - menuHeight - 4);
+  }
+
+  // Horizontal position calculation (align right edge to trigger right)
+  let left = triggerRect.right - menuWidth;
+  if (left < 8) left = 8;
+
+  return createPortal(
+    <div
+      ref={menuRef}
+      style={{ top: `${top}px`, left: `${left}px`, width: `${menuWidth}px` }}
+      className="fixed z-[9999] rounded-xl bg-card border border-border shadow-2xl p-1 space-y-0.5 text-left text-xs font-semibold animate-in fade-in duration-100"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        onClick={() => {
+          onClose();
+          onOpenProject();
+        }}
+        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted text-foreground transition-colors cursor-pointer"
+      >
+        <ArrowUpRight className="w-3.5 h-3.5 text-[#C9A52A]" /> Open project
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          onClose();
+          onEditProject();
+        }}
+        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted text-foreground transition-colors cursor-pointer"
+      >
+        <Edit className="w-3.5 h-3.5 text-blue-500" /> Edit project
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          onClose();
+          onDeleteProject();
+        }}
+        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-rose-500/10 text-rose-500 transition-colors cursor-pointer"
+      >
+        <Trash2 className="w-3.5 h-3.5" /> Archive
+      </button>
+    </div>,
+    document.body
+  );
+}
+
 export default function ProjectsPage() {
   const pathname = usePathname() || "";
   const router = useRouter();
@@ -87,16 +189,15 @@ export default function ProjectsPage() {
   const [editingProject, setEditingProject] = useState<any | null>(null);
   const [deleteConfirmSingleId, setDeleteConfirmSingleId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
 
-  const actionMenuRef = useRef<HTMLDivElement>(null);
+  // Portal Action Menu State
+  const [activeMenuProject, setActiveMenuProject] = useState<any | null>(null);
+  const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null);
+
   const filterPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
-        setActiveActionMenuId(null);
-      }
       if (filterPanelRef.current && !filterPanelRef.current.contains(event.target as Node)) {
         setIsFilterPanelOpen(false);
       }
@@ -241,6 +342,14 @@ export default function ProjectsPage() {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
   };
 
+  // Open Action Menu Portal
+  const handleOpenActionMenu = (e: React.MouseEvent<HTMLButtonElement>, project: any) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTriggerRect(rect);
+    setActiveMenuProject(project);
+  };
+
   // Single Delete Handler
   const handleDeleteSingle = async () => {
     if (!deleteConfirmSingleId) return;
@@ -260,7 +369,7 @@ export default function ProjectsPage() {
 
   return (
     <div className="w-full h-[calc(100vh-65px)] max-h-[calc(100vh-65px)] flex flex-col overflow-hidden bg-background text-foreground font-sans">
-      {/* ── 1. CLEAN GLOBAL HEADER (NO EMOJIS / NO EXTRA BADGES) ───────────────── */}
+      {/* ── 1. CLEAN GLOBAL HEADER ─────────────────────────────────────────────── */}
       <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-border shrink-0 bg-card/60 space-y-3">
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5">
@@ -277,7 +386,7 @@ export default function ProjectsPage() {
           </Link>
         </div>
 
-        {/* ── 2. COMPACT INTERACTIVE STATUS NAVIGATION (REPLACES GIANT CARDS) ───── */}
+        {/* ── 2. COMPACT INTERACTIVE STATUS NAVIGATION ─────────────────────────── */}
         <div className="flex items-center gap-1 border-b border-border/60 pb-2 overflow-x-auto text-xs font-bold">
           {[
             { id: "All", label: "All", count: metrics.total },
@@ -484,13 +593,13 @@ export default function ProjectsPage() {
             </div>
           </div>
         ) : viewMode === "table" ? (
-          /* ── TABLE VIEW ─────────────────────────────────────────────────────── */
+          /* ── TABLE VIEW WITH FIXED COLUMN ALIGNMENT ───────────────────────── */
           <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-xs table-fixed">
                 <thead>
                   <tr className="border-b border-border bg-muted/30 text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
-                    <th className="py-3 px-3.5 w-8">
+                    <th className="py-3 px-3 w-9 text-center">
                       <input
                         type="checkbox"
                         checked={isAllSelected}
@@ -498,14 +607,14 @@ export default function ProjectsPage() {
                         className="rounded border-border text-[#C9A52A] focus:ring-0 cursor-pointer"
                       />
                     </th>
-                    <th className="py-3 px-3.5">Project</th>
-                    <th className="py-3 px-3.5">Owner</th>
-                    <th className="py-3 px-3.5">Lead</th>
-                    <th className="py-3 px-3.5">Status</th>
-                    <th className="py-3 px-3.5">Priority</th>
-                    <th className="py-3 px-3.5">Deadline</th>
-                    <th className="py-3 px-3.5">Progress</th>
-                    <th className="py-3 px-3.5 text-right">Actions</th>
+                    <th className="py-3 px-3 min-w-[260px]">Project</th>
+                    <th className="py-3 px-3 w-[120px]">Owner</th>
+                    <th className="py-3 px-3 w-[150px]">Lead</th>
+                    <th className="py-3 px-3 w-[110px]">Status</th>
+                    <th className="py-3 px-3 w-[100px]">Priority</th>
+                    <th className="py-3 px-3 w-[140px]">Deadline</th>
+                    <th className="py-3 px-3 w-[130px]">Progress</th>
+                    <th className="py-3 px-3 w-[64px] text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -519,12 +628,12 @@ export default function ProjectsPage() {
                       <tr
                         key={p.id}
                         onClick={() => router.push(`${basePath}/projects/${p.id}`)}
-                        className={`group transition-colors cursor-pointer ${
+                        className={`group h-[64px] transition-colors cursor-pointer ${
                           isSelected ? "bg-[#C9A52A]/5" : "hover:bg-muted/30"
                         }`}
                       >
                         {/* Select */}
-                        <td className="py-3 px-3.5" onClick={(e) => e.stopPropagation()}>
+                        <td className="py-2.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -534,8 +643,8 @@ export default function ProjectsPage() {
                         </td>
 
                         {/* Project Title & Category */}
-                        <td className="py-3 px-3.5 max-w-[240px]">
-                          <div className="space-y-0.5">
+                        <td className="py-2.5 px-3 min-w-0">
+                          <div className="space-y-0.5 min-w-0">
                             <span className="font-extrabold text-foreground group-hover:text-[#C9A52A] transition-colors truncate block">
                               {p.name}
                             </span>
@@ -546,21 +655,21 @@ export default function ProjectsPage() {
                         </td>
 
                         {/* Owner (CEO Fixed) */}
-                        <td className="py-3 px-3.5">
+                        <td className="py-2.5 px-3">
                           <span className="text-foreground text-[11px] font-bold inline-flex items-center gap-1">
                             <Lock className="w-3 h-3 text-[#C9A52A]" /> CEO
                           </span>
                         </td>
 
                         {/* CO-CEO Lead */}
-                        <td className="py-3 px-3.5">
+                        <td className="py-2.5 px-3">
                           <span className="font-bold text-blue-500 text-[11px] truncate block">
                             {p.coCeoLeadName || p.assignedUserName || "Unassigned"}
                           </span>
                         </td>
 
                         {/* Status */}
-                        <td className="py-3 px-3.5">
+                        <td className="py-2.5 px-3">
                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold border inline-flex items-center gap-1 ${statusObj.bg} ${statusObj.text}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${statusObj.dot}`} />
                             {statusObj.label}
@@ -568,7 +677,7 @@ export default function ProjectsPage() {
                         </td>
 
                         {/* Priority */}
-                        <td className="py-3 px-3.5">
+                        <td className="py-2.5 px-3">
                           <span className={`inline-flex items-center gap-1 text-[11px] ${priorityObj.text}`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${priorityObj.dot}`} />
                             {p.priority || "Medium"}
@@ -576,7 +685,7 @@ export default function ProjectsPage() {
                         </td>
 
                         {/* Deadline */}
-                        <td className="py-3 px-3.5">
+                        <td className="py-2.5 px-3">
                           <div className="space-y-0.5">
                             <span className="font-bold text-foreground text-[11px] block">{dInfo.dateText}</span>
                             <span className={`text-[10px] font-semibold block ${dInfo.isOverdue ? "text-rose-500" : "text-muted-foreground"}`}>
@@ -586,7 +695,7 @@ export default function ProjectsPage() {
                         </td>
 
                         {/* Progress */}
-                        <td className="py-3 px-3.5 min-w-[120px]">
+                        <td className="py-2.5 px-3">
                           {p.totalTasks > 0 ? (
                             <div className="space-y-1">
                               <div className="flex items-center justify-between text-[10.5px]">
@@ -601,54 +710,22 @@ export default function ProjectsPage() {
                               </div>
                             </div>
                           ) : (
-                            <span className="text-muted-foreground text-[11px] font-medium">
+                            <span className="text-muted-foreground text-[11px] font-medium block">
                               No tasks yet
                             </span>
                           )}
                         </td>
 
-                        {/* Actions Dropdown */}
-                        <td className="py-3 px-3.5 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="relative inline-block" ref={activeActionMenuId === p.id ? actionMenuRef : null}>
-                            <button
-                              type="button"
-                              onClick={() => setActiveActionMenuId(activeActionMenuId === p.id ? null : p.id)}
-                              className="p-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-                            >
-                              <MoreVertical className="w-3.5 h-3.5" />
-                            </button>
-
-                            {activeActionMenuId === p.id && (
-                              <div className="absolute right-0 top-8 z-30 w-40 rounded-xl bg-card border border-border shadow-lg p-1 space-y-0.5 text-left text-xs font-semibold animate-in fade-in duration-100">
-                                <Link
-                                  href={`${basePath}/projects/${p.id}`}
-                                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted text-foreground transition-colors"
-                                >
-                                  <ArrowUpRight className="w-3.5 h-3.5 text-[#C9A52A]" /> Open project
-                                </Link>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveActionMenuId(null);
-                                    setEditingProject(p);
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-muted text-foreground transition-colors cursor-pointer"
-                                >
-                                  <Edit className="w-3.5 h-3.5 text-blue-500" /> Edit project
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveActionMenuId(null);
-                                    setDeleteConfirmSingleId(p.id);
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-rose-500/10 text-rose-500 transition-colors cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" /> Archive
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                        {/* Actions Trigger Button (Uses Portal Menu) */}
+                        <td className="py-2.5 px-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={(e) => handleOpenActionMenu(e, p)}
+                            className="w-8 h-8 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors inline-flex items-center justify-center cursor-pointer"
+                            title="Project Actions"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                     );
@@ -727,6 +804,22 @@ export default function ProjectsPage() {
           </div>
         )}
       </div>
+
+      {/* ── PORTAL ACTION MENU ────────────────────────────────────────────────── */}
+      <ActionMenuPortal
+        triggerRect={triggerRect}
+        isOpen={!!activeMenuProject}
+        onClose={() => setActiveMenuProject(null)}
+        onOpenProject={() => {
+          if (activeMenuProject) router.push(`${basePath}/projects/${activeMenuProject.id}`);
+        }}
+        onEditProject={() => {
+          if (activeMenuProject) setEditingProject(activeMenuProject);
+        }}
+        onDeleteProject={() => {
+          if (activeMenuProject) setDeleteConfirmSingleId(activeMenuProject.id);
+        }}
+      />
 
       {/* ── MODALS (EDIT & DELETE CONFIRMATION) ───────────────────────────────── */}
       {editingProject && (
