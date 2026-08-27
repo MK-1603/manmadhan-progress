@@ -31,6 +31,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "OVERVIEW", label: "Overview" },
   { id: "TASKS", label: "Tasks" },
   { id: "MILESTONES", label: "Milestones" },
+  { id: "SUBMISSIONS", label: "Submissions" },
   { id: "TIMELINE", label: "Timeline" },
   { id: "TEAM", label: "Team" },
   { id: "DOCUMENTS", label: "Documents" },
@@ -705,11 +706,13 @@ function WorkTab({
 function SubmissionsTab({
   projectId,
   submissions,
+  onRefresh,
   onAddSubmission,
 }: {
   projectId: string;
   submissions: ProjectSubmission[];
-  onAddSubmission: (sub: ProjectSubmission) => void;
+  onRefresh?: () => void;
+  onAddSubmission?: (sub: ProjectSubmission) => void;
 }) {
   const [filter, setFilter] = useState<string>("All");
   const [showSubmitModal, setShowSubmitModal] = useState(false);
@@ -764,7 +767,8 @@ function SubmissionsTab({
       });
 
       if (res.data?.success && res.data.data) {
-        onAddSubmission(res.data.data);
+        onAddSubmission?.(res.data.data);
+        onRefresh?.();
       } else {
         const fallbackSub: ProjectSubmission = {
           id: `sub-${Date.now()}`,
@@ -781,7 +785,8 @@ function SubmissionsTab({
           repositoryUrl: subRepoUrl.trim() || undefined,
           versionTag: subVersion.trim() || undefined,
         };
-        onAddSubmission(fallbackSub);
+        onAddSubmission?.(fallbackSub);
+        onRefresh?.();
       }
       setShowSubmitModal(false);
       setSubTitle("");
@@ -1328,6 +1333,8 @@ function AiToolsTab({ projectId }: { projectId: string }) {
     </div>
   );
 }
+
+
 
 function ActivityTab({ activity }: { activity: any[] }) {
   return (
@@ -2128,6 +2135,14 @@ export default function ProjectWorkspacePage() {
               milestones={milestones}
               onSelectMilestone={(m) => setSelectedMilestone(m)}
               projectId={projectId}
+              onRefresh={fetchProjectDetails}
+            />
+          )}
+
+          {activeTab === "SUBMISSIONS" && (
+            <SubmissionsTab
+              projectId={projectId}
+              submissions={submissions}
               onRefresh={fetchProjectDetails}
             />
           )}
