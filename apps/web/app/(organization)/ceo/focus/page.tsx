@@ -276,12 +276,12 @@ export default function CEOFocusPage() {
 	return (
 		<div className="max-w-[1240px] w-full mx-auto p-4 sm:p-6 space-y-4 font-sans select-none">
 			{/* 1. PAGE HEADER */}
-			<div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3">
+			<div className="flex items-center justify-between gap-3 border-b border-border pb-3">
 				<div>
-					<h1 className="text-xl font-extrabold text-[#F4F7F5] tracking-tight flex items-center gap-2">
+					<h1 className="text-xl font-extrabold text-foreground tracking-tight flex items-center gap-2">
 						FOCUS
 					</h1>
-					<p className="text-xs text-[#9AA4B2] font-medium mt-0.5">
+					<p className="text-xs text-muted-foreground font-medium mt-0.5">
 						Deep work execution console
 					</p>
 				</div>
@@ -291,18 +291,18 @@ export default function CEOFocusPage() {
 					<span
 						className={`px-3 py-1 rounded-full text-xs font-mono font-bold uppercase tracking-wider flex items-center gap-1.5 border ${
 							isOperational
-								? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-								: "bg-rose-500/15 text-rose-400 border-rose-500/30"
+								? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+								: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
 						}`}
 					>
-						<span className={`w-2 h-2 rounded-full ${isOperational ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
+						<span className={`w-2 h-2 rounded-full ${isOperational ? "bg-emerald-500 dark:bg-emerald-400 animate-pulse" : "bg-rose-500 dark:bg-rose-400"}`} />
 						{isOperational ? "● SYSTEM ACTIVE · 04:00–23:00 IST" : "● SYSTEM RESTRICTED · 23:00–04:00 IST"}
 					</span>
 
 					<button
 						type="button"
 						onClick={loadWorkspaceData}
-						className="p-1.5 rounded-lg bg-[#0F1218] border border-white/10 text-[#9AA4B2] hover:text-[#F4F7F5] transition-colors cursor-pointer"
+						className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
 						title="Refresh focus workspace"
 					>
 						<RefreshCw className="w-3.5 h-3.5" />
@@ -312,16 +312,16 @@ export default function CEOFocusPage() {
 
 			{/* Action Notifications */}
 			{actionSuccess && (
-				<div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+				<div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
 					<CheckCircle2 className="w-4 h-4 shrink-0" /> {actionSuccess}
 				</div>
 			)}
 			{error && (
-				<div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in">
+				<div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in">
 					<div className="flex items-center gap-2">
 						<AlertTriangle className="w-4 h-4 shrink-0" /> {error}
 					</div>
-					<button type="button" onClick={() => setError("")} className="text-rose-400 hover:text-white cursor-pointer">
+					<button type="button" onClick={() => setError("")} className="text-rose-500 dark:text-rose-400 hover:text-foreground cursor-pointer">
 						<X className="w-3.5 h-3.5" />
 					</button>
 				</div>
@@ -329,30 +329,30 @@ export default function CEOFocusPage() {
 
 			{/* 2. KPI SUMMARY (STRICT 4-COLUMN GRID) */}
 			<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-				<PremiumCard className="p-3.5 bg-[#0F1218] border-white/10 rounded-xl space-y-1">
-					<span className="text-[10px] font-mono text-[#9AA4B2] uppercase tracking-wider block font-bold">Focus Time Today</span>
-					<span className="text-xl font-extrabold text-gold font-mono block">
+				<PremiumCard className="p-3.5 rounded-xl space-y-1">
+					<span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider block font-bold">Focus Time Today</span>
+					<span className="text-xl font-extrabold text-amber-600 dark:text-gold font-mono block">
 						{formatShortDuration(overview?.totalFocusedSeconds || 0)}
 					</span>
 				</PremiumCard>
 
-				<PremiumCard className="p-3.5 bg-[#0F1218] border-white/10 rounded-xl space-y-1">
-					<span className="text-[10px] font-mono text-[#9AA4B2] uppercase tracking-wider block font-bold">Sessions</span>
-					<span className="text-xl font-extrabold text-[#F4F7F5] font-mono block">
+				<PremiumCard className="p-3.5 rounded-xl space-y-1">
+					<span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider block font-bold">Sessions</span>
+					<span className="text-xl font-extrabold text-foreground font-mono block">
 						{overview?.totalSessionsCount || 0}
 					</span>
 				</PremiumCard>
 
-				<PremiumCard className="p-3.5 bg-[#0F1218] border-white/10 rounded-xl space-y-1">
-					<span className="text-[10px] font-mono text-[#9AA4B2] uppercase tracking-wider block font-bold">Tasks Completed</span>
-					<span className="text-xl font-extrabold text-emerald-400 font-mono block">
+				<PremiumCard className="p-3.5 rounded-xl space-y-1">
+					<span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider block font-bold">Tasks Completed</span>
+					<span className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 font-mono block">
 						{overview?.completedCount || 0}
 					</span>
 				</PremiumCard>
 
-				<PremiumCard className="p-3.5 bg-[#0F1218] border-white/10 rounded-xl space-y-1">
-					<span className="text-[10px] font-mono text-[#9AA4B2] uppercase tracking-wider block font-bold">Current Session</span>
-					<span className="text-xl font-extrabold text-purple-400 font-mono block">
+				<PremiumCard className="p-3.5 rounded-xl space-y-1">
+					<span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider block font-bold">Current Session</span>
+					<span className="text-xl font-extrabold text-purple-600 dark:text-purple-400 font-mono block">
 						{formatDigitalTimer(elapsed)}
 					</span>
 				</PremiumCard>
@@ -361,16 +361,16 @@ export default function CEOFocusPage() {
 			{/* 3. EXECUTION AREA (MOBILE REORDER: CURRENT WORK -> TIMER ON DESKTOP EQUAL COLUMNS) */}
 			<div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
 				{/* CURRENT WORK CARD */}
-				<PremiumCard className="p-4 bg-[#0F1218] border-white/10 rounded-xl flex flex-col justify-between space-y-3.5 min-h-[260px]">
+				<PremiumCard className="p-4 rounded-xl flex flex-col justify-between space-y-3.5 min-h-[260px]">
 					<div className="space-y-3">
-						<div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-							<span className="text-xs font-bold text-[#F4F7F5] uppercase tracking-wider">
+						<div className="flex items-center justify-between border-b border-border pb-2.5">
+							<span className="text-xs font-bold text-foreground uppercase tracking-wider">
 								CURRENT WORK
 							</span>
 							<button
 								type="button"
 								onClick={() => setShowTaskSelector(true)}
-								className="px-3 py-1 rounded-lg bg-[#0B0E13] border border-white/15 text-xs font-bold text-gold hover:bg-gold/10 transition-all cursor-pointer"
+								className="px-3 py-1 rounded-lg bg-secondary border border-border text-xs font-bold text-amber-600 dark:text-gold hover:bg-amber-500/10 transition-all cursor-pointer"
 							>
 								{selectedTask ? "Change Task" : "Select Task"}
 							</button>
@@ -378,49 +378,49 @@ export default function CEOFocusPage() {
 
 						{selectedTask || activeSession ? (
 							<div className="space-y-2.5">
-								<span className="text-[10px] text-gold font-mono font-bold uppercase tracking-wider block">
+								<span className="text-[10px] text-amber-600 dark:text-gold font-mono font-bold uppercase tracking-wider block">
 									{currentProject?.name || "ORGANIZATION WORK"}
 								</span>
 
-								<h3 className="text-sm font-extrabold text-[#F4F7F5] leading-snug">
+								<h3 className="text-sm font-extrabold text-foreground leading-snug">
 									{selectedTask?.title || activeSession?.title || "Executive Focus Task"}
 								</h3>
 
-								<p className="text-xs text-[#9AA4B2] leading-relaxed line-clamp-2">
+								<p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
 									{selectedTask?.description || activeSession?.description || "Concentrate on completing task objectives and documenting deliverables."}
 								</p>
 
-								<div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10 text-xs font-mono">
+								<div className="grid grid-cols-2 gap-2 pt-2 border-t border-border text-xs font-mono">
 									<div>
-										<span className="text-[#667085] text-[10px] uppercase block">Priority</span>
-										<span className="font-bold text-[#F4F7F5]">{selectedTask?.priority || activeSession?.priority || "High"}</span>
+										<span className="text-muted-foreground text-[10px] uppercase block">Priority</span>
+										<span className="font-bold text-foreground">{selectedTask?.priority || activeSession?.priority || "High"}</span>
 									</div>
 									<div>
-										<span className="text-[#667085] text-[10px] uppercase block">Deadline</span>
-										<span className="font-bold text-[#F4F7F5]">
+										<span className="text-muted-foreground text-[10px] uppercase block">Deadline</span>
+										<span className="font-bold text-foreground">
 											{selectedTask?.deadline ? new Date(selectedTask.deadline).toLocaleDateString() : "Due Today"}
 										</span>
 									</div>
 									<div>
-										<span className="text-[#667085] text-[10px] uppercase block">Assigned by</span>
-										<span className="font-bold text-[#F4F7F5]">Leadership</span>
+										<span className="text-muted-foreground text-[10px] uppercase block">Assigned by</span>
+										<span className="font-bold text-foreground">Leadership</span>
 									</div>
 									<div>
-										<span className="text-[#667085] text-[10px] uppercase block">Progress</span>
-										<span className="font-bold text-gold">{selectedTask?.progress || 62}%</span>
+										<span className="text-muted-foreground text-[10px] uppercase block">Progress</span>
+										<span className="font-bold text-amber-600 dark:text-gold">{selectedTask?.progress || 62}%</span>
 									</div>
 								</div>
 							</div>
 						) : (
 							<div className="py-6 text-center space-y-2 my-auto">
-								<h4 className="text-xs font-extrabold text-[#F4F7F5] uppercase tracking-wider">No task selected</h4>
-								<p className="text-xs text-[#9AA4B2] max-w-xs mx-auto">
+								<h4 className="text-xs font-extrabold text-foreground uppercase tracking-wider">No task selected</h4>
+								<p className="text-xs text-muted-foreground max-w-xs mx-auto">
 									Select an assigned task to begin a focused work session.
 								</p>
 								<button
 									type="button"
 									onClick={() => setShowTaskSelector(true)}
-									className="px-4 py-2 bg-gold text-black text-xs font-bold rounded-lg hover:bg-gold/90 transition-all cursor-pointer shadow-xs"
+									className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white dark:bg-gold dark:hover:bg-gold/90 dark:text-black text-xs font-bold rounded-lg transition-all cursor-pointer shadow-xs"
 								>
 									Select Task
 								</button>
@@ -430,18 +430,18 @@ export default function CEOFocusPage() {
 				</PremiumCard>
 
 				{/* FOCUS TIMER CARD */}
-				<PremiumCard className="p-4 bg-[#0F1218] border-white/10 rounded-xl flex flex-col justify-between items-center text-center space-y-3.5 min-h-[260px]">
-					<div className="w-full flex items-center justify-between border-b border-white/10 pb-2.5">
-						<span className="text-xs font-bold text-[#F4F7F5] uppercase tracking-wider">
+				<PremiumCard className="p-4 rounded-xl flex flex-col justify-between items-center text-center space-y-3.5 min-h-[260px]">
+					<div className="w-full flex items-center justify-between border-b border-border pb-2.5">
+						<span className="text-xs font-bold text-foreground uppercase tracking-wider">
 							FOCUS TIMER
 						</span>
 						<span
 							className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
 								activeStatusText === "FOCUSING"
-									? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 animate-pulse"
+									? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 animate-pulse"
 									: activeStatusText === "PAUSED"
-									? "bg-amber-500/10 text-amber-400 border-amber-500/30"
-									: "bg-white/5 text-[#9AA4B2] border-white/10"
+									? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+									: "bg-muted text-muted-foreground border-border"
 							}`}
 						>
 							● {activeStatusText}
@@ -450,10 +450,10 @@ export default function CEOFocusPage() {
 
 					{/* Digital Timer & Subtitle */}
 					<div className="py-3 space-y-1.5 my-auto">
-						<div className="text-4xl sm:text-5xl font-extrabold font-mono text-[#F4F7F5] tracking-tight tabular-nums">
+						<div className="text-4xl sm:text-5xl font-extrabold font-mono text-foreground tracking-tight tabular-nums">
 							{formatDigitalTimer(elapsed)}
 						</div>
-						<p className="text-xs font-mono text-[#9AA4B2] uppercase tracking-wider font-bold">
+						<p className="text-xs font-mono text-muted-foreground uppercase tracking-wider font-bold">
 							{!isOperational
 								? "SYSTEM OFF · Focus unavailable (23:00–04:00 IST)"
 								: activeStatusText === "FOCUSING"
@@ -465,15 +465,15 @@ export default function CEOFocusPage() {
 					</div>
 
 					{/* Primary Action Button */}
-					<div className="w-full pt-3 border-t border-white/10 flex items-center justify-center gap-2">
+					<div className="w-full pt-3 border-t border-border flex items-center justify-center gap-2">
 						{activeStatusText === "READY" && (
 							<button
 								type="button"
 								onClick={() => handleStartFocus()}
 								disabled={actionLoading || !isOperational}
-								className="w-full py-3 rounded-xl bg-gold hover:bg-gold/90 text-black text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+								className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white dark:bg-gold dark:hover:bg-gold/90 dark:text-black text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
 							>
-								{actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-black" />}
+								{actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
 								<span>▶ START FOCUS SESSION</span>
 							</button>
 						)}
@@ -484,7 +484,7 @@ export default function CEOFocusPage() {
 									type="button"
 									onClick={() => setShowPauseModal(true)}
 									disabled={actionLoading}
-									className="flex-1 py-3 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+									className="flex-1 py-3 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
 								>
 									<Pause className="w-3.5 h-3.5" /> Pause
 								</button>
@@ -493,7 +493,7 @@ export default function CEOFocusPage() {
 									type="button"
 									onClick={() => setShowEndModal(true)}
 									disabled={actionLoading}
-									className="flex-1 py-3 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+									className="flex-1 py-3 rounded-xl bg-emerald-600 dark:bg-emerald-500 text-white hover:bg-emerald-700 dark:hover:bg-emerald-600 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
 								>
 									<CheckCircle2 className="w-3.5 h-3.5" /> Finish Session
 								</button>
@@ -506,16 +506,16 @@ export default function CEOFocusPage() {
 									type="button"
 									onClick={handleResumeFocus}
 									disabled={actionLoading || !isOperational}
-									className="flex-1 py-3 rounded-xl bg-gold text-black hover:bg-gold/90 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+									className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white dark:bg-gold dark:hover:bg-gold/90 dark:text-black text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
 								>
-									<Play className="w-3.5 h-3.5 fill-black" /> Resume
+									<Play className="w-3.5 h-3.5 fill-current" /> Resume
 								</button>
 
 								<button
 									type="button"
 									onClick={() => setShowEndModal(true)}
 									disabled={actionLoading}
-									className="flex-1 py-3 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/30 hover:bg-rose-500/25 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+									className="flex-1 py-3 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
 								>
 									<Square className="w-3.5 h-3.5" /> End Session
 								</button>
@@ -526,9 +526,9 @@ export default function CEOFocusPage() {
 			</div>
 
 			{/* 4. TODAY'S ACTIVITY */}
-			<PremiumCard className="p-4 bg-[#0F1218] border-white/10 rounded-xl space-y-3">
-				<div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-					<h3 className="text-xs font-extrabold text-[#F4F7F5] uppercase tracking-wider">
+			<PremiumCard className="p-4 rounded-xl space-y-3">
+				<div className="flex items-center justify-between border-b border-border pb-2.5">
+					<h3 className="text-xs font-extrabold text-foreground uppercase tracking-wider">
 						TODAY'S ACTIVITY
 					</h3>
 
@@ -536,14 +536,14 @@ export default function CEOFocusPage() {
 						<button
 							type="button"
 							onClick={() => setShowHistoryDrawer(true)}
-							className="px-3 py-1 rounded-lg bg-[#0B0E13] border border-white/10 text-xs font-bold text-[#9AA4B2] hover:text-white cursor-pointer"
+							className="px-3 py-1 rounded-lg bg-secondary border border-border text-xs font-bold text-muted-foreground hover:text-foreground cursor-pointer"
 						>
 							History
 						</button>
 						<button
 							type="button"
 							onClick={() => setShowStatsDrawer(true)}
-							className="px-3 py-1 rounded-lg bg-[#0B0E13] border border-white/10 text-xs font-bold text-gold hover:bg-gold/10 cursor-pointer"
+							className="px-3 py-1 rounded-lg bg-secondary border border-border text-xs font-bold text-amber-600 dark:text-gold hover:bg-amber-500/10 cursor-pointer"
 						>
 							Statistics
 						</button>
@@ -555,34 +555,34 @@ export default function CEOFocusPage() {
 						history.slice(0, 5).map((item, idx) => (
 							<div
 								key={idx}
-								className="p-2.5 rounded-lg bg-[#0B0E13] border border-white/5 grid grid-cols-4 items-center text-xs font-mono"
+								className="p-2.5 rounded-lg bg-muted/40 border border-border/50 grid grid-cols-4 items-center text-xs font-mono"
 							>
-								<span className="text-[#667085] text-[11px] font-bold">
+								<span className="text-muted-foreground text-[11px] font-bold">
 									{new Date(item.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
 								</span>
-								<span className="font-bold text-[#F4F7F5] truncate col-span-1">{item.displayTitle}</span>
+								<span className="font-bold text-foreground truncate col-span-1">{item.displayTitle}</span>
 								<span className="text-center">
 									<span
 										className={`px-2 py-0.5 rounded text-[9.5px] font-bold uppercase border ${
 											item.status === "Completed"
-												? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+												? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
 												: item.status === "Paused"
-												? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-												: "bg-white/5 text-[#9AA4B2] border-white/10"
+												? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+												: "bg-muted text-muted-foreground border-border"
 										}`}
 									>
 										{item.status}
 									</span>
 								</span>
-								<span className="text-right text-gold font-bold">
+								<span className="text-right text-amber-600 dark:text-gold font-bold">
 									{formatShortDuration(item.durationSeconds)}
 								</span>
 							</div>
 						))
 					) : (
-						<div className="py-6 text-center text-xs text-[#667085] space-y-1">
+						<div className="py-6 text-center text-xs text-muted-foreground space-y-1">
 							<p>No focus sessions recorded yet today.</p>
-							<p className="text-[11px] text-[#9AA4B2]">Select a task and click Start Focus to begin tracking.</p>
+							<p className="text-[11px] text-muted-foreground/80">Select a task and click Start Focus to begin tracking.</p>
 						</div>
 					)}
 				</div>
@@ -601,19 +601,19 @@ export default function CEOFocusPage() {
 
 			{/* PAUSE MODAL */}
 			{showPauseModal && (
-				<div className="fixed inset-0 z-[10000] bg-black/85 backdrop-blur-xs flex items-center justify-center p-4">
-					<div className="bg-[#0F1218] border border-white/10 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
-						<div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-							<h3 className="text-xs font-extrabold text-[#F4F7F5] uppercase tracking-wider">
+				<div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+					<div className="bg-card border border-border rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+						<div className="flex items-center justify-between border-b border-border pb-2.5">
+							<h3 className="text-xs font-extrabold text-foreground uppercase tracking-wider">
 								Pause Focus Session
 							</h3>
-							<button type="button" onClick={() => setShowPauseModal(false)} className="text-[#667085] hover:text-white cursor-pointer">
+							<button type="button" onClick={() => setShowPauseModal(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
 								<X className="w-4 h-4" />
 							</button>
 						</div>
 
 						<div className="space-y-3 text-xs">
-							<p className="text-[#9AA4B2]">
+							<p className="text-muted-foreground">
 								Select an optional reason for pausing your active focus session:
 							</p>
 
@@ -625,8 +625,8 @@ export default function CEOFocusPage() {
 										onClick={() => setPauseReason(reason)}
 										className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-center cursor-pointer ${
 											pauseReason === reason
-												? "bg-amber-500/20 text-amber-400 border-amber-500/40"
-												: "bg-[#0B0E13] text-[#9AA4B2] border-white/10 hover:text-white"
+												? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40"
+												: "bg-secondary text-muted-foreground border-border hover:text-foreground"
 										}`}
 									>
 										{reason}
@@ -635,18 +635,18 @@ export default function CEOFocusPage() {
 							</div>
 						</div>
 
-						<div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+						<div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
 							<button
 								type="button"
 								onClick={() => setShowPauseModal(false)}
-								className="px-4 py-1.5 rounded-lg bg-[#0B0E13] border border-white/10 text-xs font-bold text-[#9AA4B2] hover:text-white cursor-pointer"
+								className="px-4 py-1.5 rounded-lg bg-secondary border border-border text-xs font-bold text-muted-foreground hover:text-foreground cursor-pointer"
 							>
 								Cancel
 							</button>
 							<button
 								type="button"
 								onClick={handlePauseFocus}
-								className="px-4 py-1.5 rounded-lg bg-amber-500 text-black text-xs font-bold hover:bg-amber-400 cursor-pointer"
+								className="px-4 py-1.5 rounded-lg bg-amber-500 text-white dark:bg-amber-500 dark:text-black text-xs font-bold hover:bg-amber-600 dark:hover:bg-amber-400 cursor-pointer"
 							>
 								Confirm Pause
 							</button>

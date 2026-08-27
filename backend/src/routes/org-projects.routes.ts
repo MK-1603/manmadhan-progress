@@ -714,9 +714,27 @@ orgProjectsRouter.post(
 			const milestoneRecords: any[] = [];
 			const createdInitialTasks: any[] = [];
 
+			// ── Resolve Workspace CEO User (Core Business Rule: Owner = CEO) ──
+			let ceoUserId = userId;
+			if (userRole !== "CEO") {
+				const [ceoMember] = await db
+					.select({ userId: workspaceMembers.userId })
+					.from(workspaceMembers)
+					.where(
+						and(
+							eq(workspaceMembers.workspaceId, workspaceId),
+							eq(workspaceMembers.role, "CEO")
+						)
+					)
+					.limit(1);
+				if (ceoMember?.userId) {
+					ceoUserId = ceoMember.userId;
+				}
+			}
+
 			// ── ATOMIC DATABASE TRANSACTION ─────────────────────────────────
 			await db.transaction(async (tx) => {
-				// 1. Create Core Project Record (Owner = Authenticated CEO, Lead = CO-CEO)
+				// 1. Create Core Project Record (Owner = Workspace CEO, CreatedBy = Requester)
 				const [p] = await tx
 					.insert(projects)
 					.values({
@@ -730,8 +748,8 @@ orgProjectsRouter.post(
 						priority: priority || "Medium",
 						progress: 0,
 						health: "HEALTHY",
-						ownerId: userId,
-						executionLeadId: coCeoVal,
+						ownerId: ceoUserId,
+						executionLeadId: coCeoVal || (userRole === "CO-CEO" ? userId : null),
 						createdBy: userId,
 						startDate: parsedStartDate,
 						deadline: projectDeadline,
@@ -741,11 +759,21 @@ orgProjectsRouter.post(
 					.returning();
 				newProject = p;
 
-				// 1.1 Insert Project Members (Owner & Execution Lead & Members)
+				// 1.1 Insert Project Members (CEO Owner & Execution Lead & Members)
 				const membersToInsert = [
-					{ id: uuidv4(), projectId, userId, role: "OWNER", assignedById: userId, assignedAt: new Date() },
+					{ id: uuidv4(), projectId, userId: ceoUserId, role: "OWNER", assignedById: userId, assignedAt: new Date() },
 				];
-				if (coCeoVal && coCeoVal !== userId) {
+				if (userId !== ceoUserId) {
+					membersToInsert.push({
+						id: uuidv4(),
+						projectId,
+						userId,
+						role: "CREATOR",
+						assignedById: userId,
+						assignedAt: new Date(),
+					});
+				}
+				if (coCeoVal && coCeoVal !== ceoUserId && coCeoVal !== userId) {
 					membersToInsert.push({
 						id: uuidv4(),
 						projectId,

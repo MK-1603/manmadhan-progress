@@ -25,18 +25,18 @@ import { ProjectTeamView } from "@/components/organization/project-team-view";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type TabId = "OVERVIEW" | "TEAM" | "WORK" | "AI_TOOLS" | "MILESTONES" | "DOCUMENTS" | "SUBMISSIONS" | "GITHUB" | "TIMELINE";
+type TabId = "OVERVIEW" | "TASKS" | "MILESTONES" | "TIMELINE" | "TEAM" | "DOCUMENTS" | "GITHUB" | "ACTIVITY" | "SETTINGS" | "AI_TOOLS" | "SUBMISSIONS";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "OVERVIEW", label: "Overview" },
-  { id: "TEAM", label: "Team" },
-  { id: "WORK", label: "Work" },
-  { id: "AI_TOOLS", label: "AI Tools (Hub)" },
+  { id: "TASKS", label: "Tasks" },
   { id: "MILESTONES", label: "Milestones" },
-  { id: "DOCUMENTS", label: "Documents" },
-  { id: "SUBMISSIONS", label: "Submissions" },
-  { id: "GITHUB", label: "GitHub" },
   { id: "TIMELINE", label: "Timeline" },
+  { id: "TEAM", label: "Team" },
+  { id: "DOCUMENTS", label: "Documents" },
+  { id: "GITHUB", label: "GitHub" },
+  { id: "ACTIVITY", label: "Activity" },
+  { id: "SETTINGS", label: "Settings" },
 ];
 
 
@@ -1301,6 +1301,88 @@ function AiToolsTab({ projectId }: { projectId: string }) {
   );
 }
 
+function ActivityTab({ activity }: { activity: any[] }) {
+  return (
+    <div className="space-y-4 font-sans">
+      <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-3">
+        <h3 className="text-sm font-bold text-[#17202A] dark:text-[#F2F4F7]">Project Activity & Audit Log History</h3>
+        <span className="text-[11px] text-[#667085] dark:text-[#8B95A5]">{activity.length} recorded events</span>
+      </div>
+
+      <div className="space-y-2">
+        {activity.length === 0 ? (
+          <div className="p-8 text-center text-[12px] text-[#667085] dark:text-[#8B95A5]">No activity log events recorded yet for this project.</div>
+        ) : (
+          activity.map((act, idx) => (
+            <div key={act.id || idx} className="p-3.5 rounded-xl bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg bg-[#C9A52A]/10 border border-[#C9A52A]/20 flex items-center justify-center text-[#C9A52A] text-xs font-bold shrink-0">
+                <ActivityIcon className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5 flex-1 min-w-0">
+                <p className="text-xs font-bold text-[#17202A] dark:text-[#F2F4F7]">{act.eventType || act.details || "Project Event"}</p>
+                <p className="text-[11px] text-[#667085] dark:text-[#8B95A5]">{act.details || act.description}</p>
+                <span className="text-[10px] font-mono text-[#667085] dark:text-[#8B95A5]">{fmtDate(act.createdAt)}</span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SettingsTab({ project, onArchive, onDelete }: { project: any; onArchive: () => void; onDelete: () => void }) {
+  return (
+    <div className="space-y-6 font-sans max-w-2xl">
+      <div className="p-5 rounded-2xl bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] space-y-4">
+        <div className="border-b border-[#E4E7EC] dark:border-[#272D36] pb-3">
+          <h3 className="text-sm font-bold text-[#17202A] dark:text-[#F2F4F7]">Project Governance & Ownership</h3>
+          <p className="text-[11.5px] text-[#667085] dark:text-[#8B95A5]">System ownership rules and execution management settings.</p>
+        </div>
+
+        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs flex items-center justify-between">
+          <div className="space-y-0.5">
+            <span className="font-bold uppercase tracking-wider text-[10px]">Project Owner Rule</span>
+            <p className="text-[11.5px]">Every organization project is owned by the CEO.</p>
+          </div>
+          <span className="px-2.5 py-1 rounded bg-[#C9A52A] text-black font-extrabold text-[10.5px]">CEO 🔒</span>
+        </div>
+
+        <div className="space-y-3 text-xs">
+          <div>
+            <label className="font-bold text-[#17202A] dark:text-[#F2F4F7] block mb-1">Project Name</label>
+            <input type="text" value={project.name} disabled className="w-full h-10 px-3 bg-[#F8F9FB] dark:bg-[#0B0E12] border border-[#E4E7EC] dark:border-[#272D36] rounded-xl text-[#17202A] dark:text-[#F2F4F7]" />
+          </div>
+
+          <div>
+            <label className="font-bold text-[#17202A] dark:text-[#F2F4F7] block mb-1">Priority Level</label>
+            <span className="px-3 py-1.5 rounded-xl bg-[#F8F9FB] dark:bg-[#0B0E12] border border-[#E4E7EC] dark:border-[#272D36] inline-block font-bold text-[#C9A52A]">{project.priority || "Medium"} Priority</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5 rounded-2xl bg-[#FFFFFF] dark:bg-[#15191F] border border-rose-500/20 space-y-4">
+        <h3 className="text-sm font-bold text-rose-600 dark:text-rose-400">Danger Zone</h3>
+        <div className="flex items-center justify-between pt-2 border-t border-[#E4E7EC] dark:border-[#272D36]">
+          <div>
+            <p className="font-bold text-xs text-[#17202A] dark:text-[#F2F4F7]">Archive Project</p>
+            <p className="text-[11px] text-[#667085]">Mark project as read-only archived status.</p>
+          </div>
+          <button onClick={onArchive} className="px-3.5 py-1.5 rounded-xl border border-amber-500/40 text-amber-600 dark:text-amber-400 font-bold text-xs hover:bg-amber-500/10 cursor-pointer">Archive</button>
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t border-[#E4E7EC] dark:border-[#272D36]">
+          <div>
+            <p className="font-bold text-xs text-rose-600 dark:text-rose-400">Delete Project</p>
+            <p className="text-[11px] text-[#667085]">Permanently delete project and associated records.</p>
+          </div>
+          <button onClick={onDelete} className="px-3.5 py-1.5 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 cursor-pointer">Delete Project</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN PAGE COMPONENT ──────────────────────────────────────────────────────
 
 
@@ -1561,7 +1643,7 @@ export default function ProjectWorkspacePage() {
                     </button>
 
                     <button
-                      onClick={() => { setActiveTab("WORK"); setAddMenuOpen(false); }}
+                      onClick={() => { setActiveTab("TASKS"); setAddMenuOpen(false); }}
                       className="w-full px-3.5 py-2 text-left flex items-center gap-2.5 text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#181D24] cursor-pointer"
                     >
                       <Layers className="w-4 h-4 text-blue-500" />
@@ -1742,16 +1824,8 @@ export default function ProjectWorkspacePage() {
             <ProjectTeamView projectId={projectId} ownerName={project.owner} />
           )}
 
-          {activeTab === "WORK" && (
+          {activeTab === "TASKS" && (
             <WorkTab project={project} tasks={tasks} onAddTask={() => setShowAddTaskModal(true)} onWorkCreated={fetchProjectDetails} />
-          )}
-
-          {activeTab === "SUBMISSIONS" && (
-            <SubmissionsTab
-              projectId={projectId}
-              submissions={submissions}
-              onAddSubmission={handleAddSubmission}
-            />
           )}
 
           {activeTab === "TIMELINE" && (
@@ -1780,12 +1854,20 @@ export default function ProjectWorkspacePage() {
             />
           )}
 
-          {activeTab === "AI_TOOLS" && (
-            <AiToolsTab projectId={projectId} />
-          )}
-
           {activeTab === "GITHUB" && (
             <GitHubOAuthPanel projectId={projectId} project={project} />
+          )}
+
+          {activeTab === "ACTIVITY" && (
+            <ActivityTab activity={activity} />
+          )}
+
+          {activeTab === "SETTINGS" && (
+            <SettingsTab
+              project={project}
+              onArchive={handleArchiveProject}
+              onDelete={() => setShowDeleteModal(true)}
+            />
           )}
 
         </div>

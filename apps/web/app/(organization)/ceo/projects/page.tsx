@@ -578,14 +578,13 @@ export default function ProjectsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsCreateOpen(true)}
+            <Link
+              href={`${basePath}/projects/create`}
               className="h-[36px] sm:h-[38px] px-3.5 sm:px-4 rounded-[9px] bg-[#C9A52A] text-[#0B0D10] font-bold text-[12px] flex items-center justify-center gap-1.5 cursor-pointer hover:opacity-90 transition-opacity shadow-xs whitespace-nowrap"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>New Project</span>
-            </button>
+            </Link>
           </div>
         </div>
 

@@ -297,6 +297,12 @@ export default function InvitePage() {
       });
 
       if (res.data.success) {
+        if (res.data.token) {
+          localStorage.setItem("auth_token", res.data.token);
+          localStorage.setItem("token", res.data.token);
+          const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+          document.cookie = `auth_token=${res.data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
+        }
         if (res.data.workspaceId) {
           localStorage.setItem("workspaceId", res.data.workspaceId);
         }

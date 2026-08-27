@@ -13,6 +13,7 @@ import { io, Socket } from "socket.io-client";
 import { useAuth } from "@/components/auth/auth-context";
 import { resetGlobalSheetState } from "@/components/ui/global-sheet";
 import { isExplicitLoggingOut, clearAuthStorage } from "@/lib/api-client";
+import { isPublicPath } from "@/lib/public-routes";
 
 interface SocketContextType {
   socket: Socket | null;
@@ -217,7 +218,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
             localStorage.removeItem("auth_token");
             localStorage.removeItem("token");
             localStorage.removeItem("user");
-            if (!window.location.pathname.startsWith("/login") && !isExplicitLoggingOut()) {
+            if (!isPublicPath(window.location.pathname) && !isExplicitLoggingOut()) {
               window.location.href = "/login";
             }
           }

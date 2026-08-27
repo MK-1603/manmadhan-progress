@@ -521,20 +521,20 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-xl bg-[#0B0D10] border border-[#272D36] rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-white font-sans">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="w-full max-w-xl bg-card border border-border rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-foreground font-sans">
         {/* Header */}
-        <div className="px-5 py-3.5 border-b border-[#1D222A] flex items-center justify-between bg-[#111419] shrink-0">
+        <div className="px-5 py-3.5 border-b border-border flex items-center justify-between bg-muted/30 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-[#C9A52A]/15 border border-[#C9A52A]/30 flex items-center justify-center text-[#C9A52A]">
+            <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-gold">
               <FolderPlus className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-[#F2F4F7]">Create Project</h2>
-              <p className="text-[11px] text-[#667085]">Describe what you want to execute.</p>
+              <h2 className="text-sm font-bold text-foreground">Create Project</h2>
+              <p className="text-[11px] text-muted-foreground">Describe what you want to execute.</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-[#667085] hover:text-white hover:bg-[#1D222A] transition-colors cursor-pointer">
+          <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -542,7 +542,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
         {/* Scrollable Modal Content Body */}
         <div className="p-4 overflow-y-auto space-y-3 flex-1">
           {error && (
-            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -551,17 +551,17 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
           {/* Overwrite Example Protection Confirmation */}
           {pendingExampleText && (
             <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs space-y-2">
-              <p className="font-semibold text-amber-200">Replace current prompt content with selected example?</p>
+              <p className="font-semibold text-amber-700 dark:text-amber-200">Replace current prompt content with selected example?</p>
               <div className="flex items-center gap-2 justify-end">
                 <button
                   onClick={() => setPendingExampleText(null)}
-                  className="px-2.5 py-1 rounded border border-amber-500/40 text-amber-200 hover:bg-amber-500/20 text-[11px] cursor-pointer"
+                  className="px-2.5 py-1 rounded border border-amber-500/40 text-amber-700 dark:text-amber-200 hover:bg-amber-500/20 text-[11px] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmOverwriteExample}
-                  className="px-2.5 py-1 rounded bg-[#C9A52A] text-black font-bold text-[11px] cursor-pointer"
+                  className="px-2.5 py-1 rounded bg-amber-500 text-white dark:bg-gold dark:text-black font-bold text-[11px] cursor-pointer"
                 >
                   Use Example
                 </button>
@@ -580,13 +580,13 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                   onKeyDown={handleKeyDown}
                   placeholder="Describe what you want to execute... (Use @ for people, / for commands)"
                   rows={5}
-                  className="w-full p-3 bg-[#111419] border border-[#272D36] focus:border-[#C9A52A] rounded-xl text-xs text-[#F2F4F7] placeholder-[#667085] outline-none transition-all resize-none leading-relaxed"
+                  className="w-full p-3 bg-background border border-border focus:border-amber-500/50 rounded-xl text-xs text-foreground placeholder:text-muted-foreground outline-none transition-all resize-none leading-relaxed"
                 />
 
                 {/* Real-time @ Mention Dropdown (@ = PEOPLE ONLY) */}
                 {mentionQuery !== null && mentionOptions.length > 0 && (
-                  <div className="absolute left-3 bottom-3 z-50 w-64 bg-[#15191F] border border-[#272D36] rounded-xl shadow-2xl overflow-hidden py-1 max-h-48 overflow-y-auto">
-                    <p className="px-3 py-1 text-[9.5px] font-bold text-[#C9A52A] uppercase tracking-wider border-b border-[#1D222A]">
+                  <div className="absolute left-3 bottom-3 z-50 w-64 bg-popover border border-border rounded-xl shadow-2xl overflow-hidden py-1 max-h-48 overflow-y-auto">
+                    <p className="px-3 py-1 text-[9.5px] font-bold text-amber-600 dark:text-gold uppercase tracking-wider border-b border-border">
                       Assign Organization Member
                     </p>
                     {mentionOptions.map((opt, idx) => (
@@ -594,11 +594,11 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                         key={opt.id}
                         onClick={() => handleSelectMention(opt)}
                         className={`w-full px-3 py-1.5 text-left flex items-center justify-between text-xs cursor-pointer transition-colors ${
-                          idx === selectedMentionIndex ? "bg-[#C9A52A]/20 text-[#C9A52A] font-bold" : "text-[#F2F4F7] hover:bg-[#1D222A]"
+                          idx === selectedMentionIndex ? "bg-amber-500/20 text-amber-600 dark:text-gold font-bold" : "text-foreground hover:bg-accent"
                         }`}
                       >
                         <span>{opt.label}</span>
-                        <span className="text-[10px] text-[#667085]">{opt.subLabel}</span>
+                        <span className="text-[10px] text-muted-foreground">{opt.subLabel}</span>
                       </button>
                     ))}
                   </div>
@@ -606,8 +606,8 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
 
                 {/* Real-time / Slash Commands Dropdown (/ = COMMANDS ONLY) */}
                 {slashQuery !== null && filteredSlashCommands.length > 0 && (
-                  <div className="absolute left-3 bottom-3 z-50 w-64 bg-[#15191F] border border-[#272D36] rounded-xl shadow-2xl overflow-hidden py-1 max-h-48 overflow-y-auto">
-                    <p className="px-3 py-1 text-[9.5px] font-bold text-blue-400 uppercase tracking-wider border-b border-[#1D222A]">
+                  <div className="absolute left-3 bottom-3 z-50 w-64 bg-popover border border-border rounded-xl shadow-2xl overflow-hidden py-1 max-h-48 overflow-y-auto">
+                    <p className="px-3 py-1 text-[9.5px] font-bold text-blue-500 uppercase tracking-wider border-b border-border">
                       Quick Commands
                     </p>
                     {filteredSlashCommands.map((cmd, idx) => (
@@ -615,14 +615,14 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                         key={cmd.command}
                         onClick={() => handleSelectSlashChip(cmd.key)}
                         className={`w-full px-3 py-1.5 text-left flex items-center justify-between text-xs cursor-pointer transition-colors ${
-                          idx === selectedSlashIndex ? "bg-blue-500/20 text-blue-400 font-bold" : "text-[#F2F4F7] hover:bg-[#1D222A]"
+                          idx === selectedSlashIndex ? "bg-blue-500/20 text-blue-500 font-bold" : "text-foreground hover:bg-accent"
                         }`}
                       >
                         <div className="flex items-center gap-1.5">
-                          <Command className="w-3 h-3 text-blue-400" />
+                          <Command className="w-3 h-3 text-blue-500" />
                           <span>{cmd.command}</span>
                         </div>
-                        <span className="text-[9.5px] text-[#667085]">{cmd.desc}</span>
+                        <span className="text-[9.5px] text-muted-foreground">{cmd.desc}</span>
                       </button>
                     ))}
                   </div>
@@ -632,8 +632,8 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
               {/* Quick Add Chips Section */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold text-[#667085] uppercase tracking-wider">Quick Add</p>
-                  <span className="text-[9.5px] text-[#667085]">Click chip to insert key</span>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Quick Add</p>
+                  <span className="text-[9.5px] text-muted-foreground">Click chip to insert key</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {QUICK_ADD_CHIPS.map((chip) => (
@@ -643,8 +643,8 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                       onClick={() => handleQuickAddClick(chip.key)}
                       className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
                         chip.primary
-                          ? "bg-[#C9A52A]/20 border-[#C9A52A] text-[#C9A52A] hover:bg-[#C9A52A] hover:text-black"
-                          : "bg-[#111419] border-[#272D36] text-[#8B95A5] hover:text-[#F2F4F7] hover:border-[#C9A52A]/40"
+                          ? "bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-gold hover:bg-amber-500 hover:text-white dark:hover:text-black"
+                          : "bg-secondary border-border text-muted-foreground hover:text-foreground hover:border-amber-500/40"
                       }`}
                     >
                       {chip.label}
@@ -654,27 +654,27 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
               </div>
 
               {/* Collapsible Quick Reference Section */}
-              <div className="border border-[#1D222A] rounded-xl bg-[#111419]/50 overflow-hidden text-xs">
+              <div className="border border-border rounded-xl bg-muted/20 overflow-hidden text-xs">
                 <button
                   type="button"
                   onClick={() => setShowQuickRef(!showQuickRef)}
-                  className="w-full px-3 py-2 flex items-center justify-between text-[#8B95A5] hover:text-white transition-colors cursor-pointer"
+                  className="w-full px-3 py-2 flex items-center justify-between text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 >
                   <span className="flex items-center gap-1.5 text-[11px] font-bold">
-                    <HelpCircle className="w-3.5 h-3.5 text-[#C9A52A]" /> Quick Reference
+                    <HelpCircle className="w-3.5 h-3.5 text-amber-600 dark:text-gold" /> Quick Reference
                   </span>
                   {showQuickRef ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </button>
 
                 {showQuickRef && (
-                  <div className="p-3 border-t border-[#1D222A] space-y-2 text-[11px] text-[#667085]">
+                  <div className="p-3 border-t border-border space-y-2 text-[11px] text-muted-foreground">
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="p-2 bg-[#0B0D10] rounded border border-[#1D222A]">
-                        <span className="font-bold text-[#C9A52A]">@ People</span>
+                      <div className="p-2 bg-background rounded border border-border">
+                        <span className="font-bold text-amber-600 dark:text-gold">@ People</span>
                         <p className="text-[10px]">Type @ to assign organization members or @me for yourself.</p>
                       </div>
-                      <div className="p-2 bg-[#0B0D10] rounded border border-[#1D222A]">
-                        <span className="font-bold text-blue-400">/ Commands</span>
+                      <div className="p-2 bg-background rounded border border-border">
+                        <span className="font-bold text-blue-500">/ Commands</span>
                         <p className="text-[10px]">Type / to insert quick command fields into prompt.</p>
                       </div>
                     </div>
@@ -683,30 +683,30 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
               </div>
 
               {/* Collapsible Examples Accordion */}
-              <div className="border border-[#1D222A] rounded-xl bg-[#111419]/50 overflow-hidden text-xs">
+              <div className="border border-border rounded-xl bg-muted/20 overflow-hidden text-xs">
                 <button
                   type="button"
                   onClick={() => setShowExamples(!showExamples)}
-                  className="w-full px-3 py-2 flex items-center justify-between text-[#8B95A5] hover:text-white transition-colors cursor-pointer"
+                  className="w-full px-3 py-2 flex items-center justify-between text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                 >
                   <span className="flex items-center gap-1.5 text-[11px] font-bold">
-                    <Zap className="w-3.5 h-3.5 text-purple-400" /> Examples
+                    <Zap className="w-3.5 h-3.5 text-purple-500" /> Examples
                   </span>
                   {showExamples ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </button>
 
                 {showExamples && (
-                  <div className="p-2 border-t border-[#1D222A] bg-[#0E1116] max-h-44 overflow-y-auto space-y-2 text-[11px]">
+                  <div className="p-2 border-t border-border bg-background max-h-44 overflow-y-auto space-y-2 text-[11px]">
                     {PROMPT_EXAMPLES.map((ex, idx) => (
-                      <div key={idx} className="p-2 bg-[#15191F] rounded-lg border border-[#272D36] flex items-center justify-between gap-2">
+                      <div key={idx} className="p-2 bg-card rounded-lg border border-border flex items-center justify-between gap-2">
                         <div>
-                          <p className="font-bold text-[#F2F4F7]">{ex.title}</p>
-                          <p className="text-[10.5px] text-[#667085] line-clamp-1">{ex.text}</p>
+                          <p className="font-bold text-foreground">{ex.title}</p>
+                          <p className="text-[10.5px] text-muted-foreground line-clamp-1">{ex.text}</p>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleApplyExample(ex.text)}
-                          className="px-2.5 py-1 rounded bg-[#1D222A] hover:bg-[#C9A52A] hover:text-black font-bold text-[10px] text-[#C9A52A] transition-colors cursor-pointer shrink-0"
+                          className="px-2.5 py-1 rounded bg-secondary hover:bg-amber-500 hover:text-white dark:hover:text-black font-bold text-[10px] text-amber-600 dark:text-gold transition-colors cursor-pointer shrink-0"
                         >
                           Use Example
                         </button>
@@ -721,58 +721,58 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
           {/* ── STAGE 2: SINGLE-VIEWPORT REVIEW SCREEN ──────────────────────────────── */}
           {stage === "REVIEW" && extractedIntent && (
             <div className="space-y-3 font-sans text-xs">
-              <div className="p-3 bg-[#111419] rounded-xl border border-[#272D36] space-y-1.5">
+              <div className="p-3 bg-muted/30 rounded-xl border border-border space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-bold text-[#C9A52A] bg-[#C9A52A]/10 px-2 py-0.5 rounded uppercase">
+                  <span className="text-[9px] font-bold text-amber-600 dark:text-gold bg-amber-500/10 px-2 py-0.5 rounded uppercase">
                     {extractedIntent.priority} Priority
                   </span>
                   {extractedIntent.deadline && (
-                    <span className="text-[11px] font-mono text-[#8B95A5] flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-[#C9A52A]" /> {extractedIntent.deadline}
+                    <span className="text-[11px] font-mono text-muted-foreground flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-amber-600 dark:text-gold" /> {extractedIntent.deadline}
                     </span>
                   )}
                 </div>
-                <h3 className="text-sm font-bold text-[#F2F4F7]">{extractedIntent.title}</h3>
-                <p className="text-[#8B95A5] line-clamp-2">{extractedIntent.description}</p>
+                <h3 className="text-sm font-bold text-foreground">{extractedIntent.title}</h3>
+                <p className="text-muted-foreground line-clamp-2">{extractedIntent.description}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5 text-[11px]">
-                <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
-                  <span className="text-[9.5px] font-bold text-[#667085] uppercase">Owner</span>
-                  <p className="font-bold text-[#F2F4F7]">You · CEO</p>
+                <div className="p-2.5 bg-muted/30 rounded-xl border border-border space-y-1">
+                  <span className="text-[9.5px] font-bold text-muted-foreground uppercase">Owner</span>
+                  <p className="font-bold text-foreground">You · CEO</p>
                 </div>
 
-                <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
-                  <span className="text-[9.5px] font-bold text-[#C9A52A] uppercase">Execution Lead</span>
-                  <p className="font-bold text-[#C9A52A]">
+                <div className="p-2.5 bg-muted/30 rounded-xl border border-border space-y-1">
+                  <span className="text-[9.5px] font-bold text-amber-600 dark:text-gold uppercase">Execution Lead</span>
+                  <p className="font-bold text-amber-600 dark:text-gold">
                     {extractedIntent.executionLead ? `@${extractedIntent.executionLead.name || extractedIntent.executionLead.email}` : "None"}
                   </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2.5 text-[11px]">
-                <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
-                  <span className="text-[9.5px] font-bold text-[#667085] uppercase">Members</span>
-                  <p className="font-semibold text-[#F2F4F7]">
+                <div className="p-2.5 bg-muted/30 rounded-xl border border-border space-y-1">
+                  <span className="text-[9.5px] font-bold text-muted-foreground uppercase">Members</span>
+                  <p className="font-semibold text-foreground">
                     {extractedIntent.members.length > 0
                       ? extractedIntent.members.map((m) => `@${m.user.name || m.user.email}`).join(", ")
                       : "None"}
                   </p>
                 </div>
 
-                <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
-                  <span className="text-[9.5px] font-bold text-[#667085] uppercase">Tools</span>
-                  <p className="font-semibold text-purple-400">
+                <div className="p-2.5 bg-muted/30 rounded-xl border border-border space-y-1">
+                  <span className="text-[9.5px] font-bold text-muted-foreground uppercase">Tools</span>
+                  <p className="font-semibold text-purple-500">
                     {extractedIntent.hubTools.length > 0 ? extractedIntent.hubTools.map((t) => t.name).join(" · ") : "None"}
                   </p>
                 </div>
               </div>
 
-              <div className="p-2.5 bg-[#111419] rounded-xl border border-[#272D36] space-y-1">
-                <span className="text-[9.5px] font-bold text-[#667085] uppercase">
+              <div className="p-2.5 bg-muted/30 rounded-xl border border-border space-y-1">
+                <span className="text-[9.5px] font-bold text-muted-foreground uppercase">
                   Milestones ({extractedIntent.milestones.length} suggested)
                 </span>
-                <p className="text-[#8B95A5] line-clamp-1">
+                <p className="text-muted-foreground line-clamp-1">
                   {extractedIntent.milestones.map((m) => m.name).join(" → ")}
                 </p>
               </div>
@@ -781,13 +781,13 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
         </div>
 
         {/* Sticky Fixed Bottom Action Footer */}
-        <div className="px-5 py-3 border-t border-[#1D222A] bg-[#111419] flex items-center justify-between shrink-0">
+        <div className="px-5 py-3 border-t border-border bg-card flex items-center justify-between shrink-0">
           {stage === "COMPOSE" ? (
             <div className="flex items-center justify-end w-full">
               <button
                 onClick={handleParsePrompt}
                 disabled={!promptText.trim() || isParsing}
-                className="inline-flex items-center gap-1.5 px-5 h-[38px] rounded-xl bg-[#C9A52A] text-black font-bold text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
+                className="inline-flex items-center gap-1.5 px-5 h-[38px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white dark:bg-gold dark:hover:bg-gold/90 dark:text-black font-bold text-xs transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
               >
                 {isParsing ? (
                   <>
@@ -806,7 +806,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
             <div className="flex items-center justify-between w-full">
               <button
                 onClick={() => setStage("COMPOSE")}
-                className="inline-flex items-center gap-1 px-3.5 h-[36px] rounded-lg border border-[#272D36] text-[#8B95A5] hover:text-white hover:bg-[#1D222A] transition-colors cursor-pointer text-xs"
+                className="inline-flex items-center gap-1 px-3.5 h-[36px] rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer text-xs"
               >
                 <ArrowLeft className="w-3.5 h-3.5" /> Edit Prompt
               </button>
@@ -814,7 +814,7 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
               <button
                 onClick={handleConfirmCreateProject}
                 disabled={isSubmitting}
-                className="inline-flex items-center gap-1.5 px-5 h-[38px] rounded-xl bg-[#C9A52A] text-black font-bold text-xs hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
+                className="inline-flex items-center gap-1.5 px-5 h-[38px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white dark:bg-gold dark:hover:bg-gold/90 dark:text-black font-bold text-xs transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
               >
                 {isSubmitting ? (
                   <>

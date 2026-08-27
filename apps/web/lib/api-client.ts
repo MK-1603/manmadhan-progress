@@ -1,4 +1,5 @@
 import axios from "axios";
+import { isPublicPath } from "./public-routes";
 
 const getBaseUrl = () => {
   const envUrl = process.env.NEXT_PUBLIC_API_URL || process.env.INTERNAL_API_URL;
@@ -176,10 +177,9 @@ apiClient.interceptors.response.use(
       clearAuthStorage();
       if (
         typeof window !== "undefined" &&
-        !window.location.pathname.startsWith("/login") &&
         !explicitLoggingOut
       ) {
-        const isPublicPage = window.location.pathname === "/" || window.location.pathname === "/activate";
+        const isPublicPage = isPublicPath(window.location.pathname);
         if (!isPublicPage) {
           window.location.href = "/login";
         }

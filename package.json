@@ -14,5 +14,10 @@
   },
   "devDependencies": {
     "turbo": "^2.4.2"
+  },
+  "overrides": {
+    "cron-parser": "^5.10.0",
+    "glob": "^13.0.6",
+    "uuid": "^11.1.0"
   }
 }

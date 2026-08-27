@@ -185,28 +185,28 @@ export function CustomDropdown({
         type="button"
         onClick={handleToggle}
         disabled={disabled}
-        className={`h-[36px] px-3.5 bg-white dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[8px] text-zinc-900 dark:text-[#F2F4F7] flex items-center justify-between gap-2 transition-all outline-none disabled:opacity-50 cursor-pointer hover:border-zinc-400 dark:hover:border-[#C9A52A]/60 ${
+        className={`h-[36px] px-3.5 bg-background border border-border rounded-[8px] text-foreground flex items-center justify-between gap-2 transition-all outline-none disabled:opacity-50 cursor-pointer hover:border-amber-500/60 dark:hover:border-gold/60 ${
           isOpen
-            ? "ring-2 ring-[#C9A52A]/30 border-[#C9A52A] shadow-xs"
+            ? "ring-2 ring-amber-500/30 border-amber-500 shadow-xs"
             : ""
-        } ${isActiveValue ? "border-[#C9A52A]/50 bg-[#C9A52A]/5" : ""}`}
+        } ${isActiveValue ? "border-amber-500/50 bg-amber-500/5" : ""}`}
       >
         <span className="truncate flex items-center gap-2 text-[12px] font-semibold">
-          {isMoreFilters && <Filter className="w-3.5 h-3.5 text-[#C9A52A] shrink-0" />}
+          {isMoreFilters && <Filter className="w-3.5 h-3.5 text-amber-600 dark:text-gold shrink-0" />}
           {selectedOption?.dotColor && (
             <span className={`w-2 h-2 rounded-full shrink-0 ${selectedOption.dotColor}`} />
           )}
           <span className="truncate">{triggerDisplay}</span>
           {isMoreFilters && activeFilterCount > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full bg-[#C9A52A] text-[#0B0D10] text-[10px] font-extrabold">
+            <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-white dark:bg-gold dark:text-black text-[10px] font-extrabold">
               {activeFilterCount}
             </span>
           )}
         </span>
 
         <ChevronDown
-          className={`w-3.5 h-3.5 text-zinc-500 dark:text-[#8B95A5] transition-transform duration-200 shrink-0 ${
-            isOpen ? "rotate-180 text-[#C9A52A]" : ""
+          className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 shrink-0 ${
+            isOpen ? "rotate-180 text-amber-600 dark:text-gold" : ""
           }`}
         />
       </button>
@@ -224,25 +224,25 @@ export function CustomDropdown({
               width: `${coords.width}px`,
               zIndex: 999999,
             }}
-            className="bg-white dark:bg-[#15191F] border border-zinc-200 dark:border-[#272D36] rounded-[10px] shadow-2xl overflow-hidden py-1.5 font-sans animate-in fade-in-50 zoom-in-95 duration-100"
+            className="bg-popover border border-border text-popover-foreground rounded-[10px] shadow-2xl overflow-hidden py-1.5 font-sans animate-in fade-in-50 zoom-in-95 duration-100"
           >
             {/* Search Input for Owner / Assignee */}
             {searchable && !isMoreFilters && (
-              <div className="p-2 border-b border-zinc-200 dark:border-[#272D36]">
+              <div className="p-2 border-b border-border">
                 <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-[#8B95A5]" />
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input
                     ref={searchInputRef}
                     type="text"
                     placeholder={searchPlaceholder}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full h-[32px] pl-8 pr-2.5 bg-zinc-50 dark:bg-[#111419] border border-zinc-200 dark:border-[#272D36] rounded-[6px] text-[11.5px] text-zinc-900 dark:text-[#F2F4F7] placeholder-zinc-400 dark:placeholder-[#667085] outline-none focus:border-[#C9A52A]"
+                    className="w-full h-[32px] pl-8 pr-2.5 bg-background border border-border rounded-[6px] text-[11.5px] text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/50"
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-900 dark:hover:text-[#F2F4F7]"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -256,21 +256,21 @@ export function CustomDropdown({
               <div className="p-3 space-y-3">
                 {moreFiltersContent}
                 {onClearFilters && (
-                  <div className="pt-2 border-t border-zinc-200 dark:border-[#272D36] flex items-center justify-between">
+                  <div className="pt-2 border-t border-border flex items-center justify-between">
                     <button
                       type="button"
                       onClick={() => {
                         onClearFilters();
                         setIsOpen(false);
                       }}
-                      className="text-[11.5px] font-bold text-rose-600 dark:text-rose-400 hover:underline cursor-pointer"
+                      className="text-[11.5px] font-bold text-rose-500 hover:underline cursor-pointer"
                     >
                       Clear Filters
                     </button>
                     <button
                       type="button"
                       onClick={() => setIsOpen(false)}
-                      className="px-3 py-1 rounded-[6px] bg-[#C9A52A] text-[#0B0D10] text-[11.5px] font-bold cursor-pointer hover:opacity-90 transition-opacity"
+                      className="px-3 py-1 rounded-[6px] bg-amber-500 text-white dark:bg-gold dark:text-black text-[11.5px] font-bold cursor-pointer hover:opacity-90 transition-opacity"
                     >
                       Apply
                     </button>
@@ -279,9 +279,9 @@ export function CustomDropdown({
               </div>
             ) : (
               /* Options List */
-              <div className="max-h-[220px] overflow-y-auto divide-y divide-zinc-100 dark:divide-[#272D36]/30">
+              <div className="max-h-[220px] overflow-y-auto divide-y divide-border/30">
                 {filteredOptions.length === 0 ? (
-                  <div className="p-3 text-center text-zinc-500 dark:text-[#8B95A5] text-[11.5px]">
+                  <div className="p-3 text-center text-muted-foreground text-[11.5px]">
                     No options found
                   </div>
                 ) : (
@@ -300,10 +300,10 @@ export function CustomDropdown({
                         onMouseEnter={() => setHighlightedIndex(idx)}
                         className={`w-full px-3 py-2 text-left text-[12px] flex items-center justify-between transition-colors cursor-pointer ${
                           isSelected
-                            ? "bg-[#C9A52A]/15 text-[#C9A52A] font-bold"
+                            ? "bg-amber-500/15 text-amber-600 dark:text-gold font-bold"
                             : isHighlighted
-                            ? "bg-zinc-100 dark:bg-[#1A1F26] text-zinc-900 dark:text-[#F2F4F7]"
-                            : "text-zinc-900 dark:text-[#F2F4F7] hover:bg-zinc-100 dark:hover:bg-[#1A1F26]"
+                            ? "bg-accent text-accent-foreground"
+                            : "text-foreground hover:bg-accent"
                         }`}
                       >
                         <div className="flex items-center gap-2.5 truncate">
@@ -311,14 +311,14 @@ export function CustomDropdown({
                           <div className="truncate">
                             <div className="font-bold leading-snug truncate">{opt.label}</div>
                             {opt.sublabel && (
-                              <div className="text-[10.5px] text-zinc-500 dark:text-[#8B95A5] font-normal truncate">
+                              <div className="text-[10.5px] text-muted-foreground font-normal truncate">
                                 {opt.sublabel}
                               </div>
                             )}
                           </div>
                         </div>
 
-                        {isSelected && <Check className="w-3.5 h-3.5 text-[#C9A52A] shrink-0 ml-2 stroke-[2.5]" />}
+                        {isSelected && <Check className="w-3.5 h-3.5 text-amber-600 dark:text-gold shrink-0 ml-2 stroke-[2.5]" />}
                       </button>
                     );
                   })

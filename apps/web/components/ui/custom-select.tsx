@@ -158,26 +158,26 @@ export function CustomSelect({
         type="button"
         onClick={handleToggle}
         disabled={disabled}
-        className={`w-full ${sizeClasses} bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] rounded-[10px] text-[#17202A] dark:text-[#F2F4F7] flex items-center justify-between transition-all outline-none disabled:opacity-50 cursor-pointer hover:border-[#C9A52A]/60 dark:hover:border-[#D4B12F]/60 ${
+        className={`w-full ${sizeClasses} bg-background border border-border rounded-[10px] text-foreground flex items-center justify-between transition-all outline-none disabled:opacity-50 cursor-pointer hover:border-amber-500/60 dark:hover:border-gold/60 ${
           isOpen
-            ? "ring-2 ring-[#C9A52A]/30 border-[#C9A52A] dark:ring-[#D4B12F]/30 dark:border-[#D4B12F] shadow-sm"
+            ? "ring-2 ring-amber-500/30 border-amber-500 dark:ring-gold/30 dark:border-gold shadow-sm"
             : ""
         } ${triggerClassName}`}
       >
         <span className="truncate flex items-center gap-2">
-          {icon && <span className="shrink-0 text-[#667085] dark:text-[#8B95A5]">{icon}</span>}
+          {icon && <span className="shrink-0 text-muted-foreground">{icon}</span>}
           {selectedOption?.color && (
             <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedOption.color}`} />
           )}
           {selectedOption ? (
             <span className="font-semibold truncate">{selectedOption.label}</span>
           ) : (
-            <span className="text-[#667085] dark:text-[#8B95A5] font-normal truncate">{placeholder}</span>
+            <span className="text-muted-foreground font-normal truncate">{placeholder}</span>
           )}
         </span>
         <ChevronDown
-          className={`w-3.5 h-3.5 ml-1 text-[#667085] dark:text-[#8B95A5] transition-transform duration-200 shrink-0 ${
-            isOpen ? "rotate-180 text-[#C9A52A] dark:text-[#D4B12F]" : ""
+          className={`w-3.5 h-3.5 ml-1 text-muted-foreground transition-transform duration-200 shrink-0 ${
+            isOpen ? "rotate-180 text-amber-600 dark:text-gold" : ""
           }`}
         />
       </button>
@@ -194,7 +194,7 @@ export function CustomSelect({
               width: `${coords.width}px`,
               zIndex: 999999,
             }}
-            className="bg-[#FFFFFF] dark:bg-[#14181F] border border-[#E4E7EC] dark:border-[#28303C] rounded-[12px] shadow-[0_12px_36px_rgba(0,0,0,0.35)] overflow-hidden py-1.5 max-h-[260px] overflow-y-auto font-sans animate-in fade-in-50 zoom-in-95 duration-100"
+            className="bg-popover border border-border text-popover-foreground rounded-[12px] shadow-2xl overflow-hidden py-1.5 max-h-[260px] overflow-y-auto font-sans animate-in fade-in-50 zoom-in-95 duration-100"
           >
             {options.map((opt, idx) => {
               const isSelected = opt.value === value;
@@ -210,10 +210,10 @@ export function CustomSelect({
                   onMouseEnter={() => setHighlightedIndex(idx)}
                   className={`w-full px-3 py-2 text-left text-[12px] flex items-center justify-between transition-colors cursor-pointer ${
                     isSelected
-                      ? "bg-[#C9A52A]/15 text-[#C9A52A] dark:text-[#D4B12F] font-bold"
+                      ? "bg-amber-500/15 text-amber-600 dark:text-gold font-bold"
                       : isHighlighted
-                      ? "bg-[#F3F4F6] dark:bg-[#1E242C] text-[#17202A] dark:text-[#F2F4F7]"
-                      : "text-[#17202A] dark:text-[#F2F4F7]"
+                      ? "bg-accent text-accent-foreground"
+                      : "text-foreground hover:bg-accent"
                   }`}
                 >
                   <div className="flex items-center gap-2.5 truncate">
@@ -222,13 +222,13 @@ export function CustomSelect({
                     <div className="truncate">
                       <div className="font-semibold leading-snug truncate">{opt.label}</div>
                       {opt.sublabel && (
-                        <div className="text-[10.5px] text-[#667085] dark:text-[#8B95A5] font-normal truncate">
+                        <div className="text-[10.5px] text-muted-foreground font-normal truncate">
                           {opt.sublabel}
                         </div>
                       )}
                     </div>
                   </div>
-                  {isSelected && <Check className="w-3.5 h-3.5 text-[#C9A52A] dark:text-[#D4B12F] shrink-0 ml-2" />}
+                  {isSelected && <Check className="w-3.5 h-3.5 text-amber-600 dark:text-gold shrink-0 ml-2" />}
                 </button>
               );
             })}
