@@ -46,6 +46,7 @@ export function ProjectCreationWorkspace({
   const [manualSubstep, setManualSubstep] = useState<"INFORMATION" | "CONTROLS" | "REQUIREMENTS">("INFORMATION");
 
   // ── 2. NORMALIZED DRAFT STATE (INITIALIZED EMPTY — NO DEMO DEFAULTS!) ──────
+  const [projectIcon, setProjectIcon] = useState("FolderKanban");
   const [promptText, setPromptText] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
 
@@ -100,6 +101,7 @@ export function ProjectCreationWorkspace({
 
   // Clean Draft Reset Helper
   const resetDraft = useCallback(() => {
+    setProjectIcon("FolderKanban");
     setPromptText("");
     setSelectedTemplateId("");
     setTitle("");
@@ -193,6 +195,8 @@ export function ProjectCreationWorkspace({
         deadline: deadline || null,
         githubUrl: githubUrl.trim() || null,
         toolsText: toolsText.trim() || null,
+        icon: projectIcon,
+        projectIcon,
         requirements,
         deliverables,
         successCriteria,
@@ -436,6 +440,8 @@ export function ProjectCreationWorkspace({
 
                 {mode === "MANUAL" && (
                   <ManualMode
+                    projectIcon={projectIcon}
+                    setProjectIcon={setProjectIcon}
                     title={title}
                     setTitle={setTitle}
                     description={description}

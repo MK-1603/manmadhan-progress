@@ -1,9 +1,10 @@
-"use client";
-
 import React from "react";
 import { Lock } from "lucide-react";
+import { ProjectIconSelector } from "./project-icon-selector";
 
 interface ManualModeProps {
+  projectIcon?: string;
+  setProjectIcon?: (icon: string) => void;
   title: string;
   setTitle: (val: string) => void;
   description: string;
@@ -30,6 +31,8 @@ interface ManualModeProps {
 }
 
 export function ManualMode({
+  projectIcon = "FolderKanban",
+  setProjectIcon,
   title,
   setTitle,
   description,
@@ -102,6 +105,10 @@ export function ManualMode({
       {/* ── SUBSTEP 1: INFORMATION ─────────────────────────────────────────── */}
       {substep === "INFORMATION" && (
         <div className="space-y-4">
+          {setProjectIcon && (
+            <ProjectIconSelector selectedIcon={projectIcon} onSelectIcon={setProjectIcon} />
+          )}
+
           <div className="space-y-1.5">
             <label className="text-[11px] font-extrabold text-foreground uppercase tracking-wider block">
               Project Title *
