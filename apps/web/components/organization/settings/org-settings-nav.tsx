@@ -1,6 +1,5 @@
-"use client";
-
-import { User, Sliders, Bell, Palette, Shield, Smartphone, Clock } from "lucide-react";
+import { User, Sliders, Bell, Palette, Shield, Smartphone, Clock, RefreshCw, Download, Sparkles } from "lucide-react";
+import Link from "next/link";
 
 interface OrgSettingsNavProps {
 	activeTab: string;

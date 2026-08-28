@@ -25,6 +25,7 @@ const geist = Geist({
 
 import { OfflineProvider } from "../components/providers/offline-provider";
 import { WebVitalsGuard } from "../components/providers/web-vitals-guard";
+import { PWAProvider } from "../components/providers/pwa-provider";
 
 export const metadata: Metadata = {
   title: "ManMadhan Progress",
@@ -71,12 +72,14 @@ export default function RootLayout({
           <AuthProvider>
             <SocketProvider>
               <OfflineProvider>
-                <ConfirmProvider>
-                  <div className="min-h-screen w-full overflow-x-hidden bg-[#0B0E12]">{children}</div>
-                  <ScrollToTopButton />
-                  <AuthModal />
-                  <RestModeOverlay />
-                </ConfirmProvider>
+                <PWAProvider>
+                  <ConfirmProvider>
+                    <div className="min-h-screen w-full overflow-x-hidden bg-[#0B0E12]">{children}</div>
+                    <ScrollToTopButton />
+                    <AuthModal />
+                    <RestModeOverlay />
+                  </ConfirmProvider>
+                </PWAProvider>
               </OfflineProvider>
             </SocketProvider>
           </AuthProvider>

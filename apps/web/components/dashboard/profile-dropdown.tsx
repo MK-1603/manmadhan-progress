@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { User as UserIcon, Settings, Building, LogOut, Sun, Moon, Monitor, Check } from "lucide-react";
+import { User as UserIcon, Settings, Building, LogOut, Sun, Moon, Monitor, Check, RefreshCw, Download, Sparkles } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ResponsivePopover } from "../ui/responsive-popover";
 import { useAuth } from "../auth/auth-context";
@@ -225,6 +225,42 @@ export function ProfileDropdown({
               <span>Organization Settings</span>
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              router.push("/updates");
+            }}
+            className="flex items-center gap-2.5 px-2.5 h-[38px] rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-[#17202A] dark:text-[#F2F3F5] transition-colors cursor-pointer text-left font-medium text-xs"
+          >
+            <RefreshCw className="w-4 h-4 text-[#C9A52A] shrink-0" />
+            <span>Updates & Releases</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              router.push("/install");
+            }}
+            className="flex items-center gap-2.5 px-2.5 h-[38px] rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-[#17202A] dark:text-[#F2F3F5] transition-colors cursor-pointer text-left font-medium text-xs"
+          >
+            <Download className="w-4 h-4 text-[#C9A52A] shrink-0" />
+            <span>Install App</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              router.push("/about");
+            }}
+            className="flex items-center gap-2.5 px-2.5 h-[38px] rounded-lg hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-[#17202A] dark:text-[#F2F3F5] transition-colors cursor-pointer text-left font-medium text-xs"
+          >
+            <Sparkles className="w-4 h-4 text-[#667085] dark:text-[#8B94A3] shrink-0" />
+            <span>About App</span>
+          </button>
         </div>
 
         <div className="h-px bg-[#E5E7EB] dark:bg-[#24282E]" />
