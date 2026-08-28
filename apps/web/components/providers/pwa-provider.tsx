@@ -3,9 +3,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { CURRENT_APP_VERSION, APP_RELEASE_DATA, ReleaseInfo } from "@/lib/version-config";
 
-export type InstallStatus = "NOT_INSTALLED" | "INSTALL_PROMPT_AVAILABLE" | "INSTALLED" | "UPDATE_AVAILABLE" | "UNSUPPORTED";
+export type InstallStatus = "NOT_INSTALLED" | "INSTALL_PROMPT_AVAILABLE" | "INSTALLED" | "UPDATE_AVAILABLE" | "DISMISSED" | "UNSUPPORTED";
 export type UpdateStatus = "UP_TO_DATE" | "UPDATE_AVAILABLE" | "DOWNLOADING" | "READY" | "UPDATING" | "ERROR" | "OFFLINE";
 export type PlatformType = "ios" | "android" | "desktop" | "other";
+export type DeviceType = "iphone" | "ipad" | "android-phone" | "android-tablet" | "desktop";
+export type BrowserType = "safari" | "chrome" | "edge" | "firefox" | "other";
 
 interface PWAContextType {
   isInstalled: boolean;
@@ -16,8 +18,11 @@ interface PWAContextType {
   releaseDate: string;
   releaseData: ReleaseInfo[];
   platform: PlatformType;
+  device: DeviceType;
+  browser: BrowserType;
+  isSafari: boolean;
   deferredPrompt: any;
-  triggerInstall: () => Promise<boolean>;
+  triggerInstall: () => Promise<{ success: boolean; outcome: "accepted" | "dismissed" | "error" }>;
   checkForUpdates: () => Promise<void>;
   updateNow: () => Promise<void>;
   isCheckingUpdate: boolean;
@@ -31,27 +36,65 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
   const [installStatus, setInstallStatus] = useState<InstallStatus>("NOT_INSTALLED");
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("UP_TO_DATE");
   const [currentVersion] = useState(CURRENT_APP_VERSION);
-  const [latestVersion, setLatestVersion] = useState(CURRENT_APP_VERSION);
+  const [latestVersion] = useState(CURRENT_APP_VERSION);
   const [releaseDate] = useState(APP_RELEASE_DATA[0]?.releaseDate || "Aug 28, 2026");
-  const [platform, setPlatform] = useState<PlatformType>("other");
+  
+  const [platform, setPlatform] = useState<PlatformType>("desktop");
+  const [device, setDevice] = useState<DeviceType>("desktop");
+  const [browser, setBrowser] = useState<BrowserType>("other");
+  const [isSafari, setIsSafari] = useState(false);
+
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
 
-  // 1. Detect Platform & Display Mode (Standalone PWA)
+  // 1. Precise Feature-Based Platform, Device & Browser Detection
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // Platform detection
     const ua = navigator.userAgent || "";
-    const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
-    const isAndroid = /Android/.test(ua);
-    if (isIOS) setPlatform("ios");
-    else if (isAndroid) setPlatform("android");
-    else setPlatform("desktop");
+    const platformStr = navigator.platform || "";
+    const maxTouchPoints = navigator.maxTouchPoints || 0;
 
-    // Standalone display mode check
+    // Detect iOS (iPhone vs iPad vs iPad OS with TouchPoints)
+    const isIPhone = /iPhone|iPod/.test(ua);
+    const isIPad = /iPad/.test(ua) || (platformStr === "MacIntel" && maxTouchPoints > 1);
+    const isIOSDevice = isIPhone || isIPad;
+
+    // Detect Android (Phone vs Tablet)
+    const isAndroidDevice = /Android/.test(ua);
+    const isAndroidTablet = isAndroidDevice && !/Mobile/.test(ua);
+    const isAndroidPhone = isAndroidDevice && /Mobile/.test(ua);
+
+    // Browser Detection
+    const isCriOS = /CriOS/.test(ua);
+    const isFxiOS = /FxiOS/.test(ua);
+    const isSafariBrowser = /^((?!chrome|android).)*safari/i.test(ua) && !isCriOS && !isFxiOS;
+    const isChromeBrowser = /Chrome|Chromium/.test(ua) && !/Edg/.test(ua) && !isCriOS;
+    const isEdgeBrowser = /Edg/.test(ua);
+    const isFirefoxBrowser = /Firefox/.test(ua);
+
+    setIsSafari(isSafariBrowser);
+
+    if (isSafariBrowser) setBrowser("safari");
+    else if (isChromeBrowser) setBrowser("chrome");
+    else if (isEdgeBrowser) setBrowser("edge");
+    else if (isFirefoxBrowser) setBrowser("firefox");
+    else setBrowser("other");
+
+    if (isIOSDevice) {
+      setPlatform("ios");
+      setDevice(isIPad ? "ipad" : "iphone");
+    } else if (isAndroidDevice) {
+      setPlatform("android");
+      setDevice(isAndroidTablet ? "android-tablet" : "android-phone");
+    } else {
+      setPlatform("desktop");
+      setDevice("desktop");
+    }
+
+    // Standalone Display Mode Detection
     const isStandaloneMode =
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as any).standalone === true ||
@@ -94,19 +137,16 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
-    // Register SW
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => {
         setSwRegistration(registration);
 
-        // Check if there is already a waiting SW (ready to update)
         if (registration.waiting) {
           setUpdateStatus("READY");
           setInstallStatus("UPDATE_AVAILABLE");
         }
 
-        // Listen for new service worker installation
         registration.onupdatefound = () => {
           const installingWorker = registration.installing;
           if (!installingWorker) return;
@@ -116,11 +156,9 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
           installingWorker.onstatechange = () => {
             if (installingWorker.state === "installed") {
               if (navigator.serviceWorker.controller) {
-                // New update ready!
                 setUpdateStatus("READY");
                 setInstallStatus("UPDATE_AVAILABLE");
               } else {
-                // Initial SW caching complete
                 setUpdateStatus("UP_TO_DATE");
               }
             }
@@ -128,15 +166,13 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
         };
       })
       .catch((err) => {
-        console.warn("Service worker registration failed:", err);
+        console.warn("Service worker registration error:", err);
       });
 
-    // Listen for controllerchange (activated SW update)
     let refreshing = false;
     const handleControllerChange = () => {
       if (!refreshing) {
         refreshing = true;
-        // Reload page safely preserving tokens and session state
         window.location.reload();
       }
     };
@@ -149,9 +185,9 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // 4. Trigger Real Browser PWA Install Prompt
-  const triggerInstall = async (): Promise<boolean> => {
+  const triggerInstall = async (): Promise<{ success: boolean; outcome: "accepted" | "dismissed" | "error" }> => {
     if (!deferredPrompt) {
-      return false;
+      return { success: false, outcome: "error" };
     }
     try {
       deferredPrompt.prompt();
@@ -160,15 +196,18 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
         setIsInstalled(true);
         setInstallStatus("INSTALLED");
         setDeferredPrompt(null);
-        return true;
+        return { success: true, outcome: "accepted" };
+      } else {
+        setInstallStatus("DISMISSED");
+        return { success: false, outcome: "dismissed" };
       }
     } catch (err) {
       console.warn("PWA install prompt error:", err);
     }
-    return false;
+    return { success: false, outcome: "error" };
   };
 
-  // 5. Check for Service Worker & Application Version Updates
+  // 5. Check for Updates
   const checkForUpdates = useCallback(async () => {
     if (isCheckingUpdate) return;
     setIsCheckingUpdate(true);
@@ -201,11 +240,10 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     }
   }, [swRegistration, isCheckingUpdate]);
 
-  // 6. Apply Ready Update (Skip Waiting & Safe Reload)
+  // 6. Apply Ready Update
   const updateNow = useCallback(async () => {
     if (typeof window === "undefined") return;
 
-    // Check if user is in middle of active GitHub OAuth flow or active form
     if (window.location.pathname.includes("/github") || window.location.search.includes("code=")) {
       console.warn("Deferred PWA update during active OAuth flow.");
       return;
@@ -231,6 +269,9 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
         releaseDate,
         releaseData: APP_RELEASE_DATA,
         platform,
+        device,
+        browser,
+        isSafari,
         deferredPrompt,
         triggerInstall,
         checkForUpdates,
