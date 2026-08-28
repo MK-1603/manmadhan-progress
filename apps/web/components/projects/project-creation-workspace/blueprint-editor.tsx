@@ -118,44 +118,46 @@ export function BlueprintEditor({
         </span>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          {/* CO-CEO Lead */}
+          {/* Project Lead (CO-CEO) */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-foreground block">
-              CO-CEO Lead
+            <label className="text-[11px] font-extrabold text-foreground block uppercase tracking-wider">
+              Project Lead
             </label>
             <select
               value={selectedCoCeoId}
               onChange={(e) => setSelectedCoCeoId(e.target.value)}
-              className="w-full h-[38px] px-3 bg-background border border-border rounded-xl text-xs text-foreground outline-none focus:border-[#C9A52A] cursor-pointer"
+              className="w-full h-[38px] px-3 bg-background border border-border rounded-xl text-xs text-foreground outline-none focus:border-[#C9A52A] cursor-pointer font-semibold"
             >
-              <option value="">Not assigned</option>
+              <option value="">Select CO-CEO</option>
               {coCeoList.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} ({c.email})
+                  {c.name} (CO-CEO)
                 </option>
               ))}
             </select>
-            <span className="text-[10.5px] text-muted-foreground block">Responsible executive oversight lead.</span>
+            <span className="text-[10.5px] text-muted-foreground block leading-tight">
+              This CO-CEO will manage the execution of this project and assign work to its members.
+            </span>
           </div>
 
           {/* Execution Lead */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-foreground block">
+            <label className="text-[11px] font-extrabold text-foreground block uppercase tracking-wider">
               Execution Lead
             </label>
             <select
               value={selectedExecutionLeadId}
               onChange={(e) => setSelectedExecutionLeadId(e.target.value)}
-              className="w-full h-[38px] px-3 bg-background border border-border rounded-xl text-xs text-foreground outline-none focus:border-[#C9A52A] cursor-pointer"
+              className="w-full h-[38px] px-3 bg-background border border-border rounded-xl text-xs text-foreground outline-none focus:border-[#C9A52A] cursor-pointer font-semibold"
             >
-              <option value="">Not assigned</option>
+              <option value="">Select Execution Lead (Optional)</option>
               {memberList.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name} ({m.role})
                 </option>
               ))}
             </select>
-            <span className="text-[10.5px] text-muted-foreground block">Primary execution engineering lead.</span>
+            <span className="text-[10.5px] text-muted-foreground block leading-tight">Primary lead engineer assigned for technical execution.</span>
           </div>
         </div>
 

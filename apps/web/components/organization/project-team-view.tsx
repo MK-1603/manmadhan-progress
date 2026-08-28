@@ -193,29 +193,100 @@ export function ProjectTeamView({ projectId, ownerName }: ProjectTeamViewProps) 
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {team.map((member) => (
-            <div
-              key={member.id}
-              className="p-4 rounded-2xl bg-card border border-border space-y-3.5 hover:border-[#C9A52A]/40 transition-all shadow-xs"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-[#C9A52A]/10 border border-[#C9A52A]/20 flex items-center justify-center text-[#C9A52A] font-extrabold text-xs shrink-0">
-                    {member.name ? member.name.charAt(0).toUpperCase() : "M"}
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="text-xs font-extrabold text-foreground truncate">
-                      {member.name || member.email}
-                    </h4>
-                    <p className="text-[11px] text-muted-foreground truncate">
-                      {member.email}
-                    </p>
-                  </div>
+        <div className="space-y-6">
+          {/* 1. PROJECT OWNER (CEO) & PROJECT LEAD (CO-CEO) HIERARCHY */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Project Owner */}
+            <div className="p-4 rounded-2xl bg-card border border-border space-y-2.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider block">
+                  Project Owner
+                </span>
+                <span className="px-2 py-0.5 rounded bg-muted text-foreground text-[10px] font-extrabold border border-border">
+                  CEO
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-[#C9A52A]/10 border border-[#C9A52A]/30 text-[#C9A52A] flex items-center justify-center font-extrabold text-xs">
+                  {ownerName ? ownerName.charAt(0).toUpperCase() : "C"}
+                </div>
+                <div>
+                  <h4 className="text-xs font-extrabold text-foreground">{ownerName || "CEO"}</h4>
+                  <p className="text-[10.5px] text-muted-foreground">Organization Owner & Ultimate Mandate Authority</p>
                 </div>
               </div>
             </div>
-          ))}
+
+            {/* Project Lead (Assigned CO-CEO) */}
+            {(() => {
+              const leadMember = team.find((m) => m.orgRole === "CO-CEO" || m.projectRole === "OWNER" || m.projectRole === "EXECUTION_LEAD");
+              return (
+                <div className="p-4 rounded-2xl bg-card border border-[#C9A52A]/40 space-y-2.5 shadow-2xs relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-[#C9A52A] uppercase tracking-wider block">
+                      Project Lead
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-[#C9A52A]/15 text-[#C9A52A] text-[10px] font-extrabold border border-[#C9A52A]/30">
+                      PROJECT LEAD
+                    </span>
+                  </div>
+                  {leadMember ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-[#C9A52A] text-[#0B0D10] flex items-center justify-center font-extrabold text-xs shrink-0">
+                          {leadMember.name ? leadMember.name.charAt(0).toUpperCase() : "L"}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-extrabold text-foreground truncate">{leadMember.name || leadMember.email}</h4>
+                          <p className="text-[10.5px] text-muted-foreground truncate">{leadMember.email} · Operational Authority</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground italic">No CO-CEO assigned as Project Lead yet.</p>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* 2. PROJECT MEMBERS SECTION */}
+          <div className="space-y-3 pt-2">
+            <h3 className="text-xs font-extrabold text-foreground uppercase tracking-wider">
+              Project Members ({team.filter((m) => m.orgRole !== "CO-CEO").length})
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {team
+                .filter((m) => m.orgRole !== "CO-CEO")
+                .map((member) => (
+                  <div
+                    key={member.id}
+                    className="p-3.5 rounded-2xl bg-card border border-border space-y-2.5 hover:border-border/80 transition-all shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-secondary border border-border flex items-center justify-center text-foreground font-bold text-xs shrink-0">
+                          {member.name ? member.name.charAt(0).toUpperCase() : "M"}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-foreground truncate">{member.name || member.email}</h4>
+                          <p className="text-[10.5px] text-muted-foreground truncate">{member.email}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRemovingId(member.id)}
+                        className="text-muted-foreground hover:text-rose-500 p-1 transition-colors cursor-pointer"
+                        title="Remove Member"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
         </div>
       )}
 

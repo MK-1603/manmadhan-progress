@@ -1896,7 +1896,9 @@ export default function ProjectWorkspacePage() {
               )}
 
               <div className="flex items-center gap-3 text-[11px] text-muted-foreground pt-0.5">
-                <span>Owner: <strong className="text-foreground font-bold">{project.owner || "CEO"}</strong></span>
+                <span>Project Owner: <strong className="text-foreground font-bold">{project.owner || "CEO"}</strong></span>
+                <span>·</span>
+                <span>Project Lead: <strong className="text-[#C9A52A] font-extrabold">{project.coCeoLeadName || "CO-CEO"}</strong></span>
                 <span>·</span>
                 <span>Due: <span className="font-mono font-bold text-foreground">{fmtDate(project.deadline, "Flexible")}</span></span>
                 <span>·</span>
