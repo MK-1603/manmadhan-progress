@@ -145,18 +145,45 @@ export function TaskWorkspace({ userRole, basePath }: TaskWorkspaceProps) {
     };
   }, [socket, fetchTasks]);
 
+  // Calculate Execution Metrics
+  const metrics = useMemo(() => {
+    let active = 0;
+    let inReview = 0;
+    let atRisk = 0;
+    let completed = 0;
+
+    tasks.forEach((t) => {
+      const s = (t.status || "").toUpperCase();
+      const isOverdue = t.deadline && new Date(t.deadline).getTime() < Date.now() && s !== "COMPLETED" && s !== "APPROVED";
+
+      if (s === "COMPLETED" || s === "APPROVED") {
+        completed++;
+      } else if (s === "SUBMITTED" || s === "IN_REVIEW" || s === "IN REVIEW") {
+        inReview++;
+      } else {
+        active++;
+      }
+
+      if (s === "BLOCKED" || isOverdue) {
+        atRisk++;
+      }
+    });
+
+    return { active, inReview, atRisk, completed };
+  }, [tasks]);
+
   // Filter Tasks by Workspace Tab & Search
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
+      const s = (task.status || "").toUpperCase();
       // 1. Workspace Tab Filter
       if (workspaceTab === "MY_TASKS") {
         if (task.assigneeId !== user?.id && task.assignedToId !== user?.id) return false;
       } else if (workspaceTab === "ASSIGNED") {
         if (task.assigneeId !== user?.id && task.assignedToId !== user?.id) return false;
       } else if (workspaceTab === "CREATED") {
-        if (task.createdBy !== user?.id && task.createdById !== user?.id) return false;
+        if (s !== "SUBMITTED" && s !== "IN_REVIEW" && s !== "IN REVIEW") return false;
       } else if (workspaceTab === "COMPLETED") {
-        const s = (task.status || "").toUpperCase();
         if (s !== "COMPLETED" && s !== "APPROVED") return false;
       }
 
@@ -194,7 +221,7 @@ export function TaskWorkspace({ userRole, basePath }: TaskWorkspaceProps) {
               <span>Tasks</span>
             </h1>
             <p className="text-xs text-muted-foreground truncate">
-              Execution workspace for authorized project and operational tasks.
+              Organizational execution workspace
             </p>
           </div>
 
@@ -245,12 +272,32 @@ export function TaskWorkspace({ userRole, basePath }: TaskWorkspaceProps) {
           </div>
         </div>
 
-        {/* ── 2. SUB-NAVIGATION TABS (My Tasks / Assigned / Created / Completed) ──── */}
+        {/* ── 2. COMPACT SUMMARY METRICS BAR ────────────────────────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+          <div className="px-3 py-1.5 rounded-xl bg-background border border-border flex items-center justify-between">
+            <span className="text-muted-foreground font-semibold">Active</span>
+            <span className="font-extrabold text-foreground font-mono">{metrics.active}</span>
+          </div>
+          <div className="px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-between text-purple-400">
+            <span className="font-semibold">In Review</span>
+            <span className="font-extrabold font-mono">{metrics.inReview}</span>
+          </div>
+          <div className="px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-between text-rose-500">
+            <span className="font-semibold">At Risk / Overdue</span>
+            <span className="font-extrabold font-mono">{metrics.atRisk}</span>
+          </div>
+          <div className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-emerald-500">
+            <span className="font-semibold">Completed</span>
+            <span className="font-extrabold font-mono">{metrics.completed}</span>
+          </div>
+        </div>
+
+        {/* ── 3. SUB-NAVIGATION TABS (All / My Tasks / Assigned / In Review / Completed) */}
         <div className="flex items-center gap-1 border-b border-border/60 pb-2 overflow-x-auto text-xs font-bold [scrollbar-width:none]">
           {[
             { id: "MY_TASKS", label: "My Tasks" },
             { id: "ASSIGNED", label: "Assigned" },
-            { id: "CREATED", label: "Created" },
+            { id: "CREATED", label: "In Review" },
             { id: "COMPLETED", label: "Completed" },
           ].map((tab) => (
             <button

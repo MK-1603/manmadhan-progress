@@ -1,18 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
-import { CheckSquare, X, Loader2, AlertCircle, ArrowLeft, ChevronRight, Command, ChevronDown, ChevronUp, HelpCircle, Zap, Calendar, User, Layers, Sparkles, Check } from "lucide-react";
+import React, { useState, useEffect, useMemo } from "react";
+import { CheckSquare, X, Loader2, AlertCircle, Calendar, User, Layers, Shield, FileText, Check, Search } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useAuth } from "@/components/auth/auth-context";
-import { useRouter } from "next/navigation";
-
-interface AssigneeUser {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  avatar?: string;
-}
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -25,65 +16,19 @@ interface CreateTaskModalProps {
   defaultAssigneeRole?: string | null;
 }
 
-const QUICK_ADD_CHIPS = [
-  { label: "Add All", key: "ADD_ALL", primary: true },
-  { label: "Title", key: "Task Title: " },
-  { label: "Type", key: "Task Type: " },
-  { label: "Priority", key: "Priority: " },
-  { label: "Energy", key: "Energy: " },
-  { label: "Assignee", key: "Assignee: " },
-  { label: "Project", key: "Project: " },
-  { label: "Deadline", key: "Deadline: " },
-  { label: "Deliverable", key: "Deliverable: " },
-  { label: "Description", key: "Description: " },
-];
-
-const FULL_TEMPLATE_KEYS = [
-  "Task Title: ",
-  "Task Type: PROJECT WORK",
-  "Priority: Medium",
-  "Energy: Normal",
-  "Assignee: @me",
-  "Project: ",
-  "Deadline: ",
-  "Deliverable: ",
-  "Description: ",
-];
-
-const SLASH_COMMANDS = [
-  { command: "/title", label: "/title", desc: "Insert Task Title field", key: "Task Title: " },
-  { command: "/type", label: "/type", desc: "Insert Task Type field", key: "Task Type: " },
-  { command: "/priority", label: "/priority", desc: "Insert Priority field", key: "Priority: " },
-  { command: "/energy", label: "/energy", desc: "Insert Energy Fit field", key: "Energy: " },
-  { command: "/assignee", label: "/assignee", desc: "Insert Assignee field & trigger @people", key: "Assignee: @" },
-  { command: "/project", label: "/project", desc: "Insert Associated Project field", key: "Project: " },
-  { command: "/deadline", label: "/deadline", desc: "Insert Target Deadline field", key: "Deadline: " },
-  { command: "/deliverable", label: "/deliverable", desc: "Insert Deliverable field", key: "Deliverable: " },
-  { command: "/description", label: "/description", desc: "Insert Description field", key: "Description: " },
-  { command: "/notes", label: "/notes", desc: "Insert Notes field", key: "Notes: " },
-];
-
-const PROMPT_EXAMPLES = [
-  {
-    title: "Simple Task",
-    text: "Task Title: Write Auth Integration Tests and assign to @me",
-    desc: "Single sentence task assignment",
-  },
-  {
-    title: "Project Work Task",
-    text: "Task Title: Build OAuth 2.0 Session Engine\nTask Type: PROJECT WORK\nPriority: High\nEnergy: Deep Focus\nAssignee: @me\nDeliverable: Working Auth APIs & Integration Tests\nDescription: Build JWT authentication service with RBAC enforcement.",
-    desc: "Detailed project engineering work item",
-  },
-  {
-    title: "Team Assignment",
-    text: "Task Title: Responsive Navigation & Glassmorphism Header\nTask Type: PROJECT WORK\nPriority: Medium\nEnergy: High Energy\nAssignee: @ARUN\nDeliverable: Next.js Header Component\nDescription: Upgrade layout header with dark mode theme support.",
-    desc: "Assigning task to organization team member",
-  },
-  {
-    title: "Learning & Research",
-    text: "Task Title: Study Model Context Protocol Specifications\nTask Type: LEARNING\nPriority: Low\nEnergy: Low Energy\nAssignee: @me\nDeliverable: Architecture Summary Notes\nDescription: Research MCP tool invocation guidelines and write notes.",
-    desc: "Learning and specification research task",
-  },
+const TASK_TYPES = [
+  "Project Work",
+  "Development",
+  "Design",
+  "Document",
+  "Research",
+  "Review",
+  "Testing",
+  "Bug / Fix",
+  "Approval",
+  "Deployment",
+  "Meeting",
+  "Other"
 ];
 
 export function renderNeatTextWithMentions(text: string | null | undefined) {
@@ -118,834 +63,420 @@ export function CreateTaskModal({
   onClose,
   onSuccess,
   defaultProjectId = null,
+  defaultMilestoneId = null,
   defaultAssigneeId = null,
-  defaultAssigneeName = null,
 }: CreateTaskModalProps) {
-  const router = useRouter();
   const { user } = useAuth();
 
-  // ── Stage Control (COMPOSE vs REVIEW) ───────────────────────────────────────
-  const [stage, setStage] = useState<"COMPOSE" | "REVIEW">("COMPOSE");
+  // Task Scope: PROJECT (requires project) vs ORGANIZATION (no project)
+  const [taskScope, setTaskScope] = useState<"PROJECT" | "ORGANIZATION">(
+    defaultProjectId ? "PROJECT" : "PROJECT"
+  );
 
-  // ── Prompt & Extraction State ──────────────────────────────────────────────
-  const [promptText, setPromptText] = useState("");
-  const [isParsing, setIsParsing] = useState(false);
+  // Form Fields State
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [taskType, setTaskType] = useState("Project Work");
+  const [selectedProjectId, setSelectedProjectId] = useState(defaultProjectId || "");
+  const [selectedMilestoneId, setSelectedMilestoneId] = useState(defaultMilestoneId || "");
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState(defaultAssigneeId || "");
+  const [priority, setPriority] = useState<"Critical" | "High" | "Medium" | "Low">("Medium");
+  const [dueDate, setDueDate] = useState("");
+  const [deliverable, setDeliverable] = useState("");
+  const [evidenceRequired, setEvidenceRequired] = useState(false);
+  const [requirements, setRequirements] = useState("");
+  const [reviewerId, setReviewerId] = useState("");
+  const [notes, setNotes] = useState("");
+
+  // Metadata
+  const [projects, setProjects] = useState<any[]>([]);
+  const [milestones, setMilestones] = useState<any[]>([]);
+  const [eligibleAssignees, setEligibleAssignees] = useState<any[]>([]);
+  const [loadingAssignees, setLoadingAssignees] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ── Accordion States for Reference & Examples ─────────────────────────────
-  const [showQuickRef, setShowQuickRef] = useState(false);
-  const [showExamples, setShowExamples] = useState(false);
-  const [pendingExampleText, setPendingExampleText] = useState<string | null>(null);
+  // Search filter for task type
+  const [typeSearch, setTypeSearch] = useState("");
+  const filteredTaskTypes = useMemo(() => {
+    if (!typeSearch.trim()) return TASK_TYPES;
+    return TASK_TYPES.filter((t) => t.toLowerCase().includes(typeSearch.toLowerCase()));
+  }, [typeSearch]);
 
-  // ── Directory & Context ─────────────────────────────────────────────────────
-  const [allUsers, setAllUsers] = useState<AssigneeUser[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
-
-  // ── Autocomplete Dropdown States ───────────────────────────────────────────
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
-  const [mentionPosition, setMentionPosition] = useState<number>(0);
-  const [selectedMentionIndex, setSelectedMentionIndex] = useState<number>(0);
-
-  const [slashQuery, setSlashQuery] = useState<string | null>(null);
-  const [slashPosition, setSlashPosition] = useState<number>(0);
-  const [selectedSlashIndex, setSelectedSlashIndex] = useState<number>(0);
-
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // ── Structured Extracted Intent for Review Stage ───────────────────────────
-  const [extractedIntent, setExtractedIntent] = useState<{
-    title: string;
-    description: string;
-    type: string;
-    priority: "Low" | "Medium" | "High" | "Critical";
-    energyLevel: string;
-    assignee: AssigneeUser | null;
-    assigneeText: string;
-    projectId: string | null;
-    projectTitle: string | null;
-    deadline: string | null;
-    deliverable: string | null;
-  } | null>(null);
-
-  // ── Load Directory Users & Projects on Open ─────────────────────────────────
+  // Load Authorized Projects on Mount
   useEffect(() => {
     if (!isOpen) return;
-
-    setStage("COMPOSE");
-    setError(null);
-    setIsParsing(false);
-    setIsSubmitting(false);
-    setShowQuickRef(false);
-    setShowExamples(false);
-    setPendingExampleText(null);
-
-    async function loadData() {
+    async function loadProjects() {
       try {
-        const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
-        const wsParam = workspaceId && workspaceId !== "undefined" ? `?workspaceId=${workspaceId}` : "";
-
-        const [dirRes, projRes] = await Promise.all([
-          apiClient.get(`/org/directory${wsParam}`).catch(() => null),
-          apiClient.get(`/org/projects${wsParam}`).catch(() => null),
-        ]);
-
-        if (dirRes?.data?.success && Array.isArray(dirRes.data.data)) {
-          setAllUsers(dirRes.data.data);
-        }
-        if (projRes?.data?.data && Array.isArray(projRes.data.data)) {
-          setProjects(projRes.data.data);
+        const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+        const res = await apiClient.get(`/org/projects${wsId ? `?workspaceId=${wsId}` : ""}`);
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          setProjects(res.data.data);
         }
       } catch (e) {
-        console.error("Failed to load directory/projects for task modal:", e);
+        console.warn("Failed to load projects for task creation:", e);
       }
     }
-
-    loadData();
+    loadProjects();
   }, [isOpen]);
 
-  // ── Smart Add All & Quick Add Handlers ──────────────────────────────────────
-  const handleSmartAddAll = () => {
-    if (!promptText.trim()) {
-      setPromptText(FULL_TEMPLATE_KEYS.join("\n"));
+  // Load Milestones when Selected Project Changes
+  useEffect(() => {
+    if (!isOpen || !selectedProjectId) {
+      setMilestones([]);
+      setSelectedMilestoneId("");
       return;
     }
-
-    const lowerPrompt = promptText.toLowerCase();
-    const missingKeys: string[] = [];
-
-    FULL_TEMPLATE_KEYS.forEach((k) => {
-      const keyClean = k.split(":")[0].toLowerCase();
-      if (!lowerPrompt.includes(keyClean)) {
-        missingKeys.push(k);
-      }
-    });
-
-    if (missingKeys.length > 0) {
-      const prefix = promptText.endsWith("\n") ? "" : "\n\n";
-      setPromptText((prev) => prev + prefix + missingKeys.join("\n"));
-    }
-  };
-
-  const handleQuickAddClick = (chipKey: string) => {
-    if (chipKey === "ADD_ALL") {
-      handleSmartAddAll();
-      return;
-    }
-
-    const keyClean = chipKey.split(":")[0].trim().toLowerCase();
-    if (promptText.toLowerCase().includes(keyClean) && textareaRef.current) {
-      textareaRef.current.focus();
-      const pos = promptText.toLowerCase().indexOf(keyClean);
-      textareaRef.current.setSelectionRange(pos, pos + chipKey.length);
-      return;
-    }
-
-    if (!textareaRef.current) {
-      setPromptText((prev) => prev + (prev.endsWith("\n") || prev === "" ? "" : "\n") + chipKey);
-      return;
-    }
-
-    const cursorPos = textareaRef.current.selectionStart || promptText.length;
-    const textBefore = promptText.slice(0, cursorPos);
-    const textAfter = promptText.slice(cursorPos);
-    const prefix = textBefore.length > 0 && !textBefore.endsWith("\n") ? "\n" : "";
-
-    const insertedText = prefix + chipKey;
-    const newText = textBefore + insertedText + textAfter;
-    setPromptText(newText);
-
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-        const newPos = cursorPos + insertedText.length;
-        textareaRef.current.setSelectionRange(newPos, newPos);
-      }
-    }, 0);
-  };
-
-  // ── "Use Example" Handlers with Overwrite Protection ────────────────────────
-  const handleApplyExample = (exampleText: string) => {
-    if (!promptText.trim()) {
-      setPromptText(exampleText);
-    } else {
-      setPendingExampleText(exampleText);
-    }
-  };
-
-  const confirmOverwriteExample = () => {
-    if (pendingExampleText) {
-      setPromptText(pendingExampleText);
-      setPendingExampleText(null);
-    }
-  };
-
-  // ── Mention Autocomplete Filter Options (@ = PEOPLE ONLY) ───────────────────
-  const mentionOptions = useMemo(() => {
-    if (mentionQuery === null) return [];
-    const q = mentionQuery.toLowerCase();
-
-    const options: Array<{ id: string; label: string; subLabel: string; isMe?: boolean; userObj?: AssigneeUser }> = [
-      {
-        id: "me",
-        label: "@me",
-        subLabel: `${user?.name || "Self"} (You · Assignee)`,
-        isMe: true,
-      },
-    ];
-
-    allUsers.forEach((u) => {
-      if (u.id !== user?.id && (u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q) || u.role?.toLowerCase().includes(q))) {
-        options.push({
-          id: u.id,
-          label: `@${u.name || u.email.split("@")[0]}`,
-          subLabel: `${u.role || "Member"} · ${u.email}`,
-          userObj: u,
-        });
-      }
-    });
-
-    return options;
-  }, [mentionQuery, allUsers, user]);
-
-  // ── Slash Command Filter Options (/ = COMMANDS ONLY) ────────────────────────
-  const filteredSlashCommands = useMemo(() => {
-    if (slashQuery === null) return [];
-    const q = slashQuery.toLowerCase();
-    return SLASH_COMMANDS.filter((cmd) => cmd.command.toLowerCase().includes(q) || cmd.desc.toLowerCase().includes(q));
-  }, [slashQuery]);
-
-  // ── Textarea Change & Keyboard Handlers ─────────────────────────────────────
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    setPromptText(val);
-    setError(null);
-
-    const cursorPos = e.target.selectionStart;
-    const textBeforeCursor = val.slice(0, cursorPos);
-
-    const lastAtIndex = textBeforeCursor.lastIndexOf("@");
-    if (lastAtIndex !== -1) {
-      const query = textBeforeCursor.slice(lastAtIndex + 1);
-      if (!/\s/.test(query)) {
-        setMentionQuery(query);
-        setMentionPosition(lastAtIndex);
-        setSelectedMentionIndex(0);
-        setSlashQuery(null);
-        return;
-      }
-    }
-
-    const lastSlashIndex = textBeforeCursor.lastIndexOf("/");
-    if (lastSlashIndex !== -1 && (lastSlashIndex === 0 || /\s/.test(textBeforeCursor[lastSlashIndex - 1]))) {
-      const query = textBeforeCursor.slice(lastSlashIndex + 1);
-      if (!/\s/.test(query)) {
-        setSlashQuery(query);
-        setSlashPosition(lastSlashIndex);
-        setSelectedSlashIndex(0);
-        setMentionQuery(null);
-        return;
-      }
-    }
-
-    setMentionQuery(null);
-    setSlashQuery(null);
-  };
-
-  const handleSelectMention = (option: typeof mentionOptions[0]) => {
-    if (mentionPosition === null || !textareaRef.current) return;
-
-    const beforeMention = promptText.slice(0, mentionPosition);
-    const afterMention = promptText.slice(textareaRef.current.selectionStart);
-    const inserted = `${option.label} `;
-
-    const newText = beforeMention + inserted + afterMention;
-    setPromptText(newText);
-    setMentionQuery(null);
-
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-        const newCursorPos = mentionPosition + inserted.length;
-        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
-      }
-    }, 0);
-  };
-
-  const handleSelectSlashChip = (chipKey: string) => {
-    if (slashPosition === null || !textareaRef.current) return;
-
-    const beforeSlash = promptText.slice(0, slashPosition);
-    const afterSlash = promptText.slice(textareaRef.current.selectionStart);
-    const newText = beforeSlash + chipKey + afterSlash;
-    setPromptText(newText);
-    setSlashQuery(null);
-
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-        const newCursorPos = slashPosition + chipKey.length;
-        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
-      }
-    }, 0);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (mentionQuery !== null && mentionOptions.length > 0) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedMentionIndex((prev) => (prev + 1) % mentionOptions.length);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedMentionIndex((prev) => (prev - 1 + mentionOptions.length) % mentionOptions.length);
-      } else if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        handleSelectMention(mentionOptions[selectedMentionIndex]);
-      } else if (e.key === "Escape") {
-        setMentionQuery(null);
-      }
-      return;
-    }
-
-    if (slashQuery !== null && filteredSlashCommands.length > 0) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedSlashIndex((prev) => (prev + 1) % filteredSlashCommands.length);
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedSlashIndex((prev) => (prev - 1 + filteredSlashCommands.length) % filteredSlashCommands.length);
-      } else if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        handleSelectSlashChip(filteredSlashCommands[selectedSlashIndex].key);
-      } else if (e.key === "Escape") {
-        setSlashQuery(null);
-      }
-    }
-  };
-
-  // ── Parse Prompt & Stage Transition ───────────────────────────────────────
-  const handleParsePrompt = async () => {
-    if (!promptText.trim()) {
-      setError("Please describe the task you want to execute.");
-      return;
-    }
-
-    setError(null);
-    setIsParsing(true);
-
-    try {
-      const text = promptText.trim();
-      const lower = text.toLowerCase();
-
-      // Extract title
-      let titleVal = "";
-      const titleMatch = text.match(/Task Title:\s*([^\n]+)/i);
-      if (titleMatch && titleMatch[1]) {
-        titleVal = titleMatch[1].trim();
-      } else {
-        const lines = text.split("\n").filter((l) => l.trim().length > 0);
-        titleVal = lines[0] ? lines[0].replace(/^(Task Title:|Title:|\/title)\s*/i, "").trim() : "Untitled Task";
-      }
-
-      // Extract task type
-      let typeVal = "PROJECT WORK";
-      if (lower.includes("learning") || lower.includes("study")) typeVal = "LEARNING";
-      else if (lower.includes("documentation") || lower.includes("doc")) typeVal = "DOCUMENTATION";
-      else if (lower.includes("research")) typeVal = "RESEARCH";
-      else if (lower.includes("submission") || lower.includes("deliverable")) typeVal = "SUBMISSION";
-      else if (lower.includes("review")) typeVal = "REVIEW";
-      else if (lower.includes("personal") || lower.includes("standalone")) typeVal = "PERSONAL WORK";
-
-      const typeMatch = text.match(/Task Type:\s*([^\n]+)/i);
-      if (typeMatch && typeMatch[1]) {
-        const matchedT = typeMatch[1].trim().toUpperCase();
-        if (matchedT.includes("PERSONAL")) typeVal = "PERSONAL WORK";
-        else if (matchedT.includes("LEARNING")) typeVal = "LEARNING";
-        else if (matchedT.includes("DOC")) typeVal = "DOCUMENTATION";
-        else if (matchedT.includes("RESEARCH")) typeVal = "RESEARCH";
-        else if (matchedT.includes("SUBMISSION")) typeVal = "SUBMISSION";
-        else if (matchedT.includes("REVIEW")) typeVal = "REVIEW";
-        else if (matchedT.includes("PROJECT")) typeVal = "PROJECT WORK";
-      }
-
-      // Extract priority
-      let prioVal: "Low" | "Medium" | "High" | "Critical" = "Medium";
-      if (lower.includes("critical") || lower.includes("urgent")) prioVal = "Critical";
-      else if (lower.includes("high")) prioVal = "High";
-      else if (lower.includes("low")) prioVal = "Low";
-
-      const prioMatch = text.match(/Priority:\s*([^\n]+)/i);
-      if (prioMatch && prioMatch[1]) {
-        const pStr = prioMatch[1].trim().toLowerCase();
-        if (pStr.includes("critical")) prioVal = "Critical";
-        else if (pStr.includes("high")) prioVal = "High";
-        else if (pStr.includes("low")) prioVal = "Low";
-        else if (pStr.includes("medium")) prioVal = "Medium";
-      }
-
-      // Extract energy level
-      let energyVal = "Normal";
-      if (lower.includes("deep focus") || lower.includes("architecture")) energyVal = "Deep Focus";
-      else if (lower.includes("high energy")) energyVal = "High Energy";
-      else if (lower.includes("low energy")) energyVal = "Low Energy";
-      else if (lower.includes("quick task")) energyVal = "Quick Task";
-
-      const energyMatch = text.match(/Energy:\s*([^\n]+)/i);
-      if (energyMatch && energyMatch[1]) {
-        energyVal = energyMatch[1].trim();
-      }
-
-      // Extract assignee
-      let matchedAssignee: AssigneeUser | null = null;
-      let assigneeText = "@me (Self)";
-
-      if (lower.includes("@me") || lower.includes("assignee: @me")) {
-        assigneeText = "@me (Self)";
-        if (user?.id) {
-          matchedAssignee = {
-            id: user.id,
-            name: user.name || "Self",
-            email: user.email || "",
-            role: user.role || "CEO",
-          };
+    async function loadMilestones() {
+      try {
+        const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+        const res = await apiClient.get(`/org/projects/${selectedProjectId}/milestones${wsId ? `?workspaceId=${wsId}` : ""}`);
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          setMilestones(res.data.data);
+        } else {
+          setMilestones([]);
         }
-      } else {
-        const mentionMatches = text.match(/@([a-zA-Z0-9._-]+)/g);
-        if (mentionMatches && mentionMatches.length > 0) {
-          const mentionStr = mentionMatches[0].replace("@", "").toLowerCase();
-          const found = allUsers.find(
-            (u) => u.name?.toLowerCase().includes(mentionStr) || u.email?.toLowerCase().includes(mentionStr)
-          );
-          if (found) {
-            matchedAssignee = found;
-            assigneeText = `@${found.name || found.email}`;
-          }
-        }
+      } catch (e) {
+        setMilestones([]);
       }
-
-      if (!matchedAssignee && defaultAssigneeId) {
-        const found = allUsers.find((u) => u.id === defaultAssigneeId);
-        if (found) {
-          matchedAssignee = found;
-          assigneeText = `@${found.name || found.email}`;
-        }
-      }
-
-      // Extract associated project
-      let targetProjectId = defaultProjectId;
-      let targetProjectTitle: string | null = null;
-
-      const projMatch = text.match(/Project:\s*([^\n]+)/i);
-      if (projMatch && projMatch[1]) {
-        const pSearch = projMatch[1].trim().toLowerCase();
-        const foundP = projects.find((p) => p.title?.toLowerCase().includes(pSearch) || p.name?.toLowerCase().includes(pSearch));
-        if (foundP) {
-          targetProjectId = foundP.id;
-          targetProjectTitle = foundP.title || foundP.name;
-        }
-      }
-
-      if (targetProjectId && !targetProjectTitle) {
-        const foundP = projects.find((p) => p.id === targetProjectId);
-        if (foundP) targetProjectTitle = foundP.title || foundP.name;
-      }
-
-      // Extract deadline
-      let deadlineVal: string | null = null;
-      const deadlineMatch = text.match(/(Deadline|Due|Target Date):\s*([^\n]+)/i);
-      if (deadlineMatch && deadlineMatch[2]) {
-        deadlineVal = deadlineMatch[2].trim();
-      }
-
-      // Extract deliverable
-      let deliverableVal: string | null = null;
-      const delivMatch = text.match(/Deliverable:\s*([^\n]+)/i);
-      if (delivMatch && delivMatch[1]) {
-        deliverableVal = delivMatch[1].trim();
-      }
-
-      // Extract description
-      let descVal = text;
-      const descMatch = text.match(/Description:\s*([\s\S]+)/i);
-      if (descMatch && descMatch[1]) {
-        descVal = descMatch[1].trim();
-      }
-
-      setExtractedIntent({
-        title: titleVal,
-        description: descVal,
-        type: typeVal,
-        priority: prioVal,
-        energyLevel: energyVal,
-        assignee: matchedAssignee,
-        assigneeText,
-        projectId: targetProjectId,
-        projectTitle: targetProjectTitle,
-        deadline: deadlineVal,
-        deliverable: deliverableVal,
-      });
-
-      setStage("REVIEW");
-    } catch (err: any) {
-      setError(err?.message || "Failed to analyze task prompt.");
-    } finally {
-      setIsParsing(false);
     }
-  };
+    loadMilestones();
+  }, [isOpen, selectedProjectId]);
 
-  // ── Stage 2: Create Real Task Transaction ─────────────────────────────────
-  const handleConfirmCreateTask = async () => {
-    if (!extractedIntent) return;
+  // Load Authorized Assignees (filtered by project if project is selected)
+  useEffect(() => {
+    if (!isOpen) return;
+    async function loadAssignees() {
+      setLoadingAssignees(true);
+      try {
+        const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+        const queryParams = new URLSearchParams();
+        if (wsId) queryParams.set("workspaceId", wsId);
+        if (taskScope === "PROJECT" && selectedProjectId) {
+          queryParams.set("projectId", selectedProjectId);
+        }
+        const res = await apiClient.get(`/org/projects/eligible-assignees?${queryParams.toString()}`);
+        if (res.data?.members || res.data?.coCeos) {
+          const list = [...(res.data.coCeos || []), ...(res.data.members || [])];
+          setEligibleAssignees(list);
+        } else {
+          setEligibleAssignees([]);
+        }
+      } catch (e) {
+        console.warn("Failed to load assignees:", e);
+      } finally {
+        setLoadingAssignees(false);
+      }
+    }
+    loadAssignees();
+  }, [isOpen, taskScope, selectedProjectId]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      setError("Task title is required.");
+      return;
+    }
+    if (taskScope === "PROJECT" && !selectedProjectId) {
+      setError("Project Task must be assigned to an organization project.");
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const workspaceId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+      const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") : undefined;
+      const payload = {
+        title: title.trim(),
+        description: description.trim() || null,
+        type: taskType,
+        taskType,
+        projectId: taskScope === "PROJECT" ? selectedProjectId : null,
+        milestoneId: taskScope === "PROJECT" && selectedMilestoneId ? selectedMilestoneId : null,
+        assigneeId: selectedAssigneeId || null,
+        priority,
+        deadline: dueDate || null,
+        deliverable: deliverable.trim() || null,
+        evidenceRequired,
+        requirements: requirements.trim() || null,
+        reviewerId: reviewerId || null,
+        notes: notes.trim() || null,
+      };
 
-      const res = await apiClient.post("/org/tasks/create", {
-        workspaceId: workspaceId && workspaceId !== "undefined" ? workspaceId : undefined,
-        title: extractedIntent.title,
-        description: extractedIntent.description,
-        type: extractedIntent.type,
-        priority: extractedIntent.priority,
-        energyLevel: extractedIntent.energyLevel,
-        assigneeId: extractedIntent.assignee?.id || null,
-        assigneeUserId: extractedIntent.assignee?.id || null,
-        projectId: extractedIntent.type === "PROJECT WORK" ? extractedIntent.projectId : null,
-        deadline: extractedIntent.deadline || null,
-        deliverable: extractedIntent.deliverable || null,
-      });
-
-      if (res.data?.success) {
-        onSuccess(res.data.data);
+      const res = await apiClient.post(`/org/tasks${wsId ? `?workspaceId=${wsId}` : ""}`, payload);
+      if (res.data?.success || res.data?.data) {
+        onSuccess(res.data.data || res.data);
         onClose();
       } else {
-        setError(res.data?.error || "Failed to create task record.");
+        setError(res.data?.error || "Failed to create task.");
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || "Task creation failed. Please check validation.");
+      setError(err?.response?.data?.error || err?.message || "Task creation failed.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="w-full max-w-xl bg-card border border-border rounded-2xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden text-foreground font-sans">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs font-sans text-xs animate-in fade-in duration-200">
+      <div className="bg-card border border-border rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+        
         {/* Header */}
-        <div className="px-5 py-3.5 border-b border-border flex items-center justify-between bg-muted/30 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-gold">
-              <CheckSquare className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-bold text-foreground">Create Work Task</h2>
-              <p className="text-[11px] text-muted-foreground">Specify execution task mandate & details.</p>
-            </div>
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-card/80 shrink-0">
+          <div>
+            <h2 className="text-base font-extrabold text-foreground tracking-tight flex items-center gap-2">
+              <CheckSquare className="w-4.5 h-4.5 text-[#C9A52A]" />
+              <span>Create Task</span>
+            </h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Create and assign organizational work
+            </p>
           </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-7 h-7 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted flex items-center justify-center transition-colors cursor-pointer"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Scrollable Modal Body */}
-        <div className="p-4 overflow-y-auto space-y-3 flex-1">
+        {/* Scrollable Form Body */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
           {error && (
-            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs flex items-center gap-2">
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          {/* Overwrite Protection Confirmation */}
-          {pendingExampleText && (
-            <div className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-xl text-xs space-y-2">
-              <p className="font-semibold text-amber-700 dark:text-amber-200">Replace current task prompt content with selected example?</p>
-              <div className="flex items-center gap-2 justify-end">
-                <button
-                  onClick={() => setPendingExampleText(null)}
-                  className="px-2.5 py-1 rounded border border-amber-500/40 text-amber-700 dark:text-amber-200 hover:bg-amber-500/20 text-[11px] cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmOverwriteExample}
-                  className="px-2.5 py-1 rounded bg-amber-500 text-white dark:bg-gold dark:text-black font-bold text-[11px] cursor-pointer"
-                >
-                  Use Example
-                </button>
+          {/* 1. Scope Selector (Project Task vs Organization Task) */}
+          <div className="p-3 rounded-xl bg-background border border-border space-y-2">
+            <span className="text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">
+              Task Scope *
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setTaskScope("PROJECT")}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all border cursor-pointer text-center ${
+                  taskScope === "PROJECT"
+                    ? "bg-[#C9A52A] text-[#0B0D10] border-[#C9A52A]"
+                    : "bg-card text-muted-foreground border-border hover:text-foreground"
+                }`}
+              >
+                Project Task
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTaskScope("ORGANIZATION");
+                  setSelectedProjectId("");
+                  setSelectedMilestoneId("");
+                }}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all border cursor-pointer text-center ${
+                  taskScope === "ORGANIZATION"
+                    ? "bg-[#C9A52A] text-[#0B0D10] border-[#C9A52A]"
+                    : "bg-card text-muted-foreground border-border hover:text-foreground"
+                }`}
+              >
+                Organization Task
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Task Title & Description */}
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-extrabold text-foreground uppercase tracking-wider block">
+                Task Title *
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Build OAuth 2.0 Session Engine & Integration Tests"
+                className="w-full h-[38px] px-3.5 bg-background border border-border focus:border-[#C9A52A] rounded-xl text-xs text-foreground outline-none shadow-2xs font-semibold"
+                required
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-extrabold text-foreground uppercase tracking-wider block">
+                Description
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Detail task requirements, mandate deliverables, and acceptance criteria..."
+                rows={3}
+                className="w-full p-3 bg-background border border-border focus:border-[#C9A52A] rounded-xl text-xs text-foreground outline-none resize-y leading-relaxed shadow-2xs"
+              />
+            </div>
+          </div>
+
+          {/* 3. Task Type (Searchable Dropdown) */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-extrabold text-foreground uppercase tracking-wider block">
+              Task Type *
+            </label>
+            <select
+              value={taskType}
+              onChange={(e) => setTaskType(e.target.value)}
+              className="w-full h-[38px] px-3.5 bg-background border border-border rounded-xl text-xs text-foreground outline-none focus:border-[#C9A52A] cursor-pointer font-semibold"
+            >
+              {TASK_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4. Context Section (Project & Milestone) */}
+          {taskScope === "PROJECT" && (
+            <div className="p-3.5 rounded-2xl bg-card border border-border space-y-3">
+              <span className="text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">
+                Project Context
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-foreground block">Project *</label>
+                  <select
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    className="w-full h-[36px] px-3 bg-background border border-border rounded-xl text-xs text-foreground outline-none focus:border-[#C9A52A] cursor-pointer font-semibold"
+                  >
+                    <option value="">Select Project</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-foreground block">Milestone</label>
+                  <select
+                    value={selectedMilestoneId}
+                    onChange={(e) => setSelectedMilestoneId(e.target.value)}
+                    disabled={!selectedProjectId}
+                    className="w-full h-[36px] px-3 bg-background border border-border rounded-xl text-xs text-foreground outline-none focus:border-[#C9A52A] cursor-pointer disabled:opacity-50 font-semibold"
+                  >
+                    <option value="">No Milestone / Flexible</option>
+                    {milestones.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           )}
 
-          {/* ── STAGE 1: SINGLE PROMPT COMPOSER ───────────────────────────────────── */}
-          {stage === "COMPOSE" && (
-            <div className="space-y-3">
-              <div className="relative">
-                <textarea
-                  ref={textareaRef}
-                  value={promptText}
-                  onChange={handleTextareaChange}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Describe task to execute... (Use @ for team members, / for commands)"
-                  rows={5}
-                  className="w-full p-3 bg-background border border-border focus:border-amber-500/50 rounded-xl text-xs text-foreground placeholder:text-muted-foreground outline-none transition-all resize-none leading-relaxed"
-                />
+          {/* 5. Execution Section (Assignee, Priority, Due Date) */}
+          <div className="p-3.5 rounded-2xl bg-card border border-border space-y-3">
+            <span className="text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">
+              Execution Controls
+            </span>
 
-                {/* Real-time @ Mention Autocomplete Dropdown */}
-                {mentionQuery !== null && mentionOptions.length > 0 && (
-                  <div className="absolute left-3 bottom-3 z-50 w-64 bg-popover border border-border rounded-xl shadow-2xl overflow-hidden py-1 max-h-48 overflow-y-auto">
-                    <p className="px-3 py-1 text-[9.5px] font-bold text-amber-600 dark:text-gold uppercase tracking-wider border-b border-border">
-                      Assign Organization Member
-                    </p>
-                    {mentionOptions.map((opt, idx) => (
-                      <button
-                        key={opt.id}
-                        onClick={() => handleSelectMention(opt)}
-                        className={`w-full px-3 py-1.5 text-left flex items-center justify-between text-xs cursor-pointer transition-colors ${
-                          idx === selectedMentionIndex ? "bg-amber-500/20 text-amber-600 dark:text-gold font-bold" : "text-foreground hover:bg-accent"
-                        }`}
-                      >
-                        <span>{opt.label}</span>
-                        <span className="text-[10px] text-muted-foreground">{opt.subLabel}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Real-time / Slash Commands Dropdown */}
-                {slashQuery !== null && filteredSlashCommands.length > 0 && (
-                  <div className="absolute left-3 bottom-3 z-50 w-64 bg-popover border border-border rounded-xl shadow-2xl overflow-hidden py-1 max-h-48 overflow-y-auto">
-                    <p className="px-3 py-1 text-[9.5px] font-bold text-blue-500 uppercase tracking-wider border-b border-border">
-                      Quick Task Commands
-                    </p>
-                    {filteredSlashCommands.map((cmd, idx) => (
-                      <button
-                        key={cmd.command}
-                        onClick={() => handleSelectSlashChip(cmd.key)}
-                        className={`w-full px-3 py-1.5 text-left flex items-center justify-between text-xs cursor-pointer transition-colors ${
-                          idx === selectedSlashIndex ? "bg-blue-500/20 text-blue-500 font-bold" : "text-foreground hover:bg-accent"
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <Command className="w-3 h-3 text-blue-500" />
-                          <span>{cmd.command}</span>
-                        </div>
-                        <span className="text-[9.5px] text-muted-foreground">{cmd.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Add Chips Section */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Quick Add</p>
-                  <span className="text-[9.5px] text-muted-foreground">Click chip to insert key</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {QUICK_ADD_CHIPS.map((chip) => (
-                    <button
-                      key={chip.label}
-                      type="button"
-                      onClick={() => handleQuickAddClick(chip.key)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer border ${
-                        chip.primary
-                          ? "bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-gold hover:bg-amber-500 hover:text-white dark:hover:text-black"
-                          : "bg-secondary border-border text-muted-foreground hover:text-foreground hover:border-amber-500/40"
-                      }`}
-                    >
-                      {chip.label}
-                    </button>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1 sm:col-span-1">
+                <label className="text-[11px] font-bold text-foreground block">Assignee</label>
+                <select
+                  value={selectedAssigneeId}
+                  onChange={(e) => setSelectedAssigneeId(e.target.value)}
+                  className="w-full h-[36px] px-3 bg-background border border-border rounded-xl text-xs text-foreground outline-none focus:border-[#C9A52A] cursor-pointer font-semibold"
+                >
+                  <option value="">Unassigned</option>
+                  {eligibleAssignees.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.role})
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
 
-              {/* Collapsible Quick Reference Section */}
-              <div className="border border-border rounded-xl bg-muted/20 overflow-hidden text-xs">
-                <button
-                  type="button"
-                  onClick={() => setShowQuickRef(!showQuickRef)}
-                  className="w-full px-3 py-2 flex items-center justify-between text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-foreground block">Priority</label>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as any)}
+                  className="w-full h-[36px] px-3 bg-background border border-border rounded-xl text-xs text-foreground outline-none focus:border-[#C9A52A] cursor-pointer font-semibold"
                 >
-                  <span className="flex items-center gap-1.5 text-[11px] font-bold">
-                    <HelpCircle className="w-3.5 h-3.5 text-amber-600 dark:text-gold" /> Quick Reference
-                  </span>
-                  {showQuickRef ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </button>
-
-                {showQuickRef && (
-                  <div className="p-3 border-t border-border space-y-2 text-[11px] text-muted-foreground">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="p-2 bg-background rounded border border-border">
-                        <span className="font-bold text-amber-600 dark:text-gold">@ People</span>
-                        <p className="text-[10px]">Type @ to assign organization team members or @me for yourself.</p>
-                      </div>
-                      <div className="p-2 bg-background rounded border border-border">
-                        <span className="font-bold text-blue-500">/ Commands</span>
-                        <p className="text-[10px]">Type / to insert quick task metadata fields.</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  <option value="Critical">Critical</option>
+                  <option value="High">High</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Low">Low</option>
+                </select>
               </div>
 
-              {/* Collapsible Examples Accordion */}
-              <div className="border border-border rounded-xl bg-muted/20 overflow-hidden text-xs">
-                <button
-                  type="button"
-                  onClick={() => setShowExamples(!showExamples)}
-                  className="w-full px-3 py-2 flex items-center justify-between text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                >
-                  <span className="flex items-center gap-1.5 text-[11px] font-bold">
-                    <Zap className="w-3.5 h-3.5 text-purple-500" /> Examples
-                  </span>
-                  {showExamples ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                </button>
-
-                {showExamples && (
-                  <div className="p-2 border-t border-border bg-background max-h-44 overflow-y-auto space-y-2 text-[11px]">
-                    {PROMPT_EXAMPLES.map((ex, idx) => (
-                      <div key={idx} className="p-2 bg-card rounded-lg border border-border flex items-center justify-between gap-2">
-                        <div>
-                          <p className="font-bold text-foreground">{ex.title}</p>
-                          <p className="text-[10.5px] text-muted-foreground line-clamp-1">{ex.text}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleApplyExample(ex.text)}
-                          className="px-2.5 py-1 rounded bg-secondary hover:bg-amber-500 hover:text-white dark:hover:text-black font-bold text-[10px] text-amber-600 dark:text-gold transition-colors cursor-pointer shrink-0"
-                        >
-                          Use Example
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-foreground block">Due Date</label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full h-[36px] px-3 bg-background border border-border rounded-xl text-xs text-foreground outline-none focus:border-[#C9A52A] cursor-pointer font-semibold"
+                />
               </div>
             </div>
-          )}
+          </div>
 
-          {/* ── STAGE 2: SINGLE-VIEWPORT REVIEW SCREEN ──────────────────────────────── */}
-          {stage === "REVIEW" && extractedIntent && (
-            <div className="space-y-3 font-sans text-xs">
-              <div className="p-3 bg-muted/30 rounded-xl border border-border space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-bold text-amber-600 dark:text-gold bg-amber-500/10 px-2 py-0.5 rounded uppercase">
-                    {extractedIntent.priority} Priority
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded uppercase">
-                      {extractedIntent.type}
-                    </span>
-                    {extractedIntent.deadline && (
-                      <span className="text-[11px] font-mono text-muted-foreground flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-amber-600 dark:text-gold" /> {extractedIntent.deadline}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <h3 className="text-sm font-bold text-foreground">{extractedIntent.title}</h3>
-              </div>
+          {/* 6. Deliverable & Evidence Section */}
+          <div className="p-3.5 rounded-2xl bg-card border border-border space-y-3">
+            <span className="text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">
+              Deliverable & Evidence
+            </span>
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={deliverable}
+                onChange={(e) => setDeliverable(e.target.value)}
+                placeholder="e.g. Working API endpoints, GitHub PR, & TRD doc"
+                className="w-full h-[36px] px-3.5 bg-background border border-border rounded-xl text-xs text-foreground outline-none focus:border-[#C9A52A]"
+              />
 
-              {/* Summary Matrix */}
-              <div className="grid grid-cols-2 gap-2.5 text-[11px]">
-                <div className="p-2.5 bg-muted/30 rounded-xl border border-border space-y-1">
-                  <span className="text-[9.5px] font-bold text-muted-foreground uppercase">Assignee</span>
-                  <p className="font-bold text-amber-600 dark:text-gold">
-                    {renderNeatTextWithMentions(extractedIntent.assigneeText)}
-                  </p>
-                </div>
-
-                <div className="p-2.5 bg-muted/30 rounded-xl border border-border space-y-1">
-                  <span className="text-[9.5px] font-bold text-muted-foreground uppercase">Energy Fit</span>
-                  <p className="font-bold text-foreground">{extractedIntent.energyLevel}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5 text-[11px]">
-                <div className="p-2.5 bg-muted/30 rounded-xl border border-border space-y-1">
-                  <span className="text-[9.5px] font-bold text-muted-foreground uppercase">Associated Project</span>
-                  <p className="font-semibold text-purple-500">
-                    {extractedIntent.projectTitle || "Standalone Task"}
-                  </p>
-                </div>
-
-                <div className="p-2.5 bg-muted/30 rounded-xl border border-border space-y-1">
-                  <span className="text-[9.5px] font-bold text-muted-foreground uppercase">Target Deliverable</span>
-                  <p className="font-semibold text-foreground">
-                    {extractedIntent.deliverable || "Standard Execution"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Description & Mentions Preview */}
-              <div className="p-2.5 bg-muted/30 rounded-xl border border-border space-y-1">
-                <span className="text-[9.5px] font-bold text-muted-foreground uppercase">Task Mandate & Mentions</span>
-                <div className="text-muted-foreground leading-relaxed">
-                  {renderNeatTextWithMentions(extractedIntent.description)}
-                </div>
-              </div>
+              <label className="flex items-center gap-2 cursor-pointer pt-1">
+                <input
+                  type="checkbox"
+                  checked={evidenceRequired}
+                  onChange={(e) => setEvidenceRequired(e.target.checked)}
+                  className="w-4 h-4 rounded border-border accent-[#C9A52A] cursor-pointer"
+                />
+                <span className="text-xs font-semibold text-foreground">
+                  Require Evidence (PR / Commit / Document) before completion approval
+                </span>
+              </label>
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Sticky Fixed Bottom Action Footer */}
-        <div className="px-5 py-3 border-t border-border bg-card flex items-center justify-between shrink-0">
-          {stage === "COMPOSE" ? (
-            <div className="flex items-center justify-end w-full">
-              <button
-                onClick={handleParsePrompt}
-                disabled={!promptText.trim() || isParsing}
-                className="inline-flex items-center gap-1.5 px-5 h-[38px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white dark:bg-gold dark:hover:bg-gold/90 dark:text-black font-bold text-xs transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
-              >
-                {isParsing ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Analyzing...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Review Task</span>
-                    <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
-                  </>
-                )}
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between w-full">
-              <button
-                onClick={() => setStage("COMPOSE")}
-                className="inline-flex items-center gap-1 px-3.5 h-[36px] rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer text-xs"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" /> Edit Prompt
-              </button>
-
-              <button
-                onClick={handleConfirmCreateTask}
-                disabled={isSubmitting}
-                className="inline-flex items-center gap-1.5 px-5 h-[38px] rounded-xl bg-amber-500 hover:bg-amber-600 text-white dark:bg-gold dark:hover:bg-gold/90 dark:text-black font-bold text-xs transition-opacity disabled:opacity-50 cursor-pointer shadow-lg"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Creating...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Create Task</span>
-                    <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-        </div>
+          {/* Footer Submit Buttons */}
+          <div className="pt-3 border-t border-border flex items-center justify-end gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl border border-border text-foreground font-bold hover:bg-muted cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting || !title.trim()}
+              className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#C9A52A] to-[#D4B12F] text-[#0B0D10] font-extrabold text-xs cursor-pointer shadow-xs hover:brightness-105 disabled:opacity-40 flex items-center gap-1.5"
+            >
+              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              <span>Create Task</span>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
-
