@@ -24,6 +24,7 @@ const geist = Geist({
 });
 
 import { OfflineProvider } from "../components/providers/offline-provider";
+import { WebVitalsGuard } from "../components/providers/web-vitals-guard";
 
 export const metadata: Metadata = {
   title: "ManMadhan Progress",
@@ -66,6 +67,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen w-full bg-[#0B0E12] dark:bg-[#0B0E12] text-foreground antialiased font-sans overflow-x-hidden" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+          <WebVitalsGuard />
           <AuthProvider>
             <SocketProvider>
               <OfflineProvider>

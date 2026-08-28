@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { createPortal } from "react-dom";
 import {
   Plus, Search, AlertCircle, Trash2, LayoutGrid, List, Edit, X, MoreVertical,
-  ArrowUpRight, Filter, Lock, RefreshCw
+  ArrowUpRight, Filter, Lock, RefreshCw, Calendar, SlidersHorizontal, FolderKanban
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
@@ -13,6 +13,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { EditProjectModal } from "@/components/organization/edit-project-modal";
 import { DeleteConfirmationModal } from "@/components/organization/delete-confirmation-modal";
+import { ResponsivePopover } from "@/components/ui/responsive-popover";
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; dot: string; label: string }> = {
   ACTIVE: { bg: "bg-emerald-500/10 border-emerald-500/20", text: "text-emerald-500", dot: "bg-emerald-500", label: "Active" },
@@ -369,25 +370,25 @@ export default function ProjectsPage() {
 
   return (
     <div className="w-full h-[calc(100vh-65px)] max-h-[calc(100vh-65px)] flex flex-col overflow-hidden bg-background text-foreground font-sans">
-      {/* ── 1. CLEAN GLOBAL HEADER ─────────────────────────────────────────────── */}
-      <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-border shrink-0 bg-card/60 space-y-3">
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-0.5">
-            <h1 className="text-lg font-extrabold text-foreground tracking-tight">Projects</h1>
-            <p className="text-xs text-muted-foreground">Plan and execute organizational projects.</p>
+      {/* ── 1. PAGE HEADER (MATCHES REFERENCE IMAGE) ───────────────────────── */}
+      <div className="px-4 sm:px-6 pt-4 sm:pt-5 pb-3 border-b border-border shrink-0 bg-card/60 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-0.5 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">Projects</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground truncate">Plan and execute organizational projects.</p>
           </div>
 
           <Link
             href={`${basePath}/projects/create`}
-            className="px-4 h-[38px] rounded-xl bg-gradient-to-r from-[#C9A52A] to-[#D4B12F] text-[#0B0D10] font-extrabold text-xs transition-all hover:brightness-105 shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+            className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-[#C9A52A] to-[#D4B12F] text-[#0B0D10] font-extrabold text-xs transition-all hover:brightness-105 shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>New Project</span>
           </Link>
         </div>
 
-        {/* ── 2. COMPACT INTERACTIVE STATUS NAVIGATION ─────────────────────────── */}
-        <div className="flex items-center gap-1 border-b border-border/60 pb-2 overflow-x-auto text-xs font-bold">
+        {/* ── 2. STATUS TABS (HIDDEN ON MOBILE, VISIBLE ON DESKTOP ≥ md) ───────── */}
+        <div className="hidden md:flex items-center gap-1 border-b border-border/60 pb-2 overflow-x-auto text-xs font-bold">
           {[
             { id: "All", label: "All", count: metrics.total },
             { id: "Planning", label: "Planning", count: metrics.planning },
@@ -416,120 +417,155 @@ export default function ProjectsPage() {
           })}
         </div>
 
-        {/* ── 3. SEARCH & UNIFIED FILTER TOOLBAR ────────────────────────────────── */}
-        <div className="flex items-center justify-between gap-3 pt-1 text-xs">
+        {/* ── 3. SEARCH & COMPACT FILTER TOOLBAR (MATCHES REFERENCE IMAGE) ───── */}
+        <div className="flex items-center justify-between gap-2.5 pt-1 text-xs">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {/* Search Input */}
-            <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <div className="relative flex-1 min-w-0">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search projects..."
-                className="w-full h-[36px] pl-9 pr-3 rounded-xl bg-background border border-border text-foreground text-xs focus:outline-none focus:border-[#C9A52A]"
+                className="w-full h-[42px] pl-10 pr-8 rounded-xl bg-background border border-border text-foreground text-xs sm:text-sm focus:outline-none focus:border-[#C9A52A] transition-colors"
               />
               {search && (
                 <button
                   onClick={() => setSearch("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
 
-            {/* Unified Filter Button & Popover */}
-            <div className="relative" ref={filterPanelRef}>
-              <button
-                type="button"
-                onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
-                className={`h-[36px] px-3.5 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeFiltersCount > 0
-                    ? "bg-[#C9A52A]/15 border-[#C9A52A] text-[#C9A52A]"
-                    : "bg-background border-border text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Filter className="w-3.5 h-3.5" />
-                <span>Filter</span>
-                {activeFiltersCount > 0 && (
-                  <span className="w-4 h-4 rounded-full bg-[#C9A52A] text-[#0B0D10] text-[10px] font-mono font-extrabold flex items-center justify-center">
-                    {activeFiltersCount}
-                  </span>
-                )}
-              </button>
-
-              {/* Structured Filter Popover Panel */}
-              {isFilterPanelOpen && (
-                <div className="absolute left-0 top-11 z-30 w-72 p-4 rounded-2xl bg-card border border-border shadow-xl space-y-3.5 animate-in fade-in duration-100 text-xs">
-                  <div className="flex items-center justify-between border-b border-border pb-2">
-                    <span className="font-extrabold text-foreground uppercase tracking-wider text-[10.5px]">Filter Projects</span>
-                    <button onClick={clearAllFilters} className="text-[#C9A52A] hover:underline font-bold text-[10.5px]">
-                      Reset
-                    </button>
+            {/* Compact Filter Button (Square icon button on Mobile, Responsive Bottom Sheet) */}
+            <ResponsivePopover
+              isOpen={isFilterPanelOpen}
+              setIsOpen={setIsFilterPanelOpen}
+              align="right"
+              desktopClassName="w-80 rounded-2xl border border-border bg-card shadow-2xl p-4 space-y-4 text-xs"
+              trigger={
+                <button
+                  type="button"
+                  onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
+                  className={`w-[42px] h-[42px] rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center shrink-0 relative ${
+                    activeFiltersCount > 0
+                      ? "bg-[#C9A52A]/15 border-[#C9A52A] text-[#C9A52A]"
+                      : "bg-background border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="Filter Projects"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  {activeFiltersCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#C9A52A] text-[#0B0D10] text-[9.5px] font-mono font-extrabold flex items-center justify-center shadow-xs">
+                      {activeFiltersCount}
+                    </span>
+                  )}
+                </button>
+              }
+            >
+              {/* Bottom Sheet / Popover Content */}
+              <div className="p-4 sm:p-0 space-y-4 text-xs">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-[#C9A52A]" />
+                    <span className="font-extrabold text-foreground uppercase tracking-wider text-xs">Filter Projects</span>
                   </div>
-
-                  {/* Priority Select */}
-                  <div className="space-y-1">
-                    <label className="font-bold text-muted-foreground block text-[10.5px]">Priority</label>
-                    <select
-                      value={priorityFilter}
-                      onChange={(e) => setPriorityFilter(e.target.value)}
-                      className="w-full h-[34px] px-2.5 rounded-xl bg-background border border-border text-foreground text-xs focus:outline-none"
-                    >
-                      <option value="All">All Priorities</option>
-                      <option value="Critical">Critical</option>
-                      <option value="High">High</option>
-                      <option value="Medium">Medium</option>
-                      <option value="Low">Low</option>
-                    </select>
-                  </div>
-
-                  {/* CO-CEO Select */}
-                  <div className="space-y-1">
-                    <label className="font-bold text-muted-foreground block text-[10.5px]">CO-CEO Lead</label>
-                    <select
-                      value={coCeoFilter}
-                      onChange={(e) => setCoCeoFilter(e.target.value)}
-                      className="w-full h-[34px] px-2.5 rounded-xl bg-background border border-border text-foreground text-xs focus:outline-none"
-                    >
-                      <option value="All">All CO-CEOs</option>
-                      {coCeoOptions.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Deadline Select */}
-                  <div className="space-y-1">
-                    <label className="font-bold text-muted-foreground block text-[10.5px]">Deadline</label>
-                    <select
-                      value={deadlineFilter}
-                      onChange={(e) => setDeadlineFilter(e.target.value)}
-                      className="w-full h-[34px] px-2.5 rounded-xl bg-background border border-border text-foreground text-xs focus:outline-none"
-                    >
-                      <option value="All">All Deadlines</option>
-                      <option value="Overdue">Overdue</option>
-                      <option value="DueToday">Due Today</option>
-                      <option value="NoDeadline">No Deadline</option>
-                    </select>
-                  </div>
-
-                  <div className="pt-2 border-t border-border flex justify-end">
+                  {activeFiltersCount > 0 && (
                     <button
-                      onClick={() => setIsFilterPanelOpen(false)}
-                      className="px-4 py-1.5 rounded-xl bg-[#C9A52A] text-[#0B0D10] font-extrabold text-xs"
+                      onClick={clearAllFilters}
+                      className="text-[#C9A52A] hover:underline font-bold text-xs cursor-pointer"
                     >
-                      Apply
+                      Reset All
                     </button>
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
+
+                {/* Status Filter */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-muted-foreground block text-[11px] uppercase tracking-wider">Status</label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full h-[40px] px-3 rounded-xl bg-background border border-border text-foreground text-xs font-medium focus:outline-none focus:border-[#C9A52A] transition-colors"
+                  >
+                    <option value="All">All Statuses ({metrics.total})</option>
+                    <option value="Active">Active ({metrics.active})</option>
+                    <option value="Planning">Planning ({metrics.planning})</option>
+                    <option value="On Hold">On Hold ({metrics.onHold})</option>
+                    <option value="Completed">Completed ({metrics.completed})</option>
+                  </select>
+                </div>
+
+                {/* Priority Filter */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-muted-foreground block text-[11px] uppercase tracking-wider">Priority</label>
+                  <select
+                    value={priorityFilter}
+                    onChange={(e) => setPriorityFilter(e.target.value)}
+                    className="w-full h-[40px] px-3 rounded-xl bg-background border border-border text-foreground text-xs font-medium focus:outline-none focus:border-[#C9A52A] transition-colors"
+                  >
+                    <option value="All">All Priorities</option>
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </div>
+
+                {/* Assignment / CO-CEO Filter */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-muted-foreground block text-[11px] uppercase tracking-wider">Assignment / Lead</label>
+                  <select
+                    value={coCeoFilter}
+                    onChange={(e) => setCoCeoFilter(e.target.value)}
+                    className="w-full h-[40px] px-3 rounded-xl bg-background border border-border text-foreground text-xs font-medium focus:outline-none focus:border-[#C9A52A] transition-colors"
+                  >
+                    <option value="All">All Leads / Assigned</option>
+                    {coCeoOptions.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Deadline Filter */}
+                <div className="space-y-1.5">
+                  <label className="font-bold text-muted-foreground block text-[11px] uppercase tracking-wider">Deadline</label>
+                  <select
+                    value={deadlineFilter}
+                    onChange={(e) => setDeadlineFilter(e.target.value)}
+                    className="w-full h-[40px] px-3 rounded-xl bg-background border border-border text-foreground text-xs font-medium focus:outline-none focus:border-[#C9A52A] transition-colors"
+                  >
+                    <option value="All">All Deadlines</option>
+                    <option value="Overdue">Overdue</option>
+                    <option value="DueToday">Due Today</option>
+                    <option value="NoDeadline">No Deadline</option>
+                  </select>
+                </div>
+
+                {/* Action Footer */}
+                <div className="pt-3 border-t border-border flex items-center justify-between gap-3">
+                  <button
+                    onClick={clearAllFilters}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    onClick={() => setIsFilterPanelOpen(false)}
+                    className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#C9A52A] to-[#D4B12F] text-[#0B0D10] font-extrabold text-xs shadow-md transition-all hover:brightness-105 cursor-pointer text-center"
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            </ResponsivePopover>
           </div>
 
-          {/* View Toggle */}
-          <div className="flex items-center gap-1 p-1 bg-muted rounded-xl border border-border shrink-0">
+          {/* View Toggle (Hidden on mobile, visible on desktop ≥ md) */}
+          <div className="hidden md:flex items-center gap-1 p-1 bg-muted rounded-xl border border-border shrink-0">
             <button
               onClick={() => setViewMode("table")}
               className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
@@ -538,7 +574,7 @@ export default function ProjectsPage() {
               title="Table View"
             >
               <List className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Table</span>
+              <span>Table</span>
             </button>
             <button
               onClick={() => setViewMode("board")}
@@ -548,13 +584,13 @@ export default function ProjectsPage() {
               title="Board View"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Board</span>
+              <span>Board</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── 4. INTERNAL SCROLLABLE CONTENT REGION (PRIMARY TABLE SURFACE) ──────── */}
+      {/* ── 4. INTERNAL SCROLLABLE CONTENT REGION ───────────────────────── */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
         {/* Error Banner */}
         {error && (
@@ -563,92 +599,114 @@ export default function ProjectsPage() {
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
-            <button onClick={fetchProjects} className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 rounded-lg font-bold flex items-center gap-1">
+            <button onClick={fetchProjects} className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 rounded-lg font-bold flex items-center gap-1 cursor-pointer">
               <RefreshCw className="w-3 h-3" /> Retry
             </button>
           </div>
         )}
 
-        {/* Loading Skeleton */}
+        {/* Minimal Skeleton Loading */}
         {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-14 rounded-xl bg-card border border-border animate-pulse" />
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-5 rounded-[18px] bg-card border border-border space-y-3 animate-pulse">
+                <div className="w-8 h-8 rounded-lg bg-muted" />
+                <div className="h-5 w-2/3 bg-muted rounded-md" />
+                <div className="h-4 w-full bg-muted rounded-md" />
+                <div className="h-4 w-1/2 bg-muted rounded-md" />
+              </div>
             ))}
           </div>
         ) : filteredProjects.length === 0 ? (
           /* Clean Professional Empty State */
           <div className="p-10 rounded-2xl bg-card border border-border text-center space-y-3 my-8 max-w-md mx-auto">
-            <h3 className="text-sm font-extrabold text-foreground">No projects yet</h3>
+            <h3 className="text-sm font-extrabold text-foreground">No projects found</h3>
             <p className="text-xs text-muted-foreground">
-              Create your first organization project to begin execution.
+              {search || activeFiltersCount > 0
+                ? "No projects match your current filters. Try resetting search or filter options."
+                : "Create your first organization project to begin execution."}
             </p>
             <div className="pt-2">
-              <Link
-                href={`${basePath}/projects/create`}
-                className="px-4 py-2 rounded-xl bg-[#C9A52A] text-[#0B0D10] font-extrabold text-xs inline-flex items-center gap-1.5 shadow-2xs"
-              >
-                <Plus className="w-4 h-4" /> New Project
-              </Link>
+              {search || activeFiltersCount > 0 ? (
+                <button
+                  onClick={clearAllFilters}
+                  className="px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground font-bold text-xs cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  Clear Filters
+                </button>
+              ) : (
+                <Link
+                  href={`${basePath}/projects/create`}
+                  className="px-4 py-2 rounded-xl bg-[#C9A52A] text-[#0B0D10] font-extrabold text-xs inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> New Project
+                </Link>
+              )}
             </div>
           </div>
         ) : (
           <>
-            {/* ── MOBILE PROJECT CARDS LIST (Mobile-First < md:) ───────────────────── */}
-            <div className="block md:hidden space-y-3">
+            {/* ── MOBILE PROJECT CARDS LIST (< md) — MATCHES REFERENCE IMAGE ───── */}
+            <div className="block md:hidden space-y-4 pb-32">
               {filteredProjects.map((p) => {
                 const dInfo = fmtDeadlineLabel(p.deadline || p.targetDate, p.status);
-                const progressVal = Math.min(100, Math.max(0, p.progress || 0));
+                const progressVal = Math.min(100, Math.max(0, p.progress ?? p.completionPercentage ?? 0));
 
                 return (
                   <div
                     key={p.id}
                     onClick={() => router.push(`${basePath}/projects/${p.id}`)}
-                    className="p-4 rounded-2xl bg-card border border-border hover:border-[#C9A52A]/40 transition-colors shadow-2xs cursor-pointer space-y-2 font-sans"
+                    className="p-5 rounded-[18px] sm:rounded-[20px] bg-card border border-border/80 hover:border-[#C9A52A]/40 transition-all shadow-2xs cursor-pointer space-y-3 font-sans relative group"
                   >
-                    {/* Top Row: Icon + Title + Three-Dot Menu */}
-                    <div className="flex items-start justify-between gap-2.5">
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <div className="w-7 h-7 rounded-lg bg-[#C9A52A]/10 border border-[#C9A52A]/25 flex items-center justify-center text-[#C9A52A] dark:text-[#D4B12F] shrink-0 font-mono text-[11px] font-bold">
-                          {p.icon || "◇"}
+                    {/* 1. Project Icon (Top) & Three-Dot Menu */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-2.5 min-w-0 flex-1">
+                        <div className="w-8 h-8 rounded-lg bg-[#C9A52A]/10 border border-[#C9A52A]/25 flex items-center justify-center text-[#C9A52A] dark:text-[#D4B12F] shrink-0 font-mono text-xs font-bold">
+                          {p.icon ? (
+                            <span>{p.icon}</span>
+                          ) : (
+                            <FolderKanban className="w-4 h-4 text-[#C9A52A]" />
+                          )}
                         </div>
-                        <h3 className="font-semibold text-foreground text-sm truncate leading-tight">
+
+                        {/* 2. Project Title */}
+                        <h3 className="font-semibold text-foreground text-[17px] sm:text-lg tracking-tight leading-snug line-clamp-1">
                           {p.name}
                         </h3>
                       </div>
 
+                      {/* 4. Three-Dot Menu */}
                       <button
                         type="button"
                         onClick={(e) => handleOpenActionMenu(e, p)}
-                        className="w-7 h-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center justify-center cursor-pointer shrink-0 -mr-1 transition-colors"
+                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer shrink-0 -mr-1 -mt-1"
                         title="Project Actions"
                       >
-                        <MoreVertical className="w-4 h-4" />
+                        <MoreVertical className="w-4.5 h-4.5" />
                       </button>
                     </div>
 
-                    {/* Description (Max 2 lines, no AI rewrites) */}
-                    {p.description ? (
-                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed font-normal">
-                        {p.description}
+                    {/* 3. Project Description (max 2 lines, user's actual stored text) */}
+                    {(p.description || p.mandate) && (
+                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 leading-relaxed font-normal">
+                        {p.description || p.mandate}
                       </p>
-                    ) : p.mandate ? (
-                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed font-normal">
-                        {p.mandate}
-                      </p>
-                    ) : null}
+                    )}
 
-                    {/* Horizontal Divider & Bottom Metadata */}
-                    <div className="border-t border-border/60 pt-2.5 mt-2 flex items-center justify-between text-[11.5px] font-sans">
+                    {/* Horizontal Divider Line */}
+                    <div className="border-t border-border/60 pt-3 mt-3 flex items-center justify-between text-xs">
+                      {/* 5. Due Date */}
                       <div className="flex items-center gap-1.5 text-muted-foreground font-medium">
-                        <span>Due {dInfo.dateText}</span>
+                        <Calendar className="w-3.5 h-3.5 text-muted-foreground/70 shrink-0" />
+                        <span>{p.deadline || p.targetDate ? `Due ${dInfo.dateText}` : "No deadline"}</span>
                       </div>
 
-                      <div className="flex items-center gap-2 font-mono">
-                        <span className="font-bold text-foreground">{progressVal}% Complete</span>
-                        <div className="w-14 h-[3px] rounded-full bg-muted overflow-hidden shrink-0">
+                      {/* 6. Completion & 7. Small Progress Indicator */}
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-foreground text-xs">{progressVal}% Complete</span>
+                        <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden shrink-0">
                           <div
-                            className="h-full bg-[#C9A52A] rounded-full transition-all duration-500"
+                            className="h-full bg-[#C9A52A] rounded-full transition-all duration-300"
                             style={{ width: `${progressVal}%` }}
                           />
                         </div>
