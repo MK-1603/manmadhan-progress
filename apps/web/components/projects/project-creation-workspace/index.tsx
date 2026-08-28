@@ -238,18 +238,18 @@ export function ProjectCreationWorkspace({
     <div className="w-full h-[calc(100vh-65px)] max-h-[calc(100vh-65px)] flex flex-col overflow-hidden bg-background text-foreground font-sans">
       
       {/* ── 1. FIXED TOP HEADER & STEPPER ────────────────────────────────────────── */}
-      <header className="px-4 sm:px-6 py-3 border-b border-border shrink-0 bg-card/60 backdrop-blur-md space-y-2">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+      <header className="px-4 sm:px-6 py-2.5 sm:py-3 border-b border-border shrink-0 bg-card/80 backdrop-blur-md space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
             <Link
               href={`${basePath}/projects`}
-              className="p-1.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              className="w-8 h-8 rounded-full border border-border text-muted-foreground hover:text-foreground hover:bg-muted flex items-center justify-center transition-colors cursor-pointer shrink-0"
               title="Back to Projects"
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div>
-              <h1 className="text-base font-extrabold text-foreground tracking-tight">
+              <h1 className="text-sm sm:text-base font-extrabold text-foreground tracking-tight">
                 Create Project
               </h1>
               <p className="text-[11px] text-muted-foreground hidden sm:block">
@@ -258,25 +258,27 @@ export function ProjectCreationWorkspace({
             </div>
           </div>
 
-          {/* Stepper Progress Indicator (01 METHOD -> 02 ASSIGNMENT -> 03 REVIEW) */}
-          <div className="flex items-center gap-2">
-            <div className={`px-3 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 ${
-              stage === "METHOD" ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"
+          {/* Stepper Progress Indicator (01 Method ── 02 Assignment ── 03 Review) */}
+          <div className="flex items-center gap-1.5 sm:gap-2 text-[10.5px] sm:text-xs font-semibold shrink-0">
+            <div className={`px-2.5 py-1 rounded-xl border flex items-center gap-1.5 ${
+              stage === "METHOD" ? "bg-[#C9A52A]/15 border-[#C9A52A] text-[#C9A52A] font-extrabold" : "bg-card border-border text-muted-foreground"
             }`}>
-              <span className="w-3.5 h-3.5 rounded-full bg-[#C9A52A]/20 text-[#C9A52A] font-mono text-[9.5px] flex items-center justify-center font-bold">1</span>
-              <span>01 METHOD</span>
+              <span className="font-mono">01</span>
+              <span>Method</span>
             </div>
-            <div className={`px-3 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 ${
-              stage === "ASSIGNMENT" ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"
+            <span className="text-muted-foreground/40 text-[10px]">─</span>
+            <div className={`px-2.5 py-1 rounded-xl border flex items-center gap-1.5 ${
+              stage === "ASSIGNMENT" ? "bg-[#C9A52A]/15 border-[#C9A52A] text-[#C9A52A] font-extrabold" : "bg-card border-border text-muted-foreground"
             }`}>
-              <span className="w-3.5 h-3.5 rounded-full bg-[#C9A52A]/20 text-[#C9A52A] font-mono text-[9.5px] flex items-center justify-center font-bold">2</span>
-              <span>02 ASSIGNMENT</span>
+              <span className="font-mono">02</span>
+              <span>Assignment</span>
             </div>
-            <div className={`px-3 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 ${
-              stage === "REVIEW" ? "bg-[#C9A52A]/15 border-[#C9A52A]/40 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"
+            <span className="text-muted-foreground/40 text-[10px]">─</span>
+            <div className={`px-2.5 py-1 rounded-xl border flex items-center gap-1.5 ${
+              stage === "REVIEW" ? "bg-[#C9A52A]/15 border-[#C9A52A] text-[#C9A52A] font-extrabold" : "bg-card border-border text-muted-foreground"
             }`}>
-              <span className="w-3.5 h-3.5 rounded-full bg-[#C9A52A]/20 text-[#C9A52A] font-mono text-[9.5px] flex items-center justify-center font-bold">3</span>
-              <span>03 REVIEW</span>
+              <span className="font-mono">03</span>
+              <span>Review</span>
             </div>
           </div>
 
@@ -298,54 +300,8 @@ export function ProjectCreationWorkspace({
         {/* ── CENTER WORKSPACE REGION (8 Columns) ────────────────────────────────── */}
         <div className="lg:col-span-8 flex flex-col h-full overflow-hidden border-r border-border/50">
           
-          {/* Segmented Mode Selector (Visible in Step 01 METHOD when mode is selected) */}
-          {stage === "METHOD" && mode && (
-            <div className="px-4 sm:px-6 pt-4 shrink-0 space-y-2">
-              <span className="text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">
-                Creation Method:
-              </span>
-              <div className="p-1 rounded-xl bg-card border border-border grid grid-cols-3 gap-1 shadow-xs">
-                <button
-                  type="button"
-                  onClick={() => handleRequestModeChange("PROMPT")}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    mode === "PROMPT"
-                      ? "bg-[#C9A52A] text-[#0B0D10] font-extrabold shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" /> Prompt Based
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleRequestModeChange("TEMPLATE")}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    mode === "TEMPLATE"
-                      ? "bg-[#C9A52A] text-[#0B0D10] font-extrabold shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <LayoutTemplate className="w-3.5 h-3.5" /> Template Based
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleRequestModeChange("MANUAL")}
-                  className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    mode === "MANUAL"
-                      ? "bg-[#C9A52A] text-[#0B0D10] font-extrabold shadow-2xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Sliders className="w-3.5 h-3.5" /> Manual
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Internal Scrollable Content Region */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 space-y-4 pb-[max(16px,env(safe-area-inset-bottom))]">
             {error && (
               <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
@@ -355,35 +311,35 @@ export function ProjectCreationWorkspace({
 
             {/* INITIAL SELECTION CARDS SCREEN (Step 01 METHOD before mode selection) */}
             {stage === "METHOD" && !mode && (
-              <div className="space-y-6 max-w-2xl mx-auto py-4 sm:py-8">
-                <div className="text-center space-y-1.5">
-                  <h2 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight">Choose Creation Method</h2>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Select how you want to construct this project mandate.</p>
+              <div className="space-y-6 max-w-xl mx-auto py-4 sm:py-8">
+                <div className="text-center space-y-1">
+                  <h2 className="text-base sm:text-lg font-extrabold text-foreground tracking-tight">Creation method</h2>
+                  <p className="text-xs text-muted-foreground">Choose how you want to create this project.</p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2">
+                <div className="space-y-3 pt-1">
                   <button
                     type="button"
                     onClick={() => {
                       setMode("PROMPT");
                       setPromptSubstep("DESCRIBE");
                     }}
-                    className={`p-5 rounded-2xl border transition-all text-left space-y-4 cursor-pointer group shadow-2xs relative ${
+                    className={`w-full px-4 py-4 rounded-2xl border transition-all text-left flex items-center justify-between gap-4 cursor-pointer group shadow-2xs ${
                       mode === "PROMPT"
                         ? "border-[#C9A52A] bg-[#C9A52A]/5 ring-1 ring-[#C9A52A]"
                         : "bg-card border-border hover:border-[#C9A52A]/60"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="w-10 h-10 rounded-xl bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-11 h-11 rounded-xl bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
                         <FileText className="w-5 h-5" />
                       </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-[#C9A52A] group-hover:translate-x-0.5 transition-all" />
+                      <div className="space-y-0.5 min-w-0">
+                        <h4 className="font-extrabold text-foreground text-xs sm:text-sm group-hover:text-[#C9A52A] transition-colors">Prompt Based</h4>
+                        <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight line-clamp-2">Describe your project naturally.</p>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <h4 className="font-extrabold text-foreground text-xs sm:text-sm group-hover:text-[#C9A52A] transition-colors">Prompt Based</h4>
-                      <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">Describe what you want to create in natural language.</p>
-                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-[#C9A52A] group-hover:translate-x-0.5 transition-all shrink-0" />
                   </button>
 
                   <button
@@ -392,22 +348,22 @@ export function ProjectCreationWorkspace({
                       setMode("TEMPLATE");
                       setTemplateSubstep("CHOOSE");
                     }}
-                    className={`p-5 rounded-2xl border transition-all text-left space-y-4 cursor-pointer group shadow-2xs relative ${
+                    className={`w-full px-4 py-4 rounded-2xl border transition-all text-left flex items-center justify-between gap-4 cursor-pointer group shadow-2xs ${
                       mode === "TEMPLATE"
                         ? "border-[#C9A52A] bg-[#C9A52A]/5 ring-1 ring-[#C9A52A]"
                         : "bg-card border-border hover:border-[#C9A52A]/60"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-11 h-11 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
                         <LayoutTemplate className="w-5 h-5" />
                       </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-[#C9A52A] group-hover:translate-x-0.5 transition-all" />
+                      <div className="space-y-0.5 min-w-0">
+                        <h4 className="font-extrabold text-foreground text-xs sm:text-sm group-hover:text-[#C9A52A] transition-colors">Template Based</h4>
+                        <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight line-clamp-2">Start from a predefined project structure.</p>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <h4 className="font-extrabold text-foreground text-xs sm:text-sm group-hover:text-[#C9A52A] transition-colors">Template Based</h4>
-                      <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">Start from a predefined organizational framework.</p>
-                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-[#C9A52A] group-hover:translate-x-0.5 transition-all shrink-0" />
                   </button>
 
                   <button
@@ -416,22 +372,22 @@ export function ProjectCreationWorkspace({
                       setMode("MANUAL");
                       setManualSubstep("INFORMATION");
                     }}
-                    className={`p-5 rounded-2xl border transition-all text-left space-y-4 cursor-pointer group shadow-2xs relative ${
+                    className={`w-full px-4 py-4 rounded-2xl border transition-all text-left flex items-center justify-between gap-4 cursor-pointer group shadow-2xs ${
                       mode === "MANUAL"
                         ? "border-[#C9A52A] bg-[#C9A52A]/5 ring-1 ring-[#C9A52A]"
                         : "bg-card border-border hover:border-[#C9A52A]/60"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="w-11 h-11 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
                         <Sliders className="w-5 h-5" />
                       </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-[#C9A52A] group-hover:translate-x-0.5 transition-all" />
+                      <div className="space-y-0.5 min-w-0">
+                        <h4 className="font-extrabold text-foreground text-xs sm:text-sm group-hover:text-[#C9A52A] transition-colors">Manual Setup</h4>
+                        <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight line-clamp-2">Configure the project details yourself.</p>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <h4 className="font-extrabold text-foreground text-xs sm:text-sm group-hover:text-[#C9A52A] transition-colors">Manual Setup</h4>
-                      <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">Directly enter project details and scope controls.</p>
-                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-[#C9A52A] group-hover:translate-x-0.5 transition-all shrink-0" />
                   </button>
                 </div>
               </div>

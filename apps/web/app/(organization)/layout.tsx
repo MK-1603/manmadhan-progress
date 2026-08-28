@@ -30,14 +30,17 @@ export default function OrganizationLayout({ children }: { children: React.React
   const role = getRole(pathname, user?.role);
   const base = getBase(role);
 
+  const isCreationWorkflow =
+    pathname?.includes("/projects/create") || pathname?.includes("/projects/new");
+
   const isFixedViewportPage =
-    (pathname?.includes("/graph") ||
+    ((pathname?.includes("/graph") ||
      pathname?.includes("/leaderboard") ||
      pathname?.includes("/tasks") ||
      pathname === "/ceo/projects" ||
      pathname === "/co-ceo/projects" ||
      pathname === "/member/projects") &&
-    !pathname?.includes("/create");
+    !pathname?.includes("/create")) || isCreationWorkflow;
 
   return (
     <GlobalRefreshProvider>
@@ -50,7 +53,7 @@ export default function OrganizationLayout({ children }: { children: React.React
             data-lenis-prevent
             className={`flex-1 min-h-0 w-full max-w-full flex flex-col overflow-x-hidden ${
               isFixedViewportPage
-                ? "overflow-hidden pb-[calc(76px+env(safe-area-inset-bottom))] md:pb-0"
+                ? "overflow-hidden pb-0 md:pb-0"
                 : "overflow-y-auto pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-0"
             } [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`}
           >
@@ -58,7 +61,7 @@ export default function OrganizationLayout({ children }: { children: React.React
               {children}
             </GlobalPullToRefreshContent>
           </main>
-          <BottomNav workspace="organization" role={role} />
+          {!isCreationWorkflow && <BottomNav workspace="organization" role={role} />}
         </div>
       </div>
     </GlobalRefreshProvider>
