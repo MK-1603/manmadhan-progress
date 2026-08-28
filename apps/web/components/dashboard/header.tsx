@@ -59,6 +59,8 @@ function getPageTitle(pathname: string): string {
   return lastPart.charAt(0).toUpperCase() + lastPart.slice(1).replace(/-/g, " ");
 }
 
+import { WorkspaceSwitcherModal } from "./workspace-switcher-modal";
+
 export function Header() {
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
@@ -66,6 +68,7 @@ export function Header() {
 
   const [mounted, setMounted] = useState(false);
   const [orgWorkspace, setOrgWorkspace] = useState<any>(null);
+  const [isSwitcherModalOpen, setIsSwitcherModalOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -162,101 +165,30 @@ export function Header() {
           {pageTitle}
         </h1>
 
-        {/* Global Workspace Selector Trigger Button & Popover */}
-        <ResponsivePopover
-          isOpen={isSwitcherOpen}
-          setIsOpen={setIsSwitcherOpen}
-          align="left"
-          offsetY={4}
-          desktopClassName="w-[280px] rounded-xl border border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#0B0D10] shadow-xl p-2 z-50 flex flex-col space-y-1"
-          trigger={
-            <button
-              type="button"
-              onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}
-              aria-label="Switch workspace"
-              aria-expanded={isSwitcherOpen}
-              className="flex items-center gap-1 text-[12px] font-medium text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5] transition-colors cursor-pointer focus:outline-none -mt-0.5 group w-fit"
-            >
-              <span className="truncate flex items-center gap-1.5" suppressHydrationWarning>
-                {mounted && !isPersonal && orgWorkspace?.logoUrl && (
-                  <img src={orgWorkspace.logoUrl} alt="" className="w-3.5 h-3.5 rounded object-contain shrink-0" />
-                )}
-                <span suppressHydrationWarning>{isPersonal ? "Personal Workspace" : cleanOrgName}</span>
-              </span>
-
-              <ChevronDown
-                className={`w-3.5 h-3.5 text-[#667085] dark:text-[#8B94A3] group-hover:text-current transition-transform duration-180 ${
-                  isSwitcherOpen ? "rotate-180 text-[#B28D18] dark:text-[#D4B12F]" : ""
-                }`}
-              />
-            </button>
-          }
+        {/* Global Workspace Selector Trigger Button */}
+        <button
+          type="button"
+          onClick={() => setIsSwitcherModalOpen(true)}
+          aria-label="Switch workspace"
+          className="flex items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer focus:outline-none -mt-0.5 group w-fit"
         >
-          {/* Workspace Switcher Popover Content */}
-          <div className="flex flex-col space-y-1 py-1 text-xs">
-            <div className="px-2.5 py-1 text-[10px] font-mono font-medium tracking-[0.12em] text-[#667085] dark:text-[#8B94A3] uppercase">
-              WORKSPACES
-            </div>
+          <span className="truncate flex items-center gap-1.5" suppressHydrationWarning>
+            {mounted && !isPersonal && orgWorkspace?.logoUrl && (
+              <img src={orgWorkspace.logoUrl} alt="" className="w-3.5 h-3.5 rounded object-contain shrink-0" />
+            )}
+            <span suppressHydrationWarning>{isPersonal ? "Personal Workspace" : cleanOrgName}</span>
+          </span>
 
-            {/* Option 1: Personal Workspace */}
-            <button
-              type="button"
-              onClick={() => handleSwitchWorkspace("personal")}
-              className={`
-                w-full p-2 rounded-lg flex items-center justify-between text-left transition-colors cursor-pointer
-                ${
-                  isPersonal
-                    ? "bg-[#FFF8E7] dark:bg-[#1A1913] text-[#17202A] dark:text-[#F2F3F5]"
-                    : "hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-[#667085] dark:text-[#8B94A3]"
-                }
-              `}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <UserIcon className={`w-4 h-4 shrink-0 ${isPersonal ? "text-[#B28D18] dark:text-[#D4B12F]" : ""}`} />
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-semibold truncate leading-tight">
-                    Personal Workspace
-                  </span>
-                  <span className="text-[10.5px] text-[#667085] dark:text-[#8B94A3] leading-tight">
-                    Private workspace
-                  </span>
-                </div>
-              </div>
-              {isPersonal && <Check className="w-3.5 h-3.5 text-[#B28D18] dark:text-[#D4B12F] shrink-0" />}
-            </button>
+          <ChevronDown
+            className="w-3.5 h-3.5 text-muted-foreground group-hover:text-current transition-transform duration-180"
+          />
+        </button>
 
-            {/* Option 2: Organization Workspace */}
-            <button
-              type="button"
-              onClick={() => handleSwitchWorkspace("org")}
-              className={`
-                w-full p-2 rounded-lg flex items-center justify-between text-left transition-colors cursor-pointer
-                ${
-                  !isPersonal
-                    ? "bg-[#FFF8E7] dark:bg-[#1A1913] text-[#17202A] dark:text-[#F2F3F5]"
-                    : "hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] text-[#667085] dark:text-[#8B94A3]"
-                }
-              `}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                {orgWorkspace?.logoUrl ? (
-                  <img src={orgWorkspace.logoUrl} alt="" className="w-4 h-4 rounded object-contain shrink-0" />
-                ) : (
-                  <Building className={`w-4 h-4 shrink-0 ${!isPersonal ? "text-[#B28D18] dark:text-[#D4B12F]" : ""}`} />
-                )}
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-semibold truncate leading-tight uppercase">
-                    {cleanOrgName}
-                  </span>
-                  <span className="text-[10.5px] text-[#667085] dark:text-[#8B94A3] leading-tight">
-                    Organization workspace
-                  </span>
-                </div>
-              </div>
-              {!isPersonal && <Check className="w-3.5 h-3.5 text-[#B28D18] dark:text-[#D4B12F] shrink-0" />}
-            </button>
-          </div>
-        </ResponsivePopover>
+        {/* Workspace Switcher Modal */}
+        <WorkspaceSwitcherModal
+          isOpen={isSwitcherModalOpen}
+          onClose={() => setIsSwitcherModalOpen(false)}
+        />
       </div>
 
       {/* 2. CENTER AREA — GLOBAL SEARCH */}

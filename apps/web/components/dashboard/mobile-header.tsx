@@ -15,6 +15,8 @@ import {
   NavSection,
 } from "@/config/mobile-nav.config";
 
+import { WorkspaceSwitcherModal } from "./workspace-switcher-modal";
+
 type MobileHeaderProps = {
   activePopover?: "none" | "search" | "notifications" | "profile" | "switcher";
   setActivePopover?: (val: "none" | "search" | "notifications" | "profile" | "switcher") => void;
@@ -33,6 +35,7 @@ export function MobileHeader({
   role,
 }: MobileHeaderProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isSwitcherModalOpen, setIsSwitcherModalOpen] = useState(false);
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
@@ -130,14 +133,25 @@ export function MobileHeader({
         </button>
 
         {/* CENTER: True Viewport Centered Page Title & Subtitle */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center pointer-events-none max-w-[50vw]">
-          <h1 className="text-[18px] font-semibold text-[#17202A] dark:text-[#F2F3F5] tracking-[-0.01em] leading-[22px] truncate" suppressHydrationWarning>
+        <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center max-w-[50vw]">
+          <h1 className="text-[17px] font-semibold text-foreground tracking-tight leading-[22px] truncate pointer-events-none" suppressHydrationWarning>
             {title}
           </h1>
-          <span className="text-[12px] font-normal text-[#667085] dark:text-[#8B94A3] leading-[16px] truncate mt-[4px]" suppressHydrationWarning>
-            {isPersonal ? "Personal Workspace" : "ManMadhan"}
-          </span>
+          <button
+            type="button"
+            onClick={() => setIsSwitcherModalOpen(true)}
+            className="text-[12px] font-medium text-muted-foreground hover:text-foreground leading-[16px] truncate mt-[2px] flex items-center gap-1 cursor-pointer pointer-events-auto"
+            suppressHydrationWarning
+          >
+            <span>{isPersonal ? "Personal Workspace" : "ManMadhan"}</span>
+            <span className="text-[10px] opacity-70">▼</span>
+          </button>
         </div>
+
+        <WorkspaceSwitcherModal
+          isOpen={isSwitcherModalOpen}
+          onClose={() => setIsSwitcherModalOpen(false)}
+        />
 
         {/* RIGHT: Notifications & Profile Buttons */}
         <div className="flex items-center gap-1.5">
