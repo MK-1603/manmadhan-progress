@@ -17,7 +17,8 @@ interface OrgGeneralTabProps {
 }
 
 export function OrgGeneralTab({ workspace, userRole, onUpdated, onNavigateTab }: OrgGeneralTabProps) {
-  const [name, setName] = useState(workspace?.name || "ManMadhan Workspace");
+  const [name, setName] = useState(workspace?.name && workspace.name !== "Personal Workspace" ? workspace.name : "");
+  const [batchNumber, setBatchNumber] = useState(workspace?.batchNumber || "");
   const [description, setDescription] = useState(workspace?.description || "");
   const [website, setWebsite] = useState(workspace?.website || "");
   const [contactEmail, setContactEmail] = useState(workspace?.contactEmail || "");
@@ -34,7 +35,8 @@ export function OrgGeneralTab({ workspace, userRole, onUpdated, onNavigateTab }:
 
   useEffect(() => {
     if (workspace) {
-      setName(workspace.name && workspace.name !== "Personal Workspace" ? workspace.name : "ManMadhan Workspace");
+      setName(workspace.name && workspace.name !== "Personal Workspace" ? workspace.name : "");
+      setBatchNumber(workspace.batchNumber || "");
       setDescription(workspace.description || "");
       setWebsite(workspace.website || "");
       setContactEmail(workspace.contactEmail || "");
@@ -43,7 +45,8 @@ export function OrgGeneralTab({ workspace, userRole, onUpdated, onNavigateTab }:
   }, [workspace]);
 
   const isDirty =
-    name !== (workspace?.name || "ManMadhan Workspace") ||
+    name !== (workspace?.name || "") ||
+    batchNumber !== (workspace?.batchNumber || "") ||
     description !== (workspace?.description || "") ||
     website !== (workspace?.website || "") ||
     contactEmail !== (workspace?.contactEmail || "") ||
@@ -51,7 +54,8 @@ export function OrgGeneralTab({ workspace, userRole, onUpdated, onNavigateTab }:
 
   const handleDiscard = () => {
     if (workspace) {
-      setName(workspace.name && workspace.name !== "Personal Workspace" ? workspace.name : "ManMadhan Workspace");
+      setName(workspace.name && workspace.name !== "Personal Workspace" ? workspace.name : "");
+      setBatchNumber(workspace.batchNumber || "");
       setDescription(workspace.description || "");
       setWebsite(workspace.website || "");
       setContactEmail(workspace.contactEmail || "");

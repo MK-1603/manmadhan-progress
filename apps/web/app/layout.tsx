@@ -21,6 +21,7 @@ const geist = Geist({
   subsets: ["latin"],
   variable: "--font-geist",
   display: "swap",
+  preload: false,
 });
 
 import { OfflineProvider } from "../components/providers/offline-provider";
@@ -65,6 +66,8 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="ManMadhan Progress" />
+        <meta name="application-name" content="ManMadhan Progress" />
       </head>
       <body className="min-h-screen w-full bg-[#0B0E12] dark:bg-[#0B0E12] text-foreground antialiased font-sans overflow-x-hidden" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>

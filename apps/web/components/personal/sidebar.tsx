@@ -1,10 +1,9 @@
 "use client";
 
-import React from "react";
-import { AppSidebar } from "@/components/navigation/app-sidebar";
+import { Sidebar as CanonicalSidebar } from "@/components/dashboard/sidebar";
 
 export function Sidebar() {
-  return <AppSidebar forcedWorkspace="personal" />;
+  return <CanonicalSidebar />;
 }
 
 export default Sidebar;

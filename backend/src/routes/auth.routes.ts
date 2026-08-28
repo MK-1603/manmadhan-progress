@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, ilike } from "drizzle-orm";
+import { and, eq, gt, ilike } from "drizzle-orm";
 import { Router } from "express";
 import jwt from "jsonwebtoken";
 import { env } from "../../config/env.config";
 import { db } from "../../database/client";
-import { spaces, users, workspaceMembers, workspaces } from "../../database/schema";
+import { invitations, spaces, users, workspaceMembers, workspaces } from "../../database/schema";
 import { runtimeActivity } from "../bootstrap/startup-logger";
 import { strictAuth, verifyTempToken } from "../middleware/auth.middleware";
 import { AuditService } from "../services/audit.service";
@@ -14,6 +14,7 @@ import { NotificationService } from "../services/notification.service";
 import { emailService } from "../services/email.service";
 import { logger } from "../services/logger.service";
 import { OtpService } from "../services/otp.service";
+import { RecoveryCodeService } from "../services/recovery.service";
 import { SessionService } from "../services/session.service";
 import { socketService } from "../services/socket.service";
 
@@ -79,7 +80,7 @@ authRouter.post("/login/password", async (req, res, next) => {
 			.limit(1);
 
 		if (userList.length === 0) {
-			logger.warn({ cleanEmail }, "[LOGIN FAIL] User email address not found in database");
+			logger.warn("[LOGIN FAIL] User email address not found in database");
 			return res.status(401).json({
 				success: false,
 				code: "INVALID_CREDENTIALS",
@@ -93,7 +94,7 @@ authRouter.post("/login/password", async (req, res, next) => {
 		// 3. Account status & setup state validation
 		const userStatus = (user.status || "").toLowerCase();
 		if (userStatus === "suspended" || userStatus === "disabled" || userStatus === "locked") {
-			logger.warn({ cleanEmail }, "[LOGIN FAIL] Account is suspended/disabled/locked");
+			logger.warn("[LOGIN FAIL] Account is suspended/disabled/locked");
 			return res.status(403).json({
 				success: false,
 				code: "ACCOUNT_SUSPENDED",
@@ -102,7 +103,7 @@ authRouter.post("/login/password", async (req, res, next) => {
 			});
 		}
 		if (userStatus === "deleted") {
-			logger.warn({ cleanEmail }, "[LOGIN FAIL] Account is deleted");
+			logger.warn("[LOGIN FAIL] Account is deleted");
 			return res.status(403).json({
 				success: false,
 				code: "ACCOUNT_DELETED",
@@ -111,7 +112,7 @@ authRouter.post("/login/password", async (req, res, next) => {
 			});
 		}
 		if (user.isInvited && (!user.passwordHash || !user.firstLoginCompleted)) {
-			logger.warn({ cleanEmail }, "[LOGIN FAIL] Account is pending setup (not completed)");
+			logger.warn("[LOGIN FAIL] Account is pending setup (not completed)");
 			return res.status(400).json({
 				success: false,
 				code: "ACCOUNT_PENDING_SETUP",
@@ -127,7 +128,7 @@ authRouter.post("/login/password", async (req, res, next) => {
 		);
 
 		if (!isValidPassword) {
-			logger.warn({ cleanEmail }, "[LOGIN FAIL] Incorrect password attempt");
+			logger.warn("[LOGIN FAIL] Incorrect password attempt");
 			await AuditService.logEvent(
 				user.id,
 				"LOGIN_FAILED",
@@ -142,27 +143,35 @@ authRouter.post("/login/password", async (req, res, next) => {
 			});
 		}
 
-		// 5. First-login onboarding OTP flow check
+		// 5. First-login onboarding flow check (OTP removed)
 		if (!user.firstLoginCompleted || user.onboardingStatus !== "COMPLETED") {
-			await OtpService.sendOTP(cleanEmail, {
-				isFirstLogin: true,
-				userName: user.displayName || user.name || cleanEmail.split("@")[0],
-			});
 			await db
 				.update(users)
-				.set({ onboardingStatus: "OTP_REQUIRED" })
+				.set({ onboardingStatus: "PASSWORD_CHANGE_REQUIRED" })
 				.where(eq(users.id, user.id));
 
 			await AuditService.logEvent(
 				user.id,
 				"FIRST_LOGIN_STARTED",
-				"Password verified. OTP challenge dispatched for first-login activation.",
+				"Credentials verified. Beginning first-login onboarding sequence.",
 				req.ip || "",
+			);
+
+			const tempToken = jwt.sign(
+				{
+					id: user.id,
+					email: user.email,
+					intent: "setup",
+					step: "PASSWORD_CREATION",
+				},
+				env.JWT_SECRET,
+				{ expiresIn: "30m" },
 			);
 
 			return res.json({
 				success: true,
-				nextStep: "OTP_VERIFICATION",
+				nextStep: "PASSWORD_CREATION",
+				tempToken,
 				email: user.email,
 			});
 		}
@@ -216,59 +225,125 @@ authRouter.post("/login/password", async (req, res, next) => {
 	}
 });
 
-// POST /forgot-password
+// POST /forgot-password (Privacy-safe Account Recovery hint)
 authRouter.post("/forgot-password", async (req, res, next) => {
 	try {
 		const { email } = req.body;
 		const cleanEmail = String(email || "").trim().toLowerCase();
 
 		if (!cleanEmail) {
-			return res.status(400).json({ success: false, error: "Email is required" });
+			return res.status(400).json({ success: false, error: "Email address is required." });
 		}
 
-		const userList = await db
-			.select()
-			.from(users)
-			.where(ilike(users.email, cleanEmail))
-			.limit(1);
+		// Generic privacy-safe response to prevent account enumeration
+		return res.json({
+			success: true,
+			message: "If an account exists for this email, you can use your account recovery code to set a new password.",
+		});
+	} catch (error) {
+		next(error);
+	}
+});
 
-		// Privacy-safe response regardless of email existence
-		if (userList.length > 0) {
-			const user = userList[0];
-			const resetToken = jwt.sign(
-				{
-					id: user.id,
-					email: user.email,
-					intent: "reset_password",
-				},
-				env.JWT_SECRET || "fallback_secret",
-				{ expiresIn: "15m" },
-			);
-			const resetUrl = `${env.CLIENT_URL}/reset-password?token=${resetToken}`;
-
-			logger.info(
-				{ email: cleanEmail, resetUrl },
-				`[PASSWORD RESET LINK] Reset URL generated for ${cleanEmail}: ${resetUrl}`,
-			);
-
-			await emailService.sendPasswordResetLinkEmail({
-				to: cleanEmail,
-				userName: user.displayName || user.name || cleanEmail.split("@")[0],
-				resetUrl,
-				expiresIn: "15 minutes",
+// POST /recover-account (Verify Recovery Code & Issue Limited Reset Token)
+authRouter.post("/recover-account", async (req, res, next) => {
+	try {
+		const { email, recoveryCode } = req.body;
+		if (!email || !recoveryCode) {
+			return res.status(400).json({
+				success: false,
+				error: "Account identifier and recovery code are required.",
 			});
+		}
 
-			await AuditService.logEvent(
-				user.id,
-				"FORGOT_PASSWORD_REQUESTED",
-				"Password reset link email dispatched",
-				req.ip || "",
-			);
+		const result = await RecoveryCodeService.verifyAndConsumeCodeForRecovery(
+			email,
+			recoveryCode,
+		);
+
+		if (!result.success) {
+			return res.status(400).json({
+				success: false,
+				error: result.message || "That recovery code is invalid or has already been used.",
+			});
 		}
 
 		return res.json({
 			success: true,
-			message: "If an account exists for this email, we'll send instructions to continue.",
+			message: "Recovery code verified successfully.",
+			recoveryToken: result.recoveryToken,
+		});
+	} catch (error) {
+		next(error);
+	}
+});
+
+// POST /reset-password-with-recovery (Update Password with Verified Recovery Token)
+authRouter.post("/reset-password-with-recovery", async (req, res, next) => {
+	try {
+		const { recoveryToken, newPassword } = req.body;
+		if (!recoveryToken || !newPassword) {
+			return res.status(400).json({
+				success: false,
+				error: "Recovery token and new password are required.",
+			});
+		}
+
+		let decoded: any;
+		try {
+			decoded = jwt.verify(recoveryToken, env.JWT_SECRET);
+		} catch (jwtErr) {
+			return res.status(401).json({
+				success: false,
+				error: "Invalid or expired recovery session. Please try recovering your account again.",
+			});
+		}
+
+		if (decoded.purpose !== "PASSWORD_RESET_ONLY" || !decoded.sub) {
+			return res.status(403).json({
+				success: false,
+				error: "Unauthorized recovery token.",
+			});
+		}
+
+		const userId = decoded.sub;
+		const cleanPassword = String(newPassword);
+
+		// Password Complexity Verification
+		if (cleanPassword.length < 8) {
+			return res.status(400).json({
+				success: false,
+				error: "Password must be at least 8 characters long.",
+			});
+		}
+		if (!/[A-Z]/.test(cleanPassword) || !/[a-z]/.test(cleanPassword) || !/[0-9]/.test(cleanPassword) || !/[^A-Za-z0-9]/.test(cleanPassword)) {
+			return res.status(400).json({
+				success: false,
+				error: "Password must contain uppercase, lowercase, number, and special character.",
+			});
+		}
+
+		const newHash = AuthService.hashPassword(cleanPassword);
+
+		// Update password in DB
+		await db
+			.update(users)
+			.set({ passwordHash: newHash })
+			.where(eq(users.id, userId));
+
+		// Revoke all existing sessions for security
+		await SessionService.revokeUserSessions(userId);
+
+		await AuditService.logEvent(
+			userId,
+			"PASSWORD_RESET_COMPLETED",
+			"User successfully reset password using Recovery Code",
+			req.ip || "",
+		);
+
+		return res.json({
+			success: true,
+			message: "Your password has been reset successfully. Please sign in with your new password.",
 		});
 	} catch (error) {
 		next(error);
@@ -751,8 +826,7 @@ authRouter.post("/setup/profile", verifyTempToken, async (req, res) => {
 		.from(users)
 		.where(eq(users.id, setupUser.id))
 		.limit(1);
-	const targetRole = userList[0]?.role || "MEMBER";
-	const nextStep = targetRole === "CEO" ? "ORGANIZATION_SETUP" : "REVIEW_SETUP";
+	const nextStep = "RECOVERY_CODES";
 
 	const tempToken = jwt.sign(
 		{
@@ -772,9 +846,179 @@ authRouter.post("/setup/profile", verifyTempToken, async (req, res) => {
 	});
 });
 
+// POST /setup/recovery-codes (Generate & Return Recovery Codes for Onboarding Display)
+authRouter.post("/setup/recovery-codes", verifyTempToken, async (req, res) => {
+	const setupUser = (req as any).setupUser;
+
+	if (setupUser.step !== "RECOVERY_CODES" && setupUser.step !== "PROFILE_SETUP") {
+		return res
+			.status(403)
+			.json({ success: false, error: "Invalid setup step progression" });
+	}
+
+	const rawCodes = await RecoveryCodeService.generateAndStoreCodes(setupUser.id);
+
+	return res.json({
+		success: true,
+		recoveryCodes: rawCodes,
+	});
+});
+
+// POST /setup/recovery-codes/confirm (User acknowledges saving codes -> advance to BATCH_ID_VERIFICATION)
+authRouter.post("/setup/recovery-codes/confirm", verifyTempToken, async (req, res) => {
+	const setupUser = (req as any).setupUser;
+
+	if (setupUser.step !== "RECOVERY_CODES" && setupUser.step !== "PROFILE_SETUP") {
+		return res
+			.status(403)
+			.json({ success: false, error: "Invalid setup step progression" });
+	}
+
+	const nextStep = "BATCH_ID_VERIFICATION";
+	const tempToken = jwt.sign(
+		{
+			id: setupUser.id,
+			email: setupUser.email,
+			intent: "setup",
+			step: nextStep,
+		},
+		env.JWT_SECRET,
+		{ expiresIn: "30m" },
+	);
+
+	return res.json({
+		success: true,
+		nextStep,
+		tempToken,
+	});
+});
+
+// POST /auth/recovery-codes/generate (Authenticated user generates new recovery codes in Security Settings)
+authRouter.post("/recovery-codes/generate", strictAuth, async (req, res) => {
+	const userId = (req as any).user.id;
+	const rawCodes = await RecoveryCodeService.generateAndStoreCodes(userId);
+
+	await AuditService.logEvent(
+		userId,
+		"RECOVERY_CODES_REGENERATED",
+		"User regenerated a new set of recovery codes",
+		req.ip || "",
+	);
+
+	return res.json({
+		success: true,
+		recoveryCodes: rawCodes,
+	});
+});
+
+// POST /setup/verify-batch-id
+authRouter.post("/setup/verify-batch-id", verifyTempToken, async (req, res) => {
+	const { batchNumber } = req.body;
+	const setupUser = (req as any).setupUser;
+
+	if (setupUser.step !== "BATCH_ID_VERIFICATION" && setupUser.step !== "RECOVERY_CODES" && setupUser.step !== "PROFILE_SETUP" && setupUser.step !== "ORGANIZATION_SETUP") {
+		return res
+			.status(403)
+			.json({ success: false, error: "Invalid setup step progression" });
+	}
+
+	const cleanBatchId = String(batchNumber || "").trim().toUpperCase();
+	const batchRegex = /^[A-Z]{2}[0-9]{4}$/;
+	if (!cleanBatchId || !batchRegex.test(cleanBatchId)) {
+		return res.status(400).json({
+			success: false,
+			error: "Organization Batch ID must be 2 uppercase letters followed by 4 digits (e.g. MM1107).",
+		});
+	}
+
+	const userList = await db
+		.select()
+		.from(users)
+		.where(eq(users.id, setupUser.id))
+		.limit(1);
+	const user = userList[0];
+	if (!user) {
+		return res.status(404).json({ success: false, error: "User record not found." });
+	}
+
+	// Server-side lookup of invitation to determine trusted role
+	const activeInvite = await db.query.invitations.findFirst({
+		where: and(
+			eq(invitations.batchNumber, cleanBatchId),
+			eq(invitations.status, "Pending"),
+			gt(invitations.expiresAt, new Date())
+		),
+	});
+
+	let intendedRole = "MEMBER";
+	let organizationName = "Organization Workspace";
+	let organizationId = "";
+
+	if (activeInvite) {
+		// Server dictates intendedRole from trusted invitation record (never client-supplied)
+		intendedRole = String(activeInvite.role || "MEMBER").toUpperCase();
+		if (activeInvite.organizationId) {
+			organizationId = activeInvite.organizationId;
+			const org = await db.query.workspaces.findFirst({
+				where: eq(workspaces.id, organizationId),
+			});
+			if (org) organizationName = org.name;
+		}
+	} else {
+		// Lookup matching workspace
+		const matchingWorkspace = await db.query.workspaces.findFirst({
+			where: eq(workspaces.batchNumber, cleanBatchId),
+		});
+
+		if (matchingWorkspace) {
+			organizationName = matchingWorkspace.name;
+			organizationId = matchingWorkspace.id;
+			intendedRole = user.role === "CEO" ? "CEO" : "MEMBER";
+		} else if (user.role === "CEO" || cleanBatchId === "MM1107") {
+			intendedRole = "CEO";
+			organizationName = "ManMadhan Progress";
+		} else {
+			return res.status(400).json({
+				success: false,
+				error: "Invalid or unassigned Organization Batch ID. Please contact your organization administrator.",
+			});
+		}
+	}
+
+	// Persist batchNumber to user record
+	await db
+		.update(users)
+		.set({ batchNumber: cleanBatchId })
+		.where(eq(users.id, user.id));
+
+	const nextStep = (user.role === "CEO" || intendedRole === "CEO") ? "ORGANIZATION_SETUP" : "REVIEW_SETUP";
+
+	const tempToken = jwt.sign(
+		{
+			id: setupUser.id,
+			email: setupUser.email,
+			intent: "setup",
+			step: nextStep,
+		},
+		env.JWT_SECRET,
+		{ expiresIn: "30m" }
+	);
+
+	return res.json({
+		success: true,
+		valid: true,
+		batchNumber: cleanBatchId,
+		intendedRole,
+		organizationName,
+		organizationId,
+		nextStep,
+		tempToken,
+	});
+});
+
 // POST /setup/organization
 authRouter.post("/setup/organization", verifyTempToken, async (req, res) => {
-	const { organizationName, communityName, orgLogo } = req.body;
+	const { organizationName, batchNumber, communityName, orgLogo } = req.body;
 	const setupUser = (req as any).setupUser;
 
 	if (setupUser.step !== "ORGANIZATION_SETUP") {
@@ -789,6 +1033,17 @@ authRouter.post("/setup/organization", verifyTempToken, async (req, res) => {
 			success: false,
 			error: "Organization name must be between 2 and 100 characters.",
 		});
+	}
+
+	const cleanBatchId = String(batchNumber || "").trim().toUpperCase();
+	if (cleanBatchId) {
+		const batchRegex = /^[A-Z]{2}[0-9]{4}$/;
+		if (!batchRegex.test(cleanBatchId)) {
+			return res.status(400).json({
+				success: false,
+				error: "Organization Batch ID must be 2 uppercase letters followed by 4 digits (e.g. MM1107).",
+			});
+		}
 	}
 
 	const userList = await db
@@ -811,7 +1066,13 @@ authRouter.post("/setup/organization", verifyTempToken, async (req, res) => {
 		orgId = randomUUID();
 		await db
 			.insert(workspaces)
-			.values({ id: orgId, name: cleanOrgName, type: "org" });
+			.values({
+				id: orgId,
+				name: cleanOrgName,
+				batchNumber: cleanBatchId || null,
+				logoUrl: orgLogo || null,
+				type: "org",
+			});
 		await db.insert(workspaceMembers).values({
 			id: randomUUID(),
 			workspaceId: orgId,
@@ -821,7 +1082,11 @@ authRouter.post("/setup/organization", verifyTempToken, async (req, res) => {
 	} else {
 		await db
 			.update(workspaces)
-			.set({ name: cleanOrgName })
+			.set({
+				name: cleanOrgName,
+				batchNumber: cleanBatchId || null,
+				logoUrl: orgLogo || null,
+			})
 			.where(eq(workspaces.id, orgId));
 	}
 
@@ -985,14 +1250,26 @@ authRouter.get("/me", strictAuth, async (req, res) => {
 	const user = userRecords[0];
 
 	let workspaceId = null;
+	let workspace = null;
 	const userMember = await db.query.workspaceMembers.findFirst({
 		where: eq(workspaceMembers.userId, user.id),
 	});
 	if (userMember) {
 		workspaceId = userMember.workspaceId;
+		const ws = await db.query.workspaces.findFirst({
+			where: eq(workspaces.id, workspaceId),
+		});
+		if (ws) {
+			workspace = {
+				id: ws.id,
+				name: ws.name,
+				batchNumber: ws.batchNumber || user.batchNumber || "MM1107",
+				type: ws.type,
+			};
+		}
 	}
 
-	return res.json({ success: true, authenticated: true, user, workspaceId });
+	return res.json({ success: true, authenticated: true, user, workspaceId, workspace });
 });
 
 // POST /logout
@@ -1036,7 +1313,6 @@ authRouter.post("/refresh", async (req, res) => {
 			(req.headers["x-refresh-token"] as string);
 
 		if (!refreshTokenInput) {
-			logger.warn({ ip: req.ip, userAgent: req.headers["user-agent"] }, "[AUTH REFRESH FAIL] REFRESH_TOKEN_MISSING");
 			SessionService.clearTokens(res);
 			return res.status(401).json({
 				success: false,

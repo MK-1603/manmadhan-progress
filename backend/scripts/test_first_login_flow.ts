@@ -8,7 +8,7 @@ async function runFirstLoginTest() {
   console.log("  MANMADHAN PROGRESS V1 — FIRST LOGIN & GOOGLE GATING TEST");
   console.log("========================================================\n");
 
-  const baseURL = "http://localhost:4100/api/v1";
+  const baseURL = "http://localhost:4000/api/v1";
   const testEmail = "hemanthmm1107@gmail.com";
   const testPassword = "Welcome@123";
 

@@ -73,7 +73,7 @@ export function OrgProfileView({ userRole, basePath }: OrgProfileViewProps) {
     };
   }, [socket, fetchWorkspace]);
 
-  const orgName = workspace?.name && workspace.name !== "Personal Workspace" ? workspace.name : "ManMadhan Workspace";
+  const orgName = workspace?.name && workspace.name !== "Personal Workspace" ? workspace.name : "Organization Workspace";
   const logoUrl = workspace?.logoUrl || "";
 
   const SECTIONS: {

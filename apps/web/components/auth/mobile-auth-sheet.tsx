@@ -54,7 +54,7 @@ export function MobileAuthSheet({
         </span>
         <div className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider leading-tight mt-0.5 font-semibold">
           <span className="text-[#D4AF37]">V1</span>
-          <span className="text-[#626A75]">&middot;</span>
+          <span className="text-[#626A75]">·</span>
           <span className="text-[#8E949E]">EXECUTION OS</span>
         </div>
       </div>

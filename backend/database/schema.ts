@@ -43,11 +43,30 @@ export const users = pgTable("users", {
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// 1.01 Recovery Codes Table
+export const recoveryCodes = pgTable(
+	"recovery_codes",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		codeHash: text("code_hash").notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		usedAt: timestamp("used_at"),
+		revokedAt: timestamp("revoked_at"),
+	},
+	(table) => ({
+		userIdIdx: index("recovery_codes_user_id_idx").on(table.userId),
+	}),
+);
+
 // 1.1 Workspaces Table
 export const workspaces = pgTable("workspaces", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull(),
 	shortName: text("short_name"),
+	batchNumber: text("batch_number"),
 	description: text("description"),
 	logoUrl: text("logo_url"),
 	website: text("website"),

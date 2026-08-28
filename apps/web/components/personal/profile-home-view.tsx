@@ -41,7 +41,7 @@ export function ProfileHomeView({ basePath }: ProfileHomeViewProps) {
   const userRole = user?.role || "CEO";
   const roleDisplay = isPersonal
     ? "Personal Workspace"
-    : `${userRole} · ManMadhan`;
+    : `${userRole} · Organization Workspace`;
 
   const accountItems = [
     {

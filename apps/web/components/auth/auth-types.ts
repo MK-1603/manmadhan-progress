@@ -27,8 +27,8 @@ export type AuthContextValue = {
   setTransitionMessage: (val: string) => void;
   authState: string;
   setAuthState: (state: string) => void;
-  authData: { step?: string; token?: string; role?: string; error?: string; email?: string } | null;
-  setAuthData: (data: { step?: string; token?: string; role?: string; error?: string; email?: string } | null) => void;
+  authData: { step?: string; token?: string; role?: string; error?: string; email?: string; redirect?: string } | null;
+  setAuthData: (data: { step?: string; token?: string; role?: string; error?: string; email?: string; redirect?: string } | null) => void;
   authStatus: "initializing" | "authenticated" | "unauthenticated";
   open: () => void;
   close: (discardState?: boolean) => void;
@@ -37,4 +37,6 @@ export type AuthContextValue = {
   checkSession: () => Promise<void>;
   /** Re-fetches the current user from /auth/me and updates context state. */
   refreshUser: () => Promise<void>;
+  /** Instantly sets authenticated session user without blocking on network roundtrips. */
+  setSessionUser: (userData: User, token?: string, refreshToken?: string, workspaceId?: string) => void;
 };

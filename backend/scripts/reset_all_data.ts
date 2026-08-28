@@ -109,7 +109,7 @@ async function resetAllData() {
 		onboardingStatus: "FIRST_LOGIN_REQUIRED",
 		systemOwner: true,
 		batchNumber: "MM1107",
-		employeeId: "MM1107-CEO",
+		employeeId: "MM1107",
 		passwordHash,
 		createdAt: new Date(),
 	});
@@ -135,7 +135,7 @@ async function resetAllData() {
 	// 5. Create CEO Personal Workspace
 	await db.insert(workspaces).values({
 		id: personalWorkspaceId,
-		name: "Hemanth's Personal Workspace",
+		name: "MM1107's Personal Workspace",
 		shortName: "Personal",
 		description: "Personal focus & daily execution workspace",
 		type: "personal",
@@ -173,8 +173,10 @@ async function resetAllData() {
 	console.log("CEO LOGIN CREDENTIALS:");
 	console.log("   Email    : hemanthmm1107@gmail.com");
 	console.log("   Password : Welcome@123");
+	console.log("   Name     : MM1107");
+	console.log("   Batch    : MM1107");
 	console.log("   Role     : CEO");
-	console.log("   First Login: Bypassed (firstLoginCompleted = true, onboardingStatus = COMPLETED)");
+	console.log("   First Login: Required (firstLoginCompleted = false, onboardingStatus = FIRST_LOGIN_REQUIRED)");
 	console.log("==================================================");
 }
 

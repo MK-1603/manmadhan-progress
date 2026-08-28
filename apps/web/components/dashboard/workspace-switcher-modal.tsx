@@ -44,21 +44,20 @@ export function WorkspaceSwitcherModal({
       .catch(() => {});
   }, [isOpen]);
 
-  const cleanOrgName =
-    orgWorkspace?.name && orgWorkspace.name !== "Personal Workspace"
-      ? orgWorkspace.name
-      : "ManMadhan";
+  const realBatchId = orgWorkspace?.batchNumber || user?.batchNumber;
+  const realOrgName = orgWorkspace?.name && orgWorkspace.name !== "Personal Workspace" ? orgWorkspace.name : undefined;
+  const personalDisplayName = user?.displayName || user?.name || "Personal Workspace";
 
   const handleSwitch = (target: "personal" | "org") => {
     if (switching) return;
     setSwitching(true);
 
-    const name = target === "personal" ? "Personal" : cleanOrgName;
+    const name = target === "personal" ? personalDisplayName : (realOrgName || "Organization Workspace");
     
     if (target === "personal") {
       localStorage.setItem("activeWorkspaceType", "personal");
-      if (onSwitched) onSwitched("Personal");
-      setToastMessage("Switched to Personal");
+      if (onSwitched) onSwitched("Personal Workspace");
+      setToastMessage("Switched to Personal Workspace");
       setTimeout(() => {
         onClose();
         router.push("/personal/dashboard");
@@ -69,14 +68,14 @@ export function WorkspaceSwitcherModal({
       if (orgWorkspace?.id) {
         localStorage.setItem("workspaceId", orgWorkspace.id);
       }
-      if (onSwitched) onSwitched(cleanOrgName);
-      setToastMessage(`Switched to ${cleanOrgName}`);
+      if (onSwitched) onSwitched(realOrgName || "Organization Workspace");
+      setToastMessage(`Switched to ${realOrgName || "Organization Workspace"}`);
       setTimeout(() => {
         onClose();
         const targetDash =
-          userRole === "CO_CEO"
+          userRole.includes("CO")
             ? "/co-ceo/dashboard"
-            : userRole === "MEMBER"
+            : userRole.includes("MEMBER")
             ? "/member/dashboard"
             : "/ceo/dashboard";
         router.push(targetDash);
@@ -152,8 +151,8 @@ export function WorkspaceSwitcherModal({
                   <Building className="w-4 h-4" />
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="font-extrabold text-xs text-foreground truncate uppercase">
-                    {cleanOrgName}
+                  <span className="font-extrabold text-xs text-foreground truncate">
+                    {realOrgName || "Organization Workspace"}
                   </span>
                   <span className="text-[11px] text-muted-foreground truncate">
                     Organization Workspace

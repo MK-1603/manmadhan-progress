@@ -107,6 +107,8 @@ export class SessionService {
 			maxAge: 7 * 24 * 60 * 60 * 1000,
 		});
 
+		logger.info({ event: "AUTH_SESSION_CREATED", userId: user.id, email: user.email, role: user.role }, "AUTH_SESSION_CREATED");
+
 		return { accessToken, refreshToken, user: authUser };
 	}
 
@@ -251,6 +253,8 @@ export class SessionService {
 			maxAge: 7 * 24 * 60 * 60 * 1000,
 		});
 
+		logger.info({ event: "AUTH_SESSION_REFRESHED", userId: dbUser.id, email: dbUser.email }, "AUTH_SESSION_REFRESHED");
+
 		return { accessToken: newAccessToken, refreshToken: newRefreshToken, user: authUser };
 	}
 
@@ -263,6 +267,7 @@ export class SessionService {
 				.update(userSessions)
 				.set({ status: "REVOKED" })
 				.where(eq(userSessions.userId, userId));
+			logger.info({ event: "AUTH_SESSION_REVOKED", userId }, "AUTH_SESSION_REVOKED");
 		} catch (err: any) {
 			logger.error(`Error revoking user sessions for ${userId}: ${err.message}`);
 		}

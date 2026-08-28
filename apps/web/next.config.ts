@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   },
   typedRoutes: false,
   async rewrites() {
-    const rawUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4100";
+    const rawUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
     const backendUrl = rawUrl.replace(/\/api\/v1\/?$/, "");
 
     return [

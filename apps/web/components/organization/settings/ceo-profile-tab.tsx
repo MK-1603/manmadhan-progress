@@ -198,7 +198,7 @@ export function CEOProfileTab({ user, workspace, onUpdated }: CEOProfileTabProps
 						<label className="text-xs font-bold text-foreground">Organization</label>
 						<div className="h-10 rounded-xl bg-muted/50 border border-border/60 px-3 flex items-center gap-2 text-muted-foreground">
 							<Building className="w-4 h-4 text-muted-foreground/60" />
-							<span className="text-xs font-semibold">{workspace?.name || "ManMadhan Progress Workspace"}</span>
+							<span className="text-xs font-semibold">{workspace?.batchNumber ? `${workspace.batchNumber}${workspace.name ? ` · ${workspace.name}` : ""}` : (workspace?.name || "Organization Workspace")}</span>
 						</div>
 					</div>
 				</div>

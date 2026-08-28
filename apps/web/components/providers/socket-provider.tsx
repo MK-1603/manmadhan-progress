@@ -187,7 +187,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
       setIsConnected(false);
     });
 
-    // ── connect_error — handle authentication failures ────────────────────
+    // ── connect_error — handle connection issues safely without forcing logout ──
     socketInstance.on("connect_error", async (err) => {
       setIsConnected(false);
 
@@ -198,35 +198,25 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         err.message?.toLowerCase().includes("token");
 
       if (isAuthError && !refreshAttemptedRef.current) {
-        // Try to refresh the token exactly once per socket lifecycle
         refreshAttemptedRef.current = true;
-        socketInstance.io.opts.reconnection = false; // pause auto-reconnect
+        socketInstance.io.opts.reconnection = false;
 
         const newToken = await refreshAccessToken();
 
         if (newToken) {
-          // Update auth credentials and reconnect once with the new token
           socketInstance.auth = { token: newToken };
           (socketInstance.io.opts as any).query = { token: newToken };
           socketInstance.io.opts.reconnection = true;
           socketInstance.io.opts.reconnectionAttempts = 3;
           socketInstance.connect();
         } else {
-          // Refresh failed — session is dead, clean up and redirect
-          destroySocket();
-          if (typeof window !== "undefined") {
-            localStorage.removeItem("auth_token");
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            if (!isPublicPath(window.location.pathname) && !isExplicitLoggingOut()) {
-              window.location.href = "/login";
-            }
+          // Socket refresh attempt failed — leave socket disconnected without destroying HTTP user session
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[SOCKET DIAGNOSTIC] Socket auth error. WebSocket disconnected; HTTP session preserved.");
           }
         }
         return;
       }
-
-      // Non-auth error or already retried — leave reconnection to Socket.IO
     });
 
     // ── Server-initiated session invalidation ─────────────────────────────

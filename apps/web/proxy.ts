@@ -70,7 +70,7 @@ export function proxy(request: NextRequest) {
     if (pathname.startsWith("/co-ceo") && role !== "CO-CEO") {
       return NextResponse.redirect(new URL(`/${rolePath}/dashboard`, request.url));
     }
-    if (pathname.startsWith("/member") && role !== "MEMBER" && role !== "USER") {
+    if (pathname.startsWith("/member") && role !== "MEMBER" && role !== "USER" && role !== "CEO" && role !== "CO-CEO") {
       return NextResponse.redirect(new URL(`/${rolePath}/dashboard`, request.url));
     }
   }

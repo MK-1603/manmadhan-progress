@@ -107,7 +107,7 @@ function sanitizeReturnUrl(rawReturnUrl: string | undefined | null): string {
 }
 
 // Log configuration status on startup
-logger.info(`[GitHub OAuth] Configured Redirect URI: ${getGitHubRedirectUri()}`);
+logger.debug(`[GitHub OAuth] Configured Redirect URI: ${getGitHubRedirectUri()}`);
 
 async function requireProjectMembership(req: Request, projectId: string) {
 	const user = (req as any).user;

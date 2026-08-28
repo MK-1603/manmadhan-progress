@@ -3,7 +3,7 @@
 import { Header } from "@/components/dashboard/header";
 import { MobileHeader } from "@/components/dashboard/mobile-header";
 import { BottomNav } from "@/components/dashboard/bottom-nav";
-import { OrgSidebar } from "@/components/organization/org-sidebar";
+import { Sidebar } from "@/components/dashboard/sidebar";
 import { useAuth } from "@/components/auth/auth-context";
 import { usePathname } from "next/navigation";
 import { GlobalRefreshProvider, GlobalPullToRefreshContent } from "@/components/providers/global-refresh-provider";
@@ -45,7 +45,7 @@ export default function OrganizationLayout({ children }: { children: React.React
   return (
     <GlobalRefreshProvider>
       <div className="flex h-[100dvh] w-full bg-background overflow-hidden">
-        <OrgSidebar role={role} base={base} />
+        <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 h-full w-full overflow-hidden">
           <Header />
           <MobileHeader />

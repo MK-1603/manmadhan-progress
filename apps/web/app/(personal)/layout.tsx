@@ -1,7 +1,7 @@
 import { Header } from "@/components/dashboard/header";
 import { MobileHeader } from "@/components/dashboard/mobile-header";
 import { BottomNav } from "@/components/dashboard/bottom-nav";
-import { Sidebar as PersonalSidebar } from "@/components/personal/sidebar";
+import { Sidebar } from "@/components/dashboard/sidebar";
 import { GlobalRefreshProvider, GlobalPullToRefreshContent } from "@/components/providers/global-refresh-provider";
 
 export default function PersonalLayout({
@@ -12,7 +12,7 @@ export default function PersonalLayout({
   return (
     <GlobalRefreshProvider>
       <div className="flex h-[100dvh] w-full bg-background overflow-hidden">
-        <PersonalSidebar />
+        <Sidebar />
         <div className="flex-1 flex flex-col min-w-0 h-full w-full overflow-hidden">
           <Header />
           <MobileHeader />

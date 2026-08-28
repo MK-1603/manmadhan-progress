@@ -1,16 +1,9 @@
 "use client";
 
-import React from "react";
-import { AppSidebar } from "@/components/navigation/app-sidebar";
+import { Sidebar } from "@/components/dashboard/sidebar";
 
-export function OrgSidebar({
-  role,
-  base,
-}: {
-  role?: "CEO" | "CO-CEO" | "MEMBER";
-  base?: string;
-}) {
-  return <AppSidebar forcedRole={role} forcedWorkspace="organization" />;
+export function OrgSidebar(_props: any) {
+  return <Sidebar />;
 }
 
 export default OrgSidebar;

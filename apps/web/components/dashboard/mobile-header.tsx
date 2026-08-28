@@ -132,26 +132,12 @@ export function MobileHeader({
           <Menu className="w-5 h-5" />
         </button>
 
-        {/* CENTER: True Viewport Centered Page Title & Subtitle */}
+        {/* CENTER: True Viewport Centered Page Title */}
         <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center max-w-[50vw]">
-          <h1 className="text-[17px] font-semibold text-foreground tracking-tight leading-[22px] truncate pointer-events-none" suppressHydrationWarning>
+          <h1 className="text-[17px] font-bold text-foreground tracking-tight leading-[22px] truncate pointer-events-none" suppressHydrationWarning>
             {title}
           </h1>
-          <button
-            type="button"
-            onClick={() => setIsSwitcherModalOpen(true)}
-            className="text-[12px] font-medium text-muted-foreground hover:text-foreground leading-[16px] truncate mt-[2px] flex items-center gap-1 cursor-pointer pointer-events-auto"
-            suppressHydrationWarning
-          >
-            <span>{isPersonal ? "Personal Workspace" : "ManMadhan"}</span>
-            <span className="text-[10px] opacity-70">▼</span>
-          </button>
         </div>
-
-        <WorkspaceSwitcherModal
-          isOpen={isSwitcherModalOpen}
-          onClose={() => setIsSwitcherModalOpen(false)}
-        />
 
         {/* RIGHT: Notifications & Profile Buttons */}
         <div className="flex items-center gap-1.5">
@@ -166,53 +152,39 @@ export function MobileHeader({
         </div>
       </header>
 
-      {/* 1. FULL NAVIGATION DRAWER (Left-Side Full-Height Drawer) */}
+      {/* ── Slide-over Navigation Drawer (Replacing old inline panel) ── */}
       <AnimatePresence>
         {isDrawerOpen && (
-          <div className="md:hidden fixed inset-0 z-[10000]">
-            {/* Theme-Aware Backdrop Scrim */}
+          <div className="fixed inset-0 z-[9999] flex">
+            {/* Backdrop Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsDrawerOpen(false)}
-              className="fixed inset-0 bg-black/60 z-[10000]"
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs"
             />
 
-            {/* Sliding Left Full-Height Drawer */}
+            {/* Left Drawer Panel */}
             <motion.div
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
-              transition={{ type: "spring", stiffness: 360, damping: 32 }}
-              drag="x"
-              dragConstraints={{ right: 0 }}
-              dragElastic={0.1}
-              onDragEnd={(e, { offset, velocity }) => {
-                if (offset.x < -80 || velocity.x < -400) {
-                  setIsDrawerOpen(false);
-                }
-              }}
-              className="fixed left-0 top-0 bottom-0 w-[85vw] max-w-[380px] h-[100dvh] bg-[#FFFFFF] dark:bg-[#111419] border-r border-[#E4E7EC] dark:border-[#292F38] shadow-2xl flex flex-col z-[10001] select-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+              transition={{ type: "spring", damping: 25, stiffness: 280 }}
+              className="relative w-[300px] max-w-[85vw] h-full bg-[#FFFFFF] dark:bg-[#111419] border-r border-[#E4E7EC] dark:border-[#292F38] shadow-2xl flex flex-col z-10 select-none overflow-hidden"
             >
-              {/* Drawer Compact Header with Official Logo Image */}
-              <div className="h-[76px] border-b border-[#E4E7EC] dark:border-[#292F38] flex items-center justify-between px-4 shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 shadow-xs border border-[#E4E7EC] dark:border-[#292F38] bg-black">
-                    <Image
-                      src="/ios/iTunesArtwork@1x.png"
-                      alt="ManMadhan Progress Logo"
-                      width={32}
-                      height={32}
-                      className="w-full h-full object-cover"
-                    />
+              {/* Drawer Top Header */}
+              <div className="flex items-center justify-between h-[64px] px-4 border-b border-[#E4E7EC] dark:border-[#292F38] shrink-0 bg-[#F8F9FB] dark:bg-[#15181D]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-[#D4B12F]/10 border border-[#D4B12F]/30 flex items-center justify-center font-extrabold text-[13px] text-[#D4B12F] shrink-0">
+                    M
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[16px] font-semibold text-[#17202A] dark:text-[#F2F4F7] leading-tight">
-                      ManMadhan Progress
+                      {isPersonal ? "Personal Workspace" : "Organization Workspace"}
                     </span>
                     <span className="text-[12px] font-medium text-[#667085] dark:text-[#8B94A3] leading-tight mt-0.5">
-                      {isPersonal ? "Personal Workspace" : `${userRole} · ManMadhan`}
+                      {isPersonal ? "Personal Workspace" : `${userRole} · Organization Workspace`}
                     </span>
                   </div>
                 </div>
@@ -268,7 +240,7 @@ export function MobileHeader({
                       {userName}
                     </span>
                     <span className="text-[12px] font-medium text-[#667085] dark:text-[#8B94A3] truncate" suppressHydrationWarning>
-                      {isPersonal ? "Personal Workspace" : `${userRole} · ManMadhan`}
+                      {isPersonal ? "Personal Workspace" : `${userRole} · Organization Workspace`}
                     </span>
                   </div>
                 </div>

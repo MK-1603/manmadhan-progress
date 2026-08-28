@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, Check, Building, User as UserIcon, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/components/auth/auth-context";
@@ -109,10 +109,9 @@ export function Header() {
     };
   }, [socket]);
 
-  const cleanOrgName =
-    orgWorkspace?.name && orgWorkspace.name !== "Personal Workspace"
-      ? orgWorkspace.name
-      : "ManMadhan Workspace";
+  const realBatchId = orgWorkspace?.batchNumber || user?.batchNumber;
+  const realOrgName = orgWorkspace?.name && orgWorkspace.name !== "Personal Workspace" ? orgWorkspace.name : undefined;
+  const personalDisplayName = user?.displayName || user?.name || (user?.email ? user.email.split("@")[0] : "");
 
   // Canonical ActiveWorkspace state object
   const activeWorkspace: ActiveWorkspace = isPersonalRoute
@@ -124,8 +123,8 @@ export function Header() {
     : {
         id: orgWorkspace?.id || "org",
         type: "organization",
-        name: cleanOrgName,
-        organizationName: cleanOrgName,
+        name: "Organization Workspace",
+        organizationName: realOrgName,
         role: userRole,
       };
 
@@ -137,21 +136,28 @@ export function Header() {
     setActivePopover(open ? "switcher" : "none");
   };
 
+  const router = useRouter();
+
   const handleSwitchWorkspace = (target: "personal" | "org") => {
     setIsSwitcherOpen(false);
+    if ((target === "personal" && isPersonal) || (target === "org" && !isPersonal)) {
+      return;
+    }
     if (target === "personal") {
-      window.location.href = "/personal/dashboard";
+      localStorage.setItem("activeWorkspaceType", "personal");
+      router.replace("/personal/dashboard");
     } else {
+      localStorage.setItem("activeWorkspaceType", "organization");
       if (orgWorkspace?.id) {
         localStorage.setItem("workspaceId", orgWorkspace.id);
       }
       const targetDash =
-        userRole === "CO_CEO"
+        userRole.includes("CO")
           ? "/co-ceo/dashboard"
-          : userRole === "MEMBER"
+          : userRole.includes("MEMBER")
           ? "/member/dashboard"
           : "/ceo/dashboard";
-      window.location.href = targetDash;
+      router.replace(targetDash);
     }
   };
 
@@ -176,7 +182,9 @@ export function Header() {
             {mounted && !isPersonal && orgWorkspace?.logoUrl && (
               <img src={orgWorkspace.logoUrl} alt="" className="w-3.5 h-3.5 rounded object-contain shrink-0" />
             )}
-            <span suppressHydrationWarning>{isPersonal ? "Personal Workspace" : cleanOrgName}</span>
+            <span suppressHydrationWarning>
+              {isPersonal ? "Personal Workspace" : "Organization Workspace"}
+            </span>
           </span>
 
           <ChevronDown
@@ -197,11 +205,8 @@ export function Header() {
         setActivePopover={setActivePopover as any}
       />
 
-      {/* 3. RIGHT SIDE — HEADER ACTIONS */}
+      {/* 3. RIGHT SIDE — HEADER ACTIONS (Clean: Notifications + Profile) */}
       <div className="flex items-center justify-end gap-2 flex-1">
-        {/* Quick Theme Toggle Button */}
-        <ThemeToggleButton />
-
         {/* Notifications Button & Popover */}
         <NotificationDropdown
           activePopover={activePopover as any}

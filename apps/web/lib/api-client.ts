@@ -6,7 +6,7 @@ const getBaseUrl = () => {
   if (envUrl) {
     return envUrl.endsWith("/api/v1") ? envUrl : `${envUrl.replace(/\/$/, "")}/api/v1`;
   }
-  return "http://localhost:4100/api/v1";
+  return "http://localhost:4000/api/v1";
 };
 
 const baseURL = getBaseUrl();
@@ -14,8 +14,69 @@ const baseURL = getBaseUrl();
 const apiClient = axios.create({
   baseURL,
   withCredentials: true,
-  timeout: 8000,
+  timeout: 10000,
 });
+
+export function isJwtExpired(token: string): boolean {
+  try {
+    const base64Url = token.split(".")[1];
+    if (!base64Url) return true;
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    const parsed = JSON.parse(jsonPayload);
+    if (parsed && typeof parsed.exp === "number") {
+      return Date.now() >= (parsed.exp * 1000 - 5000);
+    }
+    return false;
+  } catch (e) {
+    return true;
+  }
+}
+
+export function getValidAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  const token =
+    localStorage.getItem("auth_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("jwt") ||
+    localStorage.getItem("accessToken");
+
+  if (token && token !== "null" && token !== "undefined") {
+    if (!isJwtExpired(token)) {
+      return token;
+    }
+  }
+  return null;
+}
+
+export function hasRefreshToken(): boolean {
+  if (typeof window === "undefined") return false;
+  const token =
+    localStorage.getItem("refresh_token") ||
+    localStorage.getItem("refreshToken");
+
+  const hasCookie = document.cookie.includes("refresh_token=");
+  return Boolean(token || hasCookie);
+}
+
+export function hasAuthCredentials(): boolean {
+  if (typeof window === "undefined") return false;
+  const hasTokenInStorage = Boolean(
+    localStorage.getItem("auth_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("jwt") ||
+    localStorage.getItem("accessToken") ||
+    localStorage.getItem("refresh_token") ||
+    localStorage.getItem("refreshToken")
+  );
+  const hasCookieInBrowser = document.cookie.includes("auth_token=") || document.cookie.includes("refresh_token=");
+  return hasTokenInStorage || hasCookieInBrowser;
+}
 
 // ── Request interceptor ──────────────────────────────────────────────────────
 // Attaches Bearer token from localStorage on the client side.
@@ -48,8 +109,6 @@ export function isExplicitLoggingOut() {
 }
 
 // ── Token refresh state ──────────────────────────────────────────────────────
-// A single in-flight refresh promise is shared across all concurrent 401s so
-// we only make one refresh request even when multiple requests expire at once.
 let refreshPromise: Promise<string | null> | null = null;
 
 export function clearAuthStorage() {
@@ -61,19 +120,23 @@ export function clearAuthStorage() {
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("refresh_token");
     localStorage.removeItem("user");
-    document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
-    document.cookie = "refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+    document.cookie = "auth_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+    document.cookie = "refresh_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
   }
 }
 
 async function attemptTokenRefresh(): Promise<string | null> {
-  if (explicitLoggingOut) return null;
+  if (explicitLoggingOut || !hasAuthCredentials()) return null;
   try {
     const existingRefreshToken =
       typeof window !== "undefined"
         ? localStorage.getItem("refresh_token") ||
           localStorage.getItem("refreshToken")
         : undefined;
+
+    if (process.env.NODE_ENV === "development") {
+      console.log("[AUTH DIAGNOSTIC] Attempting token refresh via /auth/refresh");
+    }
 
     const refreshRes = await axios.post(
       `${baseURL}/auth/refresh`,
@@ -108,11 +171,17 @@ async function attemptTokenRefresh(): Promise<string | null> {
         const isHttps = window.location.protocol === "https:";
         document.cookie = `auth_token=${newToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
       }
+      if (process.env.NODE_ENV === "development") {
+        console.log("[AUTH DIAGNOSTIC] Token refresh successful");
+      }
       return newToken;
     }
 
     return null;
   } catch (err: any) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[AUTH DIAGNOSTIC] Token refresh failed:", err?.response?.data?.code || err?.message);
+    }
     const errCode = err.response?.data?.code;
     if (errCode === "ACCOUNT_SUSPENDED" || errCode === "ACCOUNT_DELETED") {
       clearAuthStorage();
@@ -142,7 +211,6 @@ apiClient.interceptors.response.use(
         return Promise.reject(new Error("Your account has been suspended or is unavailable."));
       }
 
-      // General 403 Permission Denied — return clean error message without forcing logout
       const permMsg =
         error.response?.data?.error?.message ||
         error.response?.data?.message ||
@@ -160,7 +228,12 @@ apiClient.interceptors.response.use(
         originalRequest?.url?.includes("/auth/login");
 
       if (isAuthEndpoint || originalRequest?._retry || explicitLoggingOut) {
-        clearAuthStorage();
+        if (isAuthEndpoint && originalRequest?.url?.includes("/auth/refresh")) {
+          if (process.env.NODE_ENV === "development") {
+            console.warn("[AUTH DIAGNOSTIC] Refresh endpoint returned 401. Session expired.");
+          }
+          clearAuthStorage();
+        }
         return Promise.reject(error);
       }
 
@@ -177,7 +250,7 @@ apiClient.interceptors.response.use(
       const newToken = await refreshPromise;
 
       if (newToken) {
-        // Retry the original request (including /auth/me) with the fresh access token
+        // Retry original request with fresh access token
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return apiClient(originalRequest);
       }
@@ -188,7 +261,10 @@ apiClient.interceptors.response.use(
         return Promise.reject(new Error("GitHub integration request failed. Please check your GitHub connection."));
       }
 
-      // Refresh failed — clear session and redirect to login if on protected route
+      // Token refresh genuinely failed — clear session and redirect ONLY if on protected route
+      if (process.env.NODE_ENV === "development") {
+        console.warn(`[AUTH DIAGNOSTIC] 401 on ${originalRequest?.url} and refresh failed. Redirecting to /login.`);
+      }
       clearAuthStorage();
       if (
         typeof window !== "undefined" &&
@@ -202,8 +278,11 @@ apiClient.interceptors.response.use(
       return Promise.reject(new Error("Session expired. Please sign in again."));
     }
 
-    // Network / connection errors
+    // Network / connection errors — DO NOT LOG OUT USER
     if (!error.response || error.code === "ECONNREFUSED" || error.code === "ERR_NETWORK") {
+      if (process.env.NODE_ENV === "development") {
+        console.warn(`[AUTH DIAGNOSTIC] Connection error on ${originalRequest?.url}:`, error.code || error.message);
+      }
       return Promise.reject(
         new Error(
           "Unable to connect to the ManMadhan Progress server. Please ensure the backend is running.",

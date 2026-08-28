@@ -13,7 +13,7 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 		process.env.GOOGLE_CALLBACK_URL ||
 		(process.env.SERVER_URL
 			? `${process.env.SERVER_URL.replace(/\/$/, "")}/api/v1/auth/google/callback`
-			: `http://localhost:${env.PORT || 4100}/api/v1/auth/google/callback`);
+			: `http://localhost:${env.PORT || 4000}/api/v1/auth/google/callback`);
 
 	passport.use(
 		new GoogleStrategy(
@@ -116,7 +116,7 @@ if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
 			},
 		),
 	);
-	authLogger.info({ callbackURL }, "Google OAuth 2.0 Strategy initialized");
+	authLogger.trace("Google OAuth 2.0 Strategy initialized");
 }
 
 export { passport };

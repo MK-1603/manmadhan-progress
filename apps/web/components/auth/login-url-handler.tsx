@@ -58,7 +58,7 @@ function Handler() {
     if (step || redirectParam || errorMsg || emailParam) {
       const email = emailParam || "";
 
-      setAuthData({ step: step || "EMAIL_ENTRY", token, role, error: errorMsg || "", email });
+      setAuthData({ step: step || "EMAIL_ENTRY", token, role, error: errorMsg || "", email, redirect: redirectParam || "" });
 
       // Clean up the URL query parameters safely without dispatching uninitialized App Router actions
       if (typeof window !== "undefined" && (step || token || errorMsg || role || email)) {

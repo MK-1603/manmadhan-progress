@@ -17,7 +17,7 @@ if (isGithubConfigured) {
 		process.env.GITHUB_CALLBACK_URL ||
 		(process.env.SERVER_URL
 			? `${process.env.SERVER_URL.replace(/\/$/, "")}/api/v1/auth/github/callback`
-			: `http://localhost:${env.PORT || 4100}/api/v1/auth/github/callback`);
+			: `http://localhost:${env.PORT || 4000}/api/v1/auth/github/callback`);
 
 	passport.use(
 		new GitHubStrategy(

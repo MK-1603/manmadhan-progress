@@ -7,6 +7,7 @@ import {
   Search, Bot, Sparkles, Layers, ArrowUpRight, Cpu
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
+import { useAuth } from "@/components/auth/auth-context";
 
 interface IntegrationItem {
   provider: string;
@@ -22,6 +23,7 @@ interface IntegrationItem {
 const CATEGORIES = ["All", "Communication", "Development", "Calendar", "Social", "AI", "Storage", "Automation"];
 
 export default function CEOIntegrationsPage() {
+  const { user } = useAuth();
   const [integrations, setIntegrations] = useState<IntegrationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -127,7 +129,7 @@ export default function CEOIntegrationsPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#C9A52A]/10 border border-[#C9A52A]/20 text-[#C9A52A] dark:text-[#D4B12F] text-[11px] font-bold tracking-wide uppercase mb-2">
-              <Sparkles className="w-3 h-3" /> ManMadhan Organization · Context Active
+              <Sparkles className="w-3 h-3" /> {user?.batchNumber ? `Organization Workspace · ${user.batchNumber}` : "Organization Workspace"} · Context Active
             </div>
             <h1 className="text-[26px] sm:text-[30px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none flex items-center gap-2.5">
               Integrations & Connections

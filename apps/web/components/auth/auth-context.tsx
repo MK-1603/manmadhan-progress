@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useState, useEffect, type ReactNode } from "react";
-import apiClient, { setIsExplicitLoggingOut } from "../../lib/api-client";
+import apiClient, { setIsExplicitLoggingOut, hasAuthCredentials, getValidAccessToken, hasRefreshToken, clearAuthStorage } from "../../lib/api-client";
 import { useRouter, usePathname } from "next/navigation";
 import { TransitionScreen } from "../transition-screen";
 import { resetGlobalSheetState } from "@/components/ui/global-sheet";
@@ -18,12 +18,13 @@ export function getDashboardPathForRole(role?: string): string {
 }
 
 export function syncTokenCookie(token: string | null) {
-  if (typeof window === "undefined") return;
+  if (typeof document === "undefined") return;
   if (token) {
     const isHttps = window.location.protocol === "https:";
     document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
   } else {
-    document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+    document.cookie = "auth_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+    document.cookie = "refresh_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
   }
 }
 
@@ -43,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isNavigatingRef = React.useRef(false);
   const sessionPromiseRef = React.useRef<Promise<any> | null>(null);
 
-  const [authData, setAuthData] = useState<{ step?: string; token?: string; role?: string; error?: string; expiresAt?: number } | null>(() => {
+  const [authData, setAuthData] = useState<{ step?: string; token?: string; role?: string; error?: string; email?: string; redirect?: string; expiresAt?: number } | null>(() => {
     if (typeof window !== "undefined") {
       const stored = sessionStorage.getItem("authData");
       if (stored) {
@@ -59,7 +60,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return null;
           }
           return parsed;
-        } catch (e) {}
+        } catch (e) {
+          sessionStorage.removeItem("authData");
+        }
       }
     }
     return null;
@@ -83,24 +86,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Debounce ref to prevent double opening
-  const isOpeningRef = React.useRef(false);
-
-  const open = React.useCallback(() => {
-    if (isOpeningRef.current) return;
-    isOpeningRef.current = true;
+  const open = React.useCallback((step?: string) => {
+    if (step) {
+      setAuthState(step);
+    }
     setOpenModal(true);
-    setTimeout(() => {
-      isOpeningRef.current = false;
-    }, 500);
   }, []);
 
   const close = React.useCallback((discardState = false) => {
     setOpenModal(false);
     if (discardState) {
       setAuthData(null);
-      setIsDirty(false);
       setAuthState("EMAIL_ENTRY");
+      setIsDirty(false);
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("authData");
+      }
     }
   }, []);
 
@@ -133,7 +134,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         router.replace(dashPath);
       }
     },
-    [router, close],
+    [router, close]
+  );
+
+  const setSessionUser = React.useCallback(
+    (userData: User, token?: string, refreshToken?: string, workspaceId?: string) => {
+      if (typeof window !== "undefined") {
+        if (token) {
+          localStorage.setItem("auth_token", token);
+          localStorage.setItem("token", token);
+          syncTokenCookie(token);
+        }
+        if (refreshToken) {
+          localStorage.setItem("refresh_token", refreshToken);
+          localStorage.setItem("refreshToken", refreshToken);
+        }
+        if (workspaceId) {
+          localStorage.setItem("workspaceId", workspaceId);
+        }
+      }
+      sessionPromiseRef.current = null;
+      setUser(userData);
+      setAuthStatus("authenticated");
+      setAuthData(null);
+      setIsLoading(false);
+    },
+    [],
   );
 
   const logout = React.useCallback(async () => {
@@ -148,13 +174,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthStatus("unauthenticated");
 
     if (typeof window !== "undefined") {
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("token");
-      localStorage.removeItem("refresh_token");
-      localStorage.removeItem("refreshToken");
+      clearAuthStorage();
       localStorage.removeItem("workspaceId");
       sessionStorage.removeItem("authData");
-      syncTokenCookie(null);
     }
 
     router.replace("/");
@@ -168,20 +190,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setAuthStatus("initializing");
     try {
+      if (!hasAuthCredentials()) {
+        clearAuthStorage();
+        setUser(null);
+        setAuthStatus("unauthenticated");
+        setIsLoading(false);
+        hasInitialised.current = true;
+        return;
+      }
+
       if (!sessionPromiseRef.current) {
-        sessionPromiseRef.current = apiClient.get("/auth/me", { timeout: 4000 }).catch((err) => {
+        sessionPromiseRef.current = apiClient.get("/auth/me", { timeout: 10000 }).catch((err) => {
           if (err?.response?.status === 401) {
-            return { data: { authenticated: false, user: null } };
+            return { data: { authenticated: false, user: null, code: "UNAUTHORIZED" } };
           }
-          return { data: { authenticated: false, user: null } };
+          return { data: { authenticated: false, user: null, isNetworkError: true } };
         });
       }
 
-      const timeoutPromise = new Promise((resolve) =>
-        setTimeout(() => resolve({ data: { authenticated: false, user: null } }), 4000)
-      );
-
-      const res: any = await Promise.race([sessionPromiseRef.current, timeoutPromise]);
+      const res: any = await sessionPromiseRef.current;
 
       if (res?.data?.authenticated && res?.data?.user) {
         setUser(res.data.user);
@@ -201,13 +228,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             syncTokenCookie(token);
           }
         }
+      } else if (res?.data?.isNetworkError) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[AUTH DIAGNOSTIC] /auth/me encountered network or server error. Preserving session credentials.");
+        }
+        if (hasAuthCredentials()) {
+          setAuthStatus("authenticated");
+        } else {
+          setAuthStatus("unauthenticated");
+        }
       } else {
+        // Genuine 401 unauthorized session
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[AUTH DIAGNOSTIC] Session unauthenticated on /auth/me.");
+        }
+        clearAuthStorage();
         setUser(null);
         setAuthStatus("unauthenticated");
       }
-    } catch {
-      setUser(null);
-      setAuthStatus("unauthenticated");
+    } catch (err: any) {
+      if (process.env.NODE_ENV === "development") {
+        console.warn("[AUTH DIAGNOSTIC] Unexpected error in checkSession:", err?.message);
+      }
+      if (!hasAuthCredentials()) {
+        clearAuthStorage();
+        setUser(null);
+        setAuthStatus("unauthenticated");
+      }
     } finally {
       setIsLoading(false);
       hasInitialised.current = true;
@@ -366,6 +413,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       checkSession,
       refreshUser,
+      setSessionUser,
     }),
     [
       user,
@@ -385,6 +433,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       checkSession,
       refreshUser,
+      setSessionUser,
     ],
   );
 

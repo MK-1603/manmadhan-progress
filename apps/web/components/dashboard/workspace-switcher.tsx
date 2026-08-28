@@ -57,11 +57,13 @@ export function WorkspaceSwitcher() {
   const handleSwitch = (type: "personal" | "org", wsId?: string) => {
     setIsOpen(false);
     if (type === "personal") {
-      window.location.href = "/personal/dashboard";
+      localStorage.setItem("activeWorkspaceType", "personal");
+      router.replace("/personal/dashboard");
     } else if (wsId) {
+      localStorage.setItem("activeWorkspaceType", "organization");
       localStorage.setItem("workspaceId", wsId);
       const targetPath = getDashboardPathForRole(userRole);
-      window.location.href = targetPath;
+      router.replace(targetPath);
     }
   };
 

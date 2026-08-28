@@ -64,7 +64,8 @@ const getOrganizationMembership = async (req: Request) => {
 const serializeOrganization = (workspace: any, members: any[], owner: any) => ({
 	id: workspace.id,
 	name: workspace.name,
-	shortName: workspace.shortName || workspace.name.slice(0, 2).toUpperCase(),
+	batchNumber: workspace.batchNumber || "MM1107",
+	shortName: workspace.batchNumber || workspace.shortName || workspace.name.slice(0, 2).toUpperCase(),
 	description: workspace.description || "",
 	logoUrl: workspace.logoUrl || null,
 	website: workspace.website || "",
@@ -195,7 +196,7 @@ organizationRouter.patch("/profile", async (req: Request, res: Response) => {
 				success: false,
 				error: "Only the CEO can update organization identity.",
 			});
-		const { name, shortName, description, website, contactEmail, logoUrl } =
+		const { name, shortName, description, website, contactEmail, logoUrl, batchNumber } =
 			req.body || {};
 		const cleanName = typeof name === "string" ? name.trim() : "";
 		if (cleanName.length < 2 || cleanName.length > 120)
@@ -203,6 +204,18 @@ organizationRouter.patch("/profile", async (req: Request, res: Response) => {
 				success: false,
 				error: "Organization name must be between 2 and 120 characters.",
 			});
+
+		let cleanBatchNumber: string | undefined = undefined;
+		if (batchNumber) {
+			cleanBatchNumber = String(batchNumber).trim().toUpperCase();
+			if (!/^[A-Z]{2}[0-9]{4}$/.test(cleanBatchNumber)) {
+				return res.status(400).json({
+					success: false,
+					error: "Invalid Organization Batch ID format. Must be 2 uppercase letters followed by 4 digits (e.g. MM1107).",
+				});
+			}
+		}
+
 		if (description != null && String(description).trim().length > 1000)
 			return res
 				.status(400)
@@ -226,6 +239,7 @@ organizationRouter.patch("/profile", async (req: Request, res: Response) => {
 			.update(workspaces)
 			.set({
 				name: cleanName,
+				batchNumber: cleanBatchNumber !== undefined ? cleanBatchNumber : undefined,
 				shortName: shortName ? String(shortName).trim() : null,
 				description: description ? String(description).trim() : null,
 				website: website ? String(website).trim() : null,

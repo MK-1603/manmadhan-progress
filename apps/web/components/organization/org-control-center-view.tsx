@@ -463,7 +463,7 @@ export function OrgControlCenterView({ basePath }: OrgControlCenterViewProps) {
 										<OrganizationLogo logoUrl={workspace?.logoUrl} name={workspace?.name} size="md" />
 										<div className="min-w-0">
 											<h3 className="text-xs sm:text-sm font-extrabold text-foreground truncate">
-												{workspace?.name && workspace.name !== "Personal Workspace" ? workspace.name : "ManMadhan Workspace"}
+												{workspace?.batchNumber ? `Organization Workspace · ${workspace.batchNumber}` : (workspace?.name && workspace.name !== "Personal Workspace" ? workspace.name : "Organization Workspace")}
 											</h3>
 											<span className="text-[9px] font-mono font-semibold px-2 py-0.5 rounded bg-gold/10 text-gold border border-gold/30 inline-block mt-0.5">
 												Organization Workspace

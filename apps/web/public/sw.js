@@ -1,4 +1,4 @@
-const CACHE_NAME = "manmadhan-pwa-v1.4.1";
+const CACHE_NAME = "manmadhan-pwa-v1.4.2";
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 Hours TTL
 
 const PRECACHE_ASSETS = [

@@ -89,18 +89,18 @@ async function resetDevDatabase() {
 	await db.insert(users).values({
 		id:              ceoUserId,
 		email:           "hemanthmm1107@gmail.com",
-		name:            "Hemanth",
-		displayName:     "Hemanth",
+		name:            "MM1107",
+		displayName:     "MM1107",
 		role:            "CEO",
 		status:          "Activated",
 		isVerified:      true,
 		isOtpEnabled:    false,
 		isGoogleEnabled: false,
-		firstLoginCompleted: true,
-		onboardingStatus: "COMPLETED",
+		firstLoginCompleted: false,
+		onboardingStatus: "FIRST_LOGIN_REQUIRED",
 		systemOwner:     true,
-		batchNumber:     "CEO",
-		employeeId:      "HEMANTH-CEO",
+		batchNumber:     "MM1107",
+		employeeId:      "MM1107",
 		passwordHash,
 	});
 
@@ -121,11 +121,12 @@ async function resetDevDatabase() {
 
 	console.log("✅ Created Seeded CEO Account:");
 	console.log("   Email    : hemanthmm1107@gmail.com");
-	console.log("   Name     : Hemanth");
+	console.log("   Name     : MM1107");
 	console.log("   Password : Welcome@123");
+	console.log("   Batch    : MM1107");
 	console.log("   Role     : CEO");
 	console.log("   Status   : Activated");
-	console.log("   First Login: Bypassed (firstLoginCompleted = true)");
+	console.log("   First Login: Required (firstLoginCompleted = false)");
 	console.log("✅ Created Clean Organization Workspace.");
 
 	// 5. Final Record Count Verification

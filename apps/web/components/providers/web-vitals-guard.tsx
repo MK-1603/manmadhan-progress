@@ -29,9 +29,41 @@ export function WebVitalsGuard() {
     }
   });
 
-  // 2. Global Runtime Safety Guard for requestIdleCallback & Injected Performance Monitors
+  // 2. Global Runtime Safety Guard for requestIdleCallback, PerformanceObserver & Injected Telemetry Monitors
   useEffect(() => {
-    if (typeof window === "undefined" || initializedRef.current) return;
+    if (typeof window === "undefined") return;
+
+    // Capture-phase error handler for browser extensions / injected PerformanceObserver scripts (VMxx)
+    const handleGlobalError = (event: ErrorEvent) => {
+      const errMsg = (event?.message || event?.error?.message || "").toString();
+      if (
+        errMsg.includes("startTime") ||
+        errMsg.includes("reportAllChanges") ||
+        errMsg.includes("reportWebVitals")
+      ) {
+        event.preventDefault();
+        if (typeof event.stopImmediatePropagation === "function") {
+          event.stopImmediatePropagation();
+        }
+        return true;
+      }
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reasonMsg = (event?.reason?.message || event?.reason || "").toString();
+      if (
+        reasonMsg.includes("startTime") ||
+        reasonMsg.includes("reportAllChanges") ||
+        reasonMsg.includes("reportWebVitals")
+      ) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener("error", handleGlobalError, true);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection, true);
+
+    if (initializedRef.current) return;
     initializedRef.current = true;
 
     try {
@@ -55,21 +87,48 @@ export function WebVitalsGuard() {
             try {
               callback(deadline);
             } catch (err: any) {
-              // Silently absorb injected telemetry errors (e.g., reportAllChanges reading undefined startTime)
               if (
                 err?.message?.includes("startTime") ||
                 err?.message?.includes("reportAllChanges")
               ) {
                 return;
               }
-              console.warn("Idle callback exception suppressed:", err?.message);
             }
           }, options);
+        };
+      }
+
+      // Safe setTimeout wrapper for extension telemetry loops (VMxx)
+      if (typeof window.setTimeout === "function") {
+        const origSetTimeout = window.setTimeout.bind(window);
+        (window as any).setTimeout = function (handler: TimerHandler, timeout?: number, ...args: any[]) {
+          if (typeof handler === "function") {
+            const wrappedHandler = () => {
+              try {
+                return (handler as Function)();
+              } catch (err: any) {
+                if (
+                  err?.message?.includes("startTime") ||
+                  err?.message?.includes("reportAllChanges")
+                ) {
+                  return;
+                }
+                throw err;
+              }
+            };
+            return origSetTimeout(wrappedHandler, timeout, ...args);
+          }
+          return origSetTimeout(handler, timeout, ...args);
         };
       }
     } catch {
       // Safety setup failure must never break app
     }
+
+    return () => {
+      window.removeEventListener("error", handleGlobalError, true);
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection, true);
+    };
   }, []);
 
   return null;

@@ -1,7 +1,6 @@
 {
   "id": "/",
-  "name": "ManMadhan\nProgress",
-  "short_name": "ManMadhan\nProgress",
+  "name": "ManMadhan Progress",
   "description": "Enterprise Progress, Analytics & Performance Workspace",
   "start_url": "/",
   "scope": "/",
@@ -16,14 +15,12 @@
   "shortcuts": [
     {
       "name": "Workspace Overview",
-      "short_name": "Overview",
       "description": "Quick access to your progress workspace",
       "url": "/",
       "icons": [{ "src": "https://res.cloudinary.com/fmiadecb/image/upload/v1786817328/ic_launcher-web_bq8zjj.png", "sizes": "512x512" }]
     },
     {
       "name": "PWA Diagnostics",
-      "short_name": "Diagnostics",
       "description": "Check offline storage and system telemetry",
       "url": "/#diagnostics",
       "icons": [{ "src": "/ios/iTunesArtwork@1x.png", "sizes": "512x512" }]

@@ -94,27 +94,27 @@
     --layer-6: #1A202C; /* Popover */
 
     --background: #0E1117;
-    --foreground: #F3FFF0;
+    --foreground: #F5F7FA;
     
     --card: #141822;
-    --card-foreground: #F3FFF0;
+    --card-foreground: #F5F7FA;
     
     --popover: #141822;
-    --popover-foreground: #F3FFF0;
+    --popover-foreground: #F5F7FA;
     
-    --primary: #D4AF37;
-    --primary-hover: #E3C45A;
-    --primary-pressed: #B99524;
+    --primary: #D9AE25;
+    --primary-hover: #C59B1E;
+    --primary-pressed: #B88E1B;
     --primary-foreground: #0E1117;
     
     --secondary: #12161F;
     --secondary-foreground: #8E949E;
     
     --muted: #161B26;
-    --muted-foreground: #626A75;
+    --muted-foreground: #697586;
     
     --accent: #1A202C;
-    --accent-foreground: #F3FFF0;
+    --accent-foreground: #F5F7FA;
     
     --destructive: #EF4444;
     --destructive-hover: #F05252;
@@ -125,10 +125,10 @@
     --border-strong: #343B46;
     --input: #161B26;
     
-    --gold: #D4AF37;
-    --gold-hover: #E3C45A;
-    --gold-pressed: #B99524;
-    --ring: #D4AF37;
+    --gold: #D9AE25;
+    --gold-hover: #C59B1E;
+    --gold-pressed: #B88E1B;
+    --ring: #D9AE25;
 
     /* Semantic Extensions (Dark Mode) */
     --surface: #12161F;
@@ -139,12 +139,12 @@
 
     --border-subtle: #1D232C;
     --border-hover: #343B46;
-    --border-focus: #D4AF37;
+    --border-focus: #D9AE25;
     --divider: #252B35;
 
-    --text-primary: #F3FFF0;
+    --text-primary: #F5F7FA;
     --text-secondary: #8E949E;
-    --text-muted: #626A75;
+    --text-muted: #697586;
     --text-disabled: #444B55;
 
     /* Complete Auth System Tokens (Dark Theme) */
@@ -154,7 +154,7 @@
     --auth-input-bg: #12161F;
     --auth-border: #252B35;
     --auth-border-strong: #343B46;
-    --auth-text: #F3FFF0;
+    --auth-text: #F5F7FA;
     --auth-text-secondary: #8E949E;
     --auth-text-muted: #626A75;
     --auth-accent: #D4AF37;

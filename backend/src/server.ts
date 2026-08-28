@@ -1,8 +1,4 @@
-import dns from "node:dns";
 import http from "node:http";
-
-// Enforce IPv4 DNS resolution first to fix ENETUNREACH IPv6 socket failures
-dns.setDefaultResultOrder("ipv4first");
 import { and, eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { Server as SocketIOServer } from "socket.io";
@@ -12,7 +8,6 @@ import { workspaceMembers, workspaces } from "../database/schema";
 import { createApp } from "./app";
 import { startupLogger } from "./bootstrap/startup-logger";
 import { cronService } from "./services/cron.service";
-import { emailService } from "./services/email.service";
 import { logger } from "./services/logger.service";
 import { queueService } from "./services/queue.service";
 import { socketService } from "./services/socket.service";
@@ -49,18 +44,6 @@ const startServer = async () => {
 		"AUTHENTICATION",
 		"Google OAuth 2.0 Strategy & First-Login Gate initialized.",
 	);
-
-	// Phase 4: EMAIL
-	startupLogger.info("EMAIL", "Verifying Gmail SMTP Primary Provider...");
-	const isEmailVerified = await emailService.verifyConnection();
-	if (isEmailVerified) {
-		startupLogger.info(
-			"EMAIL",
-			"Gmail SMTP Primary Provider verified ✓ Connected",
-		);
-	} else {
-		startupLogger.warn("EMAIL", "Gmail SMTP verification check failed.");
-	}
 
 	// Phase 5: STORAGE
 	startupLogger.info(

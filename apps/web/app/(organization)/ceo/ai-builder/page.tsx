@@ -574,7 +574,7 @@ function ManMadhanCommandContent() {
                 <span>Organization execution command center</span>
                 <span>·</span>
                 <span className="inline-flex items-center gap-1 font-medium text-[10.5px]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> ManMadhan Organization
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {user?.batchNumber ? `Organization Workspace · ${user.batchNumber}` : "Organization Workspace"}
                 </span>
               </p>
             )}

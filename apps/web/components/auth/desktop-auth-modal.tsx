@@ -139,7 +139,7 @@ export function DesktopAuthModal({ onCancel, onComplete }: { onCancel: () => voi
       </div>
 
       {/* RIGHT AUTHENTICATION PANEL (56% width) */}
-      <div className="relative p-8 sm:p-10 flex flex-col justify-center overflow-y-auto bg-card text-foreground">
+      <div className="relative p-6 sm:p-8 flex flex-col justify-center overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden bg-card text-foreground">
         <button
           type="button"
           onClick={onCancel}

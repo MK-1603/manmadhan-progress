@@ -154,14 +154,12 @@ export const createApp = (): Express => {
 
 	app.get("/health/ready", async (req: Request, res: Response) => {
 		const isDbConnected = await checkDatabaseConnection();
-		const isEmailConfigured = Boolean(env.SMTP_USER || env.MAIL_USER);
 		const isStorageConfigured = Boolean(env.CLOUDINARY_CLOUD_NAME);
 		const isAiConfigured = Boolean(env.GROQ_API_KEY || env.GEMINI_API_KEY);
 
 		const services = {
 			database: isDbConnected ? "HEALTHY" : "FAILED",
 			authentication: "READY",
-			email: isEmailConfigured ? "HEALTHY" : "CONFIGURED",
 			realtime: "RUNNING",
 			queue: "RUNNING",
 			storage: isStorageConfigured ? "HEALTHY" : "DISABLED",

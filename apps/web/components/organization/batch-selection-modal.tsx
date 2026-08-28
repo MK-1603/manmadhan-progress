@@ -33,12 +33,14 @@ export function BatchSelectionModal({ isOpen, onClose, onSelectBatch }: BatchSel
     apiClient
       .get("/workspaces")
       .then((res) => {
-        if (res.data?.success) {
-          const fetchedBatches: Batch[] = [
-            { batchId: "MM1107", batchName: "MM1107", isPrimary: true },
-            { batchId: "AE2358", batchName: "AE2358", isPrimary: false },
-            { batchId: "SS0778", batchName: "SS0778", isPrimary: false },
-          ];
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          const fetchedBatches: Batch[] = res.data.data
+            .filter((ws: any) => ws.batchNumber)
+            .map((ws: any, idx: number) => ({
+              batchId: ws.batchNumber,
+              batchName: ws.batchNumber,
+              isPrimary: idx === 0,
+            }));
           setBatches(fetchedBatches);
           if (fetchedBatches.length > 0) {
             setSelectedBatchId(fetchedBatches[0].batchId);
