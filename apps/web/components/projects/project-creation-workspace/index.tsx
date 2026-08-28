@@ -355,27 +355,34 @@ export function ProjectCreationWorkspace({
 
             {/* INITIAL SELECTION CARDS SCREEN (Step 01 METHOD before mode selection) */}
             {stage === "METHOD" && !mode && (
-              <div className="space-y-4 max-w-2xl mx-auto py-6">
-                <div className="text-center space-y-1">
-                  <h3 className="text-sm font-extrabold text-foreground">Choose Creation Method</h3>
-                  <p className="text-xs text-muted-foreground">Select how you want to construct this project mandate.</p>
+              <div className="space-y-6 max-w-2xl mx-auto py-4 sm:py-8">
+                <div className="text-center space-y-1.5">
+                  <h2 className="text-lg sm:text-xl font-extrabold text-foreground tracking-tight">Choose Creation Method</h2>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Select how you want to construct this project mandate.</p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-2">
                   <button
                     type="button"
                     onClick={() => {
                       setMode("PROMPT");
                       setPromptSubstep("DESCRIBE");
                     }}
-                    className="p-5 rounded-2xl bg-card border border-border hover:border-[#C9A52A] transition-all text-left space-y-3 cursor-pointer group shadow-2xs"
+                    className={`p-5 rounded-2xl border transition-all text-left space-y-4 cursor-pointer group shadow-2xs relative ${
+                      mode === "PROMPT"
+                        ? "border-[#C9A52A] bg-[#C9A52A]/5 ring-1 ring-[#C9A52A]"
+                        : "bg-card border-border hover:border-[#C9A52A]/60"
+                    }`}
                   >
-                    <div className="w-9 h-9 rounded-xl bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center group-hover:scale-105 transition-transform">
-                      <FileText className="w-5 h-5" />
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-xl bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-[#C9A52A] group-hover:translate-x-0.5 transition-all" />
                     </div>
-                    <div>
-                      <h4 className="font-extrabold text-foreground text-xs group-hover:text-[#C9A52A] transition-colors">Prompt Based</h4>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">Describe what you want to create in natural language.</p>
+                    <div className="space-y-1">
+                      <h4 className="font-extrabold text-foreground text-xs sm:text-sm group-hover:text-[#C9A52A] transition-colors">Prompt Based</h4>
+                      <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">Describe what you want to create in natural language.</p>
                     </div>
                   </button>
 
@@ -385,14 +392,21 @@ export function ProjectCreationWorkspace({
                       setMode("TEMPLATE");
                       setTemplateSubstep("CHOOSE");
                     }}
-                    className="p-5 rounded-2xl bg-card border border-border hover:border-[#C9A52A] transition-all text-left space-y-3 cursor-pointer group shadow-2xs"
+                    className={`p-5 rounded-2xl border transition-all text-left space-y-4 cursor-pointer group shadow-2xs relative ${
+                      mode === "TEMPLATE"
+                        ? "border-[#C9A52A] bg-[#C9A52A]/5 ring-1 ring-[#C9A52A]"
+                        : "bg-card border-border hover:border-[#C9A52A]/60"
+                    }`}
                   >
-                    <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:scale-105 transition-transform">
-                      <LayoutTemplate className="w-5 h-5" />
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                        <LayoutTemplate className="w-5 h-5" />
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-[#C9A52A] group-hover:translate-x-0.5 transition-all" />
                     </div>
-                    <div>
-                      <h4 className="font-extrabold text-foreground text-xs group-hover:text-[#C9A52A] transition-colors">Template Based</h4>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">Start from a predefined organizational framework.</p>
+                    <div className="space-y-1">
+                      <h4 className="font-extrabold text-foreground text-xs sm:text-sm group-hover:text-[#C9A52A] transition-colors">Template Based</h4>
+                      <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">Start from a predefined organizational framework.</p>
                     </div>
                   </button>
 
@@ -402,14 +416,21 @@ export function ProjectCreationWorkspace({
                       setMode("MANUAL");
                       setManualSubstep("INFORMATION");
                     }}
-                    className="p-5 rounded-2xl bg-card border border-border hover:border-[#C9A52A] transition-all text-left space-y-3 cursor-pointer group shadow-2xs"
+                    className={`p-5 rounded-2xl border transition-all text-left space-y-4 cursor-pointer group shadow-2xs relative ${
+                      mode === "MANUAL"
+                        ? "border-[#C9A52A] bg-[#C9A52A]/5 ring-1 ring-[#C9A52A]"
+                        : "bg-card border-border hover:border-[#C9A52A]/60"
+                    }`}
                   >
-                    <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                      <Sliders className="w-5 h-5" />
+                    <div className="flex items-center justify-between">
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                        <Sliders className="w-5 h-5" />
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/60 group-hover:text-[#C9A52A] group-hover:translate-x-0.5 transition-all" />
                     </div>
-                    <div>
-                      <h4 className="font-extrabold text-foreground text-xs group-hover:text-[#C9A52A] transition-colors">Manual Setup</h4>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">Directly enter project details and scope controls.</p>
+                    <div className="space-y-1">
+                      <h4 className="font-extrabold text-foreground text-xs sm:text-sm group-hover:text-[#C9A52A] transition-colors">Manual Setup</h4>
+                      <p className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed">Directly enter project details and scope controls.</p>
                     </div>
                   </button>
                 </div>
