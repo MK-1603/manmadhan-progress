@@ -1,9 +1,10 @@
-"use client";
-
 import React, { useState } from "react";
 import { FileText, Plus, Trash2 } from "lucide-react";
+import { ProjectIconSelector } from "./project-icon-selector";
 
 interface PromptModeProps {
+  projectIcon?: string;
+  setProjectIcon?: (icon: string) => void;
   promptText: string;
   setPromptText: React.Dispatch<React.SetStateAction<string>>;
   substep: "DESCRIBE" | "UNDERSTAND" | "REFINE";
@@ -60,6 +61,8 @@ const QUICK_ADD_PILLS = [
 ];
 
 export function PromptMode({
+  projectIcon = "FolderKanban",
+  setProjectIcon,
   promptText,
   setPromptText,
   substep,
@@ -359,6 +362,10 @@ export function PromptMode({
             <h4 className="text-xs font-extrabold text-foreground">Refine Scope & Requirements</h4>
             <p className="text-[11px] text-muted-foreground">Add, edit, or remove requirements, deliverables, and success criteria.</p>
           </div>
+
+          {setProjectIcon && (
+            <ProjectIconSelector selectedIcon={projectIcon} onSelectIcon={setProjectIcon} />
+          )}
 
           {/* Requirements List */}
           <div className="space-y-2">

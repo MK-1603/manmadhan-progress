@@ -1,10 +1,11 @@
-"use client";
-
 import React, { useState, useMemo } from "react";
 import { PROJECT_TEMPLATES, ProjectTemplate } from "./templates-data";
 import { Check, ChevronRight, Layers, FileText } from "lucide-react";
+import { ProjectIconSelector } from "./project-icon-selector";
 
 interface TemplateModeProps {
+  projectIcon?: string;
+  setProjectIcon?: (icon: string) => void;
   selectedTemplateId: string;
   onSelectTemplate: (template: ProjectTemplate) => void;
   substep: "CHOOSE" | "CONFIGURE";
@@ -15,6 +16,8 @@ interface TemplateModeProps {
 const CATEGORIES = ["All", "Product", "AI", "Engineering", "Business", "Academic"];
 
 export function TemplateMode({
+  projectIcon = "FolderKanban",
+  setProjectIcon,
   selectedTemplateId,
   onSelectTemplate,
   substep,
@@ -147,6 +150,10 @@ export function TemplateMode({
       {/* ── SUBSTEP 2: CONFIGURE BLUEPRINT ───────────────────────────────────── */}
       {substep === "CONFIGURE" && selectedTemplate && (
         <div className="space-y-4">
+          {setProjectIcon && (
+            <ProjectIconSelector selectedIcon={projectIcon} onSelectIcon={setProjectIcon} />
+          )}
+
           <div className="p-4 rounded-2xl bg-card border border-border space-y-3 shadow-xs">
             <div className="flex items-center justify-between border-b border-border pb-2">
               <div>

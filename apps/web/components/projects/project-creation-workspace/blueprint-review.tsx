@@ -5,6 +5,7 @@ import { Lock, CheckCircle2, AlertCircle, Loader2, ArrowLeft } from "lucide-reac
 import { MemberOption } from "./blueprint-editor";
 
 interface BlueprintReviewProps {
+  projectIcon?: string;
   title: string;
   description: string;
   category: string;
@@ -26,6 +27,7 @@ interface BlueprintReviewProps {
 }
 
 export function BlueprintReview({
+  projectIcon = "FolderKanban",
   title,
   description,
   category,
@@ -99,9 +101,14 @@ export function BlueprintReview({
           <span className="text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">
             01. Project Metadata
           </span>
-          <div>
-            <h4 className="text-sm font-extrabold text-foreground">{title || "Untitled Project"}</h4>
-            <p className="text-xs text-muted-foreground line-clamp-3 mt-1">{description || "No description provided."}</p>
+          <div className="flex items-start gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#C9A52A]/10 text-[#C9A52A] flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 border border-[#C9A52A]/20">
+              {projectIcon.slice(0, 2).toUpperCase()}
+            </div>
+            <div>
+              <h4 className="text-sm font-extrabold text-foreground">{title || "Untitled Project"}</h4>
+              <p className="text-xs text-muted-foreground line-clamp-3 mt-0.5">{description || "No description provided."}</p>
+            </div>
           </div>
           <div className="pt-2 border-t border-border/60 grid grid-cols-2 gap-2 text-[11px]">
             <div>

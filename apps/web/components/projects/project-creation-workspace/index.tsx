@@ -402,6 +402,8 @@ export function ProjectCreationWorkspace({
               <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border shadow-xs">
                 {mode === "PROMPT" && (
                   <PromptMode
+                    projectIcon={projectIcon}
+                    setProjectIcon={setProjectIcon}
                     promptText={promptText}
                     setPromptText={setPromptText}
                     substep={promptSubstep}
@@ -430,6 +432,8 @@ export function ProjectCreationWorkspace({
 
                 {mode === "TEMPLATE" && (
                   <TemplateMode
+                    projectIcon={projectIcon}
+                    setProjectIcon={setProjectIcon}
                     selectedTemplateId={selectedTemplateId}
                     onSelectTemplate={handleSelectTemplate}
                     substep={templateSubstep}
@@ -501,6 +505,7 @@ export function ProjectCreationWorkspace({
             {/* Step 3 Final Review Stage */}
             {stage === "REVIEW" && (
               <BlueprintReview
+                projectIcon={projectIcon}
                 title={title}
                 description={description}
                 category={category}
