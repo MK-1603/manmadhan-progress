@@ -182,6 +182,12 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       }
 
+      // Do NOT logout user if the failed endpoint is GitHub integration
+      const isGitHubEndpoint = originalRequest?.url?.includes("/github");
+      if (isGitHubEndpoint) {
+        return Promise.reject(new Error("GitHub integration request failed. Please check your GitHub connection."));
+      }
+
       // Refresh failed — clear session and redirect to login if on protected route
       clearAuthStorage();
       if (

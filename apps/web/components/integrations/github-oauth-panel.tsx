@@ -59,8 +59,13 @@ export function GitHubOAuthPanel({ projectId, project }: GitHubOAuthPanelProps) 
 
   const handleOAuthConnect = (slot: "ACCOUNT_A" | "ACCOUNT_B") => {
     const wsId = typeof window !== "undefined" ? localStorage.getItem("workspaceId") || "" : "";
-    const state = encodeURIComponent(JSON.stringify({ slot, workspaceId: wsId, returnUrl: window.location.href }));
-    window.location.href = `/api/v1/github/oauth/start?slot=${slot}&state=${state}`;
+    const returnUrl = typeof window !== "undefined" ? window.location.href : "";
+    const state = encodeURIComponent(JSON.stringify({ slot, workspaceId: wsId, returnUrl }));
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/api\/v1\/?$/, "");
+    const targetUrl = apiBase
+      ? `${apiBase}/api/v1/github/oauth/start?slot=${slot}&state=${state}`
+      : `/api/v1/github/oauth/start?slot=${slot}&state=${state}`;
+    window.location.href = targetUrl;
   };
 
   const loadRepos = async (slot: "ACCOUNT_A" | "ACCOUNT_B") => {
