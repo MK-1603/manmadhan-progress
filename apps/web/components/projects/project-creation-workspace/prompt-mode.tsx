@@ -90,6 +90,7 @@ export function PromptMode({
   const [newReq, setNewReq] = useState("");
   const [newDel, setNewDel] = useState("");
   const [newCrit, setNewCrit] = useState("");
+  const [showDetailsSheet, setShowDetailsSheet] = useState(false);
 
   const handleAddAllDetails = () => {
     if (!promptText.trim()) {
@@ -210,11 +211,11 @@ export function PromptMode({
       {substep === "DESCRIBE" && (
         <div className="space-y-4">
           <div className="space-y-1">
-            <label className="text-xs font-extrabold text-foreground tracking-tight flex items-center gap-1.5">
-              <FileText className="w-4 h-4 text-[#C9A52A]" /> Project Brief
-            </label>
-            <p className="text-[11px] text-muted-foreground">
-              Describe what you want to create or insert a structured prompt scaffold.
+            <h3 className="text-sm font-extrabold text-foreground tracking-tight flex items-center gap-1.5">
+              <FileText className="w-4 h-4 text-[#C9A52A]" /> Describe your project
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Tell us what you want to build in your own words.
             </p>
           </div>
 
@@ -222,12 +223,12 @@ export function PromptMode({
             <textarea
               value={promptText}
               onChange={(e) => setPromptText(e.target.value)}
-              placeholder="Build an AI-powered interview experience platform with authentication, company search and analytics."
-              rows={7}
+              placeholder="e.g. Build an AI-driven Grievance Management System with student dashboard, CO-CEO routing, TRD/PRD documents, and GitHub PR verification..."
+              rows={5}
               className="w-full p-4 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none leading-relaxed resize-y font-sans"
             />
             <div className="px-4 py-2 bg-muted/20 border-t border-border/60 flex items-center justify-between text-[10.5px] text-muted-foreground">
-              <span>Include title, objective, deadline, and key requirements.</span>
+              <span>Include objective, target deadline, and key features.</span>
               {promptText.trim() && (
                 <button
                   type="button"
@@ -240,31 +241,46 @@ export function PromptMode({
             </div>
           </div>
 
-          {/* Quick Add Pills & Scaffold Insertion */}
-          <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-muted-foreground">Add to brief:</span>
+          {/* Compact + Add details Drawer / Trigger */}
+          <div className="pt-1">
+            <div className="flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setShowDetailsSheet((prev) => !prev)}
+                className="px-3.5 py-1.5 rounded-xl bg-card border border-border text-foreground font-bold text-xs hover:border-[#C9A52A]/40 transition-all cursor-pointer shadow-2xs inline-flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5 text-[#C9A52A]" />
+                <span>+ Add details</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleAddAllDetails}
-                className="px-3 py-1 rounded-xl bg-[#C9A52A] text-[#0B0D10] font-extrabold text-[11px] hover:brightness-105 transition-all cursor-pointer shadow-2xs inline-flex items-center gap-1"
+                className="px-3 py-1.5 rounded-xl bg-[#C9A52A]/10 border border-[#C9A52A]/30 text-[#C9A52A] font-extrabold text-[11px] hover:bg-[#C9A52A]/20 transition-all cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5 stroke-[2.5]" /> Add All Details
+                + Add all details
               </button>
             </div>
 
-            <div className="flex flex-wrap gap-1.5">
-              {QUICK_ADD_PILLS.map((pill) => (
-                <button
-                  key={pill.label}
-                  type="button"
-                  onClick={() => handleQuickAddClick(pill.key)}
-                  className="px-2.5 py-1 rounded-xl bg-card border border-border hover:border-[#C9A52A]/40 text-foreground font-semibold text-[11px] transition-all cursor-pointer"
-                >
-                  [{pill.label}]
-                </button>
-              ))}
-            </div>
+            {showDetailsSheet && (
+              <div className="mt-3 p-3.5 rounded-2xl bg-card border border-border space-y-2 animate-in fade-in duration-200">
+                <span className="text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider block">
+                  Select Detail Fields to Insert
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_ADD_PILLS.map((pill) => (
+                    <button
+                      key={pill.label}
+                      type="button"
+                      onClick={() => handleQuickAddClick(pill.key)}
+                      className="px-2.5 py-1 rounded-xl bg-background border border-border hover:border-[#C9A52A] text-foreground font-semibold text-[11px] transition-all cursor-pointer"
+                    >
+                      + {pill.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pt-3 border-t border-border/50 flex justify-end">
