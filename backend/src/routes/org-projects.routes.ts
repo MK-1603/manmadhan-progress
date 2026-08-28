@@ -1499,6 +1499,7 @@ orgProjectsRouter.get(
 	async (req: Request, res: Response) => {
 		try {
 			const workspaceId = (req as any).workspaceId;
+			const { projectId } = req.query;
 
 			let membersList = await db
 				.select({
@@ -1529,6 +1530,41 @@ orgProjectsRouter.get(
 				const existingIds = new Set(membersList.map((m) => m.id));
 				const additional = allUsers.filter((u) => !existingIds.has(u.id));
 				membersList = [...membersList, ...additional];
+			}
+
+			// If a specific projectId is requested, filter users to authorized project members
+			if (projectId && typeof projectId === "string" && projectId !== "undefined" && projectId !== "null") {
+				const pmRecs = await db
+					.select({ userId: projectMembers.userId })
+					.from(projectMembers)
+					.where(eq(projectMembers.projectId, projectId));
+				
+				const paRecs = await db
+					.select({
+						assignedToUserId: projectAssignments.assignedToUserId,
+						responsibleCoCeoId: projectAssignments.responsibleCoCeoId,
+					})
+					.from(projectAssignments)
+					.where(eq(projectAssignments.projectId, projectId));
+
+				const pOwner = await db
+					.select({ ownerId: projects.ownerId, createdBy: projects.createdBy })
+					.from(projects)
+					.where(eq(projects.id, projectId))
+					.limit(1);
+
+				const allowedUserIds = new Set<string>();
+				pmRecs.forEach((m) => m.userId && allowedUserIds.add(m.userId));
+				paRecs.forEach((a) => {
+					if (a.assignedToUserId) allowedUserIds.add(a.assignedToUserId);
+					if (a.responsibleCoCeoId) allowedUserIds.add(a.responsibleCoCeoId);
+				});
+				if (pOwner[0]?.ownerId) allowedUserIds.add(pOwner[0].ownerId);
+				if (pOwner[0]?.createdBy) allowedUserIds.add(pOwner[0].createdBy);
+
+				if (allowedUserIds.size > 0) {
+					membersList = membersList.filter((m) => allowedUserIds.has(m.id));
+				}
 			}
 
 			const normalizedMembers = membersList.map((m) => {

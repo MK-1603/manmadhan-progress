@@ -1,7 +1,8 @@
 "use client";
 
-import { TeamTasksWorkspace } from "@/components/organization/team-tasks-workspace";
+import React from "react";
+import { TaskWorkspace } from "@/components/tasks/task-workspace";
 
 export default function CoCeoTasksPage() {
-  return <TeamTasksWorkspace />;
+  return <TaskWorkspace userRole="CO-CEO" basePath="/co-ceo" />;
 }

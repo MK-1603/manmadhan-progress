@@ -1,7 +1,8 @@
 "use client";
 
-import { MyWorkWorkspace } from "@/components/organization/my-work-workspace";
+import React from "react";
+import { TaskWorkspace } from "@/components/tasks/task-workspace";
 
 export default function MemberTasksPage() {
-	return <MyWorkWorkspace userRole="MEMBER" />;
+  return <TaskWorkspace userRole="MEMBER" basePath="/member" />;
 }
