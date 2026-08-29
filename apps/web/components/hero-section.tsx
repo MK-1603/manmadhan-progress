@@ -5,7 +5,7 @@ import Image from "next/image";
 import { AnimatePresence, motion, useMotionValue, useTransform, useSpring, useScroll } from "framer-motion";
 import { useAuth } from "./auth/auth-context";
 import {
-  LayoutDashboard,
+  Home,
   CheckSquare,
   FolderKanban,
   Calendar as CalendarIcon,
@@ -303,7 +303,7 @@ export function HeroSection() {
                         </div>
                         <nav className="space-y-0.5">
                           {[
-                            { icon: LayoutDashboard, label: "Dashboard", active: true },
+                            { icon: Home, label: "Home", active: true },
                             { icon: CheckSquare, label: "Tasks", badge: "12" },
                             { icon: FolderKanban, label: "Projects" },
                             { icon: CalendarIcon, label: "Calendar" },

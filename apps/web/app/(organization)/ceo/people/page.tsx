@@ -546,7 +546,7 @@ export default function CEOPeoplePage() {
   };
 
   return (
-    <div className="w-full h-full flex flex-col justify-between overflow-y-auto sm:overflow-hidden bg-[#F9FAFB] dark:bg-[#060806] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none p-4 sm:p-5 md:px-8 md:py-4 pb-[calc(84px+env(safe-area-inset-bottom))] md:pb-4 max-w-[1600px] mx-auto space-y-3.5 box-border [scrollbar-width:none]">
+    <div className="w-full h-full flex flex-col justify-between overflow-y-auto sm:overflow-hidden bg-[#F9FAFB] dark:bg-[#060806] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none p-4 sm:p-5 md:px-8 md:py-4 pb-3 md:pb-4 max-w-[1600px] mx-auto space-y-3.5 box-border [scrollbar-width:none]">
       
       {/* 1. COMPACT PAGE HEADER — Invite Button & Refresh Button in the SAME LINE (44px Height) */}
       <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-[#E5E7EB] dark:border-[#272D36] shrink-0">

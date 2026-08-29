@@ -165,7 +165,7 @@ export function NotificationDropdown({
       isOpen={isOpen} 
       setIsOpen={setIsOpen}
       align="right"
-      offsetY={6}
+      offsetY={20}
       desktopClassName="w-[380px] rounded-xl border border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#15181D] shadow-2xl overflow-hidden flex flex-col z-50 text-xs"
     >
       {/* Header & Tabs */}

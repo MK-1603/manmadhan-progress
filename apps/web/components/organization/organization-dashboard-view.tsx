@@ -308,7 +308,7 @@ export function OrganizationDashboardView({ role }: OrganizationDashboardViewPro
 
   return (
     <div className="w-full max-w-full overflow-x-hidden min-h-full bg-[#F8F9FB] dark:bg-[#0B0E12] text-foreground font-sans select-none">
-      <div className="px-3.5 sm:px-5 md:px-8 py-3.5 md:py-6 max-w-[1400px] mx-auto space-y-4 md:space-y-6 pb-[calc(84px+env(safe-area-inset-bottom))] md:pb-8">
+      <div className="px-3.5 sm:px-5 md:px-8 py-3.5 md:py-6 max-w-[1400px] mx-auto space-y-4 md:space-y-6 pb-3 md:pb-6">
 
         {/* ══════════════════════════════════════════════════════════════════
             01 & 02 & 03. GREETING / TIME + WORKSPACE CONTEXT + FOCUS

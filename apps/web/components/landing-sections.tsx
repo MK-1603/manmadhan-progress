@@ -87,12 +87,12 @@ export const walkthroughModules: WalkthroughModule[] = [
   {
     id: "dashboard",
     kind: "dashboard",
-    title: "Dashboard OS",
+    title: "Home OS",
     eyebrow: "01 / Command Center",
     tagline: "See the whole execution system at a single glance.",
     icon: BarChart3,
     color: "text-amber-600 dark:text-[#DDB85A]",
-    overview: "The Dashboard is the central command center of ManMadhan Progress. It provides a real-time synthesized view of active tasks, project velocity, focus hours, upcoming deadlines, and team signals in one calm, coherent workspace.",
+    overview: "Home is the central command center of ManMadhan Progress. It provides a real-time synthesized view of active tasks, project velocity, focus hours, upcoming deadlines, and team signals in one calm, coherent workspace.",
     purpose: "Quickly understand what requires attention today, track overall team execution momentum, monitor focus metrics, and eliminate friction from context switching.",
     keyFeatures: [
       "Daily Execution Overview & Momentum Index",
@@ -103,7 +103,7 @@ export const walkthroughModules: WalkthroughModule[] = [
       "Quick Navigation & Command Palette (Cmd + K)",
     ],
     workflow: [
-      "Open Dashboard",
+      "Open Home",
       "Review today's high-level overview",
       "Identify top 3 urgent priorities",
       "Launch Focus Session",
@@ -220,7 +220,7 @@ export const walkthroughModules: WalkthroughModule[] = [
       "Realistic workload distribution",
       "Significantly reduced burnout risk",
     ],
-    relatedModules: ["Tasks", "Goals", "Analytics", "Dashboard"],
+    relatedModules: ["Tasks", "Goals", "Analytics", "Home"],
     quickTip: "Color-code focus blocks to instantly visualize your deep work vs meeting ratio.",
   },
   {
@@ -254,7 +254,7 @@ export const walkthroughModules: WalkthroughModule[] = [
       "Data-driven quarterly retrospectives",
       "Elimination of misaligned work effort",
     ],
-    relatedModules: ["Projects", "Analytics", "Dashboard", "Reports"],
+    relatedModules: ["Projects", "Analytics", "Home", "Reports"],
     quickTip: "Ensure every active goal has at least 2 linked projects for consistent progress.",
   },
   {
@@ -288,7 +288,7 @@ export const walkthroughModules: WalkthroughModule[] = [
       "Accurate future completion estimates",
       "Measurable productivity improvements",
     ],
-    relatedModules: ["Reports", "Dashboard", "Calendar", "Goals"],
+    relatedModules: ["Reports", "Home", "Calendar", "Goals"],
     quickTip: "Inspect velocity trends on Fridays to accurately plan next week's sprint load.",
   },
   {
@@ -321,7 +321,7 @@ export const walkthroughModules: WalkthroughModule[] = [
       "Instant translation of notes into action",
       "Clear audit trail of key technical decisions",
     ],
-    relatedModules: ["Files", "Tasks", "Projects", "Dashboard"],
+    relatedModules: ["Files", "Tasks", "Projects", "Home"],
     quickTip: "Type @ inside any note to link a live task or team member instantly.",
   },
   {
@@ -387,7 +387,7 @@ export const walkthroughModules: WalkthroughModule[] = [
       "Secure role-based file access",
       "Clutter-free project environment",
     ],
-    relatedModules: ["Notes", "Projects", "Tasks", "Dashboard"],
+    relatedModules: ["Notes", "Projects", "Tasks", "Home"],
     quickTip: "Tag assets with Final to make client-approved files instantly searchable.",
   },
   {
@@ -968,7 +968,7 @@ function WalkthroughModal({
 }
 
 const experiences = [
-  { kind: "dashboard" as const, eyebrow: "01 / Dashboard OS", title: "See the whole system at a glance.", description: "A focused home for the work in motion, the time protected, and the progress earned." },
+  { kind: "dashboard" as const, eyebrow: "01 / Home OS", title: "See the whole system at a glance.", description: "A focused home for the work in motion, the time protected, and the progress earned." },
   { kind: "tasks" as const, eyebrow: "02 / Action Engine", title: "Make the next action obvious.", description: "Turn a long list into a clear sequence of meaningful work, with ownership and momentum built in." },
   { kind: "calendar" as const, eyebrow: "03 / Time Protection", title: "Give important work a place.", description: "Plan around real capacity and keep your commitments visible without filling the day with noise." },
   { kind: "analytics" as const, eyebrow: "04 / Empirical Visibility", title: "Learn from how you execute.", description: "See completion trends, focus patterns, and the signals that help your next week run better." },

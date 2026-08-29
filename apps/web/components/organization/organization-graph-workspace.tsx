@@ -252,8 +252,8 @@ export function OrganizationGraphWorkspace({ userRole = "CEO" }: OrganizationGra
   }, [graphData]);
 
   return (
-    <div className="w-full h-full flex flex-col justify-between overflow-hidden bg-[#F9FAFB] dark:bg-[#060806] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none p-4 sm:p-5 md:px-8 md:py-4 pb-[calc(84px+env(safe-area-inset-bottom))] md:pb-4 max-w-[1600px] mx-auto space-y-3 box-border">
-      
+    <div className="w-full h-full flex flex-col justify-between overflow-hidden bg-[#F9FAFB] dark:bg-[#060806] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none p-4 sm:p-5 md:px-8 md:py-4 pb-3 md:pb-4 max-w-[1600px] mx-auto space-y-3 box-border">
+
       {/* 1. HEADER ROW */}
       <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-[#E5E7EB] dark:border-[#272D36] shrink-0">
         <div className="space-y-0.5 min-w-0">
@@ -264,8 +264,8 @@ export function OrganizationGraphWorkspace({ userRole = "CEO" }: OrganizationGra
             {userRole === "CEO"
               ? "Reporting hierarchy: CEO → CO-CEO → Members."
               : userRole === "CO-CEO"
-              ? "Your team reporting tree: CO-CEO → Assigned Members."
-              : "Your management chain: CO-CEO → Me."}
+                ? "Your team reporting tree: CO-CEO → Assigned Members."
+                : "Your management chain: CO-CEO → Me."}
           </p>
         </div>
 
@@ -356,11 +356,10 @@ export function OrganizationGraphWorkspace({ userRole = "CEO" }: OrganizationGra
               <div className="flex flex-col items-center">
                 <div
                   onClick={() => setSelectedNode(graphData.ceoNode)}
-                  className={`graph-node w-[240px] sm:w-[260px] p-3.5 rounded-[16px] bg-[#FFFFFF] dark:bg-[#15191F] border ${
-                    filterMatch(graphData.ceoNode)
+                  className={`graph-node w-[240px] sm:w-[260px] p-3.5 rounded-[16px] bg-[#FFFFFF] dark:bg-[#15191F] border ${filterMatch(graphData.ceoNode)
                       ? "border-[#B28D18] dark:border-[#C9A52A] shadow-lg"
                       : "border-[#E5E7EB] dark:border-[#272D36] opacity-35"
-                  } cursor-pointer hover:scale-[1.02] transition-all text-center relative space-y-2`}
+                    } cursor-pointer hover:scale-[1.02] transition-all text-center relative space-y-2`}
                 >
                   <div className="w-9 h-9 rounded-full bg-[#B28D18]/10 dark:bg-[#C9A52A]/10 border border-[#B28D18]/30 dark:border-[#C9A52A]/30 flex items-center justify-center text-[12px] font-bold text-[#B28D18] dark:text-[#C9A52A] mx-auto">
                     {getInitials(graphData.ceoNode.name, graphData.ceoNode.email)}
@@ -397,69 +396,67 @@ export function OrganizationGraphWorkspace({ userRole = "CEO" }: OrganizationGra
                 {graphData.coCeoNodes
                   .filter((c) => userRole !== "CO-CEO" || c.id === user?.id || c.email === user?.email)
                   .map((coCeo) => {
-                  const assigned = assignedMembersMap.get(coCeo.id) || [];
-                  return (
-                    <div key={coCeo.id} className="flex flex-col items-center">
-                      <div
-                        onClick={() => setSelectedNode(coCeo)}
-                        className={`graph-node w-[210px] sm:w-[230px] p-3 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border ${
-                          filterMatch(coCeo)
-                            ? "border-[#E5E7EB] dark:border-[#272D36] hover:border-[#B28D18] dark:hover:border-[#C9A52A]"
-                            : "border-[#E5E7EB] dark:border-[#272D36] opacity-35"
-                        } cursor-pointer hover:scale-[1.02] transition-all text-center space-y-1.5 shadow-xs`}
-                      >
-                        <div className="w-8 h-8 rounded-full bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] flex items-center justify-center text-[10.5px] font-bold text-[#B28D18] dark:text-[#C9A52A] mx-auto">
-                          {getInitials(coCeo.name, coCeo.email)}
-                        </div>
-
-                        <div>
-                          <h4 className="font-bold text-[13px] text-[#17202A] dark:text-[#F2F4F7] truncate">
-                            {coCeo.name}
-                          </h4>
-                          <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#B28D18] dark:text-[#C9A52A]">
-                            {coCeo.role}
-                          </span>
-                        </div>
-
-                        <div className="pt-1.5 border-t border-[#E5E7EB] dark:border-[#272D36] flex items-center justify-between text-[10.5px]">
-                          <div className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{coCeo.status}</span>
+                    const assigned = assignedMembersMap.get(coCeo.id) || [];
+                    return (
+                      <div key={coCeo.id} className="flex flex-col items-center">
+                        <div
+                          onClick={() => setSelectedNode(coCeo)}
+                          className={`graph-node w-[210px] sm:w-[230px] p-3 rounded-[14px] bg-[#FFFFFF] dark:bg-[#15191F] border ${filterMatch(coCeo)
+                              ? "border-[#E5E7EB] dark:border-[#272D36] hover:border-[#B28D18] dark:hover:border-[#C9A52A]"
+                              : "border-[#E5E7EB] dark:border-[#272D36] opacity-35"
+                            } cursor-pointer hover:scale-[1.02] transition-all text-center space-y-1.5 shadow-xs`}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] flex items-center justify-center text-[10.5px] font-bold text-[#B28D18] dark:text-[#C9A52A] mx-auto">
+                            {getInitials(coCeo.name, coCeo.email)}
                           </div>
-                          <span className="text-[#667085] dark:text-[#8B95A5] font-mono">{assigned.length} Members</span>
-                        </div>
-                      </div>
 
-                      {/* Line to Assigned Members */}
-                      {assigned.length > 0 && (
-                        <>
-                          <div className="w-[1.5px] h-6 bg-[#E5E7EB] dark:bg-[#272D36] my-1" />
-                          <div className="flex flex-col items-center gap-2">
-                            {assigned.map((member: GraphMemberNode) => (
-                              <div
-                                key={member.id}
-                                onClick={() => setSelectedNode(member)}
-                                className={`graph-node w-[170px] sm:w-[190px] p-2.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border ${
-                                  filterMatch(member)
-                                    ? "border-[#E5E7EB] dark:border-[#272D36] hover:border-[#B28D18] dark:hover:border-[#C9A52A]"
-                                    : "border-[#E5E7EB] dark:border-[#272D36] opacity-35"
-                                } cursor-pointer hover:scale-[1.02] transition-all space-y-1 shadow-xs`}
-                              >
-                                <div className="flex items-center justify-between text-[11px]">
-                                  <span className="font-bold text-[#17202A] dark:text-[#F2F4F7] truncate max-w-[110px]">
-                                    {member.name}
-                                  </span>
-                                  <span className="text-[9px] font-bold text-gray-500">Member</span>
+                          <div>
+                            <h4 className="font-bold text-[13px] text-[#17202A] dark:text-[#F2F4F7] truncate">
+                              {coCeo.name}
+                            </h4>
+                            <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#B28D18] dark:text-[#C9A52A]">
+                              {coCeo.role}
+                            </span>
+                          </div>
+
+                          <div className="pt-1.5 border-t border-[#E5E7EB] dark:border-[#272D36] flex items-center justify-between text-[10.5px]">
+                            <div className="flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{coCeo.status}</span>
+                            </div>
+                            <span className="text-[#667085] dark:text-[#8B95A5] font-mono">{assigned.length} Members</span>
+                          </div>
+                        </div>
+
+                        {/* Line to Assigned Members */}
+                        {assigned.length > 0 && (
+                          <>
+                            <div className="w-[1.5px] h-6 bg-[#E5E7EB] dark:bg-[#272D36] my-1" />
+                            <div className="flex flex-col items-center gap-2">
+                              {assigned.map((member: GraphMemberNode) => (
+                                <div
+                                  key={member.id}
+                                  onClick={() => setSelectedNode(member)}
+                                  className={`graph-node w-[170px] sm:w-[190px] p-2.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border ${filterMatch(member)
+                                      ? "border-[#E5E7EB] dark:border-[#272D36] hover:border-[#B28D18] dark:hover:border-[#C9A52A]"
+                                      : "border-[#E5E7EB] dark:border-[#272D36] opacity-35"
+                                    } cursor-pointer hover:scale-[1.02] transition-all space-y-1 shadow-xs`}
+                                >
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-bold text-[#17202A] dark:text-[#F2F4F7] truncate max-w-[110px]">
+                                      {member.name}
+                                    </span>
+                                    <span className="text-[9px] font-bold text-gray-500">Member</span>
+                                  </div>
+                                  <p className="text-[10px] text-[#667085] dark:text-[#8B95A5] truncate">{member.email}</p>
                                 </div>
-                                <p className="text-[10px] text-[#667085] dark:text-[#8B95A5] truncate">{member.email}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
             )}
 

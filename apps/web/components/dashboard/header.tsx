@@ -22,7 +22,7 @@ export type ActiveWorkspace = {
 };
 
 function getPageTitle(pathname: string): string {
-  if (pathname.match(/\/(ceo|co-ceo|member)\/dashboard/)) return "Dashboard";
+  if (pathname.match(/\/(ceo|co-ceo|member)\/dashboard/)) return "Home";
   if (pathname.match(/\/(ceo|co-ceo|member)\/focus/)) return "Focus";
   if (pathname.match(/\/(ceo|co-ceo|member)\/projects/)) return "Projects";
   if (pathname.match(/\/(ceo|co-ceo|member)\/tasks/)) return "Tasks";
@@ -39,7 +39,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.match(/\/(ceo|co-ceo|member)\/profile/)) return "Organization Profile";
   if (pathname.match(/\/(ceo|co-ceo|member)\/settings/)) return "Organization Settings";
 
-  if (pathname.includes("/personal/dashboard")) return "Dashboard";
+  if (pathname.includes("/personal/dashboard")) return "Home";
   if (pathname.includes("/personal/focus")) return "Focus";
   if (pathname.includes("/personal/projects")) return "Projects";
   if (pathname.includes("/personal/tasks")) return "Tasks";
@@ -56,8 +56,9 @@ function getPageTitle(pathname: string): string {
   if (pathname.includes("/personal/settings")) return "Settings";
 
   const parts = pathname.split("/").filter(Boolean);
-  const lastPart = parts[parts.length - 1] || "Dashboard";
-  return lastPart.charAt(0).toUpperCase() + lastPart.slice(1).replace(/-/g, " ");
+  const lastPart = parts[parts.length - 1] || "Home";
+  const title = lastPart.charAt(0).toUpperCase() + lastPart.slice(1).replace(/-/g, " ");
+  return title === "Dashboard" ? "Home" : title;
 }
 
 import { WorkspaceSwitcherModal } from "./workspace-switcher-modal";
@@ -142,6 +143,8 @@ export function Header() {
   };
 
   const router = useRouter();
+  const isPersonal = isPersonalRoute;
+  const effectiveLogoUrl = orgWorkspace?.logoUrl || (typeof window !== "undefined" ? localStorage.getItem("orgLogo") : null) || "/ios/iTunesArtwork@1x.png";
 
   const handleSwitchWorkspace = (target: "personal" | "org") => {
     setIsSwitcherOpen(false);
@@ -166,8 +169,6 @@ export function Header() {
     }
   };
 
-  const isPersonal = activeWorkspace.type === "personal";
-
   return (
     <header className="hidden md:flex items-center justify-between h-[68px] w-full shrink-0 px-6 border-b border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#0B0D10] text-[#17202A] dark:text-[#F2F3F5] z-30 gap-4 select-none">
       {/* 1. LEFT SIDE — STACKED PAGE TITLE & WORKSPACE SELECTOR SUBTITLE (IMAGE 2 DESIGN) */}
@@ -184,11 +185,17 @@ export function Header() {
           className="flex items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer focus:outline-none -mt-0.5 group w-fit"
         >
           <span className="truncate flex items-center gap-1.5" suppressHydrationWarning>
-            {mounted && !isPersonal && orgWorkspace?.logoUrl && (
-              <img src={orgWorkspace.logoUrl} alt="" className="w-3.5 h-3.5 rounded object-contain shrink-0" />
+            {mounted && !isPersonal ? (
+              <img
+                src={effectiveLogoUrl}
+                alt="Organization Logo"
+                className="w-4 h-4 rounded object-contain shrink-0"
+              />
+            ) : (
+              <UserIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
             )}
-            <span suppressHydrationWarning>
-              {isPersonal ? "Personal Workspace" : "Organization Workspace"}
+            <span suppressHydrationWarning className="font-semibold">
+              {isPersonal ? "Personal Workspace" : (realOrgName || "Organization Workspace")}
             </span>
           </span>
 
@@ -204,14 +211,8 @@ export function Header() {
         />
       </div>
 
-      {/* 2. CENTER AREA — GLOBAL SEARCH */}
-      <WorkspaceSearch
-        activePopover={activePopover as any}
-        setActivePopover={setActivePopover as any}
-      />
-
-      {/* 3. RIGHT SIDE — HEADER ACTIONS (Clean: Notifications + Profile) */}
-      <div className="flex items-center justify-end gap-2 flex-1">
+      {/* 2. RIGHT SIDE — HEADER ACTIONS (Clean: Notifications + Profile) */}
+      <div className="flex items-center justify-end gap-2 shrink-0">
         {/* Notifications Button & Popover */}
         <NotificationDropdown
           activePopover={activePopover as any}

@@ -1,21 +1,22 @@
 "use client";
 
-import { Menu, X, Settings, LogOut } from "lucide-react";
+import { Menu, X, Settings, LogOut, ChevronRight, ChevronDown, Check, User as UserIcon, Building2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { NotificationDropdown } from "./notification-dropdown";
 import { ProfileDropdown } from "./profile-dropdown";
 import { useAuth } from "../auth/auth-context";
 import {
-  PERSONAL_MOBILE_NAV,
-  ORGANIZATION_MOBILE_NAV,
-  NavSection,
-} from "@/config/mobile-nav.config";
+  ORGANIZATION_NAV_GROUPS,
+  PERSONAL_NAV_GROUPS,
+  getOrgItemHref,
+  RoleType
+} from "@/config/navigation.config";
 
-import { WorkspaceSwitcherModal } from "./workspace-switcher-modal";
+import { useSetRefreshDisabled } from "@/components/providers/global-refresh-provider";
 
 type MobileHeaderProps = {
   activePopover?: "none" | "search" | "notifications" | "profile" | "switcher";
@@ -25,8 +26,6 @@ type MobileHeaderProps = {
   role?: "CEO" | "CO-CEO" | "MEMBER";
 };
 
-import { useSetRefreshDisabled } from "@/components/providers/global-refresh-provider";
-
 export function MobileHeader({
   activePopover,
   setActivePopover,
@@ -35,9 +34,13 @@ export function MobileHeader({
   role,
 }: MobileHeaderProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [isSwitcherModalOpen, setIsSwitcherModalOpen] = useState(false);
+  const [isWorkspaceDropdownOpen, setIsWorkspaceDropdownOpen] = useState(false);
+  
   const pathname = usePathname();
+  const router = useRouter();
   const { user, logout } = useAuth();
+  const navRef = useRef<HTMLElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useSetRefreshDisabled(isDrawerOpen);
 
@@ -45,31 +48,25 @@ export function MobileHeader({
     ? workspaceType === "personal"
     : pathname?.startsWith("/personal");
 
-  const userRole = (role || (user?.role || "CEO")).toUpperCase() as "CEO" | "CO-CEO" | "MEMBER";
+  const defaultRoleFromPath: RoleType = pathname?.startsWith("/co-ceo")
+    ? "CO-CEO"
+    : pathname?.startsWith("/member")
+    ? "MEMBER"
+    : "CEO";
+
+  const userRole = (role || (user?.role || defaultRoleFromPath)).toUpperCase() as RoleType;
   const userName = user?.displayName || user?.name || user?.email?.split("@")[0] || "User";
   const userInitials = userName
     .split(" ")
     .map((n) => n[0])
     .join("")
     .slice(0, 2)
-    .toUpperCase();
-
-  const getOrgHref = (page: string) => {
-    if (userRole === "CO-CEO") return `/co-ceo/${page}`;
-    if (userRole === "MEMBER") return `/member/${page}`;
-    return `/ceo/${page}`;
-  };
-
-  const checkIsItemActive = (href: string) => {
-    if (pathname === href) return true;
-    if (href.endsWith("/dashboard") || href.endsWith("/focus")) return false;
-    return pathname?.startsWith(href + "/");
-  };
+    .toUpperCase() || "MM";
 
   const getPageTitle = () => {
-    if (pageTitle) return pageTitle;
-    if (!pathname) return "Dashboard";
-    if (pathname.includes("/dashboard")) return "Dashboard";
+    if (pageTitle) return pageTitle === "Dashboard" ? "Home" : pageTitle;
+    if (!pathname) return "Home";
+    if (pathname.includes("/dashboard")) return "Home";
     if (pathname.includes("/focus")) return "Focus";
     if (pathname.includes("/projects")) return "Projects";
     if (pathname.includes("/tasks")) return "Tasks";
@@ -87,28 +84,26 @@ export function MobileHeader({
     if (pathname.includes("/reminders")) return "Reminders";
     if (pathname.includes("/reports")) return "Reports";
     if (pathname.includes("/people")) return "People";
-    if (pathname.includes("/co-ceos")) return "People";
-    if (pathname.includes("/members")) return "People";
-    if (pathname.includes("/invitations")) return "People";
+    if (pathname.includes("/approvals")) return "Approvals";
     if (pathname.includes("/graph")) return "Organization Graph";
     if (pathname.includes("/leaderboard")) return "Leaderboard";
     if (pathname.includes("/organization")) return "Organization";
     if (pathname.includes("/profile")) return "Profile";
     if (pathname.includes("/settings")) return "Settings";
-    return "Dashboard";
+    return "Home";
   };
 
   const title = getPageTitle();
+  const navGroups = isPersonal ? PERSONAL_NAV_GROUPS : ORGANIZATION_NAV_GROUPS;
 
-  // Data-driven navigation schema selection based on workspace context & RBAC
-  const navSections: NavSection[] = isPersonal
-    ? PERSONAL_MOBILE_NAV
-    : ORGANIZATION_MOBILE_NAV(userRole);
-
-  // Prevent background page scrolling while drawer is open
+  // Reset nav scroll to top (0) and close workspace dropdown whenever drawer opens
   useEffect(() => {
     if (isDrawerOpen) {
       document.body.style.overflow = "hidden";
+      setIsWorkspaceDropdownOpen(false);
+      if (navRef.current) {
+        navRef.current.scrollTop = 0;
+      }
     } else {
       document.body.style.overflow = "";
     }
@@ -117,29 +112,65 @@ export function MobileHeader({
     };
   }, [isDrawerOpen]);
 
+  // Support Escape key to close side drawer or workspace switcher
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (isWorkspaceDropdownOpen) {
+          setIsWorkspaceDropdownOpen(false);
+        } else if (isDrawerOpen) {
+          setIsDrawerOpen(false);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isDrawerOpen, isWorkspaceDropdownOpen]);
+
+  // Handle Workspace Switch in Mobile Drawer
+  const handleSwitchWorkspace = (target: "personal" | "org") => {
+    setIsWorkspaceDropdownOpen(false);
+    setIsDrawerOpen(false);
+    if ((target === "personal" && isPersonal) || (target === "org" && !isPersonal)) {
+      return;
+    }
+    if (target === "personal") {
+      localStorage.setItem("activeWorkspaceType", "personal");
+      router.replace("/personal/dashboard");
+    } else {
+      localStorage.setItem("activeWorkspaceType", "organization");
+      const targetDash = getOrgItemHref(userRole, "/dashboard");
+      router.replace(targetDash);
+    }
+  };
+
+  const settingsHref = isPersonal
+    ? "/personal/settings"
+    : getOrgItemHref(userRole, "/settings");
+
   return (
     <>
       {/* Mobile Sticky Header Bar (h-[64px]) */}
       <header className="md:hidden flex items-center justify-between h-[64px] shrink-0 px-4 border-b border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#0B0D10] text-[#17202A] dark:text-[#F2F3F5] sticky top-0 z-40 select-none">
         
-        {/* LEFT: Hamburger Menu Button */}
+        {/* LEFT: Menu Button */}
         <button
           type="button"
           onClick={() => setIsDrawerOpen(true)}
           aria-label={isDrawerOpen ? "Close navigation" : "Open navigation"}
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5] hover:bg-[#F3F4F6] dark:hover:bg-[#151920] transition-colors cursor-pointer focus:outline-none"
+          className="w-11 h-11 rounded-xl flex items-center justify-center text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5] hover:bg-[#F3F4F6] dark:hover:bg-[#151920] transition-colors cursor-pointer outline-none focus:outline-none"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-5.5 h-5.5" />
         </button>
 
-        {/* CENTER: True Viewport Centered Page Title */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center max-w-[50vw]">
-          <h1 className="text-[17px] font-bold text-foreground tracking-tight leading-[22px] truncate pointer-events-none" suppressHydrationWarning>
+        {/* CENTER: Viewport Centered Title */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex flex-col items-center justify-center text-center max-w-[48vw]">
+          <h1 className="text-[16px] font-bold text-foreground tracking-tight leading-[22px] truncate pointer-events-none" suppressHydrationWarning>
             {title}
           </h1>
         </div>
 
-        {/* RIGHT: Notifications & Profile Buttons */}
+        {/* RIGHT: Header Actions */}
         <div className="flex items-center gap-1.5">
           <NotificationDropdown
             activePopover={activePopover as any}
@@ -152,115 +183,246 @@ export function MobileHeader({
         </div>
       </header>
 
-      {/* ── Slide-over Navigation Drawer (Replacing old inline panel) ── */}
+      {/* ── SIDE-OPENING PREMIUM DRAWER (LEFT TO RIGHT SLIDE) ── */}
       <AnimatePresence>
         {isDrawerOpen && (
-          <div className="fixed inset-0 z-[9999] flex">
-            {/* Backdrop Overlay */}
+          <div className="fixed inset-0 z-[9999] md:hidden select-none">
+            {/* Dimmed Backdrop Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
               onClick={() => setIsDrawerOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs z-10"
             />
 
-            {/* Left Drawer Panel */}
+            {/* Left-Side Opening Drawer Panel (translateX -100% to 0) */}
             <motion.div
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 280 }}
-              className="relative w-[300px] max-w-[85vw] h-full bg-[#FFFFFF] dark:bg-[#111419] border-r border-[#E4E7EC] dark:border-[#292F38] shadow-2xl flex flex-col z-10 select-none overflow-hidden"
+              transition={{ type: "tween", ease: [0.25, 1, 0.5, 1], duration: 0.25 }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={{ left: 0.4, right: 0 }}
+              onDragEnd={(e, { offset, velocity }) => {
+                if (offset.x < -60 || velocity.x < -300) {
+                  setIsDrawerOpen(false);
+                }
+              }}
+              className="fixed top-0 left-0 bottom-0 w-[calc(100vw-44px)] sm:w-[380px] max-w-[380px] h-[100dvh] bg-[#F7F7F5] dark:bg-[#0B0D10] text-[#25282D] dark:text-[#F5F5F5] border-r border-[#D9DDE3] dark:border-[#22252A] shadow-2xl z-20 flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] overflow-hidden font-sans text-xs"
             >
-              {/* Drawer Top Header */}
-              <div className="flex items-center justify-between h-[64px] px-4 border-b border-[#E4E7EC] dark:border-[#292F38] shrink-0 bg-[#F8F9FB] dark:bg-[#15181D]">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-[#D4B12F]/10 border border-[#D4B12F]/30 flex items-center justify-center font-extrabold text-[13px] text-[#D4B12F] shrink-0">
-                    M
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[16px] font-semibold text-[#17202A] dark:text-[#F2F4F7] leading-tight">
-                      {isPersonal ? "Personal Workspace" : "Organization Workspace"}
+              {/* 1. COMPACT SLEEK DRAWER HEADER (60px Height) */}
+              <div className="flex items-center justify-between h-[60px] px-4 border-b border-[#D9DDE3] dark:border-[#22252A] shrink-0 bg-[#FFFFFF] dark:bg-[#0B0D10]">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Image
+                    src="/ios/iTunesArtwork@1x.png"
+                    alt="ManMadhan Progress"
+                    width={32}
+                    height={32}
+                    className="rounded-lg shadow-xs shrink-0 object-contain"
+                  />
+                  <div className="flex flex-col min-w-0 leading-none">
+                    <span className="text-[14px] font-extrabold tracking-tight text-[#25282D] dark:text-[#F5F5F5] truncate">
+                      ManMadhan Progress
                     </span>
-                    <span className="text-[12px] font-medium text-[#667085] dark:text-[#8B94A3] leading-tight mt-0.5">
-                      {isPersonal ? "Personal Workspace" : `${userRole} · Organization Workspace`}
+                    <span className="text-[11px] font-semibold text-[#667085] dark:text-[#8E929B] truncate mt-0.5">
+                      {isPersonal ? "Personal Workspace" : "Organization Workspace"}
                     </span>
                   </div>
                 </div>
+
+                {/* 36x36px Touch Target Compact Close Button */}
                 <button
                   type="button"
                   onClick={() => setIsDrawerOpen(false)}
-                  aria-label="Close navigation"
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] transition-colors"
+                  aria-label="Close navigation drawer"
+                  className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-xl flex items-center justify-center bg-black/[0.04] dark:bg-[#151921] hover:bg-black/[0.07] dark:hover:bg-[#1C2027] text-[#667085] dark:text-[#8E929B] hover:text-[#25282D] dark:hover:text-[#F5F5F5] transition-colors cursor-pointer outline-none focus:outline-none"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Data-Driven Single-Column Compact Navigation List */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-4 min-h-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                {navSections.map((sec) => (
-                  <div key={sec.section} className="space-y-1">
-                    <span className="px-3 text-[11px] font-mono font-medium tracking-[0.08em] text-[#667085] dark:text-[#8B94A3] uppercase">
-                      {sec.section}
-                    </span>
-                    <div className="space-y-0.5">
-                      {sec.items.map((item) => {
-                        const active = checkIsItemActive(item.href);
-                        return (
-                          <Link
-                            key={item.label}
-                            href={item.href}
-                            onClick={() => setIsDrawerOpen(false)}
-                            className={`flex items-center gap-3 h-[46px] px-3.5 rounded-xl text-[14px] font-medium transition-colors ${
-                              active
-                                ? "bg-[#FFF8E7] dark:bg-[#1D1B13] border border-[#D4B12F]/40 text-[#D4B12F] font-semibold"
-                                : "text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027]"
-                            }`}
-                          >
-                            <item.icon className={`w-5 h-5 shrink-0 ${active ? "text-[#D4B12F]" : "text-[#667085] dark:text-[#8B94A3]"}`} />
-                            <span>{item.label}</span>
-                          </Link>
-                        );
-                      })}
+              {/* 2. COMPACT CURRENT WORKSPACE SWITCHER SECTION */}
+              <div className="px-3 py-2 border-b border-[#D9DDE3] dark:border-[#22252A] shrink-0 relative" ref={dropdownRef}>
+                <span className="px-1 mb-1 block text-[9.5px] font-mono font-bold tracking-wider text-[#667085] dark:text-[#8E929B] uppercase">
+                  CURRENT WORKSPACE
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setIsWorkspaceDropdownOpen((prev) => !prev)}
+                  aria-expanded={isWorkspaceDropdownOpen}
+                  aria-label="Switch workspace"
+                  className="w-full flex items-center justify-between h-[38px] px-2.5 rounded-xl border border-[#D9DDE3] dark:border-[#22252A] bg-[#FFFFFF] dark:bg-[#111419] hover:bg-[#F4F4F6] dark:hover:bg-[#151921] transition-all cursor-pointer text-left focus:outline-none"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-5 h-5 rounded-md bg-[#C89B18]/15 border border-[#C89B18]/30 text-[#C89B18] flex items-center justify-center shrink-0">
+                      {isPersonal ? <UserIcon className="w-3 h-3" /> : <Building2 className="w-3 h-3" />}
                     </div>
+                    <span className="font-bold text-[11.5px] text-[#25282D] dark:text-[#F5F5F5] truncate">
+                      {isPersonal ? "Personal Workspace" : "Organization Workspace"}
+                    </span>
                   </div>
-                ))}
+                  <ChevronDown className={`w-3.5 h-3.5 text-[#667085] dark:text-[#8E929B] shrink-0 transition-transform duration-150 ${isWorkspaceDropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {/* Workspace Switcher Popover */}
+                <AnimatePresence>
+                  {isWorkspaceDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                      transition={{ duration: 0.16 }}
+                      className="absolute top-full left-3 right-3 mt-1.5 z-50 rounded-2xl border border-[#D9DDE3] dark:border-[#22252A] bg-[#FFFFFF] dark:bg-[#111419] shadow-2xl p-2 font-sans text-xs"
+                    >
+                      <div className="px-2 py-1 mb-1 text-[9.5px] font-mono font-bold uppercase tracking-wider text-[#667085] dark:text-[#8E929B]">
+                        SWITCH WORKSPACE
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchWorkspace("personal")}
+                        className={`w-full p-2.5 rounded-xl flex items-center justify-between text-left transition-colors cursor-pointer ${
+                          isPersonal
+                            ? "bg-[#C89B18]/10 text-[#25282D] dark:text-[#F5F5F5] font-extrabold border border-[#C89B18]/30"
+                            : "hover:bg-[#F4F4F6] dark:hover:bg-[#151921] text-[#667085] dark:text-[#8E929B] border border-transparent"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <UserIcon className={`w-4 h-4 shrink-0 ${isPersonal ? "text-[#C89B18]" : "text-[#667085] dark:text-[#8E929B]"}`} />
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[12px] font-extrabold truncate">Personal Workspace</span>
+                            <span className="text-[10px] font-mono text-[#667085] dark:text-[#8E929B] truncate mt-0.5">My Workspace</span>
+                          </div>
+                        </div>
+                        {isPersonal && <Check className="w-4 h-4 text-[#C89B18] shrink-0" />}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSwitchWorkspace("org")}
+                        className={`w-full p-2.5 rounded-xl flex items-center justify-between text-left transition-colors cursor-pointer mt-1 ${
+                          !isPersonal
+                            ? "bg-[#C89B18]/10 text-[#25282D] dark:text-[#F5F5F5] font-extrabold border border-[#C89B18]/30"
+                            : "hover:bg-[#F4F4F6] dark:hover:bg-[#151921] text-[#667085] dark:text-[#8E929B] border border-transparent"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Building2 className={`w-4 h-4 shrink-0 ${!isPersonal ? "text-[#C89B18]" : "text-[#667085] dark:text-[#8E929B]"}`} />
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[12px] font-extrabold truncate">Organization Workspace</span>
+                            <span className="text-[10px] font-mono text-[#667085] dark:text-[#8E929B] truncate mt-0.5">ManMadhan Progress</span>
+                          </div>
+                        </div>
+                        {!isPersonal && <Check className="w-4 h-4 text-[#C89B18] shrink-0" />}
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
-              {/* Fixed Bottom Account Area */}
-              <div className="p-3 border-t border-[#E4E7EC] dark:border-[#292F38] bg-[#F8F9FB] dark:bg-[#15181D] shrink-0 space-y-2">
-                <div className="flex items-center gap-3 px-2 py-1">
-                  <div className="w-9 h-9 rounded-full bg-[#D4B12F]/15 text-[#D4B12F] flex items-center justify-center font-bold text-xs shrink-0 border border-[#D4B12F]/30" suppressHydrationWarning>
+              {/* 3. SLEEK COMPACT NAVIGATION AREA */}
+              <nav
+                ref={navRef}
+                aria-label="Mobile Navigation Drawer"
+                className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-3 scrollbar-none pb-4"
+              >
+                {navGroups
+                  .filter((group) => group.allowedRoles.includes(isPersonal ? "PERSONAL" : userRole))
+                  .map((group) => {
+                    const filteredItems = group.items.filter(
+                      (item) => !item.allowedRoles || item.allowedRoles.includes(userRole)
+                    );
+
+                    if (filteredItems.length === 0) return null;
+
+                    return (
+                      <div key={group.id} className="space-y-0.5">
+                        <span className="px-2 text-[9.5px] font-mono font-bold tracking-wider text-[#667085] dark:text-[#8E929B]/70 uppercase">
+                          {group.label}
+                        </span>
+
+                        <div className="space-y-0.5 mt-0.5">
+                          {filteredItems.map((item) => {
+                            const finalHref = isPersonal
+                              ? item.href
+                              : getOrgItemHref(userRole, item.href);
+
+                            const isActive =
+                              pathname === finalHref ||
+                              (item.href !== "/dashboard" &&
+                                item.href !== "/personal/dashboard" &&
+                                pathname.startsWith(finalHref + "/"));
+
+                            return (
+                              <Link
+                                key={item.id}
+                                href={finalHref}
+                                onClick={() => setIsDrawerOpen(false)}
+                                className={`flex items-center justify-between h-[38px] px-2.5 rounded-xl text-[12px] transition-all ${
+                                  isActive
+                                    ? "bg-[#C89B18]/10 dark:bg-[#C89B18]/15 border border-[#C89B18]/30 text-[#25282D] dark:text-[#F5F5F5] font-bold"
+                                    : "text-[#667085] dark:text-[#8E929B] hover:bg-black/[0.035] dark:hover:bg-white/[0.05] hover:text-[#25282D] dark:hover:text-[#F5F5F5] font-medium border border-transparent"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <item.icon
+                                    className={`w-4 h-4 shrink-0 ${
+                                      isActive ? "text-[#C89B18] stroke-[2.2]" : "text-[#667085] dark:text-[#8E929B] stroke-[1.75]"
+                                    }`}
+                                  />
+                                  <span className="truncate">{item.name}</span>
+                                </div>
+                                <ChevronRight
+                                  className={`w-3 h-3 shrink-0 ${
+                                    isActive ? "text-[#C89B18]" : "text-[#667085]/50 dark:text-[#8E929B]/40"
+                                  }`}
+                                />
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </nav>
+
+              {/* 4. FIXED ANCHORED ACCOUNT FOOTER */}
+              <div className="p-3 border-t border-[#D9DDE3] dark:border-[#22252A] bg-[#FFFFFF] dark:bg-[#0D0F13] shrink-0 space-y-2 pb-[max(14px,env(safe-area-inset-bottom))] z-20">
+                <div className="flex items-center gap-2.5 px-1">
+                  <div className="w-9 h-9 rounded-full bg-[#C89B18]/15 border border-[#C89B18]/30 text-[#C89B18] flex items-center justify-center font-extrabold text-xs shrink-0 font-mono">
                     {userInitials}
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[14px] font-semibold text-[#17202A] dark:text-[#F2F4F7] truncate" suppressHydrationWarning>
+                    <span className="text-[13px] font-extrabold text-[#25282D] dark:text-[#F5F5F5] truncate leading-tight">
                       {userName}
                     </span>
-                    <span className="text-[12px] font-medium text-[#667085] dark:text-[#8B94A3] truncate" suppressHydrationWarning>
-                      {isPersonal ? "Personal Workspace" : `${userRole} · Organization Workspace`}
+                    <span className="text-[11px] font-semibold text-[#C89B18] truncate leading-tight mt-0.5">
+                      {isPersonal ? "Personal" : `${userRole} · Organization`}
                     </span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-1 gap-1.5">
+                <div className="flex items-center gap-2 pt-0.5">
                   <Link
-                    href={isPersonal ? "/personal/settings" : getOrgHref("settings")}
+                    href={settingsHref}
                     onClick={() => setIsDrawerOpen(false)}
-                    className="flex-1 flex items-center justify-center gap-1.5 h-[36px] rounded-lg bg-[#FFFFFF] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#292F38] text-[12px] font-medium text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1.5 h-[38px] rounded-xl bg-[#F7F7F5] dark:bg-[#151921] border border-[#D9DDE3] dark:border-[#22252A] text-[12px] font-bold text-[#25282D] dark:text-[#F5F5F5] hover:bg-black/[0.04] dark:hover:bg-[#1C2027] transition-colors"
                   >
-                    <Settings className="w-3.5 h-3.5 text-[#667085] dark:text-[#8B94A3]" />
+                    <Settings className="w-3.5 h-3.5 text-[#667085] dark:text-[#8E929B]" />
                     <span>Settings</span>
                   </Link>
+
                   <button
                     type="button"
                     onClick={() => {
                       setIsDrawerOpen(false);
                       logout();
                     }}
-                    className="flex-1 flex items-center justify-center gap-1.5 h-[36px] rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-[12px] font-semibold hover:bg-red-500/20 transition-colors cursor-pointer"
+                    className="flex-1 flex items-center justify-center gap-1.5 h-[38px] rounded-xl bg-[#D92D45]/10 border border-[#D92D45]/20 text-[#D92D45] dark:text-rose-400 text-[12px] font-bold hover:bg-[#D92D45]/20 transition-colors cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>Sign Out</span>

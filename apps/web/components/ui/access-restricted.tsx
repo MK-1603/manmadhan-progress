@@ -32,7 +32,7 @@ export function AccessRestricted({
           className="h-[44px] px-5 rounded-[12px] bg-[#B28D18] dark:bg-[#C9A52A] text-white dark:text-[#0B0D10] text-xs font-bold inline-flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:opacity-95 active:scale-95 transition-all mt-2"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Back to Dashboard</span>
+          <span>Back to Home</span>
         </Link>
       </div>
     </div>

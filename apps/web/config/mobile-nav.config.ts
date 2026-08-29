@@ -1,12 +1,14 @@
 import {
-  LayoutDashboard, FolderKanban, CheckSquare, ClipboardCheck, Calendar as Cal,
-  History, PenSquare, BookOpen, Headphones, GraduationCap, FileText,
-  Archive, Brain, Sparkles, Zap, Bell, BarChart, Settings, UserCheck,
-  Users, UserPlus, Network, Trophy, Building, ShieldCheck, LucideIcon
+  ORGANIZATION_NAV_GROUPS,
+  PERSONAL_NAV_GROUPS,
+  RoleType,
+  getOrgItemHref
+} from "./navigation.config";
+import {
+  BarChart3, Archive, FileText, Bell, Sparkles, Cpu, Settings, Users, Trophy, ShieldCheck, CheckSquare, Calendar as Cal, History, Brain, Building2, BookOpen
 } from "lucide-react";
-import { FocusIcon, Focus } from "@/components/ui/focus-icon";
 
-export type RoleType = "CEO" | "CO-CEO" | "MEMBER";
+export type { RoleType };
 
 export type NavItem = {
   label: string;
@@ -20,127 +22,44 @@ export type NavSection = {
   items: NavItem[];
 };
 
-export const PERSONAL_MOBILE_NAV: NavSection[] = [
-  {
-    section: "OVERVIEW",
-    items: [
-      { label: "Dashboard", href: "/personal/dashboard", icon: LayoutDashboard },
-      { label: "Focus", href: "/personal/focus", icon: FocusIcon },
-    ],
-  },
-  {
-    section: "WORK",
-    items: [
-      { label: "Projects", href: "/personal/projects", icon: FolderKanban },
-      { label: "Tasks", href: "/personal/tasks", icon: CheckSquare },
-      { label: "Calendar", href: "/personal/calendar", icon: Cal },
-      { label: "Timeline", href: "/personal/timeline", icon: History },
-    ],
-  },
-  {
-    section: "LIFE",
-    items: [
-      { label: "Journal", href: "/personal/journal", icon: PenSquare },
-      { label: "Books", href: "/personal/books", icon: BookOpen },
-      { label: "Podcasts", href: "/personal/podcasts", icon: Headphones },
-      { label: "Learning", href: "/personal/learning", icon: GraduationCap },
-    ],
-  },
-  {
-    section: "CONTENT",
-    items: [
-      { label: "Notes", href: "/personal/notes", icon: FileText },
-      { label: "Documents", href: "/personal/documents", icon: Archive },
-    ],
-  },
-  {
-    section: "AI",
-    items: [
-      { label: "AI Builder", href: "/personal/ai-builder", icon: Brain },
-      { label: "Prompt Library", href: "/personal/prompt-library", icon: Sparkles },
-    ],
-  },
-  {
-    section: "SYSTEM",
-    items: [
-      { label: "Automation", href: "/personal/automation", icon: Zap },
-      { label: "Reminders", href: "/personal/reminders", icon: Bell },
-      { label: "Reports", href: "/personal/reports", icon: BarChart },
-    ],
-  },
-];
+export const PERSONAL_MOBILE_NAV: NavSection[] = PERSONAL_NAV_GROUPS.map((group) => ({
+  section: group.label,
+  items: group.items.map((item) => ({
+    label: item.name,
+    href: item.href,
+    icon: item.icon,
+  })),
+}));
 
 export const ORGANIZATION_MOBILE_NAV = (role: RoleType): NavSection[] => {
-  const getHref = (page: string) => {
-    if (role === "CO-CEO") return `/co-ceo/${page}`;
-    if (role === "MEMBER") return `/member/${page}`;
-    return `/ceo/${page}`;
-  };
+  return ORGANIZATION_NAV_GROUPS
+    .filter((group) => group.allowedRoles.includes(role))
+    .map((group) => {
+      const filteredItems = group.items.filter(
+        (item) => !item.allowedRoles || item.allowedRoles.includes(role)
+      );
 
-  const sections: NavSection[] = [
-    {
-      section: "OVERVIEW",
-      items: [
-        { label: "Dashboard", href: getHref("dashboard"), icon: LayoutDashboard },
-        { label: "Focus", href: getHref("focus"), icon: FocusIcon },
-      ],
-    },
-    {
-      section: "WORK",
-      items: [
-        ...(role === "CO-CEO" || role === "MEMBER"
-          ? [{ label: "My Work", href: getHref("my-work"), icon: CheckSquare }]
-          : []),
-        { label: "Projects", href: getHref("projects"), icon: FolderKanban },
-        { label: "Tasks", href: getHref("tasks"), icon: role === "CEO" ? CheckSquare : ClipboardCheck },
-        { label: "Learning", href: getHref("learning"), icon: BookOpen },
-        { label: "Calendar", href: getHref("calendar"), icon: Cal },
-        { label: "Timeline", href: getHref("timeline"), icon: History },
-      ],
-    },
-  ];
-
-  // PEOPLE / TEAM & PERFORMANCE for Leadership (CEO & CO-CEO)
-  if (role === "CEO" || role === "CO-CEO") {
-    sections.push({
-      section: role === "CO-CEO" ? "TEAM" : "PEOPLE",
-      items: [
-        { label: role === "CO-CEO" ? "My Members" : "People", href: getHref(role === "CO-CEO" ? "members" : "people"), icon: Users },
-        { label: "Approvals", href: getHref("approvals"), icon: ShieldCheck },
-      ],
-    });
-
-    sections.push({
-      section: "PERFORMANCE",
-      items: [
-        { label: "Leaderboard", href: getHref("leaderboard"), icon: Trophy },
-      ],
-    });
-  }
-
-  // ADMINISTRATION for Organization CEO & CO-CEO
-  if (role === "CEO" || role === "CO-CEO") {
-    sections.push({
-      section: "ADMINISTRATION",
-      items: [
-        { label: "Automation", href: getHref("automation"), icon: Zap },
-        { label: "Organization", href: getHref("organization"), icon: Building },
-      ],
-    });
-  }
-
-  return sections;
+      return {
+        section: group.label,
+        items: filteredItems.map((item) => ({
+          label: item.name,
+          href: getOrgItemHref(role, item.href),
+          icon: item.icon,
+        })),
+      };
+    })
+    .filter((sec) => sec.items.length > 0);
 };
 
 export const MORE_SHEET_SHORTCUTS = (workspace: "personal" | "organization", role: RoleType = "CEO") => {
   if (workspace === "personal") {
     return [
-      { label: "Reports", href: "/personal/reports", icon: BarChart },
+      { label: "Reports", href: "/personal/reports", icon: BarChart3 },
       { label: "Documents", href: "/personal/documents", icon: Archive },
       { label: "Notes", href: "/personal/notes", icon: FileText },
       { label: "Reminders", href: "/personal/reminders", icon: Bell },
-      { label: "Prompt Library", href: "/personal/prompt-library", icon: Sparkles },
-      { label: "Automation", href: "/personal/automation", icon: Zap },
+      { label: "Prompt Library", href: "/personal/prompt-library", icon: BookOpen },
+      { label: "Automation", href: "/personal/automation", icon: Cpu },
       { label: "Settings", href: "/personal/settings", icon: Settings },
     ];
   }
@@ -150,20 +69,28 @@ export const MORE_SHEET_SHORTCUTS = (workspace: "personal" | "organization", rol
       { label: "My Work", href: "/member/my-work", icon: CheckSquare },
       { label: "Calendar", href: "/member/calendar", icon: Cal },
       { label: "Timeline", href: "/member/timeline", icon: History },
-      { label: "Command", href: "/member/ai-builder", icon: Brain },
+      { label: "AI Builder", href: "/member/ai-builder", icon: Brain },
+      { label: "Reports", href: "/member/reports", icon: BarChart3 },
+      { label: "Settings", href: "/member/settings", icon: Settings },
     ];
   }
 
   if (role === "CO-CEO") {
     return [
+      { label: "My Work", href: "/co-ceo/my-work", icon: CheckSquare },
       { label: "People", href: "/co-ceo/people", icon: Users },
       { label: "Leaderboard", href: "/co-ceo/leaderboard", icon: Trophy },
+      { label: "AI Builder", href: "/co-ceo/ai-builder", icon: Brain },
+      { label: "Reports", href: "/co-ceo/reports", icon: BarChart3 },
+      { label: "Settings", href: "/co-ceo/settings", icon: Settings },
     ];
   }
 
   return [
-    { label: "Automation", href: "/ceo/automation", icon: Zap },
-    { label: "Organization", href: "/ceo/organization", icon: Building },
+    { label: "AI Builder", href: "/ceo/ai-builder", icon: Brain },
+    { label: "Reports", href: "/ceo/reports", icon: BarChart3 },
+    { label: "Automation", href: "/ceo/automation", icon: Cpu },
+    { label: "Organization", href: "/ceo/organization", icon: Building2 },
     { label: "Org Profile", href: "/ceo/profile", icon: ShieldCheck },
     { label: "Org Settings", href: "/ceo/settings", icon: Settings },
   ];

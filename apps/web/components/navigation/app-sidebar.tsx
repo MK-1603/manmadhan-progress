@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, FolderKanban, CheckSquare, Calendar, History,
+  Home as HomeIcon, FolderKanban, CheckSquare, Calendar, History,
   Users, UserPlus, UserCheck, Network, Trophy, Zap, Building, User as UserIcon,
   Settings, FileText, Archive, Brain, Sparkles, Bell, BarChart3,
   ShieldCheck, ClipboardCheck, ChevronDown, PanelLeftClose, PanelLeftOpen,
@@ -35,7 +35,7 @@ const ORG_CEO_NAV: NavGroup[] = [
     id: "overview",
     label: "OVERVIEW",
     items: [
-      { name: "Dashboard", href: "/ceo/dashboard", icon: LayoutDashboard },
+      { name: "Home", href: "/ceo/dashboard", icon: HomeIcon },
     ],
   },
   {
@@ -68,6 +68,7 @@ const ORG_CEO_NAV: NavGroup[] = [
     label: "ADMINISTRATION",
     items: [
       { name: "Automation", href: "/ceo/automation", icon: Zap },
+      { name: "Audit Logs", href: "/ceo/audit", icon: ShieldCheck },
       { name: "Organization", href: "/ceo/organization", icon: Building },
     ],
   },
@@ -79,7 +80,7 @@ const ORG_COCEO_NAV: NavGroup[] = [
     id: "overview",
     label: "OVERVIEW",
     items: [
-      { name: "Dashboard", href: "/co-ceo/dashboard", icon: LayoutDashboard },
+      { name: "Home", href: "/co-ceo/dashboard", icon: HomeIcon },
       { name: "Focus", href: "/co-ceo/focus", icon: FocusIcon },
     ],
   },
@@ -126,7 +127,7 @@ const ORG_MEMBER_NAV: NavGroup[] = [
     id: "overview",
     label: "OVERVIEW",
     items: [
-      { name: "Dashboard", href: "/member/dashboard", icon: LayoutDashboard },
+      { name: "Home", href: "/member/dashboard", icon: HomeIcon },
       { name: "Focus", href: "/member/focus", icon: FocusIcon },
     ],
   },
@@ -149,7 +150,7 @@ const PERSONAL_NAV: NavGroup[] = [
     id: "overview",
     label: "OVERVIEW",
     items: [
-      { name: "Dashboard", href: "/personal/dashboard", icon: LayoutDashboard },
+      { name: "Home", href: "/personal/dashboard", icon: HomeIcon },
       { name: "Focus", href: "/personal/focus", icon: FocusIcon },
     ],
   },
@@ -176,7 +177,7 @@ const PERSONAL_NAV: NavGroup[] = [
     label: "AI",
     items: [
       { name: "AI Builder", href: "/personal/ai-builder", icon: Brain },
-      { name: "Prompt Library", href: "/personal/prompt-library", icon: Sparkles },
+      { name: "Prompt Library", href: "/personal/prompt-library", icon: BookOpen },
     ],
   },
   {

@@ -1,31 +1,3 @@
-login:1 Denying load of chrome-extension://ojplmecpdpgccookcobabopnaifgidhf/assets/couponCollection.js-rRX9pka3.js. Resources must be listed in the web_accessible_resources manifest key in order to be loaded by pages outside the extension.
-
-content.js:16 Feature is disabled
-couponCollection.js-loader-BS-SsW4n.js:8 
- GET chrome-extension://invalid/ net::ERR_FAILED
-TypeError: Failed to fetch dynamically imported module: chrome-extension://ojplmecpdpgccookcobabopnaifgidhf/assets/couponCollection.js-rRX9pka3.js
-content-DEYtg_MT.js:1917 [Floto Widget] Initializing...
-content-DEYtg_MT.js:1930 [Floto Widget] Initialized successfully
-content-DEYtg_MT.js:1930 🎯 Floto Design QA - Content Script Loaded
-content.ts-CrAW2ToA.js:5 [BHK] widget sdk 1.0.0
-content.ts-CrAW2ToA.js:5 [BHK] install: missing/invalid publicKey or merchantId — aborting
-content-DEYtg_MT.js:1917 [FloatingWidget] pendingDiffSession: null
-login:1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
-30gzfh2_arj6l.js:1 
- GET https://manmadhan-progress.onrender.com/api/v1/auth/me 401 (Unauthorized)
-30gzfh2_arj6l.js:1 
- POST https://manmadhan-progress.onrender.com/api/v1/auth/refresh 401 (Unauthorized)
-VM357:2 Uncaught TypeError: Cannot read properties of undefined (reading 'startTime')
-    at et.reportAllChanges (<anonymous>:2:19429)
-    at <anonymous>:2:13070
-    at <anonymous>:2:331
-    at d (<anonymous>:2:6141)
-    at <anonymous>:2:6326
-    at x (<anonymous>:2:5486)
-    at g (<anonymous>:2:6248)
-    at <anonymous>:2:6512
-    at u (<anonymous>:2:735)
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -456,8 +428,8 @@ export function TaskCreateModal({
             ? "Describe the work to structure it."
             : "Select a reusable workflow template."
           : step === 2
-          ? "Step 1 of 2 — Task Details & Assignee"
-          : "Step 2 of 2 — Policy, Subtasks & Review"
+          ? "Step 1 of 2 - Task Details & Assignee"
+          : "Step 2 of 2 - Policy, Subtasks & Review"
       }
       desktopMaxWidth="max-w-[580px]"
     >
@@ -786,7 +758,7 @@ export function TaskCreateModal({
             <div className="p-3 rounded-xl border border-[#E5E7EB] dark:border-[#24282E] bg-[#F8F9FA] dark:bg-[#1C2027] space-y-1 font-mono text-[11px]">
               <div className="text-[10px] font-bold text-[#667085] dark:text-[#8B94A3] uppercase">STEP 1 CONFIG REVIEW</div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[#17202A] dark:text-[#F2F3F5]">
-                <span>Title: <strong>{draft.title || "—"}</strong></span>
+                <span>Title: <strong>{draft.title || "-"}</strong></span>
                 <span>Assignee: <strong>{selectedMember ? (selectedMember.name || selectedMember.displayName) : "Unassigned"}</strong></span>
                 <span>Est: <strong>{draft.estimatedMinutes}m</strong></span>
               </div>

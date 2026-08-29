@@ -126,13 +126,10 @@ export function ProfileDropdown({
       isOpen={isOpen}
       setIsOpen={setIsOpen}
       align="right"
-      offsetY={6}
-      desktopClassName="w-[340px] rounded-2xl border border-border bg-card shadow-2xl overflow-hidden flex flex-col p-3 z-50 text-xs font-sans"
-      mobileClassName="fixed inset-x-0 bottom-0 z-[10001] bg-card rounded-t-3xl border-t border-border shadow-2xl flex flex-col overflow-y-auto overscroll-contain max-h-[90vh] pb-[max(16px,env(safe-area-inset-bottom))] p-3 select-none font-sans"
+      offsetY={20}
+      desktopClassName="w-80 md:w-84 rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden p-4 font-sans text-xs select-none z-[99999]"
+      mobileClassName="fixed left-0 right-0 bottom-0 w-full z-[10001] bg-[#FFFFFF] dark:bg-[#0B0D10] text-[#121316] dark:text-[#F5F5F5] rounded-t-[32px] rounded-b-none border-t border-[#E4E4E8] dark:border-[#22252A] shadow-[0_-10px_40px_rgba(0,0,0,0.35)] flex flex-col max-h-[92vh] select-none font-sans overflow-hidden outline-none"
     >
-      {/* Mobile Bottom Sheet Drag Handle */}
-      <div className="md:hidden w-8 h-1 bg-muted-foreground/30 rounded-full mx-auto mb-2 shrink-0" />
-
       <div className="flex flex-col space-y-2 text-xs">
         
         {/* 1. COMPACT USER IDENTITY HEADER */}
@@ -145,12 +142,12 @@ export function ProfileDropdown({
               {realDisplayName}
             </span>
             <span className="text-[11px] font-semibold text-muted-foreground truncate leading-tight mt-0.5">
-              {isPersonal ? "Personal" : userRole}
+              {isPersonal ? "Personal Workspace" : `${userRole} · Organization`}
             </span>
           </div>
         </div>
 
-        {/* 2. COMPACT EXPANDABLE WORKSPACE SELECTOR */}
+        {/* 2. NON-REDUNDANT WORKSPACE SELECTOR */}
         <div className="space-y-1">
           <span className="text-[9.5px] font-mono font-bold uppercase tracking-wider text-muted-foreground block px-1">
             WORKSPACE
@@ -161,7 +158,7 @@ export function ProfileDropdown({
             type="button"
             onClick={() => setIsWorkspaceSwitcherOpen(prev => !prev)}
             aria-expanded={isWorkspaceSwitcherOpen}
-            className="w-full p-2 rounded-xl border border-border bg-muted/40 hover:bg-muted/80 flex items-center justify-between transition-colors cursor-pointer text-left focus:outline-none"
+            className="w-full p-2.5 rounded-xl border border-border bg-muted/40 hover:bg-muted/80 flex items-center justify-between transition-colors cursor-pointer text-left focus:outline-none"
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-6 h-6 rounded-lg bg-[#C9A52A]/15 border border-[#C9A52A]/30 text-[#C9A52A] flex items-center justify-center shrink-0">
@@ -179,7 +176,7 @@ export function ProfileDropdown({
             <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-150 ${isWorkspaceSwitcherOpen ? "rotate-180" : ""}`} />
           </button>
 
-          {/* Expandable Workspace Options (EXACTLY TWO WORKSPACES ONLY) */}
+          {/* Expandable Alternate Workspace Option (Only shows alternate workspace to avoid duplication) */}
           <AnimatePresence>
             {isWorkspaceSwitcherOpen && (
               <motion.div
@@ -189,49 +186,41 @@ export function ProfileDropdown({
                 transition={{ duration: 0.16 }}
                 className="space-y-1 overflow-hidden pt-1"
               >
-                {/* Option 1: Organization Workspace */}
-                <button
-                  type="button"
-                  onClick={() => handleSwitchWorkspace("org")}
-                  className={`w-full p-2 rounded-xl flex items-center justify-between text-left transition-all cursor-pointer ${
-                    !isPersonal
-                      ? "bg-[#C9A52A]/10 text-foreground font-extrabold border border-[#C9A52A]/30"
-                      : "hover:bg-muted/70 text-muted-foreground hover:text-foreground border border-transparent"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Building2 className={`w-4 h-4 shrink-0 ${!isPersonal ? "text-[#C9A52A]" : "text-muted-foreground"}`} />
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-bold truncate">Organization Workspace</span>
-                      <span className="text-[10.5px] font-mono text-muted-foreground truncate mt-0.5">
-                        Batch ID: {realBatchId}
-                      </span>
+                {isPersonal ? (
+                  /* If currently in Personal, show option to switch to Organization Workspace */
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchWorkspace("org")}
+                    className="w-full p-2.5 rounded-xl flex items-center justify-between text-left transition-all cursor-pointer hover:bg-muted/70 text-muted-foreground hover:text-foreground border border-transparent"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Building2 className="w-4 h-4 shrink-0 text-[#C9A52A]" />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-bold truncate">Switch to Organization Workspace</span>
+                        <span className="text-[10.5px] font-mono text-muted-foreground truncate mt-0.5">
+                          Batch ID: {realBatchId}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  {!isPersonal && <Check className="w-3.5 h-3.5 text-[#C9A52A] shrink-0" />}
-                </button>
-
-                {/* Option 2: Personal Workspace */}
-                <button
-                  type="button"
-                  onClick={() => handleSwitchWorkspace("personal")}
-                  className={`w-full p-2 rounded-xl flex items-center justify-between text-left transition-all cursor-pointer ${
-                    isPersonal
-                      ? "bg-[#C9A52A]/10 text-foreground font-extrabold border border-[#C9A52A]/30"
-                      : "hover:bg-muted/70 text-muted-foreground hover:text-foreground border border-transparent"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <UserIcon className={`w-4 h-4 shrink-0 ${isPersonal ? "text-[#C9A52A]" : "text-muted-foreground"}`} />
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-bold truncate">Personal Workspace</span>
-                      <span className="text-[10.5px] font-mono text-muted-foreground truncate mt-0.5">
-                        Private workspace
-                      </span>
+                  </button>
+                ) : (
+                  /* If currently in Organization, show option to switch to Personal Workspace */
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchWorkspace("personal")}
+                    className="w-full p-2.5 rounded-xl flex items-center justify-between text-left transition-all cursor-pointer hover:bg-muted/70 text-muted-foreground hover:text-foreground border border-transparent"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <UserIcon className="w-4 h-4 shrink-0 text-[#C9A52A]" />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-bold truncate">Switch to Personal Workspace</span>
+                        <span className="text-[10.5px] font-mono text-muted-foreground truncate mt-0.5">
+                          Private workspace
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                  {isPersonal && <Check className="w-3.5 h-3.5 text-[#C9A52A] shrink-0" />}
-                </button>
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -381,3 +370,5 @@ export function ProfileDropdown({
     </ResponsivePopover>
   );
 }
+
+export default ProfileDropdown;

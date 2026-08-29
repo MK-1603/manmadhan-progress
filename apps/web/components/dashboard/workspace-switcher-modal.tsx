@@ -46,6 +46,7 @@ export function WorkspaceSwitcherModal({
 
   const realBatchId = orgWorkspace?.batchNumber || user?.batchNumber;
   const realOrgName = orgWorkspace?.name && orgWorkspace.name !== "Personal Workspace" ? orgWorkspace.name : undefined;
+  const effectiveLogoUrl = orgWorkspace?.logoUrl || (typeof window !== "undefined" ? localStorage.getItem("orgLogo") : null) || "/ios/iTunesArtwork@1x.png";
   const personalDisplayName = user?.displayName || user?.name || "Personal Workspace";
 
   const handleSwitch = (target: "personal" | "org") => {
@@ -147,12 +148,14 @@ export function WorkspaceSwitcherModal({
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className={`p-2 rounded-xl border shrink-0 ${!isPersonal ? "bg-[#C9A52A]/20 border-[#C9A52A]/30 text-[#C9A52A]" : "bg-card border-border text-muted-foreground"}`}>
-                  <Building className="w-4 h-4" />
-                </div>
+                <img
+                  src={effectiveLogoUrl}
+                  alt={realOrgName || "Organization Logo"}
+                  className="w-9 h-9 rounded-xl object-contain shrink-0 shadow-xs border border-black/10 dark:border-white/10"
+                />
                 <div className="flex flex-col min-w-0">
                   <span className="font-extrabold text-xs text-foreground truncate">
-                    {realOrgName || "Organization Workspace"}
+                    {realOrgName || "ManMadhan Progress"}
                   </span>
                   <span className="text-[11px] text-muted-foreground truncate">
                     Organization Workspace

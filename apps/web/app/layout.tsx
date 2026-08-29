@@ -64,6 +64,11 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="ManMadhan Progress" />
         <meta name="application-name" content="ManMadhan Progress" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.addEventListener('error',function(e){if(e&&e.message&&(e.message.indexOf('startTime')!==-1||e.message.indexOf('reportAllChanges')!==-1)){if(typeof e.stopImmediatePropagation==='function')e.stopImmediatePropagation();e.preventDefault();return true;}},true);window.addEventListener('unhandledrejection',function(e){if(e&&e.reason&&e.reason.message&&(e.reason.message.indexOf('startTime')!==-1||e.reason.message.indexOf('reportAllChanges')!==-1)){e.preventDefault();}},true);`,
+          }}
+        />
       </head>
       <body className="min-h-screen w-full bg-[#0B0E12] dark:bg-[#0B0E12] text-foreground antialiased font-sans overflow-x-hidden" suppressHydrationWarning>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>

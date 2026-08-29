@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import {
-  LayoutDashboard, Target, Users, FolderKanban, CheckSquare, GitBranch,
+  Home, Target, Users, FolderKanban, CheckSquare, GitBranch,
   Calendar, Clock, ShieldCheck, BarChart3, History, Network, FileText,
   Bookmark, Settings, ChevronDown, X
 } from "lucide-react";
@@ -26,7 +26,7 @@ export const ORG_NAV_GROUPS: OrgNavGroup[] = [
     id: "overview",
     label: "OVERVIEW",
     items: [
-      { id: "overview", label: "Dashboard", icon: LayoutDashboard, description: "Executive command center & statistics" },
+      { id: "overview", label: "Home", icon: Home, description: "Executive command center & statistics" },
       { id: "focus", label: "Focus", icon: Target, description: "Organization priorities & urgent execution focus" },
     ],
   },
