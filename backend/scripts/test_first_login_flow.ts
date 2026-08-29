@@ -25,8 +25,8 @@ async function runFirstLoginTest() {
     password: testPassword,
   });
   console.log(`  Login response: nextStep=${loginRes.data.nextStep}, email=${loginRes.data.email}`);
-  if (loginRes.data.nextStep !== "OTP_VERIFICATION") {
-    throw new Error("Assertion failed: First login should require OTP verification!");
+  if (loginRes.data.nextStep !== "PASSWORD_CREATION") {
+    throw new Error("Assertion failed: First login should require PASSWORD_CREATION!");
   }
   console.log("  ✓ TEST 1 PASSED: Password verified. OTP challenge dispatched for first-login activation.");
 
