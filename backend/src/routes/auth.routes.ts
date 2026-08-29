@@ -1154,6 +1154,13 @@ authRouter.post("/setup/password", verifyTempToken, async (req, res) => {
 		});
 	}
 
+	if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+		return res.status(400).json({
+			success: false,
+			error: "Password must contain uppercase, lowercase, number, and special character.",
+		});
+	}
+
 	await AuthService.savePassword(setupUser.id, password);
 
 	await db

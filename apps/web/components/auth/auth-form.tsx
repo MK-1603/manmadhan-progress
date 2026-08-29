@@ -838,6 +838,8 @@ function getOnboardingStepInfo(state: AuthState, userRole?: string, hasOrgStep: 
         if (res.data.success) {
           if (res.data.nextStep === "PASSWORD_CREATION" || res.data.nextStep === "PASSWORD_CHANGE_REQUIRED") {
             if (res.data.tempToken) setTempToken(res.data.tempToken);
+            setPassword("");
+            setConfirmPassword("");
             setState("PASSWORD_CREATION");
             setLoading(false);
             return;
