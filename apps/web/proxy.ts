@@ -42,20 +42,30 @@ export function proxy(request: NextRequest) {
     return response;
   }
 
-  // Get Auth Token from cookies
+  // Get Auth Token or Refresh Token from cookies
   const token = request.cookies.get("auth_token")?.value;
+  const refreshTokenCookie = request.cookies.get("refresh_token")?.value;
 
-  if (!token) {
-    // Redirect to login home page if trying to access protected route without token
+  if (!token && !refreshTokenCookie) {
+    // Redirect to login home page if trying to access protected route without any session cookies
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
+  // If auth_token is expired/missing but refresh_token cookie exists, pass to client for silent session recovery
+  if (!token && refreshTokenCookie) {
+    return response;
+  }
+
   // Decode Token
-  const payload = parseJwt(token);
+  const payload = parseJwt(token || "");
 
   if (!payload || !payload.role) {
+    // If auth_token is malformed but refresh_token cookie is present, let client attempt recovery
+    if (refreshTokenCookie) {
+      return response;
+    }
     return NextResponse.redirect(new URL("/login", request.url));
   }
 

@@ -13,22 +13,30 @@ export const workspacesRouter = Router();
 
 workspacesRouter.use(authenticate);
 
-// List user's workspaces
 workspacesRouter.get("/", async (req: Request, res: Response) => {
 	try {
 		const userId = (req as any).user?.id;
-		const memberships = await db
-			.select()
-			.from(workspaceMembers)
-			.where(eq(workspaceMembers.userId, userId));
-		if (memberships.length === 0) {
-			return res.json({ success: true, data: [] });
+		if (!userId) {
+			return res.status(401).json({ success: false, error: "Unauthorized" });
 		}
-		const workspaceIds = memberships.map((m) => m.workspaceId);
 		const userWorkspaces = await db
-			.select()
+			.select({
+				id: workspaces.id,
+				name: workspaces.name,
+				shortName: workspaces.shortName,
+				batchNumber: workspaces.batchNumber,
+				description: workspaces.description,
+				logoUrl: workspaces.logoUrl,
+				website: workspaces.website,
+				contactEmail: workspaces.contactEmail,
+				type: workspaces.type,
+				role: workspaceMembers.role,
+				createdAt: workspaces.createdAt,
+			})
 			.from(workspaces)
-			.where(inArray(workspaces.id, workspaceIds));
+			.innerJoin(workspaceMembers, eq(workspaces.id, workspaceMembers.workspaceId))
+			.where(eq(workspaceMembers.userId, userId));
+
 		res.json({ success: true, data: userWorkspaces });
 	} catch (error: any) {
 		logger.error(`List User Workspaces Error: ${error.message}`);

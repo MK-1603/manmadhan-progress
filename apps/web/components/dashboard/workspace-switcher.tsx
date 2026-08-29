@@ -5,11 +5,11 @@ import { ChevronDown, Building, User as UserIcon, Check, Plus } from "lucide-rea
 import { useAuth, getDashboardPathForRole } from "../auth/auth-context";
 import { usePathname, useRouter } from "next/navigation";
 import { ResponsivePopover } from "../ui/responsive-popover";
-import apiClient from "@/lib/api-client";
+import { WorkspaceService } from "@/services/workspace-service";
 import { useSocket } from "@/components/providers/socket-provider";
 
 export function WorkspaceSwitcher() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, authStatus } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   
@@ -18,19 +18,18 @@ export function WorkspaceSwitcher() {
   const { socket } = useSocket();
 
   useEffect(() => {
-    if (isLoading || !user) return;
-    const fetchWorkspaces = async () => {
-      try {
-        const res = await apiClient.get("/workspaces");
-        if (res.data.success) {
-          setWorkspaces(res.data.data || []);
-        }
-      } catch (e) {
-        console.error("Failed to fetch workspaces:", e);
-      }
+    if (isLoading || authStatus !== "authenticated" || !user) return;
+    let isMounted = true;
+    WorkspaceService.getWorkspaces()
+      .then((data) => {
+        if (isMounted) setWorkspaces(data);
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
     };
-    fetchWorkspaces();
-  }, [user, isLoading]);
+  }, [user, isLoading, authStatus]);
 
   useEffect(() => {
     if (!socket) return;

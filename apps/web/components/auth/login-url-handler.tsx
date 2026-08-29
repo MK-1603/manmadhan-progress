@@ -4,6 +4,8 @@ import { useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth, getDashboardPathForRole, syncTokenCookie } from "./auth-context";
 
+import { SafeNavigation } from "@/lib/safe-navigation";
+
 function Handler() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -31,7 +33,7 @@ function Handler() {
           window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
         }
         if (redirectParam && redirectParam.startsWith("/")) {
-          router.replace(redirectParam);
+          SafeNavigation.replace(router, redirectParam);
         }
       }
       return;
@@ -49,9 +51,8 @@ function Handler() {
         url.searchParams.delete("role");
         window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
       }
-      checkSession();
-      const targetDash = getDashboardPathForRole(role);
-      router.replace(targetDash);
+      const targetDash = (redirectParam && redirectParam.startsWith("/")) ? redirectParam : getDashboardPathForRole(role);
+      SafeNavigation.replace(router, targetDash);
       return;
     }
 

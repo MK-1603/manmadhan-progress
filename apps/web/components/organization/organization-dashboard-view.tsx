@@ -339,16 +339,18 @@ export function OrganizationDashboardView({ role }: OrganizationDashboardViewPro
               </div>
             </div>
 
-            {/* Compact Focus Action Button */}
-            <div className="shrink-0 pt-0.5">
-              <Link
-                href={`${rolePrefix}/focus`}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 sm:px-4 h-[38px] sm:h-[40px] rounded-xl bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-xs font-extrabold hover:opacity-90 active:scale-[0.98] transition-all shadow-2xs whitespace-nowrap cursor-pointer"
-              >
-                <FocusIcon className="w-3.5 h-3.5 shrink-0" />
-                <span>Focus →</span>
-              </Link>
-            </div>
+            {/* Compact Focus Action Button (CO-CEO and Member only) */}
+            {rolePrefix !== "/ceo" && (
+              <div className="shrink-0 pt-0.5">
+                <Link
+                  href={`${rolePrefix}/focus`}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 sm:px-4 h-[38px] sm:h-[40px] rounded-xl bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-xs font-extrabold hover:opacity-90 active:scale-[0.98] transition-all shadow-2xs whitespace-nowrap cursor-pointer"
+                >
+                  <FocusIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>Focus →</span>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 

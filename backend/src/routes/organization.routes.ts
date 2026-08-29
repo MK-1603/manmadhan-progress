@@ -1396,20 +1396,24 @@ organizationRouter.get(
 				workspaceId === "undefined" ||
 				workspaceId === "null"
 			) {
-				const wsList = await db.select().from(workspaces).limit(1);
-				if (wsList.length > 0 && wsList[0].id) {
-					workspaceId = wsList[0].id;
-				}
+				return res.status(403).json({
+					success: false,
+					error: "Access denied. No authorized workspace available.",
+				});
 			}
 
-			if (
-				!workspaceId ||
-				workspaceId === "undefined" ||
-				workspaceId === "null"
-			) {
-				return res
-					.status(400)
-					.json({ success: false, error: "Missing workspaceId parameter" });
+			// Strict Server-Side Access Control: Verify authenticated user is an active member of target workspace
+			const isAuthorizedMember = await db
+				.select({ id: workspaceMembers.id })
+				.from(workspaceMembers)
+				.where(and(eq(workspaceMembers.userId, userId), eq(workspaceMembers.workspaceId, workspaceId)))
+				.limit(1);
+
+			if (isAuthorizedMember.length === 0) {
+				return res.status(403).json({
+					success: false,
+					error: "Access denied. You are not an authorized member of this workspace.",
+				});
 			}
 
 			// Time boundaries

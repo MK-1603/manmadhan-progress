@@ -12,6 +12,7 @@ import { useRegisterRefresh } from "@/components/providers/global-refresh-provid
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { EditProjectModal } from "@/components/organization/edit-project-modal";
+import { CreateProjectModal } from "@/components/organization/create-project-modal";
 import { DeleteConfirmationModal } from "@/components/organization/delete-confirmation-modal";
 import { ResponsivePopover } from "@/components/ui/responsive-popover";
 
@@ -188,8 +189,18 @@ export default function ProjectsPage() {
   // Selection & Action Modals State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingProject, setEditingProject] = useState<any | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [deleteConfirmSingleId, setDeleteConfirmSingleId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get("openCreate") === "true") {
+        setIsCreateModalOpen(true);
+      }
+    }
+  }, []);
 
   // Portal Action Menu State
   const [activeMenuProject, setActiveMenuProject] = useState<any | null>(null);
@@ -378,13 +389,14 @@ export default function ProjectsPage() {
             <p className="text-xs sm:text-sm text-muted-foreground truncate">Plan and execute organizational projects.</p>
           </div>
 
-          <Link
-            href={`${basePath}/projects/create`}
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(true)}
             className="px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-[#C9A52A] to-[#D4B12F] text-[#0B0D10] font-extrabold text-xs transition-all hover:brightness-105 shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>New Project</span>
-          </Link>
+          </button>
         </div>
 
         {/* ── 2. STATUS TABS (HIDDEN ON MOBILE, VISIBLE ON DESKTOP ≥ md) ───────── */}
@@ -635,12 +647,13 @@ export default function ProjectsPage() {
                   Clear Filters
                 </button>
               ) : (
-                <Link
-                  href={`${basePath}/projects/create`}
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(true)}
                   className="px-4 py-2 rounded-xl bg-[#C9A52A] text-[#0B0D10] font-extrabold text-xs inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <Plus className="w-4 h-4" /> New Project
-                </Link>
+                </button>
               )}
             </div>
           </div>
@@ -951,7 +964,16 @@ export default function ProjectsPage() {
         }}
       />
 
-      {/* ── MODALS (EDIT & DELETE CONFIRMATION) ───────────────────────────────── */}
+      {/* ── MODALS (CREATE, EDIT & DELETE CONFIRMATION) ───────────────────────── */}
+      <CreateProjectModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={() => {
+          setIsCreateModalOpen(false);
+          fetchProjects();
+        }}
+      />
+
       {editingProject && (
         <EditProjectModal
           project={editingProject}

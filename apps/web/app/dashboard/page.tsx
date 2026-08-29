@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/auth/auth-context";
-import { getDashboardPathForRole } from "@/components/auth/auth-context";
+import { useAuth, getDashboardPathForRole } from "@/components/auth/auth-context";
+import { SafeNavigation } from "@/lib/safe-navigation";
 
 export default function GenericDashboardRedirectPage() {
   const router = useRouter();
@@ -14,9 +14,9 @@ export default function GenericDashboardRedirectPage() {
 
     if (authStatus === "authenticated" && user) {
       const targetPath = getDashboardPathForRole(user.role);
-      router.replace(targetPath);
+      SafeNavigation.replace(router, targetPath);
     } else if (authStatus === "unauthenticated") {
-      router.replace("/login");
+      SafeNavigation.replace(router, "/login");
     }
   }, [user, isLoading, authStatus, router]);
 

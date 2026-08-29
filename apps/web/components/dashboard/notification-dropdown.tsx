@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ResponsivePopover } from "../ui/responsive-popover";
 import apiClient from "@/lib/api-client";
+import { NotificationService } from "@/services/notification-service";
 import { useSocket } from "../providers/socket-provider";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 
@@ -41,10 +42,8 @@ export function NotificationDropdown({
   const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await apiClient.get("/notifications");
-      if (res.data.success) {
-        setNotifications(res.data.data || []);
-      }
+      const data = await NotificationService.getNotifications();
+      setNotifications(data);
     } catch (e) {
       console.error("Failed to fetch notifications", e);
     } finally {

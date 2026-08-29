@@ -189,13 +189,14 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     if (!deferredPrompt) {
       return { success: false, outcome: "error" };
     }
+    const currentPrompt = deferredPrompt;
+    setDeferredPrompt(null);
     try {
-      deferredPrompt.prompt();
-      const choiceResult = await deferredPrompt.userChoice;
+      currentPrompt.prompt();
+      const choiceResult = await currentPrompt.userChoice;
       if (choiceResult.outcome === "accepted") {
         setIsInstalled(true);
         setInstallStatus("INSTALLED");
-        setDeferredPrompt(null);
         return { success: true, outcome: "accepted" };
       } else {
         setInstallStatus("DISMISSED");

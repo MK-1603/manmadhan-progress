@@ -1237,36 +1237,39 @@ authRouter.post("/setup/complete", verifyTempToken, async (req, res) => {
 // GET /me
 authRouter.get("/me", strictAuth, async (req, res) => {
 	const authUser = (req as any).user;
-	const userRecords = await db
-		.select()
-		.from(users)
-		.where(eq(users.id, authUser.id))
-		.limit(1);
+
+	const [userRecords, userMemberships] = await Promise.all([
+		db.select().from(users).where(eq(users.id, authUser.id)).limit(1),
+		db
+			.select({
+				workspaceId: workspaceMembers.workspaceId,
+				workspaceName: workspaces.name,
+				batchNumber: workspaces.batchNumber,
+				type: workspaces.type,
+			})
+			.from(workspaceMembers)
+			.innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
+			.where(eq(workspaceMembers.userId, authUser.id))
+			.limit(1),
+	]);
 
 	if (userRecords.length === 0) {
 		return res.status(404).json({ success: false, authenticated: false, error: "User not found" });
 	}
 
 	const user = userRecords[0];
-
 	let workspaceId = null;
 	let workspace = null;
-	const userMember = await db.query.workspaceMembers.findFirst({
-		where: eq(workspaceMembers.userId, user.id),
-	});
-	if (userMember) {
-		workspaceId = userMember.workspaceId;
-		const ws = await db.query.workspaces.findFirst({
-			where: eq(workspaces.id, workspaceId),
-		});
-		if (ws) {
-			workspace = {
-				id: ws.id,
-				name: ws.name,
-				batchNumber: ws.batchNumber || user.batchNumber || "MM1107",
-				type: ws.type,
-			};
-		}
+
+	if (userMemberships.length > 0) {
+		const m = userMemberships[0];
+		workspaceId = m.workspaceId;
+		workspace = {
+			id: m.workspaceId,
+			name: m.workspaceName,
+			batchNumber: m.batchNumber || user.batchNumber || "MM1107",
+			type: m.type,
+		};
 	}
 
 	return res.json({ success: true, authenticated: true, user, workspaceId, workspace });
@@ -1313,7 +1316,7 @@ authRouter.post("/refresh", async (req, res) => {
 			(req.headers["x-refresh-token"] as string);
 
 		if (!refreshTokenInput) {
-			SessionService.clearTokens(res);
+			// Do NOT clear cookies when request lacks token input. Return 401 cleanly.
 			return res.status(401).json({
 				success: false,
 				code: "REFRESH_TOKEN_MISSING",
@@ -1335,10 +1338,14 @@ authRouter.post("/refresh", async (req, res) => {
 			user: result.user,
 		});
 	} catch (err: any) {
-		SessionService.clearTokens(res);
-		const status = err.status || 401;
-		const code = err.code || "REFRESH_SESSION_EXPIRED";
-		const message = err.message || "Invalid or expired refresh token";
+		const status = err.status || 500;
+		const code = err.code || "SERVER_ERROR";
+		const message = err.message || "An error occurred during session refresh";
+
+		// Only clear cookies on explicit permanent revocation (401/403 with REFRESH_SESSION_EXPIRED or REVOKED)
+		if (status === 401 || status === 403) {
+			SessionService.clearTokens(res);
+		}
 
 		logger.warn(
 			{ ip: req.ip, code, status, reason: message },

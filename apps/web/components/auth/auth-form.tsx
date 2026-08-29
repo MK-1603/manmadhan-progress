@@ -509,6 +509,8 @@ function getOnboardingStepInfo(state: AuthState, userRole?: string, hasOrgStep: 
         setError("");
       } else if (authData.error === "google_failed") {
         setError("Unable to sign in with Google. Please try again.");
+      } else if (authData.error === "AccountSuspended" || authData.error === "ACCOUNT_SUSPENDED") {
+        setError("Your ManMadhan Progress account has been suspended.");
       } else {
         setError(authData.error);
       }
@@ -1153,10 +1155,13 @@ function getOnboardingStepInfo(state: AuthState, userRole?: string, hasOrgStep: 
       <AnimatePresence>
         {error && (
           <motion.div 
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            className="w-full max-w-[440px] mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-500 text-xs rounded-2xl text-center shadow-sm"
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            role="alert"
+            aria-live="polite"
+            className="w-full max-w-[440px] mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-medium rounded-2xl text-center shadow-xs leading-relaxed"
           >
             {error}
           </motion.div>
@@ -1178,12 +1183,14 @@ function getOnboardingStepInfo(state: AuthState, userRole?: string, hasOrgStep: 
                 <GoogleButton
                   isMobile={isMobile}
                   disabled={loadingState !== "" || !isGoogleAllowed}
+                  isLoading={loadingState === "GOOGLE_AUTH"}
                   subtext={googleSubtext}
                   onClick={() => {
                     if (!isGoogleAllowed) {
                       setError("Complete your first login with email and password. Google sign-in will be available afterward.");
                       return;
                     }
+                    setLoadingState("GOOGLE_AUTH");
                     const apiBase = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
                     const googleAuthUrl = apiBase.endsWith("/api/v1")
                       ? `${apiBase}/auth/google`

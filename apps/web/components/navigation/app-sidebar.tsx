@@ -36,7 +36,6 @@ const ORG_CEO_NAV: NavGroup[] = [
     label: "OVERVIEW",
     items: [
       { name: "Dashboard", href: "/ceo/dashboard", icon: LayoutDashboard },
-      { name: "Focus", href: "/ceo/focus", icon: FocusIcon },
     ],
   },
   {

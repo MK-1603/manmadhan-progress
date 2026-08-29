@@ -44,6 +44,7 @@ type NavItem = {
   name: string;
   href: string;
   icon: any;
+  allowedRoles?: string[];
 };
 
 type NavGroup = {
@@ -123,7 +124,7 @@ const ORGANIZATION_NAV_GROUPS: NavGroup[] = [
     allowedRoles: ["CEO", "CO-CEO", "MEMBER"],
     items: [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { name: "Focus", href: "/focus", icon: Zap },
+      { name: "Focus", href: "/focus", icon: Zap, allowedRoles: ["CO-CEO", "MEMBER"] },
     ]
   },
   {
@@ -473,7 +474,9 @@ export function Sidebar() {
                       transition={{ duration: 0.16 }}
                       className="space-y-0.5 overflow-hidden"
                     >
-                      {group.items.map((item) => {
+                      {group.items
+                        .filter((item) => !item.allowedRoles || item.allowedRoles.includes(userRole))
+                        .map((item) => {
                         let finalHref = item.href;
                         if (!isPersonal) {
                           const baseRoute = userRole === "CO-CEO" ? "/co-ceo" : userRole === "MEMBER" ? "/member" : "/ceo";

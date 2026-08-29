@@ -1,8 +1,14 @@
 "use client";
 
-import React from "react";
-import { ProjectCreationWorkspace } from "@/components/projects/project-creation-workspace";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function CEOProjectCreatePage() {
-  return <ProjectCreationWorkspace userRole="CEO" basePath="/ceo" />;
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/ceo/projects?openCreate=true");
+  }, [router]);
+
+  return null;
 }

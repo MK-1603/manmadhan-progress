@@ -906,6 +906,8 @@ const createTaskHandler = async (req: Request, res: Response) => {
 				deliverable: deliverable || null,
 				estimatedMinutes: estimatedMinutes || 60,
 				type: type || "Task",
+				sourceType: req.body.sourceType || "MANUAL",
+				sourceId: req.body.templateId || null,
 				tags: [],
 				order: 0,
 			})

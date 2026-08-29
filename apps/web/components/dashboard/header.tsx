@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import { useAuth } from "@/components/auth/auth-context";
 import { useSocket } from "@/components/providers/socket-provider";
 import apiClient from "@/lib/api-client";
+import { WorkspaceService } from "@/services/workspace-service";
 import { ResponsivePopover } from "@/components/ui/responsive-popover";
 import { WorkspaceSearch } from "./workspace-search";
 import { NotificationDropdown } from "./notification-dropdown";
@@ -63,7 +64,7 @@ import { WorkspaceSwitcherModal } from "./workspace-switcher-modal";
 
 export function Header() {
   const pathname = usePathname();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, authStatus } = useAuth();
   const { socket } = useSocket();
 
   const [mounted, setMounted] = useState(false);
@@ -79,13 +80,13 @@ export function Header() {
   const pageTitle = getPageTitle(pathname);
 
   useEffect(() => {
-    if (isLoading || !user) return;
-    apiClient
-      .get("/workspaces")
-      .then((res) => {
-        if (res.data.success && Array.isArray(res.data.data)) {
+    if (isLoading || authStatus !== "authenticated" || !user) return;
+    let isMounted = true;
+    WorkspaceService.getWorkspaces()
+      .then((data) => {
+        if (isMounted && Array.isArray(data)) {
           // STRICT FILTER: Find the Organization (non-personal) workspace
-          const org = res.data.data.find(
+          const org = data.find(
             (w: any) => w.type !== "personal" && w.name !== "Personal Workspace"
           );
           if (org) {
@@ -94,7 +95,11 @@ export function Header() {
         }
       })
       .catch(() => {});
-  }, [user, isLoading]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, isLoading, authStatus]);
 
   useEffect(() => {
     if (!socket) return;

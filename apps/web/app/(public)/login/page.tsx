@@ -4,6 +4,8 @@ import { useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth, getDashboardPathForRole, syncTokenCookie } from "@/components/auth/auth-context";
 
+import { SafeNavigation } from "@/lib/safe-navigation";
+
 function LoginContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -16,7 +18,7 @@ function LoginContent() {
       close(true);
       const redirectParam = searchParams.get("redirect");
       const targetPath = (redirectParam && redirectParam.startsWith("/")) ? redirectParam : getDashboardPathForRole(user.role);
-      router.replace(targetPath);
+      SafeNavigation.replace(router, targetPath);
       return;
     }
 
@@ -36,22 +38,11 @@ function LoginContent() {
       }
       checkSession();
       const targetDash = getDashboardPathForRole(roleParam);
-      router.replace(targetDash);
+      SafeNavigation.replace(router, targetDash);
       return;
     }
 
     setAuthData({ step: stepParam, token: tokenParam, role: roleParam, error: errorParam, email: emailParam });
-
-    // Build URL query params to trigger global AuthModal over the home page
-    const params = new URLSearchParams();
-    params.set("auth_step", stepParam);
-    if (redirectParam) params.set("redirect", redirectParam);
-    if (errorParam) params.set("error", errorParam);
-    if (tokenParam) params.set("token", tokenParam);
-    if (roleParam) params.set("role", roleParam);
-    if (emailParam) params.set("email", emailParam);
-
-    router.replace(`/?${params.toString()}`);
     open();
   }, [searchParams, router, setAuthData, open, close, checkSession, authStatus, isLoading, user]);
 

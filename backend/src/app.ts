@@ -121,6 +121,16 @@ export const createApp = (): Express => {
 	}
 	app.use("/uploads", express.static(uploadsDir));
 
+	// Unauthenticated Health Check Endpoint
+	app.get("/api/v1/health", (_req: Request, res: Response) => {
+		res.json({
+			success: true,
+			status: "healthy",
+			service: "manmadhan-backend",
+			timestamp: new Date().toISOString(),
+		});
+	});
+
 	// Global Rate Limiter & Workspace Execution Enforcer
 	const apiLimiter = rateLimit({
 		windowMs: 15 * 60 * 1000,

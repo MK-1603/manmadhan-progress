@@ -5,6 +5,10 @@ import apiClient, { setIsExplicitLoggingOut, hasAuthCredentials, getValidAccessT
 import { useRouter, usePathname } from "next/navigation";
 import { TransitionScreen } from "../transition-screen";
 import { resetGlobalSheetState } from "@/components/ui/global-sheet";
+import { WorkspaceService } from "@/services/workspace-service";
+import { NotificationService } from "@/services/notification-service";
+import { FocusService } from "@/services/focus-service";
+import { SafeNavigation } from "@/lib/safe-navigation";
 import type { User, AuthContextValue } from "./auth-types";
 
 export type { User, AuthContextValue } from "./auth-types";
@@ -43,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasInitialised = React.useRef(false);
   const isNavigatingRef = React.useRef(false);
   const sessionPromiseRef = React.useRef<Promise<any> | null>(null);
+  const authVersionRef = React.useRef(0);
 
   const [authData, setAuthData] = useState<{ step?: string; token?: string; role?: string; error?: string; email?: string; redirect?: string; expiresAt?: number } | null>(() => {
     if (typeof window !== "undefined") {
@@ -163,9 +168,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = React.useCallback(async () => {
+    authVersionRef.current += 1;
     setIsExplicitLoggingOut(true);
     close(true);
     resetGlobalSheetState();
+
+    WorkspaceService.clearCache();
+    NotificationService.clearCache();
+    FocusService.clearCache();
 
     apiClient.post("/auth/logout").catch(() => {});
 
@@ -180,67 +190,102 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     router.replace("/");
-
-    setTimeout(() => {
-      setIsExplicitLoggingOut(false);
-    }, 300);
+    setIsExplicitLoggingOut(false);
   }, [router, close]);
 
   const checkSession = React.useCallback(async () => {
+    const currentAuthVersion = authVersionRef.current;
     setIsLoading(true);
     setAuthStatus("initializing");
     try {
-      if (!hasAuthCredentials()) {
-        clearAuthStorage();
-        setUser(null);
-        setAuthStatus("unauthenticated");
-        setIsLoading(false);
-        hasInitialised.current = true;
-        return;
-      }
-
       if (!sessionPromiseRef.current) {
-        sessionPromiseRef.current = apiClient.get("/auth/me", { timeout: 10000 }).catch((err) => {
-          if (err?.response?.status === 401) {
-            return { data: { authenticated: false, user: null, code: "UNAUTHORIZED" } };
+        sessionPromiseRef.current = (async () => {
+          try {
+            // Step 1: Direct session verification
+            const meRes = await apiClient.get("/auth/me", { timeout: 10000 });
+            if (meRes?.data?.authenticated && meRes?.data?.user) {
+              return { success: true, user: meRes.data.user, workspaceId: meRes.data.workspaceId };
+            }
+          } catch (err: any) {
+            const status = err?.response?.status;
+            const code = err?.response?.data?.code;
+
+            // If network / 5xx error, mark as temporary network issue
+            if (!err?.response || status >= 500 || err?.code === "ERR_NETWORK" || err?.code === "ECONNREFUSED") {
+              return { isNetworkError: true, message: err?.message };
+            }
+
+            // Step 2: Access token expired or unauthenticated — attempt silent session refresh
+            if (status === 401 || code === "ACCESS_TOKEN_EXPIRED" || code === "UNAUTHORIZED") {
+              try {
+                const refreshRes = await apiClient.post("/auth/refresh", {}, { withCredentials: true });
+                if (refreshRes?.data?.accessToken || refreshRes?.data?.success) {
+                  // Retry /auth/me with fresh credential
+                  const retryMeRes = await apiClient.get("/auth/me", { timeout: 10000 });
+                  if (retryMeRes?.data?.authenticated && retryMeRes?.data?.user) {
+                    return { success: true, user: retryMeRes.data.user, workspaceId: retryMeRes.data.workspaceId };
+                  }
+                }
+              } catch (refreshErr: any) {
+                const refreshStatus = refreshErr?.response?.status;
+                const refreshCode = refreshErr?.response?.data?.code;
+
+                if (!refreshErr?.response || refreshStatus >= 500 || refreshErr?.code === "ERR_NETWORK") {
+                  return { isNetworkError: true, message: refreshErr?.message };
+                }
+
+                if (refreshStatus === 401 || refreshStatus === 403 || refreshCode === "REFRESH_SESSION_EXPIRED" || refreshCode === "ACCOUNT_SUSPENDED") {
+                  return { isPermanentInvalid: true, code: refreshCode };
+                }
+              }
+            }
+
+            if (status === 403 && (code === "ACCOUNT_SUSPENDED" || code === "ACCOUNT_DELETED")) {
+              return { isPermanentInvalid: true, code };
+            }
           }
-          return { data: { authenticated: false, user: null, isNetworkError: true } };
-        });
+          return { isPermanentInvalid: true };
+        })();
       }
 
-      const res: any = await sessionPromiseRef.current;
+      const result: any = await sessionPromiseRef.current;
 
-      if (res?.data?.authenticated && res?.data?.user) {
-        setUser(res.data.user);
+      // Discard stale async response if logout occurred during in-flight request
+      if (currentAuthVersion !== authVersionRef.current) return;
+
+      if (result?.success && result?.user) {
+        setUser(result.user);
         setAuthStatus("authenticated");
         setAuthData(null);
         setOpenModal(false);
         if (typeof window !== "undefined") {
           sessionStorage.removeItem("authData");
-          if (res.data.workspaceId) {
-            localStorage.setItem("workspaceId", res.data.workspaceId);
-          }
-          const token =
-            localStorage.getItem("auth_token") ||
-            localStorage.getItem("token") ||
-            localStorage.getItem("jwt");
-          if (token) {
-            syncTokenCookie(token);
+          if (result.workspaceId) {
+            localStorage.setItem("workspaceId", result.workspaceId);
           }
         }
-      } else if (res?.data?.isNetworkError) {
+      } else if (result?.isNetworkError) {
         if (process.env.NODE_ENV === "development") {
-          console.warn("[AUTH DIAGNOSTIC] /auth/me encountered network or server error. Preserving session credentials.");
+          console.warn("[AUTH DIAGNOSTIC] Network/server error during checkSession. Preserving existing session state.");
         }
-        if (hasAuthCredentials()) {
-          setAuthStatus("authenticated");
-        } else {
-          setAuthStatus("unauthenticated");
-        }
+        // If we already had a user or local credentials, preserve authenticated state
+        setUser((prevUser) => {
+          if (prevUser) {
+            setAuthStatus("authenticated");
+            return prevUser;
+          }
+          const storedToken = typeof window !== "undefined" ? localStorage.getItem("token") || localStorage.getItem("auth_token") : null;
+          if (storedToken) {
+            setAuthStatus("authenticated");
+          } else {
+            setAuthStatus("unauthenticated");
+          }
+          return prevUser;
+        });
       } else {
-        // Genuine 401 unauthorized session
+        // Confirmed permanent session invalidation
         if (process.env.NODE_ENV === "development") {
-          console.warn("[AUTH DIAGNOSTIC] Session unauthenticated on /auth/me.");
+          console.warn("[AUTH DIAGNOSTIC] Permanent session invalidation confirmed. Setting unauthenticated state.");
         }
         clearAuthStorage();
         setUser(null);
@@ -249,11 +294,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       if (process.env.NODE_ENV === "development") {
         console.warn("[AUTH DIAGNOSTIC] Unexpected error in checkSession:", err?.message);
-      }
-      if (!hasAuthCredentials()) {
-        clearAuthStorage();
-        setUser(null);
-        setAuthStatus("unauthenticated");
       }
     } finally {
       setIsLoading(false);
@@ -264,8 +304,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /** Silently re-fetches the current user from /auth/me without touching loading state. */
   const refreshUser = React.useCallback(async () => {
+    const currentVersion = authVersionRef.current;
     try {
       const res = await apiClient.get("/auth/me");
+      if (currentVersion !== authVersionRef.current) return;
       if ((res.data.authenticated || res.data.success) && res.data.user) {
         setUser(res.data.user);
         setAuthStatus("authenticated");
@@ -348,42 +390,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthPage = pathname === "/" || pathname === "/login" || pathname === "/activate";
 
   useEffect(() => {
-    if (!hasInitialised.current || isLoading || authStatus === "initializing" || isNavigatingRef.current) return;
+    if (!hasInitialised.current || isLoading || authStatus === "initializing") return;
 
     if (authStatus === "unauthenticated" && isProtected) {
-      isNavigatingRef.current = true;
-      router.push("/login");
-      setTimeout(() => {
-        isNavigatingRef.current = false;
-      }, 500);
+      SafeNavigation.push(router, "/login");
     } else if (authStatus === "authenticated" && user) {
       if (isAuthPage) {
-        isNavigatingRef.current = true;
         const targetDash = getDashboardPathForRole(user.role);
-        router.push(targetDash);
-        setTimeout(() => {
-          isNavigatingRef.current = false;
-        }, 500);
+        SafeNavigation.push(router, targetDash);
       } else if (pathname) {
         const role = (user.role || "").toUpperCase().trim();
         if (pathname.startsWith("/ceo") && role !== "CEO") {
-          isNavigatingRef.current = true;
-          router.replace(getDashboardPathForRole(role));
-          setTimeout(() => {
-            isNavigatingRef.current = false;
-          }, 500);
+          SafeNavigation.replace(router, getDashboardPathForRole(role));
         } else if (pathname.startsWith("/co-ceo") && role !== "CO-CEO") {
-          isNavigatingRef.current = true;
-          router.replace(getDashboardPathForRole(role));
-          setTimeout(() => {
-            isNavigatingRef.current = false;
-          }, 500);
+          SafeNavigation.replace(router, getDashboardPathForRole(role));
         } else if (pathname.startsWith("/member") && role !== "MEMBER" && role !== "USER") {
-          isNavigatingRef.current = true;
-          router.replace(getDashboardPathForRole(role));
-          setTimeout(() => {
-            isNavigatingRef.current = false;
-          }, 500);
+          SafeNavigation.replace(router, getDashboardPathForRole(role));
         }
       }
     }

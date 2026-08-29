@@ -76,18 +76,25 @@ export const workspaces = pgTable("workspaces", {
 });
 
 // 1.2 Workspace Members Table
-export const workspaceMembers = pgTable("workspace_members", {
-	id: text("id").primaryKey(),
-	workspaceId: text("workspace_id")
-		.notNull()
-		.references(() => workspaces.id, { onDelete: "cascade" }),
-	userId: text("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	role: text("role").default("MEMBER").notNull(),
-	permissions: json("permissions").$type<string[]>(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const workspaceMembers = pgTable(
+	"workspace_members",
+	{
+		id: text("id").primaryKey(),
+		workspaceId: text("workspace_id")
+			.notNull()
+			.references(() => workspaces.id, { onDelete: "cascade" }),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		role: text("role").default("MEMBER").notNull(),
+		permissions: json("permissions").$type<string[]>(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => ({
+		userIdIdx: index("workspace_members_user_id_idx").on(table.userId),
+		userWsIdx: index("workspace_members_user_ws_idx").on(table.userId, table.workspaceId),
+	}),
+);
 
 // 1.3 OTP Codes Table
 export const otpCodes = pgTable("otp_codes", {
@@ -546,41 +553,48 @@ export const passwordResets = pgTable("password_resets", {
 });
 
 // 9. Time Tracking (Timers)
-export const timeTracking = pgTable("time_tracking", {
-	id: text("id").primaryKey(),
-	userId: text("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	workspaceId: text("workspace_id")
-		.notNull()
-		.references(() => workspaces.id, { onDelete: "cascade" }),
-	taskId: text("task_id").references(() => tasks.id, { onDelete: "set null" }),
-	projectId: text("project_id").references(() => projects.id, {
-		onDelete: "set null",
+export const timeTracking = pgTable(
+	"time_tracking",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		workspaceId: text("workspace_id")
+			.notNull()
+			.references(() => workspaces.id, { onDelete: "cascade" }),
+		taskId: text("task_id").references(() => tasks.id, { onDelete: "set null" }),
+		projectId: text("project_id").references(() => projects.id, {
+			onDelete: "set null",
+		}),
+		sourceType: text("source_type").default("TASK").notNull(), // TASK, PROJECT, CEO_ACTIVITY
+		title: text("title"),
+		description: text("description"),
+		category: text("category").default("Other"), // Strategy, Planning, Product, Technical, Architecture, Review, Approval, Documentation, Research, Organization, Other
+		priority: text("priority").default("Medium"), // Low, Medium, High, Critical
+		objective: text("objective"),
+		estimatedDuration: integer("estimated_duration"), // in minutes
+		status: text("status").default("Active").notNull(), // Active, Paused, Completed, Interrupted, SYSTEM_STOPPED
+		startTime: timestamp("start_time").notNull(),
+		pausedAt: timestamp("paused_at"),
+		resumedAt: timestamp("resumed_at"),
+		endTime: timestamp("end_time"),
+		durationSeconds: integer("duration_seconds"),
+		pausedDurationSeconds: integer("paused_duration_seconds").default(0),
+		outcome: text("outcome"), // Completed, Partially Completed, Blocked, No Meaningful Progress
+		notes: text("notes"),
+		blockerType: text("blocker_type"), // Waiting for CO-CEO, Waiting for Member, Waiting for Approval, Missing Information, Technical Issue, External Dependency, Other
+		blockerNote: text("blocker_note"),
+		followUpTaskId: text("follow_up_task_id").references(() => tasks.id, {
+			onDelete: "set null",
+		}),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => ({
+		wsUserIdx: index("time_tracking_ws_user_idx").on(table.workspaceId, table.userId),
+		userStartIdx: index("time_tracking_user_start_idx").on(table.userId, table.startTime),
 	}),
-	sourceType: text("source_type").default("TASK").notNull(), // TASK, PROJECT, CEO_ACTIVITY
-	title: text("title"),
-	description: text("description"),
-	category: text("category").default("Other"), // Strategy, Planning, Product, Technical, Architecture, Review, Approval, Documentation, Research, Organization, Other
-	priority: text("priority").default("Medium"), // Low, Medium, High, Critical
-	objective: text("objective"),
-	estimatedDuration: integer("estimated_duration"), // in minutes
-	status: text("status").default("Active").notNull(), // Active, Paused, Completed, Interrupted, SYSTEM_STOPPED
-	startTime: timestamp("start_time").notNull(),
-	pausedAt: timestamp("paused_at"),
-	resumedAt: timestamp("resumed_at"),
-	endTime: timestamp("end_time"),
-	durationSeconds: integer("duration_seconds"),
-	pausedDurationSeconds: integer("paused_duration_seconds").default(0),
-	outcome: text("outcome"), // Completed, Partially Completed, Blocked, No Meaningful Progress
-	notes: text("notes"),
-	blockerType: text("blocker_type"), // Waiting for CO-CEO, Waiting for Member, Waiting for Approval, Missing Information, Technical Issue, External Dependency, Other
-	blockerNote: text("blocker_note"),
-	followUpTaskId: text("follow_up_task_id").references(() => tasks.id, {
-		onDelete: "set null",
-	}),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+);
 
 // 9.1 Deadline Extensions
 export const deadlineExtensions = pgTable("deadline_extensions", {
@@ -766,21 +780,28 @@ export const organizationPolicyHistory = pgTable("organization_policy_history", 
 });
 
 // 14. Notifications
-export const notifications = pgTable("notifications", {
-	id: text("id").primaryKey(),
-	userId: text("user_id")
-		.notNull()
-		.references(() => users.id, { onDelete: "cascade" }),
-	workspaceId: text("workspace_id").references(() => workspaces.id, {
-		onDelete: "cascade",
+export const notifications = pgTable(
+	"notifications",
+	{
+		id: text("id").primaryKey(),
+		userId: text("user_id")
+			.notNull()
+			.references(() => users.id, { onDelete: "cascade" }),
+		workspaceId: text("workspace_id").references(() => workspaces.id, {
+			onDelete: "cascade",
+		}),
+		title: text("title").notNull(),
+		message: text("message").notNull(),
+		type: text("type").notNull(),
+		priority: text("priority").default("Low").notNull(),
+		isRead: boolean("is_read").default(false).notNull(),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => ({
+		userIdIdx: index("notifications_user_id_idx").on(table.userId),
+		userReadIdx: index("notifications_user_read_idx").on(table.userId, table.isRead),
 	}),
-	title: text("title").notNull(),
-	message: text("message").notNull(),
-	type: text("type").notNull(),
-	priority: text("priority").default("Low").notNull(),
-	isRead: boolean("is_read").default(false).notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+);
 
 // 15. AI Context
 export const aiContext = pgTable("ai_context", {

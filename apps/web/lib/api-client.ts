@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { type AxiosRequestConfig, type AxiosResponse } from "axios";
 import { isPublicPath } from "./public-routes";
 
 const getBaseUrl = () => {
@@ -66,6 +66,7 @@ export function hasRefreshToken(): boolean {
 
 export function hasAuthCredentials(): boolean {
   if (typeof window === "undefined") return false;
+  // Always return true on client-side so HttpOnly cookies can be validated by backend /auth/me or /auth/refresh
   const hasTokenInStorage = Boolean(
     localStorage.getItem("auth_token") ||
     localStorage.getItem("token") ||
@@ -74,14 +75,34 @@ export function hasAuthCredentials(): boolean {
     localStorage.getItem("refresh_token") ||
     localStorage.getItem("refreshToken")
   );
-  const hasCookieInBrowser = document.cookie.includes("auth_token=") || document.cookie.includes("refresh_token=");
-  return hasTokenInStorage || hasCookieInBrowser;
+  const hasCookieInBrowser = Boolean(document.cookie && document.cookie.length > 0);
+  return true;
+}
+
+// ── Single-flight request deduplication ─────────────────────────────────────
+const pendingGetPromises = new Map<string, Promise<any>>();
+
+export function getDeduplicated<T = any>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> {
+  const cacheKey = `${config?.method || "get"}:${url}:${JSON.stringify(config?.params || {})}`;
+  if (pendingGetPromises.has(cacheKey)) {
+    return pendingGetPromises.get(cacheKey)!;
+  }
+  const promise = apiClient.get<T>(url, config).finally(() => {
+    pendingGetPromises.delete(cacheKey);
+  });
+  pendingGetPromises.set(cacheKey, promise);
+  return promise;
 }
 
 // ── Request interceptor ──────────────────────────────────────────────────────
-// Attaches Bearer token from localStorage on the client side.
+// Attaches Bearer token from localStorage on the client side if present.
 apiClient.interceptors.request.use(
   (config) => {
+    (config as any)._startTime = performance.now();
+    const reqId = `req_${Math.random().toString(36).substring(2, 9)}`;
+    (config as any)._reqId = reqId;
+    config.headers["x-request-id"] = reqId;
+
     if (typeof window !== "undefined") {
       const token =
         localStorage.getItem("auth_token") ||
@@ -92,6 +113,8 @@ apiClient.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
     }
+
+    logApiEvent("REQUEST_STARTED", { id: reqId, method: (config.method || "GET").toUpperCase(), url: config.url });
     return config;
   },
   (error) => Promise.reject(error),
@@ -126,7 +149,7 @@ export function clearAuthStorage() {
 }
 
 async function attemptTokenRefresh(): Promise<string | null> {
-  if (explicitLoggingOut || !hasAuthCredentials()) return null;
+  if (explicitLoggingOut) return null;
   try {
     const existingRefreshToken =
       typeof window !== "undefined"
@@ -194,12 +217,43 @@ async function attemptTokenRefresh(): Promise<string | null> {
 }
 
 // ── Response interceptor ─────────────────────────────────────────────────────
-apiClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+import { logApiEvent, logAuthEvent } from "./api-diagnostics";
 
-    // Handle 403 Forbidden Permission / Account Suspended
+apiClient.interceptors.response.use(
+  (response) => {
+    const config = response.config as any;
+    if (config?._isTerminal) return response;
+    config._isTerminal = true;
+
+    const duration = config?._startTime ? Math.round(performance.now() - config._startTime) : undefined;
+    const reqId = config?._reqId || config?.headers?.["x-request-id"];
+    const method = (config?.method || "GET").toUpperCase();
+
+    logApiEvent("REQUEST_SUCCESS", {
+      id: reqId,
+      method,
+      url: config?.url,
+      status: response.status,
+      durationMs: duration,
+    });
+    return response;
+  },
+  async (error) => {
+    const originalRequest = error.config as any;
+    if (originalRequest?._isTerminal) return Promise.reject(error);
+    originalRequest._isTerminal = true;
+
+    const duration = originalRequest?._startTime ? Math.round(performance.now() - originalRequest._startTime) : undefined;
+    const reqId = originalRequest?._reqId || originalRequest?.headers?.["x-request-id"];
+    const method = (originalRequest?.method || "GET").toUpperCase();
+
+    // 1. Handle explicit request cancellation (e.g. unmounted component or route change)
+    if (axios.isCancel(error) || error?.code === "ERR_CANCELED") {
+      logApiEvent("REQUEST_CANCELLED", { id: reqId, method, url: originalRequest?.url });
+      return Promise.reject(error);
+    }
+
+    // 2. Handle 403 Forbidden Permission / Account Suspended
     if (error.response?.status === 403) {
       const errCode = error.response?.data?.code || error.response?.data?.error?.code;
 
@@ -219,29 +273,26 @@ apiClient.interceptors.response.use(
       return Promise.reject(new Error(typeof permMsg === "string" ? permMsg : "Permission denied."));
     }
 
-    // Handle 401 Unauthorized Session Expiration
+    // 3. Handle 401 Unauthorized Session Expiration
     if (error.response?.status === 401) {
-
-      // Never retry refresh or login endpoints to avoid infinite loops
       const isAuthEndpoint =
         originalRequest?.url?.includes("/auth/refresh") ||
         originalRequest?.url?.includes("/auth/login");
 
       if (isAuthEndpoint || originalRequest?._retry || explicitLoggingOut) {
         if (isAuthEndpoint && originalRequest?.url?.includes("/auth/refresh")) {
-          if (process.env.NODE_ENV === "development") {
-            console.warn("[AUTH DIAGNOSTIC] Refresh endpoint returned 401. Session expired.");
+          logAuthEvent("AUTH_REFRESH_PERMANENT_FAILURE", { id: reqId, status: 401 });
+          if (error.response?.status === 401) {
+            clearAuthStorage();
           }
-          clearAuthStorage();
         }
         return Promise.reject(error);
       }
 
-      // Mark this request so it won't retry infinitely
       originalRequest._retry = true;
 
-      // Deduplicate: if a refresh is already in-flight, wait for shared promise lock
       if (!refreshPromise) {
+        logAuthEvent("AUTH_REFRESH_STARTED", { id: reqId });
         refreshPromise = attemptTokenRefresh().finally(() => {
           refreshPromise = null;
         });
@@ -250,26 +301,29 @@ apiClient.interceptors.response.use(
       const newToken = await refreshPromise;
 
       if (newToken) {
-        // Retry original request with fresh access token
+        logAuthEvent("AUTH_REFRESH_SUCCESS", { id: reqId });
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        // Reset terminal flag for retry attempt
+        originalRequest._isTerminal = false;
         return apiClient(originalRequest);
       }
 
-      // Do NOT logout user if the failed endpoint is GitHub integration
       const isGitHubEndpoint = originalRequest?.url?.includes("/github");
       if (isGitHubEndpoint) {
         return Promise.reject(new Error("GitHub integration request failed. Please check your GitHub connection."));
       }
 
-      // Token refresh genuinely failed — clear session and redirect ONLY if on protected route
-      if (process.env.NODE_ENV === "development") {
-        console.warn(`[AUTH DIAGNOSTIC] 401 on ${originalRequest?.url} and refresh failed. Redirecting to /login.`);
+      const isNetworkError = !error.response || error.code === "ECONNREFUSED" || error.code === "ERR_NETWORK" || error.code === "ECONNABORTED";
+      const isServerError = error.response && error.response.status >= 500;
+
+      if (isNetworkError || isServerError) {
+        logAuthEvent("AUTH_REFRESH_TEMPORARY_FAILURE", { id: reqId, message: error.message });
+        return Promise.reject(error);
       }
+
+      logAuthEvent("AUTH_SESSION_INVALIDATED", { id: reqId, url: originalRequest?.url });
       clearAuthStorage();
-      if (
-        typeof window !== "undefined" &&
-        !explicitLoggingOut
-      ) {
+      if (typeof window !== "undefined" && !explicitLoggingOut) {
         const isPublicPage = isPublicPath(window.location.pathname);
         if (!isPublicPage) {
           window.location.href = "/login";
@@ -278,11 +332,15 @@ apiClient.interceptors.response.use(
       return Promise.reject(new Error("Session expired. Please sign in again."));
     }
 
-    // Network / connection errors — DO NOT LOG OUT USER
-    if (!error.response || error.code === "ECONNREFUSED" || error.code === "ERR_NETWORK") {
-      if (process.env.NODE_ENV === "development") {
-        console.warn(`[AUTH DIAGNOSTIC] Connection error on ${originalRequest?.url}:`, error.code || error.message);
-      }
+    // 4. Handle ECONNABORTED Request Timeout / Cancellation
+    if (error.code === "ECONNABORTED") {
+      logApiEvent("REQUEST_TIMEOUT", { id: reqId, method, url: originalRequest?.url, durationMs: duration, timeout: 10000 });
+      return Promise.reject(new Error(`Request timeout on ${originalRequest?.url || "server request"}`));
+    }
+
+    // 5. Network / Connection errors — DO NOT LOG OUT USER
+    if (!error.response || error.code === "ECONNREFUSED" || error.code === "ERR_CONNECTION_REFUSED" || error.code === "ERR_NETWORK") {
+      logApiEvent("NETWORK_ERROR", { id: reqId, method, url: originalRequest?.url, code: error.code || error.message, state: "BACKEND_UNAVAILABLE" });
       return Promise.reject(
         new Error(
           "Unable to connect to the ManMadhan Progress server. Please ensure the backend is running.",

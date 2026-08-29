@@ -1,3 +1,7 @@
 "use client";
 
-export { default } from "@/app/(organization)/ceo/focus/page";
+import { OrganizationFocusConsole } from "@/components/organization/focus/organization-focus-console";
+
+export default function MemberFocusPage() {
+  return <OrganizationFocusConsole />;
+}

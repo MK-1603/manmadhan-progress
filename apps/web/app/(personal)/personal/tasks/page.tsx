@@ -21,6 +21,7 @@ import {
 import { useSocket } from "@/components/providers/socket-provider";
 import { useConfirm } from "@/hooks/use-confirm";
 import { CustomSelect, type CustomSelectOption } from "@/components/ui/custom-select";
+import { TaskCreateModal } from "@/components/organization/task-create-modal";
 
 const PRIORITY_SELECT_OPTIONS: CustomSelectOption[] = [
   { value: "All", label: "All Priorities" },
@@ -537,82 +538,13 @@ export default function PersonalTasksPage() {
         )}
       </div>
 
-      {/* Manual Create Modal */}
-      {showCreate && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <form
-            onSubmit={handleManualCreate}
-            className="bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E4E7EC] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7] rounded-[14px] max-w-md w-full p-5 space-y-4 shadow-2xl"
-          >
-            <div className="flex items-center justify-between border-b border-[#E4E7EC] dark:border-[#272D36] pb-3">
-              <h3 className="text-[15px] font-bold text-[#17202A] dark:text-[#F2F4F7]">Create Task</h3>
-              <button
-                type="button"
-                onClick={() => setShowCreate(false)}
-                className="p-1 rounded-[7px] text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7]"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-[10.5px] font-bold uppercase text-[#17202A] dark:text-[#F2F4F7] mb-1">TASK TITLE *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Complete API integration"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="w-full h-[38px] px-3 rounded-[8px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-medium text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10.5px] font-bold uppercase text-[#17202A] dark:text-[#F2F4F7] mb-1">PRIORITY</label>
-                  <select
-                    value={form.priority}
-                    onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                    className="w-full h-[38px] px-3 rounded-[8px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-medium text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
-                  >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                    <option value="Urgent">Urgent</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10.5px] font-bold uppercase text-[#17202A] dark:text-[#F2F4F7] mb-1">DUE DATE</label>
-                  <input
-                    type="date"
-                    value={form.deadline}
-                    onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-                    className="w-full h-[38px] px-3 rounded-[8px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] text-[12px] font-medium text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#C9A52A]"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-3 border-t border-[#E4E7EC] dark:border-[#272D36]">
-              <button
-                type="button"
-                onClick={() => setShowCreate(false)}
-                className="px-4 h-[36px] rounded-[8px] border border-[#E4E7EC] dark:border-[#272D36] text-xs font-semibold text-[#667085]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={creating || !form.title.trim()}
-                className="px-5 h-[36px] rounded-[8px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] text-xs font-bold shadow-2xs disabled:opacity-50"
-              >
-                {creating ? "Saving..." : "Create Task"}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      {/* Canonical Task Creation System */}
+      <TaskCreateModal
+        isOpen={showCreate}
+        onClose={() => setShowCreate(false)}
+        onCreated={fetchTasks}
+        isPersonalWorkspace={true}
+      />
     </div>
   );
 }
