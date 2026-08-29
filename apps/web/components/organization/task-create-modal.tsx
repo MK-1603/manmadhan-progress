@@ -1,3 +1,31 @@
+login:1 Denying load of chrome-extension://ojplmecpdpgccookcobabopnaifgidhf/assets/couponCollection.js-rRX9pka3.js. Resources must be listed in the web_accessible_resources manifest key in order to be loaded by pages outside the extension.
+
+content.js:16 Feature is disabled
+couponCollection.js-loader-BS-SsW4n.js:8 
+ GET chrome-extension://invalid/ net::ERR_FAILED
+TypeError: Failed to fetch dynamically imported module: chrome-extension://ojplmecpdpgccookcobabopnaifgidhf/assets/couponCollection.js-rRX9pka3.js
+content-DEYtg_MT.js:1917 [Floto Widget] Initializing...
+content-DEYtg_MT.js:1930 [Floto Widget] Initialized successfully
+content-DEYtg_MT.js:1930 🎯 Floto Design QA - Content Script Loaded
+content.ts-CrAW2ToA.js:5 [BHK] widget sdk 1.0.0
+content.ts-CrAW2ToA.js:5 [BHK] install: missing/invalid publicKey or merchantId — aborting
+content-DEYtg_MT.js:1917 [FloatingWidget] pendingDiffSession: null
+login:1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+30gzfh2_arj6l.js:1 
+ GET https://manmadhan-progress.onrender.com/api/v1/auth/me 401 (Unauthorized)
+30gzfh2_arj6l.js:1 
+ POST https://manmadhan-progress.onrender.com/api/v1/auth/refresh 401 (Unauthorized)
+VM357:2 Uncaught TypeError: Cannot read properties of undefined (reading 'startTime')
+    at et.reportAllChanges (<anonymous>:2:19429)
+    at <anonymous>:2:13070
+    at <anonymous>:2:331
+    at d (<anonymous>:2:6141)
+    at <anonymous>:2:6326
+    at x (<anonymous>:2:5486)
+    at g (<anonymous>:2:6248)
+    at <anonymous>:2:6512
+    at u (<anonymous>:2:735)
+
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
