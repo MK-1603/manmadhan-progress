@@ -382,38 +382,51 @@ export function Sidebar() {
 
       {/* 4. ANCHORED ACCOUNT FOOTER & CONTROLS */}
       <div className="p-3 border-t border-[#D9DDE3] dark:border-[#22252A] shrink-0 bg-[#FFFFFF] dark:bg-[#0B0D0F] flex flex-col gap-2">
-        {/* User Identity Dock Row */}
-        {(!isCollapsed || isMobile) ? (
-          <div
-            onClick={navigateToProfile}
-            className="flex items-center justify-between p-2 rounded-xl border border-transparent hover:border-[#D9DDE3] dark:hover:border-[#22252A] hover:bg-black/[0.035] dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
-            title="View Profile"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
+        {/* Workspace/Account Identity Dock Row */}
+        {(() => {
+          const orgBatchId = user?.batchNumber || "";
+          const displayBatchOrName = orgBatchId || "Organization Workspace";
+          const displayTitle = isPersonal ? userDisplayName : displayBatchOrName;
+          const displaySubtitle = isPersonal ? "Personal Workspace" : `${userRole} · Organization`;
+          const orgInitials = orgBatchId ? orgBatchId.slice(0, 2).toUpperCase() : userInitials;
+          const displayInitials = isPersonal ? userInitials : orgInitials;
+
+          if (!isCollapsed || isMobile) {
+            return (
+              <div
+                onClick={navigateToProfile}
+                className="flex items-center justify-between p-2 rounded-xl border border-transparent hover:border-[#D9DDE3] dark:hover:border-[#22252A] hover:bg-black/[0.035] dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
+                title={`View Profile (${userDisplayName})`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center bg-[#C89B18]/15 border border-[#C89B18]/30 text-[#C89B18] font-extrabold text-xs shrink-0 font-mono">
+                    {displayInitials}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[13px] font-extrabold text-[#25282D] dark:text-[#F5F5F5] truncate leading-tight">
+                      {displayTitle}
+                    </span>
+                    <span className="text-[11px] font-semibold text-[#C89B18] truncate leading-tight mt-0.5">
+                      {displaySubtitle}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div
+              onClick={navigateToProfile}
+              className="flex items-center justify-center p-1 rounded-xl cursor-pointer"
+              title={`View Profile (${userDisplayName})`}
+            >
               <div className="w-9 h-9 rounded-full flex items-center justify-center bg-[#C89B18]/15 border border-[#C89B18]/30 text-[#C89B18] font-extrabold text-xs shrink-0 font-mono">
-                {userInitials}
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-[13px] font-extrabold text-[#25282D] dark:text-[#F5F5F5] truncate leading-tight">
-                  {userDisplayName}
-                </span>
-                <span className="text-[11px] font-semibold text-[#C89B18] truncate leading-tight mt-0.5">
-                  {isPersonal ? "Personal" : userRole}
-                </span>
+                {displayInitials}
               </div>
             </div>
-          </div>
-        ) : (
-          <div
-            onClick={navigateToProfile}
-            className="flex items-center justify-center p-1 rounded-xl cursor-pointer"
-            title={`View Profile (${userDisplayName})`}
-          >
-            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-[#C89B18]/15 border border-[#C89B18]/30 text-[#C89B18] font-extrabold text-xs shrink-0 font-mono">
-              {userInitials}
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Action Controls */}
         <div className={`flex items-center pt-2 border-t border-[#D9DDE3] dark:border-[#22252A] ${isCollapsed && !isMobile ? "flex-col gap-2 justify-center" : "justify-between px-1"}`}>

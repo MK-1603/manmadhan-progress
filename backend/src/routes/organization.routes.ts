@@ -16,6 +16,7 @@ import {
 import { authenticate } from "../middleware/auth.middleware";
 import { logger } from "../services/logger.service";
 import { socketService } from "../services/socket.service";
+import { calculateWorkspaceLeaderboard, type LeaderboardPeriod } from "../services/leaderboard.service";
 
 export const organizationRouter = Router();
 
@@ -64,7 +65,7 @@ const getOrganizationMembership = async (req: Request) => {
 const serializeOrganization = (workspace: any, members: any[], owner: any) => ({
 	id: workspace.id,
 	name: workspace.name,
-	batchNumber: workspace.batchNumber || "MM1107",
+	batchNumber: workspace.batchNumber || "",
 	shortName: workspace.batchNumber || workspace.shortName || workspace.name.slice(0, 2).toUpperCase(),
 	description: workspace.description || "",
 	logoUrl: workspace.logoUrl || null,
@@ -1402,7 +1403,7 @@ organizationRouter.get(
 				});
 			}
 
-			// Strict Server-Side Access Control: Verify authenticated user is an active member of target workspace
+			// Strict Server-Side Access Control
 			const isAuthorizedMember = await db
 				.select({ id: workspaceMembers.id })
 				.from(workspaceMembers)
@@ -1416,337 +1417,210 @@ organizationRouter.get(
 				});
 			}
 
+			// Query Params
+			const range = (String(req.query.range || "7D").toUpperCase() as "7D" | "30D" | "90D");
+			const periodQuery = String(req.query.leaderboardPeriod || req.query.period || "week").toLowerCase();
+			const leaderboardPeriod: LeaderboardPeriod =
+				periodQuery === "month" ? "month" : periodQuery === "quarter" ? "quarter" : periodQuery === "all" ? "all" : "week";
+
 			// Time boundaries
 			const now = new Date();
-			const todayStart = new Date(
-				now.getFullYear(),
-				now.getMonth(),
-				now.getDate(),
-				0,
-				0,
-				0,
-			);
-			const todayEnd = new Date(
-				now.getFullYear(),
-				now.getMonth(),
-				now.getDate(),
-				23,
-				59,
-				59,
-			);
+			const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+			const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
 			const tomorrowStart = new Date(todayStart);
 			tomorrowStart.setDate(todayStart.getDate() + 1);
 			const tomorrowEnd = new Date(todayEnd);
 			tomorrowEnd.setDate(todayEnd.getDate() + 1);
 
-			// 1. All Workspace Tasks & Projects
-			const [allTasks, allProjects, allMembers] = await Promise.all([
+			// 1. Fetch Organization, Tasks, Projects & Members
+			const [workspaceData, allTasks, allProjects, allMembers] = await Promise.all([
+				db.query.workspaces.findFirst({ where: eq(workspaces.id, workspaceId) }),
 				db.select().from(tasks).where(eq(tasks.workspaceId, workspaceId)),
 				db.select().from(projects).where(eq(projects.workspaceId, workspaceId)),
 				db
 					.select({
 						id: users.id,
 						name: users.displayName,
+						displayName: users.displayName,
 						email: users.email,
 						avatar: users.avatar,
 						role: workspaceMembers.role,
+						status: users.status,
 					})
 					.from(workspaceMembers)
 					.innerJoin(users, eq(workspaceMembers.userId, users.id))
 					.where(eq(workspaceMembers.workspaceId, workspaceId)),
 			]);
 
-			// Calculate core metrics
-			const activeTasks = allTasks.filter(
+			// Exclude cancelled/deleted projects and tasks
+			const validProjects = allProjects.filter((p) => p.status !== "CANCELLED" && p.status !== "ARCHIVED");
+			const validTasks = allTasks.filter((t) => t.status !== "Archived");
+
+			const activeTasks = validTasks.filter(
 				(t) => t.status !== "Completed" && t.status !== "Approved",
 			);
-			const activeProjects = allProjects.filter(
+			const activeProjects = validProjects.filter(
 				(p) =>
+					p.status === "ACTIVE" ||
+					p.status === "PLANNING" ||
+					p.status === "IN_PROGRESS" ||
 					p.status === "Active" ||
-					p.status === "Planning" ||
 					p.status === "In Progress" ||
 					!p.status,
 			);
+			const atRiskProjects = validProjects.filter(
+				(p) => p.status === "AT_RISK" || p.status === "At Risk" || p.health === "AT_RISK",
+			);
+			const completedProjects = validProjects.filter(
+				(p) => p.status === "COMPLETED" || p.status === "Completed",
+			);
 
-			const completedTodayTasks = allTasks.filter((t) => {
+			const completedTasks = validTasks.filter(
+				(t) => t.status === "Completed" || t.status === "Approved",
+			);
+
+			const completedTodayTasks = validTasks.filter((t) => {
 				if (t.completedAt) {
 					const d = new Date(t.completedAt);
 					return d >= todayStart && d <= todayEnd;
 				}
-				return t.status === "Completed" || t.status === "Approved";
+				return false;
 			});
 
-			const pendingReviewTasks = allTasks.filter(
+			const pendingReviewTasks = validTasks.filter(
 				(t) => t.status === "Review" || t.status === "Pending Approval",
 			);
 
-			const overdueTasks = allTasks.filter((t) => {
-				if (t.status === "Completed" || t.status === "Approved" || !t.deadline)
-					return false;
+			const overdueTasks = validTasks.filter((t) => {
+				if (t.status === "Completed" || t.status === "Approved" || !t.deadline) return false;
 				return new Date(t.deadline).getTime() < now.getTime();
 			});
 
-			const blockedTasks = allTasks.filter((t) => t.status === "Blocked");
+			const blockedTasks = validTasks.filter((t) => t.status === "Blocked");
 
-			// Project progress calculation & health status
-			const projectPulses = await Promise.all(
-				allProjects.map(async (project) => {
-					const projectTasks = allTasks.filter(
-						(t) => t.projectId === project.id,
-					);
-					const total = projectTasks.length;
-					const completed = projectTasks.filter(
-						(t) => t.status === "Completed" || t.status === "Approved",
-					).length;
-					const progress =
-						total > 0 ? Math.round((completed / total) * 100) : 0;
-
-					let healthStatus = "On Track";
-					if (projectTasks.some((t) => t.status === "Blocked")) {
-						healthStatus = "Blocked";
-					} else if (
-						project.deadline &&
-						new Date(project.deadline).getTime() < now.getTime() &&
-						progress < 100
-					) {
-						healthStatus = "Overdue";
-					} else if (
-						progress < 50 &&
-						project.deadline &&
-						new Date(project.deadline).getTime() - now.getTime() <
-							3 * 24 * 60 * 60 * 1000
-					) {
-						healthStatus = "At Risk";
-					}
-
-					return {
-						id: project.id,
-						name: project.name,
-						progress,
-						totalTasks: total,
-						remainingTasks: total - completed,
-						deadline: project.deadline,
-						status: project.status || "Active",
-						healthStatus,
-						priority: project.priority || "Medium",
-					};
-				}),
-			);
-
-			let overallProgress = 0;
-			if (projectPulses.length > 0) {
-				overallProgress = Math.round(
-					projectPulses.reduce((acc, p) => acc + p.progress, 0) /
-						projectPulses.length,
-				);
-			} else if (allTasks.length > 0) {
-				const done = allTasks.filter(
-					(t) => t.status === "Completed" || t.status === "Approved",
-				).length;
-				overallProgress = Math.round((done / allTasks.length) * 100);
-			}
-
+			// On-Time Completed Tasks Rate
+			const completedOnTime = completedTasks.filter((t) => {
+				if (!t.deadline) return true;
+				const compDate = t.completedAt ? new Date(t.completedAt) : new Date(t.createdAt);
+				return compDate.getTime() <= new Date(t.deadline).getTime();
+			});
 			const onTimeCompletionRate =
-				allTasks.length > 0
-					? Math.round(
-							((allTasks.length - overdueTasks.length) / allTasks.length) * 100,
-						)
+				completedTasks.length > 0
+					? Math.round((completedOnTime.length / completedTasks.length) * 100)
 					: 100;
 
-			// 2. Executive Attention Center (Requires CEO Action)
+			// Overall Progress: Completed / Total Qualifying Work * 100
+			const overallProgress =
+				validTasks.length > 0
+					? Math.round((completedTasks.length / validTasks.length) * 100)
+					: 0;
+
+			// 2. Trend Series Calculation
+			const daysCount = range === "90D" ? 90 : range === "30D" ? 30 : 7;
+			const trendDataPoints: { label: string; val: number; date: string }[] = [];
+			let totalHistoricalActivityCount = 0;
+
+			for (let i = daysCount - 1; i >= 0; i--) {
+				const dayStart = new Date(now);
+				dayStart.setDate(dayStart.getDate() - i);
+				dayStart.setHours(0, 0, 0, 0);
+
+				const dayEnd = new Date(dayStart);
+				dayEnd.setHours(23, 59, 59, 999);
+
+				const tasksCreatedBeforeDayEnd = validTasks.filter(
+					(t) => new Date(t.createdAt) <= dayEnd,
+				);
+				const tasksCompletedBeforeDayEnd = validTasks.filter((t) => {
+					if (t.status !== "Completed" && t.status !== "Approved") return false;
+					const compDate = t.completedAt ? new Date(t.completedAt) : new Date(t.createdAt);
+					return compDate <= dayEnd;
+				});
+
+				const dayPct =
+					tasksCreatedBeforeDayEnd.length > 0
+						? Math.round((tasksCompletedBeforeDayEnd.length / tasksCreatedBeforeDayEnd.length) * 100)
+						: 0;
+
+				if (tasksCompletedBeforeDayEnd.length > 0) {
+					totalHistoricalActivityCount += tasksCompletedBeforeDayEnd.length;
+				}
+
+				const dayLabel =
+					daysCount === 7
+						? dayStart.toLocaleDateString("en-US", { weekday: "short" })
+						: `${dayStart.getDate()} ${dayStart.toLocaleDateString("en-US", { month: "short" })}`;
+
+				trendDataPoints.push({
+					label: dayLabel,
+					val: dayPct,
+					date: dayStart.toISOString().split("T")[0],
+				});
+			}
+
+			// If no real historical execution data exists, return empty array for clean empty state
+			const trendSeriesData = totalHistoricalActivityCount > 0 ? trendDataPoints : [];
+
+			// 3. Leaderboard Calculation
+			const leaderboardEntries = await calculateWorkspaceLeaderboard(
+				workspaceId,
+				leaderboardPeriod,
+				now,
+			);
+
+			// 4. Executive Attention Center Items
 			const attentionItems: any[] = [];
 
-			pendingReviewTasks.slice(0, 5).forEach((t) => {
+			pendingReviewTasks.forEach((t) => {
 				attentionItems.push({
 					id: t.id,
-					category: "APPROVAL REQUIRED",
+					category: "PENDING APPROVAL",
 					title: t.title,
 					owner: t.assigneeId
-						? allMembers.find((m) => m.id === t.assigneeId)?.name ||
+						? allMembers.find((m) => m.id === t.assigneeId)?.displayName ||
+							allMembers.find((m) => m.id === t.assigneeId)?.name ||
 							"Team Member"
 						: "Unassigned",
 					deadline: t.deadline,
-					type: "TASK_REVIEW",
+					type: "APPROVAL",
+					targetUrl: "/ceo/approvals",
 				});
 			});
 
-			overdueTasks
-				.filter((t) => t.priority === "Critical" || t.priority === "High")
-				.slice(0, 3)
-				.forEach((t) => {
-					attentionItems.push({
-						id: t.id,
-						category: "CRITICAL OVERDUE",
-						title: t.title,
-						owner: t.assigneeId
-							? allMembers.find((m) => m.id === t.assigneeId)?.name ||
-								"Team Member"
-							: "Unassigned",
-						deadline: t.deadline,
-						type: "OVERDUE",
-					});
+			overdueTasks.forEach((t) => {
+				attentionItems.push({
+					id: t.id,
+					category: "OVERDUE TASK",
+					title: t.title,
+					owner: t.assigneeId
+						? allMembers.find((m) => m.id === t.assigneeId)?.displayName ||
+							allMembers.find((m) => m.id === t.assigneeId)?.name ||
+							"Team Member"
+						: "Unassigned",
+					deadline: t.deadline,
+					type: "OVERDUE",
+					targetUrl: "/ceo/tasks",
 				});
+			});
 
-			blockedTasks.slice(0, 3).forEach((t) => {
+			blockedTasks.forEach((t) => {
 				attentionItems.push({
 					id: t.id,
 					category: "BLOCKED WORK",
 					title: t.title,
 					owner: t.assigneeId
-						? allMembers.find((m) => m.id === t.assigneeId)?.name ||
+						? allMembers.find((m) => m.id === t.assigneeId)?.displayName ||
+							allMembers.find((m) => m.id === t.assigneeId)?.name ||
 							"Team Member"
 						: "Unassigned",
 					deadline: t.deadline,
 					type: "BLOCKED",
+					targetUrl: "/ceo/tasks",
 				});
 			});
 
-			// 3. Today's Executive Priorities (3-5 top items)
-			const todayPriorities = activeTasks
-				.sort((a, b) => {
-					const priorityWeight = (p: string) =>
-						p === "Critical" ? 3 : p === "High" ? 2 : 1;
-					const pA = priorityWeight(a.priority || "Medium");
-					const pB = priorityWeight(b.priority || "Medium");
-					if (pA !== pB) return pB - pA;
-					const timeA = a.deadline ? new Date(a.deadline).getTime() : Infinity;
-					const timeB = b.deadline ? new Date(b.deadline).getTime() : Infinity;
-					return timeA - timeB;
-				})
-				.slice(0, 5)
-				.map((t) => ({
-					id: t.id,
-					title: t.title,
-					priority: t.priority || "Medium",
-					status: t.status,
-					deadline: t.deadline,
-					projectName: t.projectId
-						? allProjects.find((p) => p.id === t.projectId)?.name
-						: null,
-					owner: t.assigneeId
-						? allMembers.find((m) => m.id === t.assigneeId)?.name
-						: "Team Member",
-				}));
-
-			// 4. CO-CEO Performance
-			const coCeoMembers = allMembers.filter(
-				(m) => m.role === "CO-CEO" || m.role === "Co-CEO",
-			);
-			const coCeoPerformance = coCeoMembers.map((m) => {
-				const assigned = allTasks.filter((t) => t.assigneeId === m.id);
-				const completed = assigned.filter(
-					(t) => t.status === "Completed" || t.status === "Approved",
-				).length;
-				const overdue = assigned.filter((t) => {
-					if (
-						t.status === "Completed" ||
-						t.status === "Approved" ||
-						!t.deadline
-					)
-						return false;
-					return new Date(t.deadline).getTime() < now.getTime();
-				}).length;
-				const prog =
-					assigned.length > 0
-						? Math.round((completed / assigned.length) * 100)
-						: 100;
-
-				return {
-					id: m.id,
-					name: m.name,
-					email: m.email,
-					avatar: m.avatar,
-					activeProjects: allProjects.filter((p) =>
-						assigned.some((t) => t.projectId === p.id),
-					).length,
-					assignedTasks: assigned.length,
-					completedTasks: completed,
-					pendingTasks: assigned.length - completed,
-					overdueTasks: overdue,
-					progress: prog,
-					status: overdue > 0 ? "At Risk" : "Active",
-				};
-			});
-
-			// 5. Deadline Watch (Overdue, Due Today, Due Tomorrow)
-			const deadlineWatch = {
-				overdue: overdueTasks.slice(0, 3).map((t) => ({
-					id: t.id,
-					title: t.title,
-					deadline: t.deadline,
-					daysLate: Math.ceil(
-						(now.getTime() - new Date(t.deadline!).getTime()) /
-							(1000 * 3600 * 24),
-					),
-				})),
-				dueToday: allTasks
-					.filter((t) => {
-						if (
-							t.status === "Completed" ||
-							t.status === "Approved" ||
-							!t.deadline
-						)
-							return false;
-						const d = new Date(t.deadline);
-						return d >= todayStart && d <= todayEnd;
-					})
-					.slice(0, 3)
-					.map((t) => ({
-						id: t.id,
-						title: t.title,
-						deadline: t.deadline,
-					})),
-				dueTomorrow: allTasks
-					.filter((t) => {
-						if (
-							t.status === "Completed" ||
-							t.status === "Approved" ||
-							!t.deadline
-						)
-							return false;
-						const d = new Date(t.deadline);
-						return d >= tomorrowStart && d <= tomorrowEnd;
-					})
-					.slice(0, 3)
-					.map((t) => ({
-						id: t.id,
-						title: t.title,
-						deadline: t.deadline,
-					})),
-			};
-
-			// 6. CEO Focus Summary
-			const ceoFocusSessions = await db
-				.select()
-				.from(timeTracking)
-				.where(
-					and(
-						eq(timeTracking.workspaceId, workspaceId),
-						eq(timeTracking.userId, userId),
-						gte(timeTracking.startTime, todayStart),
-						lte(timeTracking.startTime, todayEnd),
-					),
-				);
-
-			let focusedSecondsToday = 0;
-			let activeFocusSession = null;
-
-			ceoFocusSessions.forEach((s) => {
-				let dur = s.durationSeconds || 0;
-				if (s.status === "Active" || s.status === "Paused") {
-					activeFocusSession = s;
-					if (s.status === "Active") {
-						const startTime = s.resumedAt || s.startTime;
-						dur += Math.floor(
-							(now.getTime() - new Date(startTime).getTime()) / 1000,
-						);
-					}
-				}
-				focusedSecondsToday += dur;
-			});
-
-			// 7. Recent Activities (Audit Logs)
+			// 5. Recent Activities (Audit Logs)
 			const recentActivitiesRaw = await db
 				.select({
 					id: auditLogs.id,
@@ -1760,34 +1634,59 @@ organizationRouter.get(
 				.leftJoin(users, eq(auditLogs.userId, users.id))
 				.where(eq(auditLogs.workspaceId, workspaceId))
 				.orderBy(desc(auditLogs.createdAt))
-				.limit(8);
+				.limit(10);
 
-			// 8. Hours Logged
-			const totalHoursLogged = Math.round(
-				allTasks.reduce((acc, t) => acc + (t.estimatedMinutes || 0), 0) / 60,
-			);
+			// Working hours check for operational status
+			const currentHour = now.getHours();
+			const isOperationalHours = currentHour >= 4 && currentHour < 23;
+
+			// Calculate dynamic organization status based on actual execution telemetry
+			let orgStatusIndicator = "ON TRACK";
+			let orgStatusLabel = "Operational";
+
+			if (blockedTasks.length > 2 || overdueTasks.length > 5) {
+				orgStatusIndicator = "CRITICAL";
+				orgStatusLabel = "Critical Blockers";
+			} else if (blockedTasks.length > 0 || overdueTasks.length > 0 || atRiskProjects.length > 0) {
+				orgStatusIndicator = "AT RISK";
+				orgStatusLabel = "Attention Required";
+			} else if (pendingReviewTasks.length > 0) {
+				orgStatusIndicator = "NEEDS ATTENTION";
+				orgStatusLabel = "Pending Reviews";
+			} else if (!isOperationalHours) {
+				orgStatusIndicator = "PAUSED";
+				orgStatusLabel = "Off-hours";
+			}
+
+			// Co-CEO performance derived from real leaderboard
+			const coCeoPerformance = leaderboardEntries.map((m) => ({
+				id: m.userId,
+				userId: m.userId,
+				name: m.name,
+				displayName: m.displayName,
+				email: m.email,
+				avatar: m.avatar,
+				role: m.role,
+				score: m.score,
+				progress: m.score,
+				completedTasks: m.completedTasksCount,
+				assignedTasks: m.totalAssignedTasks,
+				onTimeRate: m.onTimeRate,
+				rank: m.rank,
+				status: m.score > 0 ? "Active" : "Idle",
+			}));
+
+			const hasQualifyingWorkStarted = validProjects.length > 0 || validTasks.length > 0 || completedTasks.length > 0;
 
 			return res.json({
 				success: true,
 				data: {
-					kpis: {
-						overallProgress,
-						activeProjectsCount: activeProjects.length,
-						teamMembers: allMembers.length,
-						hoursLogged: totalHoursLogged,
+					hasQualifyingWorkStarted,
+					organization: {
+						id: workspaceData?.id || workspaceId,
+						name: workspaceData?.name || "Organization Workspace",
+						batchNumber: workspaceData?.batchNumber || (req.user as any)?.batchNumber || "",
 					},
-					activeProjects: projectPulses.slice(0, 5),
-					recentActivities: recentActivitiesRaw,
-					pendingApprovals: pendingReviewTasks.slice(0, 5).map((t) => ({
-						id: t.id,
-						title: t.title,
-						status: t.status,
-						submittedAt: t.submittedAt,
-						assigneeName: t.assigneeId
-							? allMembers.find((m) => m.id === t.assigneeId)?.name ||
-								"Team Member"
-							: "Unassigned",
-					})),
 					health: {
 						overallProgress,
 						onTimeCompletionRate,
@@ -1798,18 +1697,46 @@ organizationRouter.get(
 						overdueCount: overdueTasks.length,
 						blockedCount: blockedTasks.length,
 						teamMembersCount: allMembers.length,
-						hoursLogged: totalHoursLogged,
+					},
+					execution: {
+						overallProgress,
+						completedToday: completedTodayTasks.length,
+						onTimeRate: onTimeCompletionRate,
+						overdue: overdueTasks.length,
+						hasQualifyingWorkStarted,
+					},
+					snapshot: {
+						projects: {
+							total: validProjects.length,
+							active: activeProjects.length,
+							atRisk: atRiskProjects.length,
+							completed: completedProjects.length,
+						},
+						tasks: {
+							total: validTasks.length,
+							active: activeTasks.length,
+							completed: completedTasks.length,
+							overdue: overdueTasks.length,
+						},
+						approvals: {
+							pendingCount: pendingReviewTasks.length,
+						},
+						status: {
+							indicator: orgStatusIndicator,
+							label: orgStatusLabel,
+						},
+					},
+					trendSeries: {
+						"7D": range === "7D" ? trendSeriesData : [],
+						"30D": range === "30D" ? trendSeriesData : [],
+						"90D": range === "90D" ? trendSeriesData : [],
+						currentRange: range,
+						data: trendSeriesData,
 					},
 					attentionItems,
-					todayPriorities,
+					leaderboard: leaderboardEntries,
 					coCeoPerformance,
-					projectHealth: projectPulses.slice(0, 6),
-					deadlineWatch,
-					ceoFocusSummary: {
-						activeSession: activeFocusSession,
-						focusedSecondsToday,
-						sessionsCountToday: ceoFocusSessions.length,
-					},
+					recentActivities: recentActivitiesRaw,
 				},
 			});
 		} catch (error: any) {

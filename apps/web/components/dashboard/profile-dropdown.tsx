@@ -68,7 +68,19 @@ export function ProfileDropdown({
   }, []);
 
   const isPersonal = pathname?.startsWith("/personal");
-  const userRole = (user?.role || "CEO").toUpperCase();
+  const defaultRoleFromPath = pathname?.startsWith("/co-ceo")
+    ? "CO-CEO"
+    : pathname?.startsWith("/member")
+    ? "MEMBER"
+    : "CEO";
+
+  const rawRole = (user?.role || defaultRoleFromPath).toUpperCase().trim();
+  const userRoleLabel =
+    rawRole === "CO_CEO" || rawRole === "CO-CEO"
+      ? "CO-CEO"
+      : rawRole === "MEMBER"
+      ? "Member"
+      : "CEO";
 
   const getInitials = (u: any) => {
     const raw = u?.displayName || u?.name || (u?.email ? u.email.split("@")[0] : "");
@@ -81,7 +93,16 @@ export function ProfileDropdown({
 
   const userInitials = getInitials(user);
   const realDisplayName = user?.displayName || user?.name || user?.email?.split("@")[0] || "User";
-  const realBatchId = orgWorkspace?.batchNumber || user?.batchNumber || "MM1107";
+  const realBatchId = orgWorkspace?.batchNumber || user?.batchNumber || "";
+
+  // Dynamic Batch ID or Workspace short name/code
+  const displayBatchOrName = realBatchId || orgWorkspace?.name || "Organization Workspace";
+  const displayTitle = isPersonal ? realDisplayName : displayBatchOrName;
+  const displaySubtitle = isPersonal ? "Personal Workspace" : `${userRoleLabel} · Organization`;
+  
+  // Avatar initials: Use Batch ID prefix if present, else userInitials
+  const orgInitials = realBatchId ? realBatchId.slice(0, 2).toUpperCase() : userInitials;
+  const displayInitials = isPersonal ? userInitials : orgInitials;
 
   const handleSwitchWorkspace = (target: "personal" | "org") => {
     setIsWorkspaceSwitcherOpen(false);
@@ -98,9 +119,9 @@ export function ProfileDropdown({
         localStorage.setItem("workspaceId", orgWorkspace.id);
       }
       const targetDash =
-        userRole.includes("CO")
+        userRoleLabel === "CO-CEO"
           ? "/co-ceo/dashboard"
-          : userRole.includes("MEMBER")
+          : userRoleLabel === "Member"
           ? "/member/dashboard"
           : "/ceo/dashboard";
       router.replace(targetDash);
@@ -112,11 +133,11 @@ export function ProfileDropdown({
       type="button"
       onClick={() => setIsOpen(!isOpen)}
       aria-label="Open profile menu"
-      title="User Profile"
+      title={isPersonal ? `User Profile (${realDisplayName})` : `Organization Profile (${realBatchId})`}
       className="w-9 h-9 aspect-square rounded-full flex items-center justify-center bg-[#C9A52A]/15 dark:bg-[#C9A52A]/20 border border-[#C9A52A]/40 text-[#C9A52A] font-extrabold text-xs font-mono shrink-0 cursor-pointer focus:outline-none transition-all hover:scale-105"
       suppressHydrationWarning
     >
-      {userInitials}
+      {displayInitials}
     </button>
   );
 
@@ -132,17 +153,17 @@ export function ProfileDropdown({
     >
       <div className="flex flex-col space-y-2 text-xs">
         
-        {/* 1. COMPACT USER IDENTITY HEADER */}
+        {/* 1. COMPACT WORKSPACE / ACCOUNT IDENTITY HEADER */}
         <div className="flex items-center gap-2.5 pb-2.5 border-b border-border">
           <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#C9A52A]/15 border border-[#C9A52A]/40 text-[#C9A52A] font-black text-xs font-mono shrink-0">
-            {userInitials}
+            {displayInitials}
           </div>
           <div className="flex flex-col min-w-0">
             <span className="font-extrabold text-xs text-foreground truncate leading-tight">
-              {realDisplayName}
+              {displayTitle}
             </span>
             <span className="text-[11px] font-semibold text-muted-foreground truncate leading-tight mt-0.5">
-              {isPersonal ? "Personal Workspace" : `${userRole} · Organization`}
+              {displaySubtitle}
             </span>
           </div>
         </div>
@@ -240,9 +261,9 @@ export function ProfileDropdown({
               setIsOpen(false);
               const targetProfile = isPersonal
                 ? "/personal/profile"
-                : userRole.includes("CO")
+                : userRoleLabel === "CO-CEO"
                 ? "/co-ceo/profile"
-                : userRole.includes("MEMBER")
+                : userRoleLabel === "Member"
                 ? "/member/profile"
                 : "/ceo/profile";
               router.push(targetProfile);
@@ -259,9 +280,9 @@ export function ProfileDropdown({
               setIsOpen(false);
               const targetSettings = isPersonal
                 ? "/personal/settings"
-                : userRole.includes("CO")
+                : userRoleLabel === "CO-CEO"
                 ? "/co-ceo/settings"
-                : userRole.includes("MEMBER")
+                : userRoleLabel === "Member"
                 ? "/member/settings"
                 : "/ceo/settings";
               router.push(targetSettings);

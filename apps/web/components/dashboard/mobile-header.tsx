@@ -392,19 +392,30 @@ export function MobileHeader({
 
               {/* 4. FIXED ANCHORED ACCOUNT FOOTER */}
               <div className="p-3 border-t border-[#D9DDE3] dark:border-[#22252A] bg-[#FFFFFF] dark:bg-[#0D0F13] shrink-0 space-y-2 pb-[max(14px,env(safe-area-inset-bottom))] z-20">
-                <div className="flex items-center gap-2.5 px-1">
-                  <div className="w-9 h-9 rounded-full bg-[#C89B18]/15 border border-[#C89B18]/30 text-[#C89B18] flex items-center justify-center font-extrabold text-xs shrink-0 font-mono">
-                    {userInitials}
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[13px] font-extrabold text-[#25282D] dark:text-[#F5F5F5] truncate leading-tight">
-                      {userName}
-                    </span>
-                    <span className="text-[11px] font-semibold text-[#C89B18] truncate leading-tight mt-0.5">
-                      {isPersonal ? "Personal" : `${userRole} · Organization`}
-                    </span>
-                  </div>
-                </div>
+                {(() => {
+                  const orgBatchId = user?.batchNumber || "";
+                  const displayBatchOrName = orgBatchId || "Organization Workspace";
+                  const displayTitle = isPersonal ? userName : displayBatchOrName;
+                  const displaySubtitle = isPersonal ? "Personal" : `${userRole} · Organization`;
+                  const orgInitials = orgBatchId ? orgBatchId.slice(0, 2).toUpperCase() : userInitials;
+                  const displayInitials = isPersonal ? userInitials : orgInitials;
+
+                  return (
+                    <div className="flex items-center gap-2.5 px-1">
+                      <div className="w-9 h-9 rounded-full bg-[#C89B18]/15 border border-[#C89B18]/30 text-[#C89B18] flex items-center justify-center font-extrabold text-xs shrink-0 font-mono">
+                        {displayInitials}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[13px] font-extrabold text-[#25282D] dark:text-[#F5F5F5] truncate leading-tight">
+                          {displayTitle}
+                        </span>
+                        <span className="text-[11px] font-semibold text-[#C89B18] truncate leading-tight mt-0.5">
+                          {displaySubtitle}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex items-center gap-2 pt-0.5">
                   <Link

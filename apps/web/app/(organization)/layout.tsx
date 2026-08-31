@@ -54,7 +54,7 @@ export default function OrganizationLayout({ children }: { children: React.React
             className={`flex-1 min-h-0 w-full max-w-full flex flex-col overflow-x-hidden ${
               isFixedViewportPage
                 ? "overflow-hidden pb-0 md:pb-0"
-                : "overflow-y-auto pb-[calc(70px+env(safe-area-inset-bottom))] md:pb-0"
+                : "overflow-y-auto pb-[calc(96px+env(safe-area-inset-bottom))] md:pb-0"
             } [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`}
           >
             <GlobalPullToRefreshContent>

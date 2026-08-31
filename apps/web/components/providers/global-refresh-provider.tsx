@@ -18,6 +18,7 @@ type GlobalRefreshContextValue = {
   registerRefreshHandler: (handler: () => Promise<void>) => void;
   unregisterRefreshHandler: (handler: () => Promise<void>) => void;
   setRefreshDisabled: (disabled: boolean) => void;
+  triggerRefresh: () => Promise<void>;
   isRefreshing: boolean;
   pullState: PullState;
   pullDistance: number;
@@ -91,11 +92,36 @@ export function GlobalRefreshProvider({ children }: { children: ReactNode }) {
 
   const getScrollTop = useCallback(() => {
     if (typeof window === "undefined") return 0;
-    if (mainContainerRef.current && mainContainerRef.current.scrollTop > 0) {
-      return mainContainerRef.current.scrollTop;
-    }
-    return window.scrollY || document.documentElement.scrollTop || 0;
+    const windowScroll = window.scrollY || document.documentElement.scrollTop || window.pageYOffset || 0;
+    const containerScroll = mainContainerRef.current ? mainContainerRef.current.scrollTop : 0;
+    return Math.max(windowScroll, containerScroll);
   }, []);
+
+  const triggerRefresh = useCallback(async () => {
+    if (isRefreshingLockRef.current || isRefreshDisabledRef.current) return;
+    if (activeHandlersRef.current.length === 0) return;
+
+    isRefreshingLockRef.current = true;
+    setIsRefreshing(true);
+    setPullState("refreshing");
+    setPullDistance(threshold);
+
+    try {
+      const handler = activeHandlersRef.current[0];
+      await handler();
+      setPullState("success");
+      await new Promise((r) => setTimeout(r, 600));
+    } catch (err) {
+      console.error("Global refresh error:", err);
+      setPullState("error");
+      await new Promise((r) => setTimeout(r, 800));
+    } finally {
+      setPullDistance(0);
+      setPullState("idle");
+      setIsRefreshing(false);
+      isRefreshingLockRef.current = false;
+    }
+  }, [threshold]);
 
   // Check if touch target is an input, textarea, button or inside an open dialog/sheet
   const isInteractiveTarget = (target: HTMLElement | null) => {
@@ -217,6 +243,7 @@ export function GlobalRefreshProvider({ children }: { children: ReactNode }) {
         registerRefreshHandler,
         unregisterRefreshHandler,
         setRefreshDisabled,
+        triggerRefresh,
         isRefreshing,
         pullState,
         pullDistance,

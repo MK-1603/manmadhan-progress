@@ -12,7 +12,7 @@ import { SinglePromptModal } from "../personal/single-prompt-modal";
 import { MORE_SHEET_SHORTCUTS } from "@/config/mobile-nav.config";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
-import { useSetRefreshDisabled } from "@/components/providers/global-refresh-provider";
+import { useSetRefreshDisabled, useGlobalRefresh } from "@/components/providers/global-refresh-provider";
 
 type BottomNavProps = {
   workspace: "personal" | "organization";
@@ -22,6 +22,8 @@ type BottomNavProps = {
 export function BottomNav({ workspace, role }: BottomNavProps) {
   const { user } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
+  const { triggerRefresh } = useGlobalRefresh();
 
   const [aiCaptureOpen, setAiCaptureOpen] = useState(false);
   const [moreSheetOpen, setMoreSheetOpen] = useState(false);
@@ -48,8 +50,25 @@ export function BottomNav({ workspace, role }: BottomNavProps) {
 
   const isProjectsActive = pathname.includes("/projects");
 
+  const handleTabClick = (e: React.MouseEvent, targetHref: string, isActive: boolean) => {
+    e.preventDefault();
+    if (isActive) {
+      const scrollY = typeof window !== "undefined" ? (window.scrollY || document.documentElement.scrollTop || 0) : 0;
+      if (scrollY > 15) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        triggerRefresh?.();
+      }
+    } else {
+      router.push(targetHref);
+    }
+  };
+
   // Secondary shortcuts model for More Sheet
   const moreShortcuts = MORE_SHEET_SHORTCUTS(isPersonal ? "personal" : "organization", userRole);
+
+  const homeHref = isPersonal ? "/personal/dashboard" : getOrgHref("dashboard");
+  const focusHref = isPersonal ? "/personal/focus" : getOrgHref("focus");
 
   return (
     <>
@@ -61,8 +80,9 @@ export function BottomNav({ workspace, role }: BottomNavProps) {
           <nav className="flex-1 flex items-center justify-around h-[60px] rounded-[30px] bg-[rgba(255,255,255,0.78)] dark:bg-[#0D0F13]/85 backdrop-blur-md border border-[#D9DDE3] dark:border-white/[0.12] shadow-[0_4px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.45)] px-3 mr-2.5">
             
             {/* 1. Home Tab (iOS house icon + "Home" label) */}
-            <Link
-              href={isPersonal ? "/personal/dashboard" : getOrgHref("dashboard")}
+            <a
+              href={homeHref}
+              onClick={(e) => handleTabClick(e, homeHref, isDashboardActive)}
               aria-label="Home"
               className="flex-1 flex flex-col items-center justify-center h-full cursor-pointer transition-transform active:scale-95 py-1"
             >
@@ -82,12 +102,13 @@ export function BottomNav({ workspace, role }: BottomNavProps) {
               >
                 Home
               </span>
-            </Link>
+            </a>
 
             {/* 2. Projects / Focus Tab (Folder for CEO, Focus for CO-CEO / MEMBER / Personal) */}
             {userRole === "CEO" && !isPersonal ? (
-              <Link
+              <a
                 href="/ceo/projects"
+                onClick={(e) => handleTabClick(e, "/ceo/projects", isProjectsActive)}
                 aria-label="Projects"
                 className="flex-1 flex flex-col items-center justify-center h-full cursor-pointer transition-transform active:scale-95 py-1"
               >
@@ -107,10 +128,11 @@ export function BottomNav({ workspace, role }: BottomNavProps) {
                 >
                   Projects
                 </span>
-              </Link>
+              </a>
             ) : (
-              <Link
-                href={isPersonal ? "/personal/focus" : getOrgHref("focus")}
+              <a
+                href={focusHref}
+                onClick={(e) => handleTabClick(e, focusHref, isFocusActive)}
                 aria-label="Focus"
                 className="flex-1 flex flex-col items-center justify-center h-full cursor-pointer transition-transform active:scale-95 py-1"
               >
@@ -130,7 +152,7 @@ export function BottomNav({ workspace, role }: BottomNavProps) {
                 >
                   Focus
                 </span>
-              </Link>
+              </a>
             )}
 
             {/* 3. More Tab (iOS Ellipsis icon + "More" label) */}

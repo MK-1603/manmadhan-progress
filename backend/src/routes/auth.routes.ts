@@ -1274,7 +1274,7 @@ authRouter.get("/me", strictAuth, async (req, res) => {
 		workspace = {
 			id: m.workspaceId,
 			name: m.workspaceName,
-			batchNumber: m.batchNumber || user.batchNumber || "MM1107",
+			batchNumber: m.batchNumber || user.batchNumber || "",
 			type: m.type,
 		};
 	}

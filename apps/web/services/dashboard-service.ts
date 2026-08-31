@@ -8,6 +8,8 @@ import {
 export interface FetchDashboardOptions {
   workspaceId?: string | null;
   forceRefresh?: boolean;
+  range?: "7D" | "30D" | "90D";
+  leaderboardPeriod?: "week" | "month" | "quarter" | "all";
 }
 
 /**
@@ -46,10 +48,15 @@ export async function fetchDashboardData(
   options: FetchDashboardOptions = {}
 ): Promise<DashboardDataShape> {
   const wsId = options.workspaceId || (typeof window !== "undefined" ? localStorage.getItem("workspaceId") : null);
-  const param = wsId ? `?workspaceId=${wsId}` : "";
+  const queryParams = new URLSearchParams();
+  if (wsId) queryParams.set("workspaceId", wsId);
+  if (options.range) queryParams.set("range", options.range);
+  if (options.leaderboardPeriod) queryParams.set("leaderboardPeriod", options.leaderboardPeriod);
+  
+  const queryString = queryParams.toString() ? `?${queryParams.toString()}` : "";
   
   try {
-    const res = await apiClient.get(`/organization/dashboard${param}`);
+    const res = await apiClient.get(`/organization/dashboard${queryString}`);
     if (res.data && res.data.success && res.data.data) {
       return res.data.data as DashboardDataShape;
     }
