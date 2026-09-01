@@ -439,7 +439,7 @@ export function GlobalSheet({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
-            className="fixed inset-0 bg-black/60 dark:bg-black/75 z-[10000]"
+            className="fixed inset-0 bg-black/40 dark:bg-black/55 backdrop-blur-[2px] z-[10000]"
           />
 
           {/* DESKTOP MODAL VIEWPORT (z-[9999]) */}

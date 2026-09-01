@@ -227,7 +227,7 @@ export default function PersonalTasksPage() {
       
       {/* ── 1. TASK PAGE HEADER ────────────────────────────────────────── */}
       <div className="shrink-0 px-4 md:px-6 py-3.5 border-b border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F]">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-6 h-6 text-[#C9A52A] dark:text-[#D4B12F] shrink-0" />
@@ -240,8 +240,8 @@ export default function PersonalTasksPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center p-0.5 rounded-[9px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36]">
+          <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+            <div className="flex items-center p-0.5 rounded-[9px] bg-[#F8F9FB] dark:bg-[#111419] border border-[#E4E7EC] dark:border-[#272D36] shrink-0">
               <button
                 type="button"
                 onClick={() => setViewMode("TABLE")}
@@ -268,23 +268,25 @@ export default function PersonalTasksPage() {
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={fetchTasks}
-              className="p-2 h-[34px] w-[34px] flex items-center justify-center rounded-[8px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7] transition-colors cursor-pointer"
-              title="Refresh Tasks"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={fetchTasks}
+                className="p-2 h-[34px] w-[34px] flex items-center justify-center rounded-[8px] border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] text-[#667085] hover:text-[#17202A] dark:hover:text-[#F2F4F7] transition-colors cursor-pointer"
+                title="Refresh Tasks"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setShowCreate(true)}
-              className="inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold text-[12.5px] cursor-pointer shadow-2xs hover:opacity-90 transition-opacity shrink-0"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Create Task</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="inline-flex items-center gap-1.5 px-4 h-[36px] rounded-[9px] bg-[#C9A52A] dark:bg-[#D4B12F] text-[#0B0D10] font-bold text-[12.5px] cursor-pointer shadow-2xs hover:opacity-90 transition-opacity shrink-0"
+              >
+                <Plus className="w-4 h-4 stroke-[2.5]" />
+                <span>Create Task</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -321,7 +323,7 @@ export default function PersonalTasksPage() {
             </button>
 
             {showMoreDropdown && (
-              <div className="absolute top-full left-0 mt-1 w-44 rounded-xl border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] shadow-xl p-1.5 z-50 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+              <div className="absolute top-full right-0 sm:left-0 mt-1 w-44 max-w-[calc(100vw-32px)] rounded-xl border border-[#E4E7EC] dark:border-[#272D36] bg-[#FFFFFF] dark:bg-[#15191F] shadow-xl p-1.5 z-50 space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
                 {MORE_DESKTOP_CATEGORIES.map((cat) => (
                   <button
                     key={cat.id}
