@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { WifiOff, Wifi, RefreshCw } from "lucide-react";
 
+import { pwaRefreshEngine } from "@/lib/pwa-refresh-engine";
+
 interface OfflineContextType {
   isOnline: boolean;
 }
@@ -63,7 +65,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
           </div>
 
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => pwaRefreshEngine.syncStaleDomains()}
             className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-[11px] font-semibold text-zinc-200 hover:text-white transition-all cursor-pointer"
           >
             <RefreshCw className="w-3 h-3" />

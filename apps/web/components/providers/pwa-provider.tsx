@@ -11,6 +11,7 @@ export type BrowserType = "safari" | "chrome" | "edge" | "firefox" | "other";
 
 interface PWAContextType {
   isInstalled: boolean;
+  isStandalone: boolean;
   installStatus: InstallStatus;
   updateStatus: UpdateStatus;
   currentVersion: string;
@@ -33,6 +34,7 @@ const PWAContext = createContext<PWAContextType | null>(null);
 
 export function PWAProvider({ children }: { children: React.ReactNode }) {
   const [isInstalled, setIsInstalled] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
   const [installStatus, setInstallStatus] = useState<InstallStatus>("NOT_INSTALLED");
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("UP_TO_DATE");
   const [currentVersion] = useState(CURRENT_APP_VERSION);
@@ -94,16 +96,58 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       setDevice("desktop");
     }
 
-    // Standalone Display Mode Detection
-    const isStandaloneMode =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true ||
-      document.referrer.includes("android-app://");
+    // Standalone Display Mode Detection (standalone, fullscreen, minimal-ui, iOS, Android TWA)
+    const checkStandalone = () => {
+      const isStandaloneMQ =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        window.matchMedia("(display-mode: fullscreen)").matches ||
+        window.matchMedia("(display-mode: minimal-ui)").matches;
+      const isIOSStandalone = (window.navigator as any).standalone === true;
+      const isAndroidTWA = document.referrer.includes("android-app://");
+      return Boolean(isStandaloneMQ || isIOSStandalone || isAndroidTWA);
+    };
 
-    if (isStandaloneMode) {
+    const standaloneActive = checkStandalone();
+    setIsStandalone(standaloneActive);
+    document.documentElement.setAttribute("data-standalone", standaloneActive ? "true" : "false");
+
+    if (standaloneActive) {
       setIsInstalled(true);
       setInstallStatus("INSTALLED");
     }
+
+    // Listen for display-mode changes dynamically
+    const mqStandalone = window.matchMedia("(display-mode: standalone)");
+    const mqFullscreen = window.matchMedia("(display-mode: fullscreen)");
+    const mqMinimalUi = window.matchMedia("(display-mode: minimal-ui)");
+
+    const handleDisplayModeChange = () => {
+      const active = checkStandalone();
+      setIsStandalone(active);
+      document.documentElement.setAttribute("data-standalone", active ? "true" : "false");
+      if (active) {
+        setIsInstalled(true);
+        setInstallStatus("INSTALLED");
+      }
+    };
+
+    try {
+      mqStandalone.addEventListener("change", handleDisplayModeChange);
+      mqFullscreen.addEventListener("change", handleDisplayModeChange);
+      mqMinimalUi.addEventListener("change", handleDisplayModeChange);
+    } catch {
+      mqStandalone.addListener?.(handleDisplayModeChange);
+    }
+
+    return () => {
+      try {
+        mqStandalone.removeEventListener("change", handleDisplayModeChange);
+        mqFullscreen.removeEventListener("change", handleDisplayModeChange);
+        mqMinimalUi.removeEventListener("change", handleDisplayModeChange);
+      } catch {
+        mqStandalone.removeListener?.(handleDisplayModeChange);
+      }
+    };
   }, []);
 
   // 2. Listen for beforeinstallprompt & appinstalled events
@@ -263,6 +307,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     <PWAContext.Provider
       value={{
         isInstalled,
+        isStandalone,
         installStatus,
         updateStatus,
         currentVersion,

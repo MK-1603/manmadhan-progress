@@ -430,16 +430,16 @@ export function GlobalSheet({
     <AnimatePresence mode="wait">
       {open && (
         <div
-          className="fixed inset-0 z-[9900] flex flex-col justify-end md:justify-center items-center font-sans antialiased select-none overflow-hidden"
+          className="fixed inset-0 z-[10000] flex flex-col justify-end md:justify-center items-center font-sans antialiased select-none overflow-hidden"
           onClick={handleBackdropClick}
         >
-          {/* BACKDROP (z-[9900]) */}
+          {/* BACKDROP (z-[10000]) */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
-            className="absolute inset-0 bg-black/60 dark:bg-black/75"
+            className="fixed inset-0 bg-black/60 dark:bg-black/75 z-[10000]"
           />
 
           {/* DESKTOP MODAL VIEWPORT (z-[9999]) */}
@@ -531,7 +531,7 @@ export function GlobalSheet({
               exit={{ y: "100%", opacity: 0 }}
               transition={{ type: "spring", stiffness: 400, damping: 35, mass: 0.8 }}
               style={dynamicHeightStyle}
-              className={`relative w-full bg-[#FFFFFF] dark:bg-[#0D1015] border-t border-[#E4E7EC] dark:border-[#252B35] rounded-t-[28px] shadow-[0_-12px_40px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden z-[9999] text-[#17202A] dark:text-[#F3FFF0] touch-pan-y will-change-transform ${className}`}
+              className={`relative w-full bg-[#FFFFFF] dark:bg-[#0D1015] border-t border-[#E4E7EC] dark:border-[#252B35] rounded-t-[28px] shadow-[0_-12px_40px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden z-[10001] text-[#17202A] dark:text-[#F3FFF0] touch-pan-y will-change-transform ${className}`}
               onClick={(e) => e.stopPropagation()}
             >
               {/* DRAG HANDLE & MOBILE HEADER */}

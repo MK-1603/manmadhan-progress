@@ -8,6 +8,11 @@ import { useAuth } from "@/components/auth/auth-context";
 import { usePathname } from "next/navigation";
 import { GlobalRefreshProvider, GlobalPullToRefreshContent } from "@/components/providers/global-refresh-provider";
 
+import { usePWA } from "@/components/providers/pwa-provider";
+
+import { MobileToastProvider } from "@/components/ui/mobile-toast";
+import { PageTransition } from "@/components/ui/page-transition";
+
 function getRole(pathname: string, userRole?: string): "CEO" | "CO-CEO" | "MEMBER" {
   if (pathname.startsWith("/co-ceo")) return "CO-CEO";
   if (pathname.startsWith("/member")) return "MEMBER";
@@ -25,6 +30,7 @@ function getBase(role: "CEO" | "CO-CEO" | "MEMBER"): string {
 }
 
 export default function OrganizationLayout({ children }: { children: React.ReactNode }) {
+  const { isStandalone } = usePWA();
   const pathname = usePathname();
   const { user } = useAuth();
   const role = getRole(pathname, user?.role);
@@ -42,28 +48,32 @@ export default function OrganizationLayout({ children }: { children: React.React
      pathname === "/member/projects") &&
     !pathname?.includes("/create")) || isCreationWorkflow;
 
+  const pbClass = isFixedViewportPage
+    ? "overflow-hidden pb-0 md:pb-0"
+    : isStandalone
+    ? "overflow-y-auto pb-[calc(80px+env(safe-area-inset-bottom,0px))] md:pb-6"
+    : "overflow-y-auto pb-4 md:pb-6";
+
   return (
-    <GlobalRefreshProvider>
-      <div className="flex h-[100dvh] w-full bg-background overflow-hidden">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0 h-full w-full overflow-hidden">
-          <Header />
-          <MobileHeader />
-          <main
-            data-lenis-prevent
-            className={`flex-1 min-h-0 w-full max-w-full flex flex-col overflow-x-hidden ${
-              isFixedViewportPage
-                ? "overflow-hidden pb-0 md:pb-0"
-                : "overflow-y-auto pb-[calc(96px+env(safe-area-inset-bottom))] md:pb-0"
-            } [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`}
-          >
-            <GlobalPullToRefreshContent>
-              {children}
-            </GlobalPullToRefreshContent>
-          </main>
-          {!isCreationWorkflow && <BottomNav workspace="organization" role={role} />}
+    <MobileToastProvider>
+      <GlobalRefreshProvider>
+        <div className="flex h-screen h-[100dvh] w-full bg-background overflow-hidden font-sans">
+          <Sidebar />
+          <div className="flex-1 flex flex-col min-w-0 h-full w-full overflow-hidden">
+            <Header />
+            <MobileHeader />
+            <main
+              data-lenis-prevent
+              className={`flex-1 min-h-0 w-full max-w-full flex flex-col overflow-x-hidden ${pbClass} [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`}
+            >
+              <GlobalPullToRefreshContent>
+                <PageTransition>{children}</PageTransition>
+              </GlobalPullToRefreshContent>
+            </main>
+            {!isCreationWorkflow && <BottomNav workspace="organization" role={role} />}
+          </div>
         </div>
-      </div>
-    </GlobalRefreshProvider>
+      </GlobalRefreshProvider>
+    </MobileToastProvider>
   );
 }

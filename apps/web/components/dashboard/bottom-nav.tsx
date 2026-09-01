@@ -13,6 +13,8 @@ import { MORE_SHEET_SHORTCUTS } from "@/config/mobile-nav.config";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 import { useSetRefreshDisabled, useGlobalRefresh } from "@/components/providers/global-refresh-provider";
+import { usePWA } from "@/components/providers/pwa-provider";
+import { GlobalSheet } from "@/components/ui/global-sheet";
 
 type BottomNavProps = {
   workspace: "personal" | "organization";
@@ -20,6 +22,7 @@ type BottomNavProps = {
 };
 
 export function BottomNav({ workspace, role }: BottomNavProps) {
+  const { isStandalone } = usePWA();
   const { user } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
@@ -30,6 +33,11 @@ export function BottomNav({ workspace, role }: BottomNavProps) {
 
   useBodyScrollLock(moreSheetOpen || aiCaptureOpen);
   useSetRefreshDisabled(moreSheetOpen || aiCaptureOpen);
+
+  // If not running in installed PWA mode, do not render bottom navbar in normal mobile browser
+  if (!isStandalone) {
+    return null;
+  }
 
   const isPersonal = workspace === "personal";
   const userRole = (role || (user?.role || "CEO")).toUpperCase() as "CEO" | "CO-CEO" | "MEMBER";
@@ -53,9 +61,14 @@ export function BottomNav({ workspace, role }: BottomNavProps) {
   const handleTabClick = (e: React.MouseEvent, targetHref: string, isActive: boolean) => {
     e.preventDefault();
     if (isActive) {
-      const scrollY = typeof window !== "undefined" ? (window.scrollY || document.documentElement.scrollTop || 0) : 0;
-      if (scrollY > 15) {
-        window.scrollTo({ top: 0, behavior: "smooth" });
+      const mainEl = typeof document !== "undefined" ? document.querySelector("main") : null;
+      const scrollTop = mainEl ? mainEl.scrollTop : (typeof window !== "undefined" ? window.scrollY : 0);
+      if (scrollTop > 15) {
+        if (mainEl) {
+          mainEl.scrollTo({ top: 0, behavior: "smooth" });
+        } else {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
       } else {
         triggerRefresh?.();
       }
@@ -206,80 +219,28 @@ export function BottomNav({ workspace, role }: BottomNavProps) {
         isPersonal={isPersonal}
       />
 
-      {/* MORE SHORTCUTS BOTTOM SHEET */}
-      <AnimatePresence>
-        {moreSheetOpen && (
-          <div className="fixed inset-0 z-[10000] md:hidden">
-            {/* Backdrop Scrim */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+      {/* MORE SHORTCUTS BOTTOM SHEET (PORTAL VIA GLOBAL SHEET) */}
+      <GlobalSheet
+        open={moreSheetOpen}
+        onClose={() => setMoreSheetOpen(false)}
+        title="Shortcuts"
+        subtitle="Quick Access Shortcuts"
+        desktopMode="sheet"
+      >
+        <div className="grid grid-cols-2 gap-2 text-xs py-1">
+          {moreShortcuts.map((item) => (
+            <Link
+              key={item.label}
+              href={item.href}
               onClick={() => setMoreSheetOpen(false)}
-              className="fixed inset-0 bg-black/60 z-[10000]"
-            />
-
-            {/* Compact Bottom Sheet */}
-            <motion.div
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", stiffness: 360, damping: 32 }}
-              drag="y"
-              dragConstraints={{ top: 0 }}
-              dragElastic={0.2}
-              onDragEnd={(e, { offset, velocity }) => {
-                if (offset.y > 100 || velocity.y > 500) {
-                  setMoreSheetOpen(false);
-                }
-              }}
-              className="fixed bottom-0 left-0 right-0 z-[10001] bg-[#FFFFFF] dark:bg-[#15181D] rounded-t-[22px] border-t border-[#E4E7EC] dark:border-[#292F38] shadow-2xl flex flex-col max-h-[58vh] pb-[max(16px,env(safe-area-inset-bottom))] p-4 select-none"
+              className="flex items-center gap-2.5 h-[46px] px-3 rounded-xl border border-[#E4E7EC] dark:border-[#292F38] bg-[#F8F9FA] dark:bg-[#181C22] text-xs font-medium text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] transition-colors"
             >
-              {/* Drag Handle (36px x 4px) */}
-              <div className="w-full flex justify-center pt-1 pb-3 shrink-0">
-                <div className="w-9 h-1 rounded-full bg-[#E4E7EC] dark:bg-[#292F38]" />
-              </div>
-
-              {/* Sheet Header */}
-              <div className="pb-3 mb-2 border-b border-[#E4E7EC] dark:border-[#292F38] shrink-0">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-[#17202A] dark:text-[#F2F4F7]">
-                    Shortcuts
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setMoreSheetOpen(false)}
-                    aria-label="Close"
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <span className="text-[12px] font-medium text-[#667085] dark:text-[#8B94A3] mt-0.5 block">
-                  Quick Access Shortcuts
-                </span>
-              </div>
-
-              {/* Compact Shortcuts List */}
-              <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 min-h-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                <div className="grid grid-cols-2 gap-2">
-                  {moreShortcuts.map((item) => (
-                    <Link
-                      key={item.label}
-                      href={item.href}
-                      onClick={() => setMoreSheetOpen(false)}
-                      className="flex items-center gap-2.5 h-[46px] px-3 rounded-xl border border-[#E4E7EC] dark:border-[#292F38] bg-[#F8F9FA] dark:bg-[#181C22] text-xs font-medium text-[#17202A] dark:text-[#F2F4F7] hover:bg-[#F3F4F6] dark:hover:bg-[#1C2027] transition-colors"
-                    >
-                      <item.icon className="w-4.5 h-4.5 text-[#D4B12F] shrink-0" />
-                      <span className="truncate">{item.label}</span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+              <item.icon className="w-4.5 h-4.5 text-[#D4B12F] shrink-0" />
+              <span className="truncate">{item.label}</span>
+            </Link>
+          ))}
+        </div>
+      </GlobalSheet>
     </>
   );
 }

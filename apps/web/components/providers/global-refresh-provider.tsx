@@ -12,6 +12,9 @@ import React, {
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowDown, RefreshCw, Check, AlertCircle } from "lucide-react";
 
+import { usePWA } from "@/components/providers/pwa-provider";
+import { pwaRefreshEngine } from "@/lib/pwa-refresh-engine";
+
 type PullState = "idle" | "pulling" | "canRelease" | "refreshing" | "success" | "error";
 
 type GlobalRefreshContextValue = {
@@ -63,6 +66,7 @@ export function useGlobalRefresh() {
 }
 
 export function GlobalRefreshProvider({ children }: { children: ReactNode }) {
+  const { isStandalone } = usePWA();
   const activeHandlersRef = useRef<Array<() => Promise<void>>>([]);
   const isRefreshDisabledRef = useRef(false);
 
@@ -77,6 +81,10 @@ export function GlobalRefreshProvider({ children }: { children: ReactNode }) {
   const mainContainerRef = useRef<HTMLDivElement | null>(null);
 
   const threshold = 64;
+
+  useEffect(() => {
+    pwaRefreshEngine.setStandalone(isStandalone);
+  }, [isStandalone]);
 
   const registerRefreshHandler = useCallback((handler: () => Promise<void>) => {
     activeHandlersRef.current = [handler];
@@ -135,7 +143,7 @@ export function GlobalRefreshProvider({ children }: { children: ReactNode }) {
 
   const handleTouchStart = useCallback(
     (e: TouchEvent) => {
-      if (isRefreshDisabledRef.current || isRefreshingLockRef.current) return;
+      if (!isStandalone || isRefreshDisabledRef.current || isRefreshingLockRef.current) return;
       if (activeHandlersRef.current.length === 0) return;
       if (getScrollTop() > 2) return;
 

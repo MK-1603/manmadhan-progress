@@ -150,8 +150,8 @@ export function MobileHeader({
 
   return (
     <>
-      {/* Mobile Sticky Header Bar (h-[64px]) */}
-      <header className="md:hidden flex items-center justify-between h-[64px] shrink-0 px-4 border-b border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#0B0D10] text-[#17202A] dark:text-[#F2F3F5] sticky top-0 z-40 select-none">
+      {/* Mobile Header Bar (h-[64px] shrink-0 fixed at shell top) */}
+      <header className="md:hidden flex items-center justify-between h-[64px] shrink-0 px-4 border-b border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#0B0D10] text-[#17202A] dark:text-[#F2F3F5] z-40 select-none relative w-full">
         
         {/* LEFT: Menu Button */}
         <button

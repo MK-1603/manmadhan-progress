@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * @deprecated Legacy mobile navigation component.
+ * Use `@/components/dashboard/bottom-nav` as the single authoritative mobile bottom navigation implementation.
+ */
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
