@@ -264,7 +264,7 @@ export function GlobalRefreshProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Wrapper component placed inside <main> to translate ONLY scrollable page content */
+/** Wrapper component placed inside <main> to host top refresh indicator without modifying content scroll transform */
 export function GlobalPullToRefreshContent({ children }: { children: ReactNode }) {
   const ctx = useContext(GlobalRefreshContext);
   if (!ctx) return <>{children}</>;
@@ -272,11 +272,10 @@ export function GlobalPullToRefreshContent({ children }: { children: ReactNode }
   const { pullState, pullDistance, threshold, mainContainerRef } = ctx;
 
   const arrowRotation = Math.min(180, (pullDistance / threshold) * 180);
-  const contentY = pullState === "refreshing" ? 44 : pullState !== "idle" ? Math.min(pullDistance * 0.6, 52) : 0;
 
   return (
     <div ref={mainContainerRef} className="relative w-full h-full flex flex-col flex-1 min-h-0">
-      {/* REFRESH INDICATOR CENTERED ABOVE CONTENT — ICON ONLY */}
+      {/* REFRESH INDICATOR FLOATING TOP OVERLAY — ZERO LAYOUT SHIFT */}
       <AnimatePresence mode="wait">
         {pullState !== "idle" && (
           <div className="md:hidden pointer-events-none absolute top-3 left-0 right-0 z-[60] flex items-center justify-center select-none">
@@ -318,14 +317,10 @@ export function GlobalPullToRefreshContent({ children }: { children: ReactNode }
         )}
       </AnimatePresence>
 
-      {/* ONLY SCROLLABLE PAGE CONTENT PARTICIPATES IN PULL TRANSLATION */}
-      <motion.div
-        animate={{ y: contentY }}
-        transition={{ type: "tween", duration: 0.15 }}
-        className="w-full h-full flex flex-col flex-1 min-h-0"
-      >
+      {/* NATIVE SCROLLABLE PAGE CONTENT CONTAINER (ZERO TRANSFORM TRANSLATION) */}
+      <div className="w-full h-full flex flex-col flex-1 min-h-0">
         {children}
-      </motion.div>
+      </div>
     </div>
   );
 }
