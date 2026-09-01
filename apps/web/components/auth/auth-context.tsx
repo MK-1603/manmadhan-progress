@@ -169,9 +169,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const [transitionType, setTransitionType] = useState<"AUTHENTICATING" | "LOGGING_OUT" | "SESSION_RESTORING">("AUTHENTICATING");
+
   const logout = React.useCallback(async () => {
     authVersionRef.current += 1;
     setIsExplicitLoggingOut(true);
+    setTransitionMessage("Signing out safely...");
+    setTransitionType("LOGGING_OUT");
+    setIsTransitioning(true);
     close(true);
     resetGlobalSheetState();
 
@@ -191,8 +196,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionStorage.removeItem("authData");
     }
 
-    router.replace("/");
-    setIsExplicitLoggingOut(false);
+    setTimeout(() => {
+      router.replace("/");
+      setIsTransitioning(false);
+      setIsExplicitLoggingOut(false);
+    }, 400);
   }, [router, close]);
 
   const checkSession = React.useCallback(async () => {
@@ -466,7 +474,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={contextValue}>
       {children}
-      <TransitionScreen isVisible={isTransitioning} message={transitionMessage} />
+      <TransitionScreen isVisible={isTransitioning} message={transitionMessage} type={transitionType} />
     </AuthContext.Provider>
   );
 }

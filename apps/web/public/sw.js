@@ -90,47 +90,62 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then(async (cachedResponse) => {
-      if (cachedResponse) {
-        const cachedAt = cachedResponse.headers.get("x-manmadhan-cached-at");
-        if (cachedAt && Date.now() - parseInt(cachedAt, 10) < CACHE_TTL_MS) {
-          return cachedResponse;
-        }
-      }
-
-      try {
-        const networkResponse = await fetch(event.request);
-        if (networkResponse && networkResponse.status === 200) {
-          const responseToCache = networkResponse.clone();
-          const headers = new Headers(responseToCache.headers);
-          headers.append("x-manmadhan-cached-at", Date.now().toString());
-
-          const responseWithTimestamp = new Response(await responseToCache.blob(), {
-            status: responseToCache.status,
-            statusText: responseToCache.statusText,
-            headers: headers,
-          });
-
-          const cache = await caches.open(CACHE_NAME);
-          cache.put(event.request, responseWithTimestamp);
-        }
-        return networkResponse;
-      } catch (err) {
-        if (cachedResponse) return cachedResponse;
-        if (event.request.mode === "navigate") {
+  // 1. Network-First Strategy for HTML Navigation Requests (Guarantees instant deployment update detection)
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request)
+        .then(async (networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cachedMatch = await caches.match(event.request);
+          if (cachedMatch) return cachedMatch;
           const offlineMatch = (await caches.match("/offline")) || (await caches.match("/install")) || (await caches.match("/"));
           if (offlineMatch) return offlineMatch;
-        }
+          return new Response("Service Temporarily Unavailable", { status: 503 });
+        })
+    );
+    return;
+  }
+
+  // 2. Cache-First Strategy for Hashed Static Assets (/_next/static/)
+  if (url.pathname.startsWith("/_next/static/")) {
+    event.respondWith(
+      caches.match(event.request).then(async (cachedResponse) => {
+        if (cachedResponse) return cachedResponse;
         try {
-          return await fetch(event.request.url, { redirect: "follow" });
+          const networkResponse = await fetch(event.request);
+          if (networkResponse && networkResponse.status === 200) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
         } catch {
-          return new Response("Service Temporarily Unavailable", {
-            status: 503,
-            statusText: "Service Unavailable",
-          });
+          return new Response("Asset Unavailable", { status: 404 });
         }
-      }
+      })
+    );
+    return;
+  }
+
+  // 3. Stale-While-Revalidate for Other General Assets
+  event.respondWith(
+    caches.match(event.request).then(async (cachedResponse) => {
+      const fetchPromise = fetch(event.request)
+        .then(async (networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        })
+        .catch(() => cachedResponse);
+
+      return cachedResponse || fetchPromise;
     })
   );
 

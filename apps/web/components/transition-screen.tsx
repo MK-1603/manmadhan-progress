@@ -1,14 +1,16 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import Image from "next/image";
+import { AuthLoader3D } from "@/components/ui/auth-loader-3d";
 
 export function TransitionScreen({
   isVisible,
-  message = "Connecting..."
+  message = "Authenticating...",
+  type = "AUTHENTICATING",
 }: {
   isVisible: boolean;
   message?: string;
+  type?: "AUTHENTICATING" | "LOGGING_OUT" | "SESSION_RESTORING";
 }) {
   return (
     <AnimatePresence>
@@ -29,22 +31,7 @@ export function TransitionScreen({
             transition={{ duration: 0.2 }}
             className="flex flex-col items-center justify-center gap-4 relative z-10 select-none text-center px-6"
           >
-            {/* ManMadhan M Logo */}
-            <div className="relative h-12 w-12 overflow-hidden rounded-xl border border-[#D4AF37]/30 bg-[#D4AF37]/10 flex items-center justify-center shadow-lg mb-1">
-              <Image
-                src="/ios/iTunesArtwork@1x.png"
-                alt="ManMadhan Progress Logo"
-                width={36}
-                height={36}
-                className="rounded"
-              />
-            </div>
-
-            {/* Minimal Status Label */}
-            <div className="flex items-center gap-2.5 text-sm font-semibold text-[#F5F5F2] tracking-wide">
-              <span className="w-2 h-2 rounded-full bg-[#D4AF37] animate-pulse" />
-              <span>{message}</span>
-            </div>
+            <AuthLoader3D message={message} type={type} />
           </motion.div>
         </motion.section>
       )}
