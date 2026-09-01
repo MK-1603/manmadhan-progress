@@ -93,10 +93,10 @@ export function ProfileDropdown({
 
   const userInitials = getInitials(user);
   const realDisplayName = user?.displayName || user?.name || user?.email?.split("@")[0] || "User";
-  const realBatchId = orgWorkspace?.batchNumber || user?.batchNumber || "";
+  const realBatchId = user?.batchNumber || orgWorkspace?.batchNumber || "";
 
-  // Dynamic Batch ID or Workspace short name/code
-  const displayBatchOrName = realBatchId || orgWorkspace?.name || "Organization Workspace";
+  // Dynamic Batch ID from authenticated session/user or Organization Workspace
+  const displayBatchOrName = realBatchId || (orgWorkspace?.name && orgWorkspace.name !== "Personal Workspace" ? orgWorkspace.name : "Organization Workspace");
   const displayTitle = isPersonal ? realDisplayName : displayBatchOrName;
   const displaySubtitle = isPersonal ? "Personal Workspace" : `${userRoleLabel} · Organization`;
   

@@ -268,7 +268,7 @@ const handleSendInvite = async (req: Request, res: Response) => {
 			});
 		}
 
-		// Verify leadership
+		// Verify leadership and strict RBAC permission matrix
 		const membership = await db.query.workspaceMembers.findFirst({
 			where: and(
 				eq(workspaceMembers.workspaceId, String(workspaceId)),
@@ -276,10 +276,8 @@ const handleSendInvite = async (req: Request, res: Response) => {
 			),
 		});
 
-		if (
-			!membership ||
-			(membership.role !== "CEO" && membership.role !== "CO-CEO")
-		) {
+		let userRole = membership?.role;
+		if (!userRole) {
 			const anyLeadership = await db.query.workspaceMembers.findFirst({
 				where: and(
 					eq(workspaceMembers.userId, inviterId),
@@ -291,10 +289,47 @@ const handleSendInvite = async (req: Request, res: Response) => {
 			});
 			if (anyLeadership) {
 				workspaceId = anyLeadership.workspaceId;
+				userRole = anyLeadership.role;
 			} else {
 				return res.status(403).json({
 					success: false,
+					code: "INSUFFICIENT_PERMISSION",
 					error: "Only CEO or CO-CEO can send invitations.",
+				});
+			}
+		}
+
+		const inviterRoleNorm = String(userRole).toUpperCase();
+		const targetRoleNorm = String(role).toUpperCase().replace("-", "_");
+
+		// Strict Permission Matrix:
+		// CEO -> CO-CEO, MEMBER (Cannot invite CEO)
+		// CO-CEO -> MEMBER ONLY (Cannot invite CO-CEO or CEO)
+		// MEMBER -> Nobody
+		if (inviterRoleNorm === "MEMBER") {
+			return res.status(403).json({
+				success: false,
+				code: "INSUFFICIENT_PERMISSION",
+				error: "Members are not permitted to send invitations.",
+			});
+		}
+
+		if (inviterRoleNorm === "CO_CEO" || inviterRoleNorm === "CO-CEO") {
+			if (targetRoleNorm !== "MEMBER") {
+				return res.status(403).json({
+					success: false,
+					code: "INSUFFICIENT_PERMISSION",
+					error: "CO-CEOs can add Members only.",
+				});
+			}
+		}
+
+		if (inviterRoleNorm === "CEO") {
+			if (targetRoleNorm === "CEO") {
+				return res.status(403).json({
+					success: false,
+					code: "INSUFFICIENT_PERMISSION",
+					error: "CEOs cannot invite another CEO.",
 				});
 			}
 		}

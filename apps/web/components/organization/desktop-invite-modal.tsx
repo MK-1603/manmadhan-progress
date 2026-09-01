@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { X, Send, Loader2, AlertCircle, CheckCircle2, Shield, User, ChevronRight, Check, Copy, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import apiClient from "@/lib/api-client";
+import { useAuth } from "../auth/auth-context";
 
 interface DesktopInviteModalProps {
   isOpen: boolean;
@@ -15,6 +16,10 @@ interface DesktopInviteModalProps {
 type DispatchState = "READY" | "DISPATCHING" | "DISPATCHED" | "FAILED";
 
 export function DesktopInviteModal({ isOpen, onClose, onSuccess, coCeos }: DesktopInviteModalProps) {
+  const { user } = useAuth();
+  const rawRole = (user?.role || "").toUpperCase();
+  const isCoCeo = rawRole === "CO_CEO" || rawRole === "CO-CEO";
+
   const [batchId, setBatchId] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"CO-CEO" | "MEMBER">("MEMBER");
@@ -212,20 +217,26 @@ export function DesktopInviteModal({ isOpen, onClose, onSuccess, coCeos }: Deskt
             />
           </div>
 
-          {/* Organization Role Dropdown */}
+          {/* Organization Role Dropdown / Fixed Label for CO-CEO */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold uppercase tracking-wider text-[#667085] dark:text-[#8B95A5]">
               ORGANIZATION ROLE
             </label>
-            <select
-              disabled={dispatchState !== "READY" && dispatchState !== "FAILED"}
-              value={role}
-              onChange={(e) => handleRoleChange(e.target.value as any)}
-              className="w-full h-[42px] px-3.5 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[11px] text-[13px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#B28D18] dark:focus:border-[#C9A52A] cursor-pointer"
-            >
-              <option value="MEMBER">Member (Execution & Development)</option>
-              <option value="CO-CEO">CO-CEO (Leadership & Delegation)</option>
-            </select>
+            {isCoCeo ? (
+              <div className="w-full h-[42px] px-3.5 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[11px] text-[13px] font-semibold text-[#17202A] dark:text-[#F2F4F7] flex items-center">
+                Member (Execution & Development)
+              </div>
+            ) : (
+              <select
+                disabled={dispatchState !== "READY" && dispatchState !== "FAILED"}
+                value={role}
+                onChange={(e) => handleRoleChange(e.target.value as any)}
+                className="w-full h-[42px] px-3.5 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[11px] text-[13px] font-semibold text-[#17202A] dark:text-[#F2F4F7] outline-none focus:border-[#B28D18] dark:focus:border-[#C9A52A] cursor-pointer"
+              >
+                <option value="MEMBER">Member (Execution & Development)</option>
+                <option value="CO-CEO">CO-CEO (Leadership & Delegation)</option>
+              </select>
+            )}
           </div>
 
           {/* Assigned CO-CEO Supervisor (If MEMBER) */}

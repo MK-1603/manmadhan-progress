@@ -9,6 +9,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import apiClient from "@/lib/api-client";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { useAuth } from "../auth/auth-context";
 
 interface MobileInviteSheetProps {
   isOpen: boolean;
@@ -21,6 +22,10 @@ type Step = "FORM" | "ROLE_SELECT" | "SUPERVISOR_SELECT" | "DISCARD_CONFIRM";
 type DispatchState = "READY" | "DISPATCHING" | "DISPATCHED" | "FAILED";
 
 export function MobileInviteSheet({ isOpen, onClose, onSuccess, coCeos }: MobileInviteSheetProps) {
+  const { user } = useAuth();
+  const rawRole = (user?.role || "").toUpperCase();
+  const isCoCeo = rawRole === "CO_CEO" || rawRole === "CO-CEO";
+
   const [mounted, setMounted] = useState(false);
   useBodyScrollLock(isOpen);
   const [step, setStep] = useState<Step>("FORM");
@@ -402,19 +407,25 @@ export function MobileInviteSheet({ isOpen, onClose, onSuccess, coCeos }: Mobile
                   />
                 </div>
 
-                {/* Role Button Trigger */}
+                {/* Role Button Trigger / Fixed Label */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-bold uppercase tracking-wider text-[#667085] dark:text-[#8B95A5]">
                     ORGANIZATION ROLE
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setStep("ROLE_SELECT")}
-                    className="w-full h-[42px] px-3.5 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[11px] text-[13px] font-semibold text-[#17202A] dark:text-[#F2F4F7] flex items-center justify-between"
-                  >
-                    <span>{role === "MEMBER" ? "Member (Execution & Development)" : "CO-CEO (Leadership & Delegation)"}</span>
-                    <ChevronRight className="w-4 h-4 text-[#667085] dark:text-[#8B95A5]" />
-                  </button>
+                  {isCoCeo ? (
+                    <div className="w-full h-[42px] px-3.5 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[11px] text-[13px] font-semibold text-[#17202A] dark:text-[#F2F4F7] flex items-center">
+                      Member (Execution & Development)
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setStep("ROLE_SELECT")}
+                      className="w-full h-[42px] px-3.5 bg-[#F8F9FA] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] rounded-[11px] text-[13px] font-semibold text-[#17202A] dark:text-[#F2F4F7] flex items-center justify-between"
+                    >
+                      <span>{role === "MEMBER" ? "Member (Execution & Development)" : "CO-CEO (Leadership & Delegation)"}</span>
+                      <ChevronRight className="w-4 h-4 text-[#667085] dark:text-[#8B95A5]" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Supervisor Trigger (If MEMBER) */}

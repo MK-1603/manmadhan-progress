@@ -546,37 +546,36 @@ export default function CEOPeoplePage() {
   };
 
   return (
-    <div className="w-full h-full flex flex-col justify-between overflow-y-auto sm:overflow-hidden bg-[#F9FAFB] dark:bg-[#060806] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none p-4 sm:p-5 md:px-8 md:py-4 pb-3 md:pb-4 max-w-[1600px] mx-auto space-y-3.5 box-border [scrollbar-width:none]">
+    <div className="w-full h-full flex flex-col overflow-hidden bg-[#F9FAFB] dark:bg-[#060806] text-[#17202A] dark:text-[#F2F4F7] font-sans select-none p-4 sm:p-5 md:px-8 md:py-4 pb-20 md:pb-4 max-w-[1600px] mx-auto space-y-3.5 box-border">
       
-      {/* 1. COMPACT PAGE HEADER — Invite Button & Refresh Button in the SAME LINE (44px Height) */}
-      <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-[#E5E7EB] dark:border-[#272D36] shrink-0">
-        <div className="space-y-0.5 min-w-0">
-          <h1 className="text-[20px] sm:text-[24px] font-bold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none truncate">
+      {/* 1. PAGE HEADER — Title -> Description -> Action Row (Refresh + Invite Member) */}
+      <div className="flex flex-col gap-3 pb-3 border-b border-[#E5E7EB] dark:border-[#272D36] shrink-0">
+        <div className="space-y-1 min-w-0">
+          <h1 className="text-[20px] sm:text-[24px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] tracking-tight leading-none">
             People
           </h1>
-          <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] truncate">
-            Manage your organization team.
+          <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] leading-relaxed">
+            Manage your assigned team and monitor member progress.
           </p>
         </div>
 
-        {/* Top-Right Header Actions (Vertically Aligned 44px Buttons) */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => setIsInviteOpen(true)}
-            className="md:hidden h-[44px] px-3.5 rounded-[12px] bg-[#B28D18] dark:bg-[#C9A52A] text-white dark:text-[#0B0D10] text-[13px] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-xs shrink-0"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Invite</span>
-          </button>
-
+        {/* Action Row: Refresh (Left, Compact Square) + Invite Member (Right, Flexible) */}
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
           <button
             onClick={handleManualRefresh}
             disabled={isRefreshing}
-            className="w-[44px] sm:w-auto h-[44px] px-0 sm:px-3.5 rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7] text-[12.5px] font-semibold flex items-center justify-center gap-1.5 cursor-pointer hover:border-[#B28D18] dark:hover:border-[#C9A52A] transition-colors shrink-0 shadow-xs"
+            className="w-[44px] h-[44px] rounded-[12px] bg-[#FFFFFF] dark:bg-[#15191F] border border-[#E5E7EB] dark:border-[#272D36] text-[#17202A] dark:text-[#F2F4F7] flex items-center justify-center cursor-pointer hover:border-[#B28D18] dark:hover:border-[#C9A52A] transition-colors shrink-0 shadow-xs"
             title="Refresh people data"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-[#B28D18] dark:text-[#C9A52A]" : "text-[#667085] dark:text-[#8B95A5]"}`} />
-            <span className="hidden sm:inline">Refresh</span>
+          </button>
+
+          <button
+            onClick={() => setIsInviteOpen(true)}
+            className="flex-1 sm:flex-none h-[44px] px-4 rounded-[12px] bg-[#B28D18] dark:bg-[#C9A52A] text-white dark:text-[#0B0D10] text-[13px] font-extrabold flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] transition-all shadow-xs"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Invite Member</span>
           </button>
         </div>
       </div>

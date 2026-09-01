@@ -1746,6 +1746,60 @@ organizationRouter.get(
 	},
 );
 
+// ── GET /organization/invitations — List Workspace Pending Invitations ──────────
+organizationRouter.get(
+	"/invitations",
+	authenticate,
+	async (req: Request, res: Response) => {
+		try {
+			const userId = (req as any).user?.id;
+			let workspaceId = String(
+				req.query.workspaceId || req.body?.workspaceId || "",
+			).trim();
+
+			if (!workspaceId || workspaceId === "undefined" || workspaceId === "null") {
+				const m = await db.query.workspaceMembers.findFirst({
+					where: eq(workspaceMembers.userId, userId),
+				});
+				if (m) workspaceId = m.workspaceId;
+			}
+
+			if (!workspaceId) {
+				return res.json({ success: true, data: [] });
+			}
+
+			// Verify user belongs to workspace
+			const membership = await db.query.workspaceMembers.findFirst({
+				where: and(
+					eq(workspaceMembers.workspaceId, workspaceId),
+					eq(workspaceMembers.userId, userId),
+				),
+			});
+
+			if (!membership) {
+				return res
+					.status(403)
+					.json({ success: false, error: "Access denied to organization workspace" });
+			}
+
+			const invs = await db.query.invitations.findMany({
+				where: and(
+					eq(invitations.organizationId, workspaceId),
+					ne(invitations.status, "Revoked"),
+				),
+				orderBy: (inv, { desc }) => [desc(inv.createdAt)],
+			});
+
+			return res.json({ success: true, data: invs });
+		} catch (error: any) {
+			logger.error(`Get invitations error: ${error.message}`);
+			return res
+				.status(500)
+				.json({ success: false, error: "Failed to fetch invitations" });
+		}
+	},
+);
+
 // ── GET /organization/invitations/:id — Invitation Detail (CEO only) ──────────
 organizationRouter.get(
 	"/invitations/:id",
