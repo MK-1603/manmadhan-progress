@@ -40,19 +40,11 @@ export default function OrganizationLayout({ children }: { children: React.React
     pathname?.includes("/projects/create") || pathname?.includes("/projects/new");
 
   const isFixedViewportPage =
-    ((pathname?.includes("/graph") ||
-     pathname?.includes("/leaderboard") ||
-     pathname?.includes("/tasks") ||
-     pathname === "/ceo/projects" ||
-     pathname === "/co-ceo/projects" ||
-     pathname === "/member/projects") &&
-    !pathname?.includes("/create")) || isCreationWorkflow;
+    (pathname?.includes("/graph") && !pathname?.includes("/create")) || isCreationWorkflow;
 
   const pbClass = isFixedViewportPage
     ? "overflow-hidden pb-0 md:pb-0"
-    : isStandalone
-    ? "overflow-y-auto pb-[calc(80px+env(safe-area-inset-bottom,0px))] md:pb-6"
-    : "overflow-y-auto pb-4 md:pb-6";
+    : "overflow-y-auto pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:pb-6";
 
   return (
     <MobileToastProvider>

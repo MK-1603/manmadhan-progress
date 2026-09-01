@@ -27,11 +27,7 @@ export default function PersonalLayout({
             <MobileHeader />
             <main
               data-lenis-prevent
-              className={`flex-1 min-h-0 w-full max-w-full overflow-y-auto overflow-x-hidden ${
-                isStandalone
-                  ? "pb-[calc(80px+env(safe-area-inset-bottom,0px))]"
-                  : "pb-4"
-              } md:pb-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden`}
+              className="flex-1 min-h-0 w-full max-w-full overflow-y-auto overflow-x-hidden pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:pb-6 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             >
               <GlobalPullToRefreshContent>
                 <PageTransition>{children}</PageTransition>

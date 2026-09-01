@@ -269,55 +269,11 @@ export function GlobalPullToRefreshContent({ children }: { children: ReactNode }
   const ctx = useContext(GlobalRefreshContext);
   if (!ctx) return <>{children}</>;
 
-  const { pullState, pullDistance, threshold, mainContainerRef } = ctx;
-
-  const arrowRotation = Math.min(180, (pullDistance / threshold) * 180);
+  const { mainContainerRef } = ctx;
 
   return (
     <div ref={mainContainerRef} className="relative w-full h-full flex flex-col flex-1 min-h-0">
-      {/* REFRESH INDICATOR FLOATING TOP OVERLAY — ZERO LAYOUT SHIFT */}
-      <AnimatePresence mode="wait">
-        {pullState !== "idle" && (
-          <div className="md:hidden pointer-events-none absolute top-3 left-0 right-0 z-[60] flex items-center justify-center select-none">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.7 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.7 }}
-              transition={{ type: "tween", duration: 0.15 }}
-              className="w-9 h-9 rounded-full bg-[#11161D] border border-[#29313B] shadow-[0_8px_24px_rgba(0,0,0,0.45)] flex items-center justify-center shrink-0"
-            >
-              {pullState === "pulling" && (
-                <div
-                  className="w-4 h-4 text-[#9AA2AF] flex items-center justify-center transition-transform"
-                  style={{ transform: `rotate(${arrowRotation}deg)` }}
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </div>
-              )}
-
-              {pullState === "canRelease" && (
-                <div className="w-4 h-4 text-[#DDB52F] flex items-center justify-center transform rotate-180 transition-transform">
-                  <RefreshCw className="w-4 h-4" />
-                </div>
-              )}
-
-              {pullState === "refreshing" && (
-                <RefreshCw className="w-4 h-4 text-[#DDB52F] animate-spin" />
-              )}
-
-              {pullState === "success" && (
-                <Check className="w-4 h-4 text-[#39D393] stroke-[3]" />
-              )}
-
-              {pullState === "error" && (
-                <AlertCircle className="w-4 h-4 text-red-400" />
-              )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* NATIVE SCROLLABLE PAGE CONTENT CONTAINER (ZERO TRANSFORM TRANSLATION) */}
+      {/* NATIVE SCROLLABLE PAGE CONTENT CONTAINER (SILENT BACKGROUND REFRESH) */}
       <div className="w-full h-full flex flex-col flex-1 min-h-0">
         {children}
       </div>
