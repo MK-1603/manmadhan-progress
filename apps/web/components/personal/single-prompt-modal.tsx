@@ -130,7 +130,7 @@ export function SinglePromptModal({ isOpen, onClose, onComplete, isPersonal = tr
       <div className="space-y-4 text-xs select-text">
         {status === "IDLE" && (
           <>
-            <p className="text-sm font-medium text-muted-foreground">
+            <p className="text-sm font-semibold text-[#17202A] dark:text-[#F3FFF0]">
               What would you like to add?
             </p>
 
@@ -142,7 +142,7 @@ export function SinglePromptModal({ isOpen, onClose, onComplete, isPersonal = tr
                 className="h-[120px] w-full bg-[#F8F9FA] dark:bg-[#15191D] border border-[#E4E7EC] dark:border-[#292F38] rounded-xl p-3 text-sm text-[#17202A] dark:text-[#F3FFF0] placeholder:text-[#667085] dark:placeholder:text-[#8E949E] focus:outline-none focus:border-[#D4B12F] focus:ring-1 focus:ring-[#D4B12F] resize-none"
                 autoFocus
               />
-              <span className="text-[11px] font-mono text-muted-foreground">
+              <span className="text-[11px] font-mono text-[#667085] dark:text-[#8E949E]">
                 Task, project, note, book, reminder...
               </span>
 
@@ -152,8 +152,8 @@ export function SinglePromptModal({ isOpen, onClose, onComplete, isPersonal = tr
                 disabled={!prompt.trim()}
                 className={`h-[48px] w-full rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer mt-1 ${
                   prompt.trim()
-                    ? "bg-gold text-[#0B0D10] hover:brightness-105 shadow-2xs"
-                    : "bg-muted text-muted-foreground cursor-not-allowed"
+                    ? "bg-[#C89B18] dark:bg-[#D4B12F] text-white dark:text-[#0B0D10] hover:brightness-105 shadow-sm"
+                    : "bg-[#E4E7EC] dark:bg-[#1C2027] text-[#9AA2AF] cursor-not-allowed"
                 }`}
               >
                 <span>Continue</span>
@@ -162,7 +162,7 @@ export function SinglePromptModal({ isOpen, onClose, onComplete, isPersonal = tr
             </div>
 
             <div className="pt-2">
-              <span className="text-[10px] font-mono font-medium tracking-[0.1em] text-muted-foreground uppercase block mb-2">
+              <span className="text-[10px] font-mono font-medium tracking-[0.1em] text-[#667085] dark:text-[#8E949E] uppercase block mb-2">
                 QUICK START
               </span>
               <div className="grid grid-cols-2 gap-2">
@@ -171,9 +171,9 @@ export function SinglePromptModal({ isOpen, onClose, onComplete, isPersonal = tr
                     key={item.label}
                     type="button"
                     onClick={() => handlePreFill(item.label)}
-                    className="h-[54px] px-3 rounded-xl bg-card border border-border hover:border-gold/50 flex items-center gap-2.5 text-left text-xs font-semibold text-foreground transition-colors cursor-pointer"
+                    className="h-[54px] px-3 rounded-xl bg-[#F8F9FA] dark:bg-[#15191D] border border-[#E4E7EC] dark:border-[#292F38] hover:border-[#D4B12F] flex items-center gap-2.5 text-left text-xs font-semibold text-[#17202A] dark:text-[#F3FFF0] transition-colors cursor-pointer"
                   >
-                    <item.icon className="w-4 h-4 text-gold shrink-0" />
+                    <item.icon className="w-4 h-4 text-[#C89B18] dark:text-[#D4B12F] shrink-0" />
                     <span className="truncate">{item.label}</span>
                   </button>
                 ))}
@@ -183,29 +183,29 @@ export function SinglePromptModal({ isOpen, onClose, onComplete, isPersonal = tr
         )}
 
         {status === "PLANNING" && (
-          <div className="py-12 flex flex-col items-center justify-center text-muted-foreground">
-            <Loader2 className="w-8 h-8 animate-spin text-gold mb-3" />
+          <div className="py-12 flex flex-col items-center justify-center text-[#667085] dark:text-[#8E949E]">
+            <Loader2 className="w-8 h-8 animate-spin text-[#C89B18] dark:text-[#D4B12F] mb-3" />
             <p className="text-xs font-mono">Analyzing request...</p>
           </div>
         )}
 
         {status === "REVIEW" && proposedPlan && (
           <div className="flex flex-col space-y-4">
-            <h4 className="font-semibold text-sm text-foreground">Proposed Changes</h4>
-            <div className="max-h-[260px] overflow-y-auto space-y-3 p-3 rounded-xl bg-muted/40 border border-border">
+            <h4 className="font-bold text-sm text-[#17202A] dark:text-[#F3FFF0]">Proposed Changes</h4>
+            <div className="max-h-[260px] overflow-y-auto space-y-3 p-3 rounded-xl bg-[#F8F9FA] dark:bg-[#15191D] border border-[#E4E7EC] dark:border-[#292F38]">
               {proposedPlan.projects?.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-mono font-medium text-gold uppercase">Projects ({proposedPlan.projects.length})</p>
+                  <p className="text-[10px] font-mono font-bold text-[#C89B18] dark:text-[#D4B12F] uppercase">Projects ({proposedPlan.projects.length})</p>
                   {proposedPlan.projects.map((p: any, i: number) => (
-                    <div key={i} className="text-xs text-foreground mt-0.5">• {p.name}</div>
+                    <div key={i} className="text-xs text-[#17202A] dark:text-[#F3FFF0] mt-0.5">• {p.name}</div>
                   ))}
                 </div>
               )}
               {proposedPlan.tasks?.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-mono font-medium text-gold uppercase">Tasks ({proposedPlan.tasks.length})</p>
+                  <p className="text-[10px] font-mono font-bold text-[#C89B18] dark:text-[#D4B12F] uppercase">Tasks ({proposedPlan.tasks.length})</p>
                   {proposedPlan.tasks.map((t: any, i: number) => (
-                    <div key={i} className="text-xs text-foreground mt-0.5">• {t.title}</div>
+                    <div key={i} className="text-xs text-[#17202A] dark:text-[#F3FFF0] mt-0.5">• {t.title}</div>
                   ))}
                 </div>
               )}
@@ -214,14 +214,14 @@ export function SinglePromptModal({ isOpen, onClose, onComplete, isPersonal = tr
               <button
                 type="button"
                 onClick={() => setStatus("IDLE")}
-                className="flex-1 h-[44px] rounded-xl bg-muted text-xs font-semibold text-foreground"
+                className="flex-1 h-[44px] rounded-xl bg-[#F8F9FA] dark:bg-[#1C2027] text-xs font-semibold text-[#17202A] dark:text-[#F3FFF0] border border-[#E4E7EC] dark:border-[#292F38]"
               >
                 Back
               </button>
               <button
                 type="button"
                 onClick={handleExecute}
-                className="flex-1 h-[44px] rounded-xl bg-gold text-[#0B0D10] text-xs font-bold"
+                className="flex-1 h-[44px] rounded-xl bg-[#C89B18] dark:bg-[#D4B12F] text-white dark:text-[#0B0D10] text-xs font-bold"
               >
                 Execute
               </button>
@@ -230,8 +230,8 @@ export function SinglePromptModal({ isOpen, onClose, onComplete, isPersonal = tr
         )}
 
         {status === "EXECUTING" && (
-          <div className="py-12 flex flex-col items-center justify-center text-muted-foreground">
-            <Loader2 className="w-8 h-8 animate-spin text-gold mb-3" />
+          <div className="py-12 flex flex-col items-center justify-center text-[#667085] dark:text-[#8E949E]">
+            <Loader2 className="w-8 h-8 animate-spin text-[#C89B18] dark:text-[#D4B12F] mb-3" />
             <p className="text-xs font-mono">Executing action...</p>
           </div>
         )}
@@ -239,11 +239,11 @@ export function SinglePromptModal({ isOpen, onClose, onComplete, isPersonal = tr
         {status === "SUCCESS" && (
           <div className="py-12 flex flex-col items-center justify-center text-center">
             <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-2" />
-            <h4 className="font-semibold text-sm text-foreground mb-1">Action Complete</h4>
+            <h4 className="font-bold text-sm text-[#17202A] dark:text-[#F3FFF0] mb-1">Action Complete</h4>
             <button
               type="button"
               onClick={() => { handleClose(); onComplete?.(); }}
-              className="px-6 h-[40px] rounded-xl bg-gold text-[#0B0D10] text-xs font-bold mt-4"
+              className="px-6 h-[40px] rounded-xl bg-[#C89B18] dark:bg-[#D4B12F] text-white dark:text-[#0B0D10] text-xs font-bold mt-4"
             >
               Done
             </button>
@@ -256,7 +256,7 @@ export function SinglePromptModal({ isOpen, onClose, onComplete, isPersonal = tr
             <button
               type="button"
               onClick={() => setStatus("IDLE")}
-              className="px-6 h-[40px] rounded-xl bg-muted text-xs font-semibold text-foreground"
+              className="px-6 h-[40px] rounded-xl bg-[#F8F9FA] dark:bg-[#1C2027] text-xs font-semibold text-[#17202A] dark:text-[#F3FFF0] border border-[#E4E7EC] dark:border-[#292F38]"
             >
               Try Again
             </button>
