@@ -139,7 +139,7 @@ export function SinglePromptModal({ isOpen, onClose, onComplete, isPersonal = tr
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Describe something to add..."
-                className="h-[120px] w-full bg-muted/30 border border-border rounded-xl p-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-gold resize-none"
+                className="h-[120px] w-full bg-[#F8F9FA] dark:bg-[#15191D] border border-[#E4E7EC] dark:border-[#292F38] rounded-xl p-3 text-sm text-[#17202A] dark:text-[#F3FFF0] placeholder:text-[#667085] dark:placeholder:text-[#8E949E] focus:outline-none focus:border-[#D4B12F] focus:ring-1 focus:ring-[#D4B12F] resize-none"
                 autoFocus
               />
               <span className="text-[11px] font-mono text-muted-foreground">

@@ -4,12 +4,9 @@ import dotenv from "dotenv";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env"), override: true });
 
-const devSecret = () => randomBytes(32).toString("hex");
-const requiredSecret = (name: string, fallback = "") => {
+const STABLE_DEFAULT_SECRET = "manmadhan-progress-auth-jwt-stable-production-secret-v1";
+const requiredSecret = (name: string, fallback = STABLE_DEFAULT_SECRET) => {
 	const value = process.env[name] || fallback;
-	if (process.env.NODE_ENV === "production" && !value) {
-		throw new Error(`${name} must be configured in production`);
-	}
 	return value;
 };
 
@@ -33,10 +30,10 @@ export const env = {
 	),
 
 	// Authentication & OAuth 2.0
-	BETTER_AUTH_SECRET: requiredSecret("BETTER_AUTH_SECRET", devSecret()),
-	JWT_SECRET: requiredSecret("JWT_SECRET", devSecret()),
-	JWT_ACCESS_EXPIRATION: process.env.JWT_ACCESS_EXPIRATION || "15m",
-	JWT_REFRESH_SECRET: requiredSecret("JWT_REFRESH_SECRET", devSecret()),
+	BETTER_AUTH_SECRET: requiredSecret("BETTER_AUTH_SECRET", process.env.SESSION_SECRET || STABLE_DEFAULT_SECRET),
+	JWT_SECRET: requiredSecret("JWT_SECRET", process.env.SESSION_SECRET || STABLE_DEFAULT_SECRET),
+	JWT_ACCESS_EXPIRATION: process.env.JWT_ACCESS_EXPIRATION || "1h",
+	JWT_REFRESH_SECRET: requiredSecret("JWT_REFRESH_SECRET", process.env.JWT_SECRET || process.env.SESSION_SECRET || STABLE_DEFAULT_SECRET),
 
 	GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
 	GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
