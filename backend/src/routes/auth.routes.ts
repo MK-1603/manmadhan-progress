@@ -1209,7 +1209,7 @@ authRouter.post("/setup/complete", verifyTempToken, async (req, res) => {
 	}
 	const user = userList[0];
 
-	// Final Onboarding Completion: Atomically update DB records
+	// Final Onboarding Completion: Atomically update DB records & issue session tokens
 	const now = new Date();
 	await db
 		.update(users)
@@ -1223,10 +1223,20 @@ authRouter.post("/setup/complete", verifyTempToken, async (req, res) => {
 		})
 		.where(eq(users.id, user.id));
 
+	// Issue active authenticated session tokens so the user is immediately logged in
+	const deviceId = req.ip || "web-default";
+	const tokens = await SessionService.issueTokens(
+		res,
+		user,
+		deviceId,
+		req.headers["user-agent"],
+		req.ip,
+	);
+
 	await AuditService.logEvent(
 		user.id,
 		"FIRST_LOGIN_COMPLETED",
-		"Completed final onboarding review. Account activated. Returned to login.",
+		"Completed final onboarding review. Account activated. Authenticated session established.",
 		req.ip || "",
 	);
 
@@ -1236,8 +1246,18 @@ authRouter.post("/setup/complete", verifyTempToken, async (req, res) => {
 
 	return res.json({
 		success: true,
-		nextStep: "SETUP_COMPLETE",
-		message: "Onboarding complete! Please sign in with your new password.",
+		nextStep: "DASHBOARD",
+		role: user.role,
+		accessToken: tokens.accessToken,
+		refreshToken: tokens.refreshToken,
+		user: {
+			id: user.id,
+			email: user.email,
+			name: user.displayName || user.name || user.email,
+			role: user.role,
+			batchNumber: user.batchNumber,
+		},
+		message: "Onboarding complete! Welcome to ManMadhan Progress.",
 	});
 });
 

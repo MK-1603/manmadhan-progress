@@ -145,6 +145,7 @@ export function clearAuthStorage() {
     localStorage.removeItem("user");
     document.cookie = "auth_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
     document.cookie = "refresh_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+    document.cookie = "has_session=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
   }
 }
 
@@ -193,6 +194,7 @@ async function attemptTokenRefresh(): Promise<string | null> {
         }
         const isHttps = window.location.protocol === "https:";
         document.cookie = `auth_token=${newToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
+        document.cookie = `has_session=true; path=/; max-age=${365 * 24 * 60 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
       }
       if (process.env.NODE_ENV === "development") {
         console.log("[AUTH DIAGNOSTIC] Token refresh successful");
@@ -208,9 +210,6 @@ async function attemptTokenRefresh(): Promise<string | null> {
     const errCode = err.response?.data?.code;
     if (errCode === "ACCOUNT_SUSPENDED" || errCode === "ACCOUNT_DELETED") {
       clearAuthStorage();
-      if (typeof window !== "undefined" && !explicitLoggingOut) {
-        window.location.href = "/login?error=AccountSuspended";
-      }
     }
     return null;
   }

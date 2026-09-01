@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Play, Pause, Check, LoaderCircle, Timer } from "lucide-react";
 import { format } from "date-fns";
 
@@ -45,6 +46,7 @@ export function HeroProgress({
   onComplete,
   className = "",
 }: HeroProgressProps) {
+  const router = useRouter();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
@@ -213,7 +215,7 @@ export function HeroProgress({
             <p className="text-[13px] text-muted-foreground">No active focus session.</p>
             <p className="text-[12px] text-muted-foreground">No tasks are scheduled for the current period.</p>
             <button
-              onClick={() => window.location.href = "/personal/tasks"}
+              onClick={() => router.push("/personal/tasks")}
               className="self-start flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-muted/40 hover:bg-muted text-foreground text-[13px] font-semibold transition-colors"
             >
               Create Task

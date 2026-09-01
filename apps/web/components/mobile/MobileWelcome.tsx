@@ -8,13 +8,16 @@ import { Target, Clock3, CalendarDays, ChevronRight, ArrowRight, ArrowUpRight, C
 import { ExploreBottomSheet } from "./ExploreBottomSheet";
 import { useAuth } from "../auth/auth-context";
 
+import { useRouter } from "next/navigation";
+
 export function MobileWelcome() {
   const reduceMotion = useReducedMotion();
   const [exploreOpen, setExploreOpen] = useState(false);
   const { open: openAuth } = useAuth();
+  const router = useRouter();
 
   const handleNavigate = (path: string) => {
-    window.location.href = path;
+    router.push(path);
   };
 
   const containerVariants = {

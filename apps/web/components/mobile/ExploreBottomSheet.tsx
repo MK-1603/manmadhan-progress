@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
@@ -158,6 +159,7 @@ const features = [
 ];
 
 export function ExploreBottomSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const router = useRouter();
   const [selectedModuleKey, setSelectedModuleKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -247,7 +249,7 @@ export function ExploreBottomSheet({ open, onClose }: { open: boolean; onClose: 
               type="button"
               onClick={() => {
                 onClose();
-                window.location.href = "/welcome";
+                router.push("/welcome");
               }}
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#C89B3C] hover:bg-[#DDB85A] text-black font-extrabold text-xs transition-colors cursor-pointer"
             >

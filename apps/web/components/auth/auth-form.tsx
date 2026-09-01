@@ -826,6 +826,14 @@ function getOnboardingStepInfo(state: AuthState, userRole?: string, hasOrgStep: 
         });
         if (res.data?.success) {
           setLoading(false);
+          if (res.data.accessToken && res.data.user) {
+            setSessionUser(res.data.user, res.data.accessToken, res.data.refreshToken, res.data.workspaceId);
+            onComplete?.();
+            close(true);
+            const targetPath = getDashboardPathForRole(res.data.user?.role || res.data.role);
+            router.replace(targetPath);
+            return;
+          }
           if (res.data.tempToken) setTempToken(res.data.tempToken);
           setState((res.data.nextStep as AuthState) || "PROFILE_SETUP");
           setProfileStep(1);

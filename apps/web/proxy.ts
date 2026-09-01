@@ -42,58 +42,56 @@ export function proxy(request: NextRequest) {
     return response;
   }
 
-  // Get Auth Token or Refresh Token from cookies
+  // Check for session indicators (auth token, refresh token, or client routing hint)
   const token = request.cookies.get("auth_token")?.value;
   const refreshTokenCookie = request.cookies.get("refresh_token")?.value;
+  const hasSessionHint = request.cookies.get("has_session")?.value === "true";
 
-  if (!token && !refreshTokenCookie) {
-    // Redirect to login home page if trying to access protected route without any session cookies
+  // If no session indicators exist on client or cookies, redirect to login with redirect param
+  if (!token && !refreshTokenCookie && !hasSessionHint) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // If auth_token is expired/missing but refresh_token cookie exists, pass to client for silent session recovery
-  if (!token && refreshTokenCookie) {
-    return response;
+  // If auth_token is available on Vercel domain, decode payload for role-based URL optimization
+  if (token) {
+    const payload = parseJwt(token);
+    if (payload && payload.role) {
+      const role = payload.role.toUpperCase();
+      const rolePath = getRolePath(role);
+
+      // Route Validation & Redirection Manager
+      if (isOrganizationRoute) {
+        if (pathname.startsWith("/ceo") && role !== "CEO") {
+          return NextResponse.redirect(new URL(`/${rolePath}/dashboard`, request.url));
+        }
+        if (pathname.startsWith("/co-ceo") && role !== "CO-CEO") {
+          return NextResponse.redirect(new URL(`/${rolePath}/dashboard`, request.url));
+        }
+        if (
+          pathname.startsWith("/member") &&
+          role !== "MEMBER" &&
+          role !== "USER" &&
+          role !== "CEO" &&
+          role !== "CO-CEO"
+        ) {
+          return NextResponse.redirect(new URL(`/${rolePath}/dashboard`, request.url));
+        }
+      }
+
+      // Handle Workspace Memory (If hitting generic /dashboard)
+      if (pathname === "/dashboard") {
+        const lastWorkspace = request.cookies.get("last_workspace")?.value;
+        if (lastWorkspace === "personal") {
+          return NextResponse.redirect(new URL("/personal/dashboard", request.url));
+        }
+        return NextResponse.redirect(new URL(`/${rolePath}/dashboard`, request.url));
+      }
+    }
   }
 
-  // Decode Token
-  const payload = parseJwt(token || "");
-
-  if (!payload || !payload.role) {
-    // If auth_token is malformed but refresh_token cookie is present, let client attempt recovery
-    if (refreshTokenCookie) {
-      return response;
-    }
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-
-  const role = payload.role.toUpperCase();
-  const rolePath = getRolePath(role);
-
-  // Route Validation & Redirection Manager
-  if (isOrganizationRoute) {
-    if (pathname.startsWith("/ceo") && role !== "CEO") {
-      return NextResponse.redirect(new URL(`/${rolePath}/dashboard`, request.url));
-    }
-    if (pathname.startsWith("/co-ceo") && role !== "CO-CEO") {
-      return NextResponse.redirect(new URL(`/${rolePath}/dashboard`, request.url));
-    }
-    if (pathname.startsWith("/member") && role !== "MEMBER" && role !== "USER" && role !== "CEO" && role !== "CO-CEO") {
-      return NextResponse.redirect(new URL(`/${rolePath}/dashboard`, request.url));
-    }
-  }
-
-  // Handle Workspace Memory (If they hit generic /dashboard, route them to target workspace)
-  if (pathname === "/dashboard") {
-    const lastWorkspace = request.cookies.get("last_workspace")?.value;
-    if (lastWorkspace === "personal") {
-      return NextResponse.redirect(new URL("/personal/dashboard", request.url));
-    }
-    return NextResponse.redirect(new URL(`/${rolePath}/dashboard`, request.url));
-  }
-
+  // Pass through to client side. AuthProvider will perform authoritative session validation via Render /auth/me
   return response;
 }
 

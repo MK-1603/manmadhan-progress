@@ -26,9 +26,11 @@ export function syncTokenCookie(token: string | null) {
   if (token) {
     const isHttps = window.location.protocol === "https:";
     document.cookie = `auth_token=${token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
+    document.cookie = `has_session=true; path=/; max-age=${365 * 24 * 60 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
   } else {
     document.cookie = "auth_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
     document.cookie = "refresh_token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
+    document.cookie = "has_session=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
   }
 }
 
@@ -259,6 +261,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAuthData(null);
         setOpenModal(false);
         if (typeof window !== "undefined") {
+          const isHttps = window.location.protocol === "https:";
+          document.cookie = `has_session=true; path=/; max-age=${365 * 24 * 60 * 60}; SameSite=Lax${isHttps ? "; Secure" : ""}`;
           sessionStorage.removeItem("authData");
           if (result.workspaceId) {
             localStorage.setItem("workspaceId", result.workspaceId);
