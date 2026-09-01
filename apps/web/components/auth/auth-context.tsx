@@ -174,33 +174,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = React.useCallback(async () => {
     authVersionRef.current += 1;
     setIsExplicitLoggingOut(true);
-    setTransitionMessage("Signing out safely...");
+    setTransitionMessage("Signing out...");
     setTransitionType("LOGGING_OUT");
     setIsTransitioning(true);
     close(true);
     resetGlobalSheetState();
 
-    WorkspaceService.clearCache();
-    NotificationService.clearCache();
-    FocusService.clearCache();
+    // 0.0s: Dispatch immediate server logout request
+    const logoutPromise = apiClient.post("/auth/logout").catch(() => {});
 
-    apiClient.post("/auth/logout").catch(() => {});
+    // 2.4s: Visual completion state
+    const completionTimer = setTimeout(() => {
+      setTransitionMessage("Signed out");
+    }, 2400);
 
-    setUser(null);
-    setAuthData(null);
-    setAuthStatus("unauthenticated");
+    // 3.0s: Finish visual transition and navigate to login
+    setTimeout(async () => {
+      clearTimeout(completionTimer);
+      await logoutPromise;
 
-    if (typeof window !== "undefined") {
-      clearAuthStorage();
-      localStorage.removeItem("workspaceId");
-      sessionStorage.removeItem("authData");
-    }
+      WorkspaceService.clearCache();
+      NotificationService.clearCache();
+      FocusService.clearCache();
 
-    setTimeout(() => {
+      setUser(null);
+      setAuthData(null);
+      setAuthStatus("unauthenticated");
+
+      if (typeof window !== "undefined") {
+        clearAuthStorage();
+        localStorage.removeItem("workspaceId");
+        sessionStorage.removeItem("authData");
+      }
+
       router.replace("/");
       setIsTransitioning(false);
       setIsExplicitLoggingOut(false);
-    }, 400);
+    }, 3000);
   }, [router, close]);
 
   const checkSession = React.useCallback(async () => {

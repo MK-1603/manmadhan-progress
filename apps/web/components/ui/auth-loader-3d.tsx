@@ -3,6 +3,8 @@
 import React from "react";
 import { motion } from "framer-motion";
 
+import Image from "next/image";
+
 interface AuthLoader3DProps {
   message?: string;
   type?: "AUTHENTICATING" | "LOGGING_OUT" | "SESSION_RESTORING";
@@ -20,7 +22,7 @@ export function AuthLoader3D({
 
   return (
     <div className="flex flex-col items-center justify-center gap-6 select-none font-sans text-center px-4">
-      {/* 3D GPU-Accelerated Layered Emblem */}
+      {/* 3D GPU-Accelerated Layered Emblem with Official Brand Asset */}
       <div className="relative w-20 h-20 perspective-[1000px] flex items-center justify-center">
         {/* Ambient Glow */}
         <div className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-[#C9A52A]/20 via-[#D4B12F]/30 to-[#E4C545]/20 blur-xl animate-pulse" />
@@ -38,11 +40,18 @@ export function AuthLoader3D({
           animate={{ rotateY: -360, rotateZ: 180 }}
           transition={{ duration: 3.2, repeat: Infinity, ease: "linear" }}
           style={{ transformStyle: "preserve-3d" }}
-          className="absolute inset-2 rounded-xl border border-[#D4B12F]/70 bg-[#0D1015]/80 backdrop-blur-md flex items-center justify-center"
+          className="absolute inset-2 rounded-xl border border-[#D4B12F]/70 bg-[#0D1015]/80 backdrop-blur-md flex items-center justify-center p-1"
         >
-          {/* Central Metallic Monogram */}
-          <div className="text-xl font-black font-mono tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-[#D4B12F] via-[#F7E7A9] to-[#C9A52A] drop-shadow-[0_2px_8px_rgba(212,177,47,0.5)]">
-            MP
+          {/* Official Brand Logo Asset */}
+          <div className="relative w-9 h-9 overflow-hidden rounded-lg shadow-md flex items-center justify-center">
+            <Image
+              src="/ios/iTunesArtwork@1x.png"
+              alt="ManMadhan Progress Official Logo"
+              width={36}
+              height={36}
+              className="rounded-md object-contain"
+              priority
+            />
           </div>
         </motion.div>
 

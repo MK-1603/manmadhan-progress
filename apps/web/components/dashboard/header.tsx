@@ -62,11 +62,14 @@ function getPageTitle(pathname: string): string {
 }
 
 import { WorkspaceSwitcherModal } from "./workspace-switcher-modal";
+import { useOffline } from "@/components/providers/offline-provider";
+import { pwaRefreshEngine } from "@/lib/pwa-refresh-engine";
 
 export function Header() {
   const pathname = usePathname();
   const { user, isLoading, authStatus } = useAuth();
   const { socket } = useSocket();
+  const { isOnline } = useOffline();
 
   const [mounted, setMounted] = useState(false);
   const [orgWorkspace, setOrgWorkspace] = useState<any>(null);
@@ -211,8 +214,22 @@ export function Header() {
         />
       </div>
 
-      {/* 2. RIGHT SIDE — HEADER ACTIONS (Clean: Notifications + Profile) */}
+      {/* 2. RIGHT SIDE — HEADER ACTIONS (Clean: Desktop Offline + Notifications + Profile) */}
       <div className="flex items-center justify-end gap-2 shrink-0">
+        {!isOnline && (
+          <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-[#15191D] border border-[#D4B12F]/40 text-[#F3FFF0] text-xs font-medium shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-[#D4B12F] animate-pulse" />
+            <span>You're Offline</span>
+            <button
+              type="button"
+              onClick={() => pwaRefreshEngine.syncStaleDomains()}
+              className="ml-1 text-[11px] font-semibold text-[#D4B12F] hover:underline cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Notifications Button & Popover */}
         <NotificationDropdown
           activePopover={activePopover as any}

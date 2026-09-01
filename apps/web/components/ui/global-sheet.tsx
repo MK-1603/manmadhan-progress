@@ -168,24 +168,23 @@ export function GlobalSheet({
     };
   }, [open]);
 
-  // Visual Viewport Engine for Mobile Keyboard Adaptation (iOS Safari & Android Chrome/Gboard)
+  // Visual Viewport Engine for Mobile Keyboard Adaptation (Zero-Hanging 60fps Syncing)
   useEffect(() => {
     if (!open || typeof window === "undefined" || !window.visualViewport) return;
 
-    let timer: NodeJS.Timeout;
+    let rafId: number;
 
     const updateViewport = () => {
-      const vv = window.visualViewport;
-      if (!vv) return;
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const vv = window.visualViewport;
+        if (!vv) return;
 
-      const keyboardH = window.innerHeight - vv.height;
-      const kbOpen = keyboardH > 140;
-      setIsKeyboardOpen(kbOpen);
-
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        setViewportHeight(vv.height);
-      }, 60);
+        const keyboardH = window.innerHeight - vv.height;
+        const kbOpen = keyboardH > 120;
+        setIsKeyboardOpen(kbOpen);
+        setViewportHeight(kbOpen ? vv.height : null);
+      });
     };
 
     window.visualViewport.addEventListener("resize", updateViewport);
@@ -193,7 +192,7 @@ export function GlobalSheet({
     updateViewport();
 
     return () => {
-      clearTimeout(timer);
+      cancelAnimationFrame(rafId);
       window.visualViewport?.removeEventListener("resize", updateViewport);
       window.visualViewport?.removeEventListener("scroll", updateViewport);
     };
