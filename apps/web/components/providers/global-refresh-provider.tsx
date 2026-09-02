@@ -208,16 +208,19 @@ export function GlobalRefreshProvider({ children }: { children: ReactNode }) {
       setPullState("refreshing");
       setPullDistance(threshold);
 
+      const startTime = Date.now();
       try {
         const handler = activeHandlersRef.current[0];
         await handler();
         setPullState("success");
-        await new Promise((r) => setTimeout(r, 700));
       } catch (err) {
         console.error("Global pull refresh error:", err);
         setPullState("error");
-        await new Promise((r) => setTimeout(r, 1000));
       } finally {
+        const elapsedTime = Date.now() - startTime;
+        const remainingDelay = Math.max(0, 1200 - elapsedTime);
+        await new Promise((r) => setTimeout(r, remainingDelay));
+
         setPullDistance(0);
         setPullState("idle");
         setIsRefreshing(false);
@@ -264,17 +267,57 @@ export function GlobalRefreshProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Wrapper component placed inside <main> to host top refresh indicator without modifying content scroll transform */
+import { IOSPullRefreshSpinner } from "@/components/ui/ios-pull-refresh-spinner";
+
 export function GlobalPullToRefreshContent({ children }: { children: ReactNode }) {
   const ctx = useContext(GlobalRefreshContext);
   if (!ctx) return <>{children}</>;
 
-  const { mainContainerRef } = ctx;
+  const { pullState, pullDistance, threshold, isRefreshing, mainContainerRef } = ctx;
+
+  const isPulling = pullState === "pulling" || pullState === "canRelease" || pullState === "refreshing";
+  const containerHeight = isRefreshing ? 65 : Math.min(80, pullDistance * 0.5);
+  const progress = Math.min(1, pullDistance / threshold);
+  const spinnerScale = isRefreshing ? 1.05 : 0.7 + progress * 0.35;
+
+  const contentTranslateY = isRefreshing ? 65 : pullDistance * 0.4;
+  const contentTranslateZ = isRefreshing ? -10 : -pullDistance * 0.15;
+  const contentRotateX = isRefreshing ? 0 : Math.min(3, pullDistance * 0.04);
 
   return (
-    <div ref={mainContainerRef} className="relative w-full h-full flex flex-col flex-1 min-h-0">
-      {/* NATIVE SCROLLABLE PAGE CONTENT CONTAINER (SILENT BACKGROUND REFRESH) */}
-      <div className="w-full h-full flex flex-col flex-1 min-h-0">
+    <div
+      ref={mainContainerRef}
+      className="relative w-full h-full flex flex-col flex-1 min-h-0 perspective-[1000px]"
+    >
+      {/* 1. NATIVE iOS 8-BAR SPINNER CONTAINER (Capped at 80px, Progressive Scaling) */}
+      <div
+        className="w-full overflow-hidden flex items-center justify-center pointer-events-none transition-all duration-200 ease-out select-none"
+        style={{
+          height: `${containerHeight}px`,
+          opacity: isPulling ? 1 : 0,
+        }}
+      >
+        <div
+          className="transition-transform duration-150 ease-out"
+          style={{
+            transform: `scale(${spinnerScale})`,
+          }}
+        >
+          <IOSPullRefreshSpinner progress={progress} isRefreshing={isRefreshing} />
+        </div>
+      </div>
+
+      {/* 2. NATIVE SCROLLABLE PAGE CONTENT WITH SUBTLE 3D DEPTH TRANSFORM */}
+      <div
+        className="w-full h-full flex flex-col flex-1 min-h-0 will-change-transform"
+        style={{
+          transform: isPulling
+            ? `translate3d(0, ${contentTranslateY}px, ${contentTranslateZ}px) rotateX(${contentRotateX}deg)`
+            : "none",
+          transition: isPulling && !isRefreshing ? "none" : "transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)",
+          transformStyle: "preserve-3d",
+        }}
+      >
         {children}
       </div>
     </div>
