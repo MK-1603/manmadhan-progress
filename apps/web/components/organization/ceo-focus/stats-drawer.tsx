@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, BarChart3, TrendingUp, Layers } from "lucide-react";
 import { FocusBreakdownBar } from "@/components/organization/ceo-focus/focus-breakdown-bar";
 import { WeeklySummaryChart } from "@/components/organization/ceo-focus/weekly-summary-chart";
@@ -29,12 +31,45 @@ export function StatsDrawer({
   weekOffset,
   onChangeWeekOffset,
 }: StatsDrawerProps) {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-stretch sm:justify-end bg-black/60 animate-in fade-in duration-200">
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !mounted) return null;
+
+  const content = (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[100000] flex items-end sm:items-stretch sm:justify-end bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+      style={{ pointerEvents: "auto" }}
+    >
       {/* Mobile Bottom Sheet (rounded-t-2xl max-h-[85dvh]) / Desktop Side Panel */}
-      <div className="w-full sm:max-w-xl bg-card border-t sm:border-t-0 sm:border-l border-border rounded-t-2xl sm:rounded-none max-h-[85dvh] sm:max-h-full h-auto sm:h-full flex flex-col shadow-2xl animate-in slide-in-from-bottom sm:slide-in-from-right duration-300">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full sm:max-w-xl bg-card border-t sm:border-t-0 sm:border-l border-border rounded-t-2xl sm:rounded-none max-h-[85dvh] sm:max-h-full h-auto sm:h-full flex flex-col shadow-2xl animate-in slide-in-from-bottom sm:slide-in-from-right duration-300 relative z-[100001]"
+      >
         {/* Mobile Drag Handle */}
         <div className="sm:hidden pt-3 pb-1 flex justify-center">
           <div className="w-12 h-1 rounded-full bg-muted-foreground/30" />
@@ -162,4 +197,6 @@ export function StatsDrawer({
       </div>
     </div>
   );
+
+  return createPortal(content, document.body);
 }

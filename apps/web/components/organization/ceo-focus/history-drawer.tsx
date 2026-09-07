@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Clock, Folder, Calendar } from "lucide-react";
 
 interface HistoryDrawerProps {
@@ -32,6 +33,12 @@ export function HistoryDrawer({
   history = [],
   onSelectSession,
 }: HistoryDrawerProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Body Scroll Lock & Escape Key Listener
   useEffect(() => {
     if (!isOpen) return;
@@ -88,21 +95,22 @@ export function HistoryDrawer({
     return groups;
   }, [history]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
+  const content = (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-[10000] flex items-end md:items-center justify-center bg-black/75 backdrop-blur-xs p-0 md:p-6 animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100000] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-6 animate-in fade-in duration-200"
+      style={{ pointerEvents: "auto" }}
     >
-      {/* DESKTOP: Centered Modal (md:max-w-[680px] md:max-h-[80vh]) / MOBILE: Bottom Sheet (max-h-[85dvh] rounded-t-2xl) */}
+      {/* DESKTOP: Centered Modal (sm:max-w-[680px] sm:max-h-[80vh]) / MOBILE: True Bottom Sheet (max-h-[85dvh] rounded-t-2xl) */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full md:max-w-[680px] min-h-[45vh] max-h-[85dvh] md:max-h-[80vh] bg-[#12151D] border-t md:border border-[#212634] rounded-t-2xl md:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom md:zoom-in-95 duration-200 pb-[calc(16px+env(safe-area-inset-bottom,0px))] md:pb-0"
+        className="w-full sm:max-w-[680px] min-h-[320px] max-h-[85dvh] sm:max-h-[80vh] bg-[#12151D] border-t sm:border border-[#212634] rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 pb-[calc(16px+env(safe-area-inset-bottom,0px))] sm:pb-0 relative z-[100001]"
       >
         {/* Mobile Drag Handle Bar */}
-        <div className="md:hidden pt-3 pb-1 flex justify-center shrink-0">
-          <div className="w-12 h-1 rounded-full bg-[#374151]" />
+        <div className="sm:hidden pt-3 pb-1 flex justify-center shrink-0">
+          <div className="w-12 h-1.5 rounded-full bg-[#374151]" />
         </div>
 
         {/* Header Bar */}
@@ -156,7 +164,7 @@ export function HistoryDrawer({
                             {s.startTime
                               ? new Date(s.startTime).toLocaleTimeString([], {
                                   hour: "2-digit",
-                                  minute: "2-digit"
+                                  minute: "2-digit",
                                 })
                               : "10:14 AM"}
                           </span>
@@ -195,7 +203,7 @@ export function HistoryDrawer({
               </div>
             ))
           ) : (
-            <div className="py-14 text-center space-y-2">
+            <div className="py-14 text-center space-y-2 my-auto">
               <Clock className="w-8 h-8 text-[#8A92A6]/40 mx-auto" />
               <p className="text-xs font-semibold text-white">No focus sessions recorded yet.</p>
               <p className="text-[11px] text-[#8A92A6] max-w-xs mx-auto">
@@ -207,4 +215,6 @@ export function HistoryDrawer({
       </div>
     </div>
   );
+
+  return createPortal(content, document.body);
 }
