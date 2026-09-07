@@ -21,8 +21,7 @@ import {
   BarChart3,
   PieChart,
   MoreVertical,
-  Quote,
-  Sparkles
+  Quote
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useAuth } from "@/components/auth/auth-context";
@@ -556,7 +555,7 @@ export function OrganizationFocusConsole() {
                   {activeStatusText}
                 </span>
 
-                <div className="text-4xl sm:text-5xl font-bold font-mono text-white tracking-tight tabular-nums select-all">
+                <div className="text-2xl sm:text-3xl font-bold font-mono text-white tracking-tight tabular-nums select-all">
                   {formatDigitalTimer(elapsed)}
                 </div>
 
@@ -781,10 +780,6 @@ export function OrganizationFocusConsole() {
                 — ManMadhan
               </p>
             </div>
-          </div>
-
-          <div className="hidden sm:flex items-center gap-2 text-[#D4B12F]/30 shrink-0 z-10">
-            <Sparkles className="w-6 h-6 animate-pulse" />
           </div>
         </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Play, Folder, CheckSquare, Sparkles } from "lucide-react";
+import { X, Play, Folder, CheckSquare } from "lucide-react";
 
 interface NextSessionDrawerProps {
   isOpen: boolean;
