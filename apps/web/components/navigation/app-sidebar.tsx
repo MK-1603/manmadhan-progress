@@ -68,7 +68,7 @@ const ORG_CEO_NAV: NavGroup[] = [
     label: "ADMINISTRATION",
     items: [
       { name: "Automation", href: "/ceo/automation", icon: Zap },
-      { name: "Audit Logs", href: "/ceo/audit", icon: ShieldCheck },
+      { name: "Audit Logs", href: "/ceo/timeline", icon: ShieldCheck },
       { name: "Organization", href: "/ceo/organization", icon: Building },
     ],
   },

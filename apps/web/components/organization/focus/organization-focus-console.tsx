@@ -139,6 +139,27 @@ export function OrganizationFocusConsole() {
     loadWorkspaceData();
   }, [loadWorkspaceData]);
 
+  // Window Event Listener for Automatic Resynchronization on Foreground & Reconnect
+  useEffect(() => {
+    const handleResync = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        loadWorkspaceData(true);
+      }
+    };
+
+    window.addEventListener("visibilitychange", handleResync);
+    window.addEventListener("focus", handleResync);
+    window.addEventListener("pageshow", handleResync);
+    window.addEventListener("online", handleResync);
+
+    return () => {
+      window.removeEventListener("visibilitychange", handleResync);
+      window.removeEventListener("focus", handleResync);
+      window.removeEventListener("pageshow", handleResync);
+      window.removeEventListener("online", handleResync);
+    };
+  }, [loadWorkspaceData]);
+
   // Register with Global Pull-to-Refresh
   useRegisterRefresh(() => loadWorkspaceData(true));
 
@@ -303,7 +324,7 @@ export function OrganizationFocusConsole() {
 
   return (
     <div className="w-full min-h-full bg-[#F8F9FA] dark:bg-[#0B0D10] text-[#17202A] dark:text-[#F2F3F5] select-none overflow-x-hidden">
-      <div className="max-w-[1280px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+      <div className="max-w-[1280px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:pb-8">
         
         {/* 1. FOCUS HEADER */}
         <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#E5E7EB] dark:border-[#24282E]">
@@ -401,15 +422,21 @@ export function OrganizationFocusConsole() {
                 </div>
               ) : (
                 <div className="py-4 text-center space-y-1.5 min-h-[90px] flex flex-col items-center justify-center">
-                  <p className="text-xs font-semibold text-[#17202A] dark:text-[#F2F3F5]">No task selected</p>
-                  <p className="text-xs text-[#667085] dark:text-[#8B94A3]">Choose an assigned organization task to begin focused execution.</p>
+                  <p className="text-xs font-semibold text-[#17202A] dark:text-[#F2F3F5]">
+                    {allTasks.length === 0 ? "No assigned tasks available for focus." : "No task selected"}
+                  </p>
+                  <p className="text-xs text-[#667085] dark:text-[#8B94A3]">
+                    {allTasks.length === 0
+                      ? "Check your work queue or request task assignments from your organization CEO."
+                      : "Choose an assigned organization task to begin focused execution."}
+                  </p>
                 </div>
               )}
             </div>
 
             {/* TIMER & PRIMARY CONTROLS PANEL */}
-            <div className="flex flex-col items-center justify-center text-center p-8 bg-[#FFFFFF] dark:bg-[#15181D] rounded-xl border border-[#E5E7EB] dark:border-[#24282E] shadow-xs space-y-4">
-              <div className="text-7xl sm:text-8xl font-bold font-mono text-[#17202A] dark:text-[#F2F3F5] tracking-tight tabular-nums select-all">
+            <div className="flex flex-col items-center justify-center text-center p-6 sm:p-8 bg-[#FFFFFF] dark:bg-[#15181D] rounded-xl border border-[#E5E7EB] dark:border-[#24282E] shadow-xs space-y-4">
+              <div className="text-5xl sm:text-7xl xl:text-8xl font-bold font-mono text-[#17202A] dark:text-[#F2F3F5] tracking-tight tabular-nums select-all">
                 {formatDigitalTimer(elapsed)}
               </div>
 

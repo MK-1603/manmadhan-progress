@@ -778,7 +778,7 @@ export function OrganizationDashboardView({ role }: OrganizationDashboardViewPro
                 RECENT ACTIVITY
               </span>
               <Link
-                href={`${rolePrefix}/audit`}
+                href={`${rolePrefix}/timeline`}
                 className="text-[11px] font-bold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-0.5"
               >
                 Audit log →

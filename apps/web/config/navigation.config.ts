@@ -162,7 +162,7 @@ export const ORGANIZATION_NAV_GROUPS: NavGroup[] = [
     allowedRoles: ["CEO", "CO-CEO"],
     items: [
       { id: "automation", name: "Automation", href: "/automation", icon: Cpu, allowedRoles: ["CEO", "CO-CEO"] },
-      { id: "audit", name: "Audit Logs", href: "/audit", icon: ShieldCheck, allowedRoles: ["CEO"] },
+      { id: "audit", name: "Audit Logs", href: "/timeline", icon: ShieldCheck, allowedRoles: ["CEO"] },
       { id: "organization", name: "Organization", href: "/organization", icon: Building2, allowedRoles: ["CEO", "CO-CEO"] },
     ]
   }
@@ -173,6 +173,9 @@ export const ORGANIZATION_NAV_GROUPS: NavGroup[] = [
  */
 export function getOrgItemHref(role: RoleType, relativeHref: string): string {
   const base = role === "CO-CEO" ? "/co-ceo" : role === "MEMBER" ? "/member" : "/ceo";
+  if (relativeHref === "/audit") {
+    return `${base}/timeline`;
+  }
   if (relativeHref === "/organization" && (role === "CO-CEO" || role === "MEMBER")) {
     return `${base}/org-profile`;
   }

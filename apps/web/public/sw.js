@@ -1,4 +1,4 @@
-const CACHE_NAME = "manmadhan-pwa-v1.4.2";
+const CACHE_NAME = "manmadhan-pwa-v1.4.3";
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 Hours TTL
 
 const PRECACHE_ASSETS = [
@@ -15,6 +15,7 @@ const SENSITIVE_ENDPOINTS = [
   "/api/v1/auth/",
   "/api/v1/users/",
   "/api/v1/organization/",
+  "/api/v1/org/",
   "/api/v1/projects/",
   "/api/v1/tasks/",
   "/api/v1/chat/",
@@ -27,8 +28,6 @@ self.addEventListener("install", (event) => {
       return cache.addAll(PRECACHE_ASSETS);
     })
   );
-  // Do NOT automatically skipWaiting in install if update readiness is controlled by UI
-  // self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -55,26 +54,33 @@ self.addEventListener("message", (event) => {
 
 // Periodic or fetch-based TTL Cache Cleanup
 async function cleanExpiredCache() {
-  const cache = await caches.open(CACHE_NAME);
-  const requests = await cache.keys();
-  const now = Date.now();
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const requests = await cache.keys();
+    const now = Date.now();
 
-  for (const req of requests) {
-    const res = await cache.match(req);
-    if (res) {
-      const cachedAtHeader = res.headers.get("x-manmadhan-cached-at");
-      if (cachedAtHeader) {
-        const cachedAt = parseInt(cachedAtHeader, 10);
-        if (now - cachedAt > CACHE_TTL_MS) {
-          await cache.delete(req);
+    for (const req of requests) {
+      const res = await cache.match(req);
+      if (res) {
+        const cachedAtHeader = res.headers.get("x-manmadhan-cached-at");
+        if (cachedAtHeader) {
+          const cachedAt = parseInt(cachedAtHeader, 10);
+          if (now - cachedAt > CACHE_TTL_MS) {
+            await cache.delete(req);
+          }
         }
       }
     }
+  } catch (err) {
+    console.warn("Cache cleanup error:", err);
   }
 }
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
+
+  // Skip non-HTTP(S) protocols (e.g. chrome-extension://, data:, blob:)
+  if (!url.protocol.startsWith("http")) return;
 
   // Skip caching for non-GET, sensitive API requests, or auth/oauth redirect query flows
   if (
@@ -96,17 +102,28 @@ self.addEventListener("fetch", (event) => {
       fetch(event.request)
         .then(async (networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            const cache = await caches.open(CACHE_NAME);
-            cache.put(event.request, networkResponse.clone());
+            try {
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put(event.request, networkResponse.clone());
+            } catch (err) {
+              console.warn("SW nav cache.put warning:", err);
+            }
           }
           return networkResponse;
         })
         .catch(async () => {
-          const cachedMatch = await caches.match(event.request);
-          if (cachedMatch) return cachedMatch;
-          const offlineMatch = (await caches.match("/offline")) || (await caches.match("/install")) || (await caches.match("/"));
-          if (offlineMatch) return offlineMatch;
-          return new Response("Service Temporarily Unavailable", { status: 503 });
+          try {
+            const cachedMatch = await caches.match(event.request);
+            if (cachedMatch) return cachedMatch;
+            const offlineMatch = (await caches.match("/offline")) || (await caches.match("/install")) || (await caches.match("/"));
+            if (offlineMatch) return offlineMatch;
+          } catch (err) {
+            console.warn("SW nav match warning:", err);
+          }
+          return new Response("Service Temporarily Unavailable", {
+            status: 503,
+            headers: { "Content-Type": "text/plain" },
+          });
         })
     );
     return;
@@ -120,12 +137,19 @@ self.addEventListener("fetch", (event) => {
         try {
           const networkResponse = await fetch(event.request);
           if (networkResponse && networkResponse.status === 200) {
-            const cache = await caches.open(CACHE_NAME);
-            cache.put(event.request, networkResponse.clone());
+            try {
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put(event.request, networkResponse.clone());
+            } catch (err) {
+              console.warn("SW static cache.put warning:", err);
+            }
           }
           return networkResponse;
         } catch {
-          return new Response("Asset Unavailable", { status: 404 });
+          return new Response("Asset Unavailable", {
+            status: 404,
+            headers: { "Content-Type": "text/plain" },
+          });
         }
       })
     );
@@ -135,17 +159,24 @@ self.addEventListener("fetch", (event) => {
   // 3. Stale-While-Revalidate for Other General Assets
   event.respondWith(
     caches.match(event.request).then(async (cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then(async (networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
+      try {
+        const networkResponse = await fetch(event.request);
+        if (networkResponse && networkResponse.status === 200) {
+          try {
             const cache = await caches.open(CACHE_NAME);
-            cache.put(event.request, networkResponse.clone());
+            await cache.put(event.request, networkResponse.clone());
+          } catch (err) {
+            console.warn("SW asset cache.put warning:", err);
           }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
-
-      return cachedResponse || fetchPromise;
+        }
+        return networkResponse;
+      } catch {
+        if (cachedResponse) return cachedResponse;
+        return new Response("Offline Content Unavailable", {
+          status: 503,
+          headers: { "Content-Type": "text/plain" },
+        });
+      }
     })
   );
 
