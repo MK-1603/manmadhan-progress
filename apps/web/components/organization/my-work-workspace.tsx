@@ -5,7 +5,7 @@ import {
   CheckSquare, Loader2, AlertCircle, Clock, FolderKanban,
   Play, CheckCircle2, XCircle, ShieldAlert, ExternalLink, ArrowRight,
   Bell, CheckCheck, RefreshCw, Plus, Calendar, Flag, MessageSquare,
-  ChevronRight, ShieldCheck, Sparkles, Filter
+  ChevronRight, ShieldCheck, Filter
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useSocket } from "@/components/providers/socket-provider";
