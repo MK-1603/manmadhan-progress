@@ -57,6 +57,9 @@ function isDueSoon(deadline: string | null | undefined, status: string) {
 }
 
 export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
+  const normalizedRole = (userRole || "CO-CEO").toUpperCase();
+  const isMember = normalizedRole === "MEMBER";
+
   const { socket } = useSocket();
   const [data, setData] = useState<any>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -273,12 +276,14 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
     dueTodayCount: 0,
     overdueCount: 0,
     completedCount: 0,
+    reviewCount: 0,
   };
   const pendingTaskList: any[] = data?.pendingAcceptance || [];
   const pendingProjectList: any[] = data?.pendingProjectAssignments || [];
   const activeTaskList: any[] = data?.activeWork || [];
   const assignedProjectsList: any[] = data?.assignedProjects || [];
   const completedList: any[] = data?.completed || [];
+  const workRequiringReviewList: any[] = data?.workRequiringReview || [];
 
   // Notification Counts
   const notificationSummary = useMemo(() => {
@@ -361,7 +366,7 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[11px] font-bold text-[#B28D18] dark:text-[#C9A52A] uppercase tracking-wider">
-                CO-CEO WORKSPACE
+                {isMember ? "MEMBER WORKSPACE" : "CO-CEO WORKSPACE"}
               </span>
             </div>
             <h1 className="text-[24px] sm:text-[26px] font-extrabold text-[#17202A] dark:text-[#F2F4F7] tracking-tight flex items-center gap-2.5">
@@ -369,18 +374,22 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
               <span>My Work</span>
             </h1>
             <p className="text-[12px] text-[#667085] dark:text-[#8B95A5] mt-1">
-              Work assigned to you, pending items, and tasks requiring your action.
+              {isMember
+                ? "Your assigned work, execution progress, deadlines, and actions requiring your attention."
+                : "Your assigned work, team execution, reviews, and actions requiring your attention."}
             </p>
           </div>
 
           <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-center">
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-4 h-[40px] rounded-[10px] bg-[#B28D18] hover:bg-[#967412] dark:bg-[#C9A52A] dark:hover:bg-[#B28D18] text-white dark:text-[#0B0D10] text-[12.5px] font-bold shadow-xs transition-colors cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Quick Action</span>
-            </button>
+            {!isMember && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 px-4 h-[40px] rounded-[10px] bg-[#B28D18] hover:bg-[#967412] dark:bg-[#C9A52A] dark:hover:bg-[#B28D18] text-white dark:text-[#0B0D10] text-[12.5px] font-bold shadow-xs transition-colors cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Quick Action</span>
+              </button>
+            )}
 
             <button
               onClick={handleManualRefresh}
@@ -427,7 +436,7 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
                 </button>
               )}
               <Link
-                href="/co-ceo/notifications"
+                href={isMember ? "/member/notifications" : "/co-ceo/notifications"}
                 className="flex items-center gap-1 text-[11.5px] font-bold text-[#B28D18] dark:text-[#C9A52A] hover:underline transition-colors"
               >
                 View all <ChevronRight className="w-3.5 h-3.5" />
@@ -449,10 +458,14 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
             <span>
               <strong className="text-[#17202A] dark:text-[#F2F4F7]">{notificationSummary.deadlines}</strong> Deadlines
             </span>
-            <span>·</span>
-            <span>
-              <strong className="text-[#17202A] dark:text-[#F2F4F7]">{notificationSummary.reviews}</strong> Reviews
-            </span>
+            {!isMember && (
+              <>
+                <span>·</span>
+                <span>
+                  <strong className="text-[#17202A] dark:text-[#F2F4F7]">{notificationSummary.reviews}</strong> Reviews
+                </span>
+              </>
+            )}
           </div>
 
           {/* Real Notifications List */}
@@ -521,7 +534,7 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
         </div>
 
         {/* ── Summary Executive Metric Strip ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className={`grid grid-cols-2 sm:grid-cols-3 ${!isMember ? "lg:grid-cols-6" : "lg:grid-cols-5"} gap-3`}>
           <div className="p-3.5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] shadow-xs">
             <span className="text-[10px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">
               PENDING
@@ -563,6 +576,18 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
               {summary.overdueCount > 0 ? "Requires action" : "All clear"}
             </p>
           </div>
+
+          {!isMember && (
+            <div className="p-3.5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] shadow-xs">
+              <span className="text-[10px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">
+                REVIEWS
+              </span>
+              <p className="text-[26px] font-extrabold text-[#B28D18] dark:text-[#C9A52A] font-mono leading-none mt-1.5">
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (summary.reviewCount || 0)}
+              </p>
+              <p className="text-[11px] text-[#667085] dark:text-[#8B95A5] mt-1 font-medium">Awaiting review</p>
+            </div>
+          )}
 
           <div className="p-3.5 rounded-[14px] bg-[#FFFFFF] dark:bg-[#07090D] border border-[#E5E7EB] dark:border-[#272D36] shadow-xs">
             <span className="text-[10px] font-bold text-[#667085] dark:text-[#8B95A5] uppercase tracking-wider block">
@@ -853,7 +878,7 @@ export function MyWorkWorkspace({ userRole = "CO-CEO" }: MyWorkWorkspaceProps) {
                       </div>
 
                       <Link
-                        href={`/co-ceo/projects/${proj.id}`}
+                        href={isMember ? `/member/projects/${proj.id}` : `/co-ceo/projects/${proj.id}`}
                         className="px-3 py-1.5 rounded-[8px] bg-[#F8F9FA] dark:bg-[#111419] border border-[#E5E7EB] dark:border-[#272D36] text-[11.5px] font-bold text-[#17202A] dark:text-[#F2F4F7] hover:border-[#B28D18] transition-colors flex items-center gap-1 shrink-0"
                       >
                         <span>Open Project</span>

@@ -41,10 +41,6 @@ async function validateAssignmentHierarchy(
 	membership: any,
 	targetAssigneeId: string | null | undefined,
 ): Promise<{ allowed: boolean; reason?: string }> {
-	if (!targetAssigneeId || targetAssigneeId === user?.id) {
-		return { allowed: true };
-	}
-
 	const userGlobalRole = normalizeRole(user?.role);
 	const memberRole = normalizeRole(membership?.role);
 	const normRole =
@@ -54,15 +50,24 @@ async function validateAssignmentHierarchy(
 			? "CO-CEO"
 			: "MEMBER";
 
-	if (normRole === "CEO") {
-		return { allowed: true };
-	}
-
 	if (normRole === "MEMBER") {
 		return {
 			allowed: false,
-			reason: "Members cannot assign organization tasks to other users.",
+			reason: "Members are execution-only users and cannot create or assign organization tasks.",
 		};
+	}
+
+	if (normRole === "CO-CEO") {
+		if (targetAssigneeId && String(targetAssigneeId).trim() === String(user?.id).trim()) {
+			return {
+				allowed: false,
+				reason: "Self-assignment is not allowed for CO-CEOs. Please assign work to a team member.",
+			};
+		}
+	}
+
+	if (!targetAssigneeId || targetAssigneeId === user?.id) {
+		return { allowed: true };
 	}
 
 	if (normRole === "CO-CEO") {
@@ -804,18 +809,16 @@ const createTaskHandler = async (req: Request, res: Response) => {
 			}
 		}
 
-		// Validate assignment RBAC hierarchy
-		if (assigneeId) {
-			const permCheck = await validateAssignmentHierarchy(user, membership, assigneeId);
-			if (!permCheck.allowed) {
-				return res.status(403).json({
-					success: false,
-					error: {
-						code: "TASK_CREATE_FORBIDDEN",
-						message: permCheck.reason || "You do not have permission to assign this task.",
-					},
-				});
-			}
+		// Validate assignment RBAC hierarchy (Unconditional check for Member creation & CO-CEO self-assignment rules)
+		const permCheck = await validateAssignmentHierarchy(user, membership, assigneeId);
+		if (!permCheck.allowed) {
+			return res.status(403).json({
+				success: false,
+				error: {
+					code: "TASK_CREATE_FORBIDDEN",
+					message: permCheck.reason || "You do not have permission to create or assign this task.",
+				},
+			});
 		}
 
 		// Validate milestone cross-project linking rule

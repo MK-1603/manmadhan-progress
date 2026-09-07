@@ -238,6 +238,9 @@ export function TaskCreateModal({
     if (isPersonalWorkspace || role === "MEMBER") return [];
     if (role === "CO-CEO") {
       return members.filter((m: any) => {
+        // Prevent self-assignment for CO-CEO
+        const memberUserId = m.userId || m.id;
+        if (memberUserId && user?.id && String(memberUserId).trim() === String(user.id).trim()) return false;
         const memberRole = String(m.role || m.workspaceRole || "").toUpperCase();
         if (memberRole !== "MEMBER") return false;
         if (m.managerId) return m.managerId === user?.id;
