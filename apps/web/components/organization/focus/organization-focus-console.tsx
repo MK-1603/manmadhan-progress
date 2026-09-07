@@ -14,7 +14,15 @@ import {
   Clock,
   Briefcase,
   Calendar,
-  UserCheck
+  UserCheck,
+  Target,
+  FolderKanban,
+  Flag,
+  BarChart3,
+  PieChart,
+  MoreVertical,
+  Quote,
+  Sparkles
 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 import { useAuth } from "@/components/auth/auth-context";
@@ -75,8 +83,19 @@ export function OrganizationFocusConsole() {
 
   // Derive Batch ID
   const batchId = useMemo(() => {
-    return user?.batchNumber || "MM1107";
+    return user?.batchNumber || "MK1603";
   }, [user?.batchNumber]);
+
+  // Current Date String Formatted
+  const currentDateStr = useMemo(() => {
+    const d = new Date();
+    return d.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    });
+  }, []);
 
   // Fetch Focus Workspace Data via FocusService
   const loadWorkspaceData = useCallback(async (force = false) => {
@@ -307,10 +326,10 @@ export function OrganizationFocusConsole() {
 
   if (loading) {
     return (
-      <div className="h-full w-full min-h-[400px] flex items-center justify-center bg-[#F8F9FA] dark:bg-[#0B0D10]">
+      <div className="h-full w-full min-h-[400px] flex items-center justify-center bg-[#0A0C10]">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-7 h-7 animate-spin text-[#B28D18] dark:text-[#D4B12F]" />
-          <span className="text-xs font-mono text-[#667085] dark:text-[#8B94A3] uppercase tracking-wider">
+          <Loader2 className="w-7 h-7 animate-spin text-[#D4B12F]" />
+          <span className="text-xs font-mono text-[#8A92A6] uppercase tracking-wider">
             Loading Focus Workspace...
           </span>
         </div>
@@ -322,26 +341,46 @@ export function OrganizationFocusConsole() {
   const activeStatusText = activeSession?.status === "Active" ? "FOCUSING" : activeSession?.status === "Paused" ? "PAUSED" : "READY";
   const currentProject = allProjects.find((p) => p.id === selectedTask?.projectId) || activeSession?.project;
 
+  // SVG Circular Progress Ring Calculation
+  const circleRadius = 85;
+  const circumference = 2 * Math.PI * circleRadius; // ~534.07
+  const targetDurationSeconds = activeSession?.estimatedDuration ? activeSession.estimatedDuration * 60 : 3600;
+  const progressRatio = Math.min(1, Math.max(0, (elapsed % targetDurationSeconds) / targetDurationSeconds));
+  const strokeDashoffset = circumference * (1 - progressRatio);
+
+  // Position of indicator dot on circle
+  const angleRad = (progressRatio * 360 - 90) * (Math.PI / 180);
+  const dotX = 110 + circleRadius * Math.cos(angleRad);
+  const dotY = 110 + circleRadius * Math.sin(angleRad);
+
   return (
-    <div className="w-full min-h-full bg-[#F8F9FA] dark:bg-[#0B0D10] text-[#17202A] dark:text-[#F2F3F5] select-none overflow-x-hidden">
-      <div className="max-w-[1280px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-[calc(96px+env(safe-area-inset-bottom,0px))] md:pb-8">
+    <div className="w-full min-h-full bg-[#0A0C10] text-[#FFFFFF] select-none overflow-x-hidden">
+      <div className="max-w-[1280px] w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-[calc(100px+env(safe-area-inset-bottom,0px))] md:pb-10">
         
         {/* 1. FOCUS HEADER */}
-        <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#E5E7EB] dark:border-[#24282E]">
+        <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#1E2330]">
           <div className="space-y-1">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#17202A] dark:text-[#F2F3F5]">
-              FOCUS
+            <p className="text-xs font-mono text-[#8A92A6]">
+              Organization Workspace <span className="text-[#D4B12F]">· {batchId}</span> · CO-CEO
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+              Focus
             </h1>
-            <p className="text-xs font-mono text-[#667085] dark:text-[#8B94A3]">
-              Deep work execution <span className="text-[#B28D18] dark:text-[#D4B12F] font-semibold">· {batchId}</span> · Organization Workspace
+            <p className="text-xs text-[#8A92A6]">
+              Deep work execution for meaningful progress.
             </p>
           </div>
 
-          {/* Real Working Hours Status Indicator */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFFFFF] dark:bg-[#15181D] border border-[#E5E7EB] dark:border-[#24282E] shadow-xs">
+          {/* Header Status Controls */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="hidden sm:flex items-center gap-1.5 text-xs text-[#8A92A6] font-mono bg-[#13161F] px-3 py-1.5 rounded-lg border border-[#212634]">
+              <Calendar className="w-3.5 h-3.5 text-[#8A92A6]" />
+              <span>{currentDateStr}</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#13161F] border border-[#212634]">
               <span className={`w-2 h-2 rounded-full ${isOperational ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
-              <span className="text-[11px] font-mono font-semibold text-[#17202A] dark:text-[#F2F3F5]">
+              <span className="text-[11px] font-mono font-semibold text-white">
                 {isOperational ? "AVAILABLE" : "UNAVAILABLE"}
               </span>
             </div>
@@ -350,82 +389,100 @@ export function OrganizationFocusConsole() {
               type="button"
               onClick={() => loadWorkspaceData(true)}
               disabled={isRefreshing}
-              className="p-2 rounded-lg bg-[#FFFFFF] dark:bg-[#15181D] border border-[#E5E7EB] dark:border-[#24282E] text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5] transition-colors cursor-pointer disabled:opacity-50"
+              className="p-2 rounded-lg bg-[#13161F] border border-[#212634] text-[#8A92A6] hover:text-white transition-colors cursor-pointer disabled:opacity-50"
               title="Refresh Focus Workspace"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-[#B28D18] dark:text-[#D4B12F]" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-[#D4B12F]" : ""}`} />
             </button>
           </div>
         </div>
 
         {/* Notifications */}
         {actionSuccess && (
-          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-medium flex items-center gap-2">
+          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0" /> {actionSuccess}
           </div>
         )}
         {error && (
-          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-medium flex items-center justify-between gap-2">
+          <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
             </div>
-            <button type="button" onClick={() => setError("")} className="text-rose-500 hover:text-foreground cursor-pointer">
+            <button type="button" onClick={() => setError("")} className="text-rose-400 hover:text-white cursor-pointer">
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
-        {/* 2. PRIMARY EXECUTION WORKSPACE (2-COLUMN DESKTOP / STACKED MOBILE) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* 2. PRIMARY EXECUTION WORKSPACE (3-COLUMN TOP GRID ON DESKTOP) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
           
-          {/* LEFT / PRIMARY EXECUTION AREA (65%) */}
-          <div className="lg:col-span-7 xl:col-span-8 space-y-6">
-            
-            {/* CURRENT ASSIGNMENT PANEL */}
-            <div className="p-5 rounded-xl border border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#15181D] shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#667085] dark:text-[#8B94A3]">
-                  CURRENT ASSIGNMENT
+          {/* COLUMN 1: CURRENT WORK PANEL (4 COLS) */}
+          <div className="lg:col-span-4 p-5 rounded-2xl border border-[#212634] bg-[#12151D] shadow-xl flex flex-col justify-between space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-[#1E2330] pb-2.5">
+                <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#8A92A6] flex items-center gap-1.5">
+                  <Target className="w-4 h-4 text-[#D4B12F]" />
+                  CURRENT WORK
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowTaskSelector(true)}
-                  className="text-xs font-semibold text-[#B28D18] dark:text-[#D4B12F] hover:underline cursor-pointer flex items-center gap-1"
+                  className="text-xs font-semibold text-[#D4B12F] hover:underline cursor-pointer flex items-center gap-1"
                 >
                   <span>{selectedTask ? "Change Task →" : "Select Task →"}</span>
                 </button>
               </div>
 
               {selectedTask || activeSession ? (
-                <div className="space-y-2">
-                  <h2 className="text-base sm:text-lg font-bold text-[#17202A] dark:text-[#F2F3F5] line-clamp-1">
-                    {selectedTask?.title || activeSession?.title || "Focus Execution Task"}
-                  </h2>
-                  <p className="text-xs font-mono text-[#B28D18] dark:text-[#D4B12F] font-semibold">
-                    {currentProject?.name || "Organization Workspace"} · {selectedTask?.category || "Task Execution"}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-[#667085] dark:text-[#8B94A3] pt-1">
-                    {selectedTask?.dueDate && (
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" /> Due {new Date(selectedTask.dueDate).toLocaleDateString()}
+                <div className="space-y-3 pt-1">
+                  <div className="space-y-1">
+                    <h2 className="text-lg sm:text-xl font-bold text-white leading-snug line-clamp-2">
+                      {selectedTask?.title || activeSession?.title || "Focus Execution Task"}
+                    </h2>
+                    <p className="text-xs text-[#8A92A6] line-clamp-2">
+                      {selectedTask?.description || "Connect third-party APIs for data sync & workflow automation."}
+                    </p>
+                  </div>
+
+                  {/* Project & Status Badges */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#1C212D] text-[11px] font-mono text-[#8A92A6]">
+                      <FolderKanban className="w-3.5 h-3.5 text-[#D4B12F]" />
+                      <span className="font-medium text-white truncate max-w-[130px]">
+                        {currentProject?.name || "Platform Development"}
                       </span>
-                    )}
-                    {selectedTask?.priority && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-[#F3F4F6] dark:bg-[#20252C] uppercase">
-                        {selectedTask.priority} Priority
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                      <UserCheck className="w-3.5 h-3.5" /> Assigned to you
+                    </div>
+
+                    <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-bold uppercase bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                      {selectedTask?.status || "In Progress"}
                     </span>
+                  </div>
+
+                  {/* Date & Priority Metadata Grid */}
+                  <div className="grid grid-cols-2 gap-2 text-xs text-[#8A92A6] font-mono pt-2 border-t border-[#1E2330]">
+                    <div>
+                      <span className="text-[10px] uppercase text-[#626A7E] block">Due Date</span>
+                      <span className="text-white font-medium flex items-center gap-1 mt-0.5">
+                        <Calendar className="w-3.5 h-3.5 text-[#8A92A6]" />
+                        {selectedTask?.dueDate ? new Date(selectedTask.dueDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Dec 20, 2024"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase text-[#626A7E] block">Priority</span>
+                      <span className="text-amber-400 font-medium flex items-center gap-1 mt-0.5">
+                        <Flag className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
+                        {selectedTask?.priority || "High"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div className="py-4 text-center space-y-1.5 min-h-[90px] flex flex-col items-center justify-center">
-                  <p className="text-xs font-semibold text-[#17202A] dark:text-[#F2F3F5]">
+                <div className="py-8 text-center space-y-2 flex flex-col items-center justify-center">
+                  <p className="text-xs font-semibold text-white">
                     {allTasks.length === 0 ? "No assigned tasks available for focus." : "No task selected"}
                   </p>
-                  <p className="text-xs text-[#667085] dark:text-[#8B94A3]">
+                  <p className="text-xs text-[#8A92A6] max-w-xs">
                     {allTasks.length === 0
                       ? "Check your work queue or request task assignments from your organization CEO."
                       : "Choose an assigned organization task to begin focused execution."}
@@ -434,164 +491,300 @@ export function OrganizationFocusConsole() {
               )}
             </div>
 
-            {/* TIMER & PRIMARY CONTROLS PANEL */}
-            <div className="flex flex-col items-center justify-center text-center p-6 sm:p-8 bg-[#FFFFFF] dark:bg-[#15181D] rounded-xl border border-[#E5E7EB] dark:border-[#24282E] shadow-xs space-y-4">
-              <div className="text-5xl sm:text-7xl xl:text-8xl font-bold font-mono text-[#17202A] dark:text-[#F2F3F5] tracking-tight tabular-nums select-all">
-                {formatDigitalTimer(elapsed)}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${
-                  activeStatusText === "FOCUSING" ? "bg-[#B28D18] dark:bg-[#D4B12F] animate-pulse" : activeStatusText === "PAUSED" ? "bg-amber-500" : "bg-[#9AA2AF]"
-                }`} />
-                <span className="text-xs font-mono font-bold tracking-widest uppercase text-[#667085] dark:text-[#8B94A3]">
-                  {activeStatusText === "FOCUSING" ? "FOCUSING" : activeStatusText === "PAUSED" ? "PAUSED" : "READY"}
-                </span>
-              </div>
-
-              {/* PRIMARY CONTROLS */}
-              <div className="w-full max-w-md pt-2 flex items-center justify-center gap-3">
-                {activeStatusText === "READY" && (
-                  <button
-                    type="button"
-                    onClick={() => handleStartFocus()}
-                    disabled={actionLoading || !isOperational || !selectedTask}
-                    className="w-full h-12 rounded-xl bg-[#B28D18] dark:bg-[#D4B12F] text-black font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-40"
-                  >
-                    {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
-                    <span>▶ Start Focus</span>
-                  </button>
-                )}
-
-                {activeStatusText === "FOCUSING" && (
-                  <div className="w-full flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowPauseModal(true)}
-                      disabled={actionLoading}
-                      className="flex-1 h-12 rounded-xl bg-[#F3F4F6] dark:bg-[#20252C] text-[#17202A] dark:text-[#F2F3F5] border border-[#E5E7EB] dark:border-[#24282E] hover:bg-[#E5E7EB] dark:hover:bg-[#2A3038] text-xs font-semibold transition-all cursor-pointer"
-                    >
-                      Pause
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowEndModal(true)}
-                      disabled={actionLoading}
-                      className="flex-1 h-12 rounded-xl bg-emerald-600 dark:bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-700 transition-all cursor-pointer shadow-xs"
-                    >
-                      Finish Session
-                    </button>
-                  </div>
-                )}
-
-                {activeStatusText === "PAUSED" && (
-                  <div className="w-full flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={handleResumeFocus}
-                      disabled={actionLoading || !isOperational}
-                      className="flex-1 h-12 rounded-xl bg-[#B28D18] dark:bg-[#D4B12F] text-black text-xs font-semibold hover:brightness-105 transition-all cursor-pointer"
-                    >
-                      Resume
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowEndModal(true)}
-                      disabled={actionLoading}
-                      className="flex-1 h-12 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-xs font-semibold transition-all cursor-pointer"
-                    >
-                      Finish Session
-                    </button>
-                  </div>
-                )}
-              </div>
+            {/* Assigned to User Footer */}
+            <div className="pt-3 border-t border-[#1E2330] flex items-center justify-between text-xs text-emerald-400 font-medium">
+              <span className="flex items-center gap-1.5">
+                <UserCheck className="w-4 h-4" /> Assigned to you
+              </span>
+              {!selectedTask && (
+                <button
+                  type="button"
+                  onClick={() => setShowTaskSelector(true)}
+                  className="text-xs font-bold text-[#D4B12F] hover:underline"
+                >
+                  Select Task
+                </button>
+              )}
             </div>
           </div>
 
-          {/* RIGHT / SECONDARY RECENT TIMING AREA (35%) */}
-          <div className="lg:col-span-5 xl:col-span-4 p-5 rounded-xl border border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#15181D] shadow-xs space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-[#E5E7EB] dark:border-[#24282E]">
-              <div className="space-y-0.5">
-                <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#667085] dark:text-[#8B94A3] flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-[#B28D18] dark:text-[#D4B12F]" />
-                  RECENT TIMING
+          {/* COLUMN 2: CENTERPIECE CIRCULAR FOCUS TIMER (4 COLS) */}
+          <div className="lg:col-span-4 p-6 rounded-2xl border border-[#212634] bg-[#12151D] shadow-xl flex flex-col items-center justify-center text-center space-y-5 relative overflow-hidden">
+            
+            {/* SVG Circular Progress Ring Container */}
+            <div className="relative w-[210px] h-[210px] sm:w-[220px] sm:h-[220px] flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 220 220">
+                {/* Background Ring Track */}
+                <circle
+                  cx="110"
+                  cy="110"
+                  r={circleRadius}
+                  stroke="#1C212E"
+                  strokeWidth="8"
+                  fill="none"
+                />
+                {/* Active Progress Arc */}
+                <circle
+                  cx="110"
+                  cy="110"
+                  r={circleRadius}
+                  stroke="#D4B12F"
+                  strokeWidth="8"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  className="transition-all duration-1000 ease-linear"
+                />
+                {/* Glowing Gold Progress Indicator Dot */}
+                {activeStatusText === "FOCUSING" && (
+                  <circle
+                    cx={dotX}
+                    cy={dotY}
+                    r="6.5"
+                    fill="#D4B12F"
+                    className="drop-shadow-[0_0_8px_rgba(212,177,47,0.9)] transition-all duration-1000 ease-linear"
+                  />
+                )}
+              </svg>
+
+              {/* Inside Ring Centered Content */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center space-y-1 p-2">
+                <Target className="w-5 h-5 text-[#D4B12F] stroke-[2.2]" />
+                
+                <span className="text-[10px] font-mono font-extrabold tracking-widest uppercase text-[#D4B12F]">
+                  {activeStatusText}
                 </span>
-                <span className="text-[10px] font-mono text-[#667085] dark:text-[#8B94A3] block">TODAY</span>
+
+                <div className="text-4xl sm:text-5xl font-bold font-mono text-white tracking-tight tabular-nums select-all">
+                  {formatDigitalTimer(elapsed)}
+                </div>
+
+                <span className="text-[11px] text-[#8A92A6] font-medium">
+                  {activeStatusText === "FOCUSING" ? "Stay focused. Keep going." : activeStatusText === "PAUSED" ? "Session paused." : "Ready to execute."}
+                </span>
               </div>
+            </div>
+
+            {/* DUAL ACTION BUTTONS BAR */}
+            <div className="w-full max-w-xs pt-1 flex items-center justify-center gap-3">
+              {activeStatusText === "READY" && (
+                <button
+                  type="button"
+                  onClick={() => handleStartFocus()}
+                  disabled={actionLoading || !isOperational || !selectedTask}
+                  className="w-full h-11 rounded-xl bg-[#D4B12F] text-black font-bold text-xs hover:brightness-105 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-40"
+                >
+                  {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+                  <span>Start Focus</span>
+                </button>
+              )}
+
+              {activeStatusText === "FOCUSING" && (
+                <div className="w-full flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowPauseModal(true)}
+                    disabled={actionLoading}
+                    className="flex-1 h-11 rounded-xl bg-[#1A1F2B] border border-[#D4B12F]/40 text-white text-xs font-semibold hover:bg-[#222836] transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Pause className="w-4 h-4 text-[#D4B12F]" />
+                    <span>Pause</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowEndModal(true)}
+                    disabled={actionLoading}
+                    className="flex-1 h-11 rounded-xl bg-[#2A171A] border border-rose-500/40 text-rose-400 text-xs font-semibold hover:bg-[#381C20] transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                    <span>End Session</span>
+                  </button>
+                </div>
+              )}
+
+              {activeStatusText === "PAUSED" && (
+                <div className="w-full flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleResumeFocus}
+                    disabled={actionLoading || !isOperational}
+                    className="flex-1 h-11 rounded-xl bg-[#D4B12F] text-black text-xs font-bold hover:brightness-105 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>Resume</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowEndModal(true)}
+                    disabled={actionLoading}
+                    className="flex-1 h-11 rounded-xl bg-[#2A171A] border border-rose-500/40 text-rose-400 text-xs font-semibold hover:bg-[#381C20] transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                    <span>End</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* COLUMN 3: TODAY'S PROGRESS PANEL (4 COLS) */}
+          <div className="lg:col-span-4 p-5 rounded-2xl border border-[#212634] bg-[#12151D] shadow-xl flex flex-col justify-between space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-[#1E2330] pb-2.5">
+                <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#8A92A6] flex items-center gap-1.5">
+                  <BarChart3 className="w-4 h-4 text-[#D4B12F]" />
+                  TODAY'S PROGRESS
+                </span>
+              </div>
+
+              {/* Stack of 3 Metric Items */}
+              <div className="space-y-2.5 pt-1">
+                {/* 1. Focus Time Metric */}
+                <div className="p-3 rounded-xl bg-[#181D28] border border-[#232938] flex items-center gap-3.5">
+                  <div className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400 shrink-0">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xl sm:text-2xl font-bold font-mono text-white block leading-tight">
+                      {formatShortDuration(overview?.totalFocusedSeconds || 0)}
+                    </span>
+                    <span className="text-[10px] font-mono text-[#8A92A6] uppercase block mt-0.5">
+                      Focus Time
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. Sessions Metric */}
+                <div className="p-3 rounded-xl bg-[#181D28] border border-[#232938] flex items-center gap-3.5">
+                  <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-400 shrink-0">
+                    <PieChart className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xl sm:text-2xl font-bold font-mono text-white block leading-tight">
+                      {overview?.totalSessionsCount || 0}
+                    </span>
+                    <span className="text-[10px] font-mono text-[#8A92A6] uppercase block mt-0.5">
+                      Sessions
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Tasks Done Metric */}
+                <div className="p-3 rounded-xl bg-[#181D28] border border-[#232938] flex items-center gap-3.5">
+                  <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-xl sm:text-2xl font-bold font-mono text-white block leading-tight">
+                      {overview?.completedCount || 0}
+                    </span>
+                    <span className="text-[10px] font-mono text-[#8A92A6] uppercase block mt-0.5">
+                      Tasks Done
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* View History Link Footer */}
+            <div className="pt-3 border-t border-[#1E2330] flex items-center justify-end">
               <button
                 type="button"
                 onClick={() => setShowHistoryDrawer(true)}
-                className="text-xs font-semibold text-[#B28D18] dark:text-[#D4B12F] hover:underline cursor-pointer flex items-center gap-0.5"
+                className="text-xs font-bold text-[#D4B12F] hover:underline cursor-pointer flex items-center gap-1"
               >
                 <span>View history →</span>
               </button>
             </div>
-
-            {history.length > 0 ? (
-              <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
-                {history.slice(0, 6).map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-lg border border-[#E5E7EB] dark:border-[#24282E] bg-[#F8F9FA] dark:bg-[#1C2027] flex items-center justify-between text-xs font-mono"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="text-[#667085] dark:text-[#8B94A3] text-[11px] shrink-0 font-medium">
-                        {new Date(item.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                      <span className="font-semibold text-[#17202A] dark:text-[#F2F3F5] truncate">
-                        {item.displayTitle}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-2">
-                      <span className="text-[#B28D18] dark:text-[#D4B12F] font-bold">
-                        {formatShortDuration(item.durationSeconds)}
-                      </span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#E5E7EB] dark:bg-[#2A3038] text-[#667085] dark:text-[#8B94A3]">
-                        {item.status || "Completed"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-6 text-center text-xs text-[#667085] dark:text-[#8B94A3] space-y-1">
-                <p className="font-medium">No focus sessions recorded today.</p>
-                <p className="text-[11px]">Start a focus session to record execution time.</p>
-              </div>
-            )}
           </div>
+
         </div>
 
-        {/* 3. TODAY'S EXECUTION SUMMARY STRIP */}
-        <div className="p-4 rounded-xl border border-[#E5E7EB] dark:border-[#24282E] bg-[#FFFFFF] dark:bg-[#15181D] shadow-xs">
-          <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#667085] dark:text-[#8B94A3] mb-3">
-            TODAY
+        {/* 3. RECENT SESSIONS DATA TABLE PANEL */}
+        <div className="p-5 rounded-2xl border border-[#212634] bg-[#12151D] shadow-xl space-y-4">
+          <div className="flex items-center justify-between border-b border-[#1E2330] pb-3">
+            <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#8A92A6] flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-[#D4B12F]" />
+              RECENT SESSIONS
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowHistoryDrawer(true)}
+              className="text-xs font-bold text-[#D4B12F] hover:underline cursor-pointer flex items-center gap-1"
+            >
+              <span>View all →</span>
+            </button>
           </div>
-          <div className="grid grid-cols-3 gap-4 text-center divide-x divide-[#E5E7EB] dark:divide-[#24282E]">
-            <div>
-              <span className="text-base sm:text-lg font-bold font-mono text-[#B28D18] dark:text-[#D4B12F] block">
-                {formatShortDuration(overview?.totalFocusedSeconds || 0)}
-              </span>
-              <span className="text-[10px] font-mono text-[#667085] dark:text-[#8B94A3] uppercase font-semibold block mt-0.5">
-                Focus Time
-              </span>
+
+          {history.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono border-collapse">
+                <thead>
+                  <tr className="border-b border-[#1E2330] text-[#626A7E] text-[10px] uppercase font-semibold">
+                    <th className="py-2.5 px-3">Task</th>
+                    <th className="py-2.5 px-3">Project</th>
+                    <th className="py-2.5 px-3">Duration</th>
+                    <th className="py-2.5 px-3">Started At</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#1E2330]">
+                  {history.slice(0, 5).map((item, idx) => (
+                    <tr key={idx} className="hover:bg-[#181D28] transition-colors">
+                      <td className="py-3 px-3 font-semibold text-white truncate max-w-[200px]">
+                        {item.displayTitle}
+                      </td>
+                      <td className="py-3 px-3 text-[#8A92A6]">
+                        {item.projectName || "Platform Development"}
+                      </td>
+                      <td className="py-3 px-3 font-bold text-[#D4B12F]">
+                        {formatShortDuration(item.durationSeconds)}
+                      </td>
+                      <td className="py-3 px-3 text-[#8A92A6]">
+                        {item.startTime ? new Date(item.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "10:14 AM"}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          {item.status || "Completed"}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <button type="button" className="p-1 rounded text-[#8A92A6] hover:text-white cursor-pointer">
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div>
-              <span className="text-base sm:text-lg font-bold font-mono text-[#17202A] dark:text-[#F2F3F5] block">
-                {overview?.totalSessionsCount || 0}
-              </span>
-              <span className="text-[10px] font-mono text-[#667085] dark:text-[#8B94A3] uppercase font-semibold block mt-0.5">
-                Sessions
-              </span>
+          ) : (
+            <div className="py-8 text-center text-xs text-[#8A92A6] space-y-1">
+              <p className="font-semibold text-white">No focus sessions recorded today.</p>
+              <p className="text-[11px]">Start a focus session to record execution time.</p>
             </div>
+          )}
+        </div>
+
+        {/* 4. MOTIVATION QUOTE BANNER */}
+        <div className="p-5 rounded-2xl border border-[#212634] bg-[#12151D] shadow-xl relative overflow-hidden flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 z-10">
+            <Quote className="w-7 h-7 text-[#D4B12F] shrink-0 fill-[#D4B12F]/10 stroke-[1.8]" />
             <div>
-              <span className="text-base sm:text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400 block">
-                {overview?.completedCount || 0}
-              </span>
-              <span className="text-[10px] font-mono text-[#667085] dark:text-[#8B94A3] uppercase font-semibold block mt-0.5">
-                Tasks Done
-              </span>
+              <p className="text-xs sm:text-sm font-semibold text-white tracking-wide italic">
+                "Discipline today builds the progress you want tomorrow."
+              </p>
+              <p className="text-[11px] font-mono text-[#D4B12F] font-bold mt-0.5">
+                — ManMadhan
+              </p>
             </div>
+          </div>
+
+          <div className="hidden sm:flex items-center gap-2 text-[#D4B12F]/30 shrink-0 z-10">
+            <Sparkles className="w-6 h-6 animate-pulse" />
           </div>
         </div>
 
@@ -610,19 +803,19 @@ export function OrganizationFocusConsole() {
 
       {/* PAUSE MODAL */}
       {showPauseModal && (
-        <div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#FFFFFF] dark:bg-[#15181D] border border-[#E5E7EB] dark:border-[#24282E] rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-[#E5E7EB] dark:border-[#24282E] pb-3">
-              <h3 className="text-xs font-bold text-[#17202A] dark:text-[#F2F3F5] uppercase tracking-wider">
+        <div className="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#12151D] border border-[#212634] rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[#1E2330] pb-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider">
                 Pause Focus Session
               </h3>
-              <button type="button" onClick={() => setShowPauseModal(false)} className="text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5] cursor-pointer">
+              <button type="button" onClick={() => setShowPauseModal(false)} className="text-[#8A92A6] hover:text-white cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="space-y-3 text-xs">
-              <p className="text-[#667085] dark:text-[#8B94A3]">
+              <p className="text-[#8A92A6]">
                 Select an optional reason for pausing your active focus session:
               </p>
 
@@ -634,8 +827,8 @@ export function OrganizationFocusConsole() {
                     onClick={() => setPauseReason(reason)}
                     className={`p-3 rounded-xl border text-xs font-semibold transition-all text-center cursor-pointer ${
                       pauseReason === reason
-                        ? "bg-[#B28D18]/15 dark:bg-[#D4B12F]/15 text-[#B28D18] dark:text-[#D4B12F] border-[#B28D18]/40 dark:border-[#D4B12F]/40"
-                        : "bg-[#F3F4F6] dark:bg-[#20252C] text-[#667085] dark:text-[#8B94A3] border-[#E5E7EB] dark:border-[#24282E] hover:text-[#17202A] dark:hover:text-[#F2F3F5]"
+                        ? "bg-[#D4B12F]/15 text-[#D4B12F] border-[#D4B12F]/40"
+                        : "bg-[#181D28] text-[#8A92A6] border-[#232938] hover:text-white"
                     }`}
                   >
                     {reason}
@@ -644,18 +837,18 @@ export function OrganizationFocusConsole() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E5E7EB] dark:border-[#24282E]">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#1E2330]">
               <button
                 type="button"
                 onClick={() => setShowPauseModal(false)}
-                className="px-4 py-2 rounded-lg bg-[#F3F4F6] dark:bg-[#20252C] border border-[#E5E7EB] dark:border-[#24282E] text-xs font-semibold text-[#667085] dark:text-[#8B94A3] hover:text-[#17202A] dark:hover:text-[#F2F3F5] cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-[#181D28] border border-[#232938] text-xs font-semibold text-[#8A92A6] hover:text-white cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handlePauseFocus}
-                className="px-4 py-2 rounded-lg bg-[#B28D18] dark:bg-[#D4B12F] text-black text-xs font-semibold hover:brightness-105 cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-[#D4B12F] text-black text-xs font-bold hover:brightness-105 cursor-pointer"
               >
                 Confirm Pause
               </button>
