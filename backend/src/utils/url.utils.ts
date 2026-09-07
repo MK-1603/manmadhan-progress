@@ -23,7 +23,12 @@ export function normalizeBase(base: string): string {
  * Falls back to localhost:3000 in development.
  */
 export function getClientBase(): string {
-	return normalizeBase(process.env.CLIENT_URL || "http://localhost:3000");
+	const url =
+		process.env.FRONTEND_URL ||
+		process.env.NEXT_PUBLIC_APP_URL ||
+		process.env.CLIENT_URL ||
+		"http://localhost:3000";
+	return normalizeBase(url);
 }
 
 /**

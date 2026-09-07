@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { useRouter, useParams } from "next/navigation";
-import { Loader2, Check, ArrowRight, ArrowLeft, Shield, Building, Clock, CheckCircle2, User, Search, ChevronDown, Eye, EyeOff, Edit2, X, Sun, Moon, UserCheck } from "lucide-react";
+import { Loader2, Check, ArrowRight, ArrowLeft, Shield, Building, Clock, CheckCircle2, User, Search, ChevronDown, Eye, EyeOff, Edit2, X, Sun, Moon, UserCheck, AlertTriangle, LogOut } from "lucide-react";
 import apiClient from "../../../lib/api-client";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useTheme } from "next-themes";
 import { ThemeToggle } from "../../../components/theme-toggle";
+import { useAuth } from "../../../components/auth/auth-context";
 
 // Custom Timezone Dropdown supporting Light/Dark Themes & Upward Floating Overlay
 function CleanTimezoneDropdown({ value, onChange }: { value: string; onChange: (val: string) => void }) {
@@ -186,6 +187,7 @@ export default function InvitePage() {
   const router = useRouter();
   const params = useParams();
   const token = params.token as string;
+  const { user, logout } = useAuth();
   const shouldReduceMotion = useReducedMotion();
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -220,6 +222,14 @@ export default function InvitePage() {
   const [invitation, setInvitation] = useState<any>(null);
   const [validating, setValidating] = useState(true);
   const [assignedRole, setAssignedRole] = useState("MEMBER");
+
+  const isEmailMismatch = Boolean(
+    user &&
+    invitation &&
+    invitation.email &&
+    user.email &&
+    user.email.toLowerCase().trim() !== invitation.email.toLowerCase().trim()
+  );
 
   // Validate Invitation Token on Mount
   useEffect(() => {
@@ -595,6 +605,36 @@ export default function InvitePage() {
                         Accept your invitation to begin account setup.
                       </motion.p>
                     </motion.div>
+
+                    {isEmailMismatch && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`mt-4 p-4 rounded-xl border space-y-2 text-xs text-left ${
+                          isLight
+                            ? "bg-amber-500/10 border-amber-500/30 text-amber-900"
+                            : "bg-amber-500/15 border-amber-500/35 text-amber-200"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+                          <span>Account Mismatch Warning</span>
+                        </div>
+                        <p className="leading-relaxed">
+                          You are currently signed in as <strong className="font-mono">{user?.email}</strong>, but this invitation was created specifically for <strong className="font-mono">{invitation?.email}</strong>.
+                        </p>
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => logout()}
+                            className="h-8 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-black font-semibold text-xs flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                          >
+                            <LogOut className="w-3.5 h-3.5" />
+                            <span>Sign Out & Accept as {invitation?.email}</span>
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
 
                     {/* Sequential Staggered 3D Information Rows */}
                     <div className="space-y-3 mt-5">
