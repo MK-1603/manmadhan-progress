@@ -23,6 +23,8 @@ export type ActiveWorkspace = {
 
 function getPageTitle(pathname: string): string {
   if (pathname.match(/\/(ceo|co-ceo|member)\/dashboard/)) return "Home";
+  if (pathname.match(/\/(co-ceo|member)\/my-work/)) return "My Work";
+  if (pathname.includes("/my-work")) return "My Work";
   if (pathname.match(/\/(ceo|co-ceo|member)\/focus/)) return "Focus";
   if (pathname.match(/\/(ceo|co-ceo|member)\/projects/)) return "Projects";
   if (pathname.match(/\/(ceo|co-ceo|member)\/tasks/)) return "Tasks";

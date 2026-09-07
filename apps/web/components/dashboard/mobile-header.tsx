@@ -66,6 +66,7 @@ export function MobileHeader({
   const getPageTitle = () => {
     if (pageTitle) return pageTitle === "Dashboard" ? "Home" : pageTitle;
     if (!pathname) return "Home";
+    if (pathname.includes("/my-work")) return "My Work";
     if (pathname.includes("/dashboard")) return "Home";
     if (pathname.includes("/focus")) return "Focus";
     if (pathname.includes("/projects")) return "Projects";
